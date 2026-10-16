@@ -8,6 +8,7 @@ from typing import Any
 import fitz
 
 from core.editing.edit_model import EditableDocument
+from core.editing.image_box import SAFE_IMAGE_FORMATS
 from core.editing.font_resolver import resolve_font
 from core.editing.text_box import TextAlign, VAlign
 from core.editing.text_layout import layout_text_box
@@ -248,26 +249,42 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
                 path = Path(img.source_path)
                 if not path.is_file():
                     continue
-                # Optional crop via pixmap
+                # Opacity, crop or a turn: render the picture with Pillow, then place the result
                 opacity = max(0.0, min(1.0, float(getattr(img, "opacity", 1.0))))
-                if opacity < 0.999 or any(c != v for c, v in zip(img.crop, (0.0, 0.0, 1.0, 1.0))):
+                angle = float(getattr(img, "rotation", 0.0)) % 360.0
+                turned = min(angle, 360.0 - angle) > 0.01
+                if opacity < 0.999 or turned or any(c != v for c, v in zip(img.crop, (0.0, 0.0, 1.0, 1.0))):
                     from PIL import Image
                     import io
 
-                    pil = Image.open(path.as_posix()).convert("RGBA")
+                    # Everyday raster formats only: Pillow's rarely used decoders are never run on a user file
+                    pil = Image.open(path.as_posix(), formats=SAFE_IMAGE_FORMATS).convert("RGBA")
                     w, h = pil.size
                     l, t, r, b = img.crop
                     pil = pil.crop((int(l * w), int(t * h), int(r * w), int(b * h)))
-                    if abs(float(img.rotation)) > 0.01:
-                        pil = pil.rotate(-float(img.rotation), expand=True)
+                    target = rect
+                    if turned:
+                        # Same as the canvas: stretch the picture to its box, then turn it about the
+                        # box centre. The turned picture is larger than the box, so the rectangle it
+                        # is placed in grows around the same centre and nothing is squeezed or cut.
+                        k = max(0.5, min(8.0, pil.width / max(rect.width, 1.0)))
+                        k = min(k, 4000.0 / max(rect.width, rect.height, 1.0))
+                        pil = pil.resize(
+                            (max(1, round(rect.width * k)), max(1, round(rect.height * k))), Image.Resampling.BICUBIC
+                        )
+                        pil = pil.rotate(-angle, expand=True, resample=Image.Resampling.BICUBIC)
+                        cx, cy = (rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2
+                        target = fitz.Rect(
+                            cx - pil.width / k / 2, cy - pil.height / k / 2, cx + pil.width / k / 2, cy + pil.height / k / 2
+                        )
                     if opacity < 0.999:
                         alpha = pil.split()[-1].point(lambda p: int(p * opacity))
                         pil.putalpha(alpha)
                     buf = io.BytesIO()
                     pil.save(buf, format="PNG")
-                    page.insert_image(rect, stream=buf.getvalue())
+                    page.insert_image(target, stream=buf.getvalue())
                 else:
-                    page.insert_image(rect, filename=path.as_posix(), rotate=float(img.rotation))
+                    page.insert_image(rect, filename=path.as_posix())
             except Exception:  # noqa: BLE001
                 continue
 

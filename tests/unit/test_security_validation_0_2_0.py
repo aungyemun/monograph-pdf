@@ -40,3 +40,59 @@ def test_printer_name_with_a_quote_is_not_passed_to_rundll32():
     text = (ROOT / "ui" / "print_dialog.py").read_text(encoding="utf-8")
     guard = text.index("""if '"' in info.printerName():""")
     assert guard < text.index("proc.setNativeArguments(")
+
+
+def _blank_pdf(path: Path) -> None:
+    import fitz
+
+    d = fitz.open()
+    d.new_page(width=200, height=200)
+    d.save(path)
+    d.close()
+
+
+def test_saving_a_placed_picture_uses_only_the_safe_decoders(tmp_path, monkeypatch):
+    """The save step opens a placed picture (with opacity / crop / rotation) with the safe formats only."""
+    from core.document import open_document
+    from core.editing.edit_model import EditableDocument
+    from engines.bake_edits import bake_into_document
+
+    pdf_path = tmp_path / "base.pdf"
+    _blank_pdf(pdf_path)
+    png = tmp_path / "pic.png"
+    Image.new("RGB", (8, 8), "red").save(png)
+
+    opened = []
+    real_open = Image.open
+
+    def spy(*args, **kwargs):
+        opened.append(kwargs.get("formats"))
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(Image, "open", spy)
+    pdf = open_document(pdf_path)
+    model = EditableDocument(pdf)
+    model.add_image(ImageBox(page_index=0, rect=Rect(10, 10, 60, 60), source_path=str(png), opacity=0.5))
+    out = tmp_path / "out.pdf"
+    bake_into_document(model, out)
+    pdf.close()
+    assert out.is_file()
+    assert opened and all(f == SAFE_IMAGE_FORMATS for f in opened), opened
+
+
+def test_saving_a_renamed_psd_picture_does_not_decode_it(tmp_path):
+    from core.document import open_document
+    from core.editing.edit_model import EditableDocument
+    from engines.bake_edits import bake_into_document
+
+    pdf_path = tmp_path / "base.pdf"
+    _blank_pdf(pdf_path)
+    fake = tmp_path / "evil.png"
+    fake.write_bytes(b"8BPS\x00\x01" + bytes(64))  # a PSD header carrying a picture extension
+    pdf = open_document(pdf_path)
+    model = EditableDocument(pdf)
+    model.add_image(ImageBox(page_index=0, rect=Rect(10, 10, 60, 60), source_path=str(fake), opacity=0.5))
+    out = tmp_path / "out.pdf"
+    bake_into_document(model, out)  # must finish without decoding the PSD and without crashing
+    pdf.close()
+    assert out.is_file()

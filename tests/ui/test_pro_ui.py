@@ -1146,7 +1146,8 @@ def test_field_can_be_deselected(form_window, qtbot):
     click(wr.center())
     click(QPoint(page.right() + 6, page.top() + 40))  # grey area beside the page
     assert not w._edit.field_selection and c.field_editor is None  # noqa: SLF001
-    assert w.act_rotate_cw in w._context_bar.actions()  # noqa: SLF001 — back to the page tools
+    # the toolbar refresh is debounced by a 40 ms timer: wait for it instead of relying on a fixed delay
+    qtbot.waitUntil(lambda: w.act_rotate_cw in w._context_bar.actions(), timeout=3000)  # noqa: SLF001  back to the page tools
 
 
 def test_properties_panel_close_button(form_window, qtbot):
