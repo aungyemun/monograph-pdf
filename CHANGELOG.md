@@ -58,7 +58,7 @@ These describe behaviour kept only so that machines that ran an earlier internal
 
 Details:
 
-- Program `MonographPDF.exe` (PE version resource: Monograph PDF / MonographPDF / MonographPDF.exe, © 2026–Present Aung Ye Mun), built into `dist\MonographPDF\`; release files `MonographPDF_<version>_Setup.exe`, `MonographPDF_<version>_Installer.zip` and `MonographPDF_<version>_Source.zip` (source folder `monograph-pdf/`). `SHA256SUMS.txt` lists `MonographPDF.exe`.
+- Program `MonographPDF.exe` (PE version resource: Monograph PDF / MonographPDF / MonographPDF.exe, © 2026 Aung Ye Mun), built into `dist\MonographPDF\`; release files `MonographPDF_<version>_Setup.exe`, `MonographPDF_<version>_Installer.zip` and `MonographPDF_<version>_Source.zip` (source folder `monograph-pdf/`). `SHA256SUMS.txt` lists `MonographPDF.exe`.
 - New logo (open book with “M”, PDF page and pen) from `resources/icons/source/Monograph_PDF_logo.png`; `scripts/generate_branding_icons.py` makes `monograph_pdf.ico` (16–256 px), the window, taskbar, Start page and About icons and the Setup wizard images from it. The PDF Editor logo is no longer an application resource.
 - Default folders `C:\Program Files\Monograph PDF` / `%LOCALAPPDATA%\Programs\Monograph PDF`; data in `%APPDATA%\Monograph PDF` and `%LOCALAPPDATA%\Monograph PDF`; Start menu folder **Monograph PDF** with **Monograph PDF** and **Monograph PDF User Guide**.
 - Windows registration uses `MonographPDF.exe`, ProgIDs `MonographPDF.Document` / `MonographPDF.Convertible` and the Default apps name **Monograph PDF**; Setup still never makes itself the default PDF app. Help menu: **Make Monograph PDF the Default PDF App…**.

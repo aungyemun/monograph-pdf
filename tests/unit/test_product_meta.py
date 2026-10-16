@@ -42,7 +42,7 @@ def test_canonical_identity_strings():
     assert DATA_FOLDER_NAME == "Monograph PDF"
     assert COPYRIGHT_OWNER == "Aung Ye Mun"
     assert COPYRIGHT_START_YEAR == 2026
-    assert COPYRIGHT_DISPLAY == "© 2026–Present Aung Ye Mun"
+    assert COPYRIGHT_DISPLAY == "© 2026 Aung Ye Mun"
     assert PRODUCT_LICENSE == "AGPL-3.0-or-later"
     assert PRODUCT_DESCRIPTION.startswith("Monograph PDF is an offline, privacy-first desktop application")
 
@@ -73,7 +73,7 @@ def test_pe_version_resource_strings():
         "FileDescription": "Monograph PDF",
         "FileVersion": v,
         "InternalName": "MonographPDF",
-        "LegalCopyright": "© 2026–Present Aung Ye Mun",
+        "LegalCopyright": "© 2026 Aung Ye Mun",
         "OriginalFilename": "MonographPDF.exe",
         "ProductName": "Monograph PDF",
         "ProductVersion": v,

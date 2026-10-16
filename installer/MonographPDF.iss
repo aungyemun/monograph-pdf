@@ -46,14 +46,14 @@ AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
 AppContact={#AppContact}
-AppCopyright=© 2026–Present {#AppPublisher}
+AppCopyright=© 2026 {#AppPublisher}
 AppComments=Offline, privacy-first PDF editor: view, edit, convert, protect and sign PDF documents.
 VersionInfoVersion={#AppVersion}.0
 VersionInfoProductName={#AppName}
 VersionInfoProductVersion={#AppVersion}
 VersionInfoDescription={#AppName} Setup
 VersionInfoCompany={#AppPublisher}
-VersionInfoCopyright=© 2026–Present {#AppPublisher}
+VersionInfoCopyright=© 2026 {#AppPublisher}
 
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}

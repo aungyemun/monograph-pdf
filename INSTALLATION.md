@@ -160,4 +160,4 @@ Source setup, tests, release builds and packaging are documented in [Build and R
 
 ## License
 
-© 2026–Present Aung Ye Mun. Monograph PDF is licensed under the GNU Affero General Public License v3.0 or later (**AGPL-3.0-or-later**). See [LICENSE.md](LICENSE.md). Corresponding Monograph PDF release source, including application, build, installer, documentation and release tests, together with the corresponding source of the bundled AGPL, GPL and LGPL components, is published as `MonographPDF_{version}_Source.zip` beside the installer. Local personal-document validation utilities are excluded.
+© 2026 Aung Ye Mun. Monograph PDF is licensed under the GNU Affero General Public License v3.0 or later (**AGPL-3.0-or-later**). See [LICENSE.md](LICENSE.md). Corresponding Monograph PDF release source, including application, build, installer, documentation and release tests, together with the corresponding source of the bundled AGPL, GPL and LGPL components, is published as `MonographPDF_{version}_Source.zip` beside the installer. Local personal-document validation utilities are excluded.

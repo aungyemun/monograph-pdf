@@ -31,7 +31,7 @@ REPOSITORY_NAME = "monograph-pdf"
 DATA_FOLDER_NAME = "Monograph PDF"
 COPYRIGHT_OWNER = "Aung Ye Mun"
 COPYRIGHT_START_YEAR = 2026
-COPYRIGHT_DISPLAY = "© 2026–Present Aung Ye Mun"
+COPYRIGHT_DISPLAY = "© 2026 Aung Ye Mun"
 
 PRODUCT_DESCRIPTION = (
     "Monograph PDF is an offline, privacy-first desktop application for viewing, editing, "

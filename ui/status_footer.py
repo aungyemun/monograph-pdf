@@ -104,7 +104,7 @@ class AppStatusBar(QStatusBar):
         full = COPYRIGHT_DISPLAY
         if metrics.horizontalAdvance(full) <= max_width:
             return full
-        short = f"© {COPYRIGHT_START_YEAR}–Present {COPYRIGHT_OWNER}"
+        short = f"© {COPYRIGHT_START_YEAR} {COPYRIGHT_OWNER}"
         if metrics.horizontalAdvance(short) <= max_width:
             return short
         return metrics.elidedText(short, Qt.TextElideMode.ElideRight, max_width)

@@ -1,7 +1,7 @@
 # Monograph PDF License
 
 **Monograph PDF**  
-Copyright © 2026–Present Aung Ye Mun
+Copyright © 2026 Aung Ye Mun
 
 This program is free software: you may redistribute it and/or modify it under the terms of the
 GNU Affero General Public License as published by the Free Software Foundation, either version 3

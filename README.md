@@ -173,7 +173,7 @@ Design, development, testing, documentation, packaging, and maintenance.
 
 ## License
 
-© 2026–Present Aung Ye Mun.
+© 2026 Aung Ye Mun.
 
 Monograph PDF is free software licensed under the **GNU Affero General Public License v3.0 or later** (`AGPL-3.0-or-later`).
 

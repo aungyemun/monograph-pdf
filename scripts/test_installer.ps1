@@ -201,7 +201,7 @@ try {
     $appVer = (Get-Item (Join-Path $Dir "MonographPDF.exe")).VersionInfo
     Check "MonographPDF.exe version information" ($appVer.ProductName -eq "Monograph PDF" -and $appVer.FileDescription -eq "Monograph PDF" -and
         $appVer.InternalName -eq "MonographPDF" -and $appVer.OriginalFilename -eq "MonographPDF.exe" -and
-        $appVer.ProductVersion -eq $u.DisplayVersion -and $appVer.LegalCopyright -eq "$([char]0xA9) 2026$([char]0x2013)Present Aung Ye Mun") `
+        $appVer.ProductVersion -eq $u.DisplayVersion -and $appVer.LegalCopyright -eq "$([char]0xA9) 2026 Aung Ye Mun") `
         "$($appVer.ProductName) / $($appVer.InternalName) / $($appVer.OriginalFilename) / $($appVer.ProductVersion) / $($appVer.LegalCopyright)"
     Check "Installed apps: DisplayIcon is MonographPDF.exe" ($u -and $u.DisplayIcon -like "*\MonographPDF.exe*") "$($u.DisplayIcon)"
     Check "no PDF Editor files installed" (-not (Get-ChildItem $Dir -Recurse -File -Force | Where-Object { $_.Name -like "PDF_editor*" -or $_.Name -like "pdf_editor*" -or $_.Name -eq "PDF_logo.png" }))
