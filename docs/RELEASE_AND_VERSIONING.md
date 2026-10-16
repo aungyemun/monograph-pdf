@@ -35,9 +35,9 @@ Bump only after a successful fix that warrants it (see scheme above).
 
 ## Release status and frozen releases
 
-- A version stays **Unreleased** in `CHANGELOG.md` (`## [x.y.z] — Unreleased`) until full validation, the installer and migration tests, the branding scan and the source-compliance check pass **and** the maintainer approves the release freeze. Only then does it get its date, and `CITATION.cff` its `date-released`.
-- A released (frozen) version is never rebuilt or changed: its installer, source archive, `SHA256SUMS.txt`, audit report and changelog entry stay as published. Keep a byte-for-byte copy of its release folder under `releases\<Product>_<version>\` (read-only); the release build refuses to replace `installer\release\` while it holds another version's release that is not archived there (`check_release.py guard-frozen`).
-- **Internal development archive:** the last internal development build (0.1.5, 2026-10-15) is kept byte for byte in `releases\PDFEditor_0.1.5\` (Setup SHA-256 `6EF9072C…A891`, source archive `D97C1147…F950F`) and must never be modified; it is not a public release. Monograph PDF 0.2.0 is Unreleased.
+- A version stays **Unreleased** in `CHANGELOG.md` (`## [x.y.z] — Unreleased`) until full validation, the installer and internal-compatibility tests, the branding scan and the source-compliance check pass **and** the maintainer approves the release freeze. Only then does it get its date, and `CITATION.cff` its `date-released`. Monograph PDF **0.2.0 is the first public release version**.
+- A released (frozen) public version is never rebuilt or changed: its installer, source archive, `SHA256SUMS.txt`, audit report and changelog entry stay as published. Keep a byte-for-byte copy of its release folder under `releases\<Product>_<version>\` (read-only); the release build refuses to replace `installer\release\` while it holds another version's release that is not archived there (`check_release.py guard-frozen`).
+- **Internal development archive:** the last internal development build (0.1.5, 2026-10-15) is kept byte for byte in `releases\PDFEditor_0.1.5\` (Setup SHA-256 `6EF9072C…A891`, source archive `D97C1147…F950F`) and must never be modified. It is an internal freeze only — not a public Monograph PDF release and not a prior public product under another name. Monograph PDF 0.2.0 is Unreleased until freeze.
 
 ## Repository
 

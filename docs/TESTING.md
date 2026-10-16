@@ -65,7 +65,7 @@ Config: `pytest.ini` (`pythonpath = .`, `qt_api = pyside6`).
    - silent different `/DIR` without `/MIGRATEINSTALL` keeps the registered location (no duplicate install)
    - registered install authoritative; unregistered second folder left untouched
    - silent `/MIGRATEINSTALL`: new location installed and validated; old owned files removed; unknown files and AppData preserved; registry/App Paths/Start Menu point at the new path
-8. **Earlier internal build (0.1.5) → Monograph PDF matrix** (sections 14–21), using the frozen earlier internal build 0.1.5 Setup from `releases\PDFEditor_0.1.5\` (checked against its released SHA-256; only run, never changed):
+8. **Earlier internal build (0.1.5) → Monograph PDF matrix** (sections 14–21), using the frozen earlier internal build 0.1.5 Setup from `releases\PDFEditor_0.1.5\` (checked against its archived SHA-256; only run, never changed; that freeze was never a public release):
    - the earlier internal build 0.1.5 installed per-user in its default `%LOCALAPPDATA%\Programs\PDF Editor`, with planted settings, recent files (one existing, one missing), a recovery session, an unknown-format session, cache and temporary files, and an unknown file in the install folder
    - a running `PDF_editor.exe` stops the silent upgrade without changes
    - silent in-place upgrade: `MonographPDF.exe` replaces `PDF_editor.exe`, unknown file kept, one Installed apps entry (now Monograph PDF, `DisplayIcon` / `UninstallString` updated), new App Paths / ProgIDs / Open with / Default apps registrations, every earlier internal build registration, Start menu folder and desktop shortcut removed, new shortcuts present, the earlier internal build data untouched by Setup

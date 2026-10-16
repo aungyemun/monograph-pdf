@@ -137,7 +137,7 @@ Runs offline feature smoke (`scripts/validate_release_smoke.py`), gate tests, on
 - Runtime folder: `./runtime` in the project layout, `%LOCALAPPDATA%\Monograph PDF\runtime` when installed (`MONOGRAPH_PDF_RUNTIME_DIR` or `--runtime-dir` overrides it). Organize/merge/split staging uses `runtime/temp/organize` and `runtime/cache/organize`; abandoned temporary files are cleaned on startup
 - Settings and the recent-files list: `%APPDATA%\Monograph PDF` (`MONOGRAPH_PDF_USER_DATA_DIR` overrides it; the self-check and tests use a throw-away folder)
 - Temporary folders in `%TEMP%` are named `monographpdf*`; the theme's generated images go to `%TEMP%\monograph-pdf-theme` only when the runtime cache is not writable
-- qpdf — still a reserved optional integration; not used or shipped in v0.2.0 (empty `engines/qpdf` placeholder may remain); probes report its absence without failing startup
+- qpdf — still a reserved optional integration; not used or shipped in v0.2.0; probes report its absence without failing startup
 - External programs are started by full path only (see [SECURITY_AND_PRIVACY.md](SECURITY_AND_PRIVACY.md#programs-monograph-pdf-starts)); the built app imports Python modules only from its bundle
 - Do not download packages or models at application startup
 

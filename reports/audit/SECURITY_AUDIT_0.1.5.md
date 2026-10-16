@@ -1,20 +1,22 @@
 # Internal development record — 0.1.5 (earlier internal name "PDF Editor") — Security, privacy, dependency and installer audit
 
+This document is durable security evidence for an **internal development freeze**. It is **not** a public Monograph PDF release record, and the earlier internal name was never a public product release.
+
 | | |
 | :--- | :--- |
 | Version | 0.1.5 (not bumped by this audit) |
 | Audit date | 2026-10-15 |
-| Final release state | **2026-10-16 RELEASE FROZEN** (hashes and test counts below) |
-| Scope | Application source (`app`, `core`, `engines`, `ui`), PyInstaller build and the packaged Windows release (`dist\PDF_editor`, `Setup.exe`, `installer\release`), Inno Setup script, `uninstall.exe`, build and packaging scripts, bundled libraries, OCR engine and data, documentation |
-| Method | Source review; inventory of every `.exe` / `.dll` / `.pyd` in the built release with file versions and DLL import tables; PyInstaller module list; Windows release build, installer/uninstaller test and full UI audit on Windows 11; automated tests on Windows and Linux |
+| Internal freeze state | **2026-10-16 FROZEN** (hashes and test counts below); archived under `releases/PDFEditor_0.1.5/` |
+| Scope | Application source (`app`, `core`, `engines`, `ui`), PyInstaller build and the packaged Windows build (`dist\PDF_editor`, `Setup.exe`, `installer\release`), Inno Setup script, `uninstall.exe`, build and packaging scripts, bundled libraries, OCR engine and data, documentation |
+| Method | Source review; inventory of every `.exe` / `.dll` / `.pyd` in the built tree with file versions and DLL import tables; PyInstaller module list; Windows build, installer/uninstaller test and full UI audit on Windows 11; automated tests on Windows and Linux |
 
-## Verdict: PASS (with the limitations below) — v0.1.5 RELEASE FROZEN
+## Verdict: PASS (with the limitations below) — v0.1.5 INTERNAL FREEZE
 
-No Critical or High issue remains open. Two High and four Medium issues were found during the audit and fixed; the fixes were verified on the packaged Windows build. License compliance: every release is published with `PDFEditor_0.1.5_Source.zip` (corresponding PDF Editor release source, including application, build, installer, documentation and release tests, plus corresponding third-party sources), checked automatically. PDF Editor’s own license expression is **AGPL-3.0-or-later** (upstream PyMuPDF/MuPDF remain AGPL-3.0). Code signing is not available: the release is **unsigned** and is documented as such. After the final hashes below are recorded, **no further v0.1.5 changes** should be made.
+No Critical or High issue remains open. Two High and four Medium issues were found during the audit and fixed; the fixes were verified on the packaged Windows build. License compliance for that freeze: the build includes `PDFEditor_0.1.5_Source.zip` (corresponding application source, including build, installer, documentation and release tests, plus corresponding third-party sources), checked automatically. The application's license expression is **AGPL-3.0-or-later** (upstream PyMuPDF/MuPDF remain AGPL-3.0). Code signing is not available: the freeze is **unsigned** and is documented as such. After the final hashes below are recorded, **no further v0.1.5 changes** should be made.
 
 ## Findings (historical audit) and current status
 
-The table records what the audit found and how each item was fixed. All High and Medium findings are **fixed** in the final 0.1.5 release; the Status column is the current release state.
+The table records what the audit found and how each item was fixed. All High and Medium findings are **fixed** in the final 0.1.5 internal freeze; the Status column is the freeze state.
 
 | # | Severity | Finding (historical) | Status (final 0.1.5) |
 | :--- | :--- | :--- | :--- |
@@ -36,7 +38,7 @@ Already correct (verified, no change needed): MuPDF JavaScript is never enabled 
 
 ### Obsolete compliance wording (removed)
 
-Earlier drafts referred to corresponding source as “available on request” or as an owner-confirmation / source-offer step. That model is **not** used for 0.1.5. Every release ships `PDFEditor_<version>_Source.zip` beside the installer; the release build fails if corresponding source is missing or incomplete. No separate owner confirmation is required for source availability.
+Earlier drafts referred to corresponding source as “available on request” or as an owner-confirmation / source-offer step. That model is **not** used for 0.1.5. The freeze packages `PDFEditor_<version>_Source.zip` beside the installer; the build fails if corresponding source is missing or incomplete. No separate owner confirmation is required for source availability.
 
 ## Fixes performed (files)
 

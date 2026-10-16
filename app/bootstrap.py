@@ -53,8 +53,8 @@ def main(argv: list[str] | None = None) -> int:
     ensure_runtime_layout()
     mark("runtime_layout")
 
-    # First start after an upgrade from PDF Editor (<= 0.1.5): copy this user's settings,
-    # recent files and recovery sessions (never deletes the PDF Editor folders)
+    # First start after replacing an earlier internal build (<= 0.1.5): copy this user's settings,
+    # recent files and recovery sessions (never deletes the earlier internal AppData folders)
     from core.legacy_migration import migrate_at_startup
 
     migrate_at_startup()

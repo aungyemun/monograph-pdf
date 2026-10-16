@@ -15,7 +15,7 @@ Canonical functional audit record (security, privacy, dependencies and licenses 
 | Installer test | `scripts/test_installer.ps1`, including the internal-compatibility matrix for earlier internal builds (sections 14–21) |
 | Branding scan | `scripts/packaging/branding_scan.py` (repository and built application) |
 
-Scope: product identity (name, executable, PE version resource, About, Start page, window and taskbar icon, Help menu), new logo and icon set, Setup (AppId kept, legacy detection, Existing installation found page, in-place and moved upgrades, registry / shortcut / Open with migration, uninstall), per-user data migration, environment-variable aliases, temporary-folder names, source archive and checksums naming, documentation, and the protection of the frozen 0.1.5 release.
+Scope: product identity (name, executable, PE version resource, About, Start page, window and taskbar icon, Help menu), new logo and icon set, Setup (AppId kept, legacy detection, Existing installation found page, in-place and moved upgrades, registry / shortcut / Open with cleanup, uninstall), per-user data continuity from earlier internal builds, environment-variable aliases, temporary-folder names, source archive and checksums naming, documentation, and the protection of the frozen 0.1.5 internal archive.
 
 Results are recorded in the release review for 0.2.0; 0.2.0 stays Unreleased until the maintainer approves the release freeze.
 
@@ -26,7 +26,7 @@ Results are recorded in the release review for 0.2.0; 0.2.0 stays Unreleased unt
 | Audit date | 2026-10-15 |
 | VERSION | 0.1.5 |
 | Canonical exe | `./PDF_editor.exe` (+ `_internal/` onedir payload) |
-| Release | `installer/release/`: `Setup.exe`, `PDFEditor_0.1.5_Source.zip`, `SHA256SUMS.txt`, documentation; `installer/installer.zip` (kept in `releases/PDFEditor_0.1.5/`) |
+| Internal freeze archive | `Setup.exe`, `PDFEditor_0.1.5_Source.zip`, `SHA256SUMS.txt`, documentation; `installer/installer.zip` (kept in `releases/PDFEditor_0.1.5/`; not a public release) |
 | Tests (Windows) | unit + UI suite, all passing (run by `scripts/build_release.ps1`) |
 | UI audit | every menu (File, Edit, View, Insert, Forms, Organize, Convert, OCR, Protect, Sign, Help) and toolbar item, alone and in combination: 32 scenarios, 408 checks (`build/deep_ui_audit.py`, not shipped) |
 | Installer test | install → use → uninstall → reinstall (`scripts/test_installer.ps1`), all checks passing |

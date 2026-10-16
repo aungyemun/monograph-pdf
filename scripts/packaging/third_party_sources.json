@@ -13,7 +13,7 @@
       ],
       "location": "monograph-pdf/",
       "files": [],
-      "notes": "Complete source of Monograph PDF (successor to PDF Editor) with build, installer and test scripts (monograph-pdf/ folder)."
+      "notes": "Complete source of Monograph PDF with build, installer and test scripts (monograph-pdf/ folder)."
     },
     {
       "id": "pymupdf",

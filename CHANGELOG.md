@@ -31,8 +31,8 @@ First public release of Monograph PDF, in preparation. It has not been released 
 - Monograph PDF makes no network connections: the release build leaves out Qt's network and TLS plugins and Python's SSL module, and the self-check fails if anything tries to connect.
 - PDF JavaScript, actions and launch commands are never run; external programs are started by full path only; Office conversions run with macros disabled.
 - No recovery copy is kept for password-protected PDFs.
-- Release-candidate audit: `reports/audit/SECURITY_AUDIT_0.2.0.md` (no blocker; one MEDIUM dependency finding, Pillow 11.1.0, open).
-- Exporting a placed picture reads only PNG, JPEG, BMP, GIF, TIFF and WEBP files, so Pillow's rarely used decoders (PSD, FITS, JPEG 2000, …) are never run on a user-supplied file.
+- Release-candidate audit: `reports/audit/SECURITY_AUDIT_0.2.0.md` (no blocker; the MEDIUM dependency finding, Pillow 11.1.0, is fixed by upgrading to Pillow 12.3.0).
+- Pillow 12.3.0. Placing and saving a picture reads only PNG, JPEG, BMP, GIF, TIFF and WEBP files, so Pillow's rarely used decoders (PSD, FITS, JPEG 2000, …) are never run on a user-supplied file.
 - A printer whose name contains a quotation mark is never passed to the printer-preferences command line.
 
 ### Testing
@@ -46,42 +46,30 @@ Versions before 0.2.0 were internal development builds and were not public relea
 
 ### Internal compatibility notes for 0.2.0
 
-These describe behaviour kept only so that machines that ran an earlier internal build keep working; it is not user-facing functionality.
+These describe technical behaviour kept so that a machine that still has an earlier **internal** development build continues to work cleanly. They are not user-facing migration instructions, and they do not describe a prior public product.
 
 #### Product identity
 
-- PDF Editor has been renamed to Monograph PDF.
-- v0.1.5 remains the final release under the PDF Editor name.
-- New executable: MonographPDF.exe.
-- New product branding and application icon.
-- Existing PDF Editor installations can be migrated during Setup.
+- Public product: Monograph PDF; executable `MonographPDF.exe`; branding and icons from `resources/icons/source/Monograph_PDF_logo.png`.
+- Release files: `MonographPDF_<version>_Setup.exe`, `MonographPDF_<version>_Installer.zip`, `MonographPDF_<version>_Source.zip` (source folder `monograph-pdf/`); `SHA256SUMS.txt` lists `MonographPDF.exe`.
+- Default folders `C:\Program Files\Monograph PDF` / `%LOCALAPPDATA%\Programs\Monograph PDF`; data in `%APPDATA%\Monograph PDF` and `%LOCALAPPDATA%\Monograph PDF`.
+- Windows registration uses `MonographPDF.exe`, ProgIDs `MonographPDF.Document` / `MonographPDF.Convertible`; Setup never makes itself the default PDF app.
+- License: AGPL-3.0-or-later; bundled components keep their own licenses.
 
-Details:
+#### Compatibility with earlier internal builds (≤ 0.1.5)
 
-- Program `MonographPDF.exe` (PE version resource: Monograph PDF / MonographPDF / MonographPDF.exe, © 2026 Aung Ye Mun), built into `dist\MonographPDF\`; release files `MonographPDF_<version>_Setup.exe`, `MonographPDF_<version>_Installer.zip` and `MonographPDF_<version>_Source.zip` (source folder `monograph-pdf/`). `SHA256SUMS.txt` lists `MonographPDF.exe`.
-- New logo (open book with “M”, PDF page and pen) from `resources/icons/source/Monograph_PDF_logo.png`; `scripts/generate_branding_icons.py` makes `monograph_pdf.ico` (16–256 px), the window, taskbar, Start page and About icons and the Setup wizard images from it. The PDF Editor logo is no longer an application resource.
-- Default folders `C:\Program Files\Monograph PDF` / `%LOCALAPPDATA%\Programs\Monograph PDF`; data in `%APPDATA%\Monograph PDF` and `%LOCALAPPDATA%\Monograph PDF`; Start menu folder **Monograph PDF** with **Monograph PDF** and **Monograph PDF User Guide**.
-- Windows registration uses `MonographPDF.exe`, ProgIDs `MonographPDF.Document` / `MonographPDF.Convertible` and the Default apps name **Monograph PDF**; Setup still never makes itself the default PDF app. Help menu: **Make Monograph PDF the Default PDF App…**.
-- About shows Monograph PDF, its version, description, author, license and privacy information.
-- The license is unchanged: Monograph PDF is AGPL-3.0-or-later and every bundled component keeps its license and version.
+Earlier internal builds used a different application name and executable. Setup keeps the same Windows AppId so such an install is recognised and replaced (one *Installed apps* entry). This is internal-development continuity only — not a public-product migration.
 
-#### Upgrade from PDF Editor
+- Folder / registration cleanup after a validated install; unknown files in an old folder are kept; an unregistered second copy elsewhere is left untouched.
+- First-start may copy preferences, existing recent files and version-1 recovery sessions from earlier internal AppData folders (cache/logs/temp are not). Uninstall cleans those folders only with proven provenance.
+- `MONOGRAPH_PDF_*` overrides; deprecated aliases from earlier internal builds remain during 0.2.x.
+- Last internal freeze archived under `releases\PDFEditor_0.1.5\` (not a public release; never modify).
 
-- Setup keeps PDF Editor's application ID, so it recognises PDF Editor ≤ 0.1.5 (uninstall entry, `InstallLocation`, `UninstallString`, `DisplayIcon`, App Paths, the default `PDF Editor` folders, and a verified Start menu shortcut as a last resort) and replaces it: one installed application remains.
-- **Existing installation found** page: for a folder named `PDF Editor` the recommended choice installs into the renamed `Monograph PDF` folder, checks the new installation and only then removes PDF Editor's application files from the old folder (files you added are kept; the folder is removed only if empty); the alternative upgrades in the existing location. Silent Setup keeps the location unless `/MIGRATEINSTALL` is given.
-- After the upgrade, PDF Editor's App Paths entry, ProgIDs, Open with entries, Default apps capability, Start menu folder and desktop shortcut are removed once `PDF_editor.exe` is gone; an unregistered second PDF Editor copy is left untouched. A running `PDF_editor.exe` stops Setup.
-- On its first start for each Windows user, Monograph PDF copies that user's PDF Editor preferences, recent files (existing files only) and recovery sessions; cache, logs and temporary files are not carried over and the PDF Editor folders are left unchanged (`%APPDATA%\Monograph PDF\legacy_migration.json` records the copy). Uninstalling Monograph PDF also cleans those PDF Editor folders, only for a user whose data was migrated and only when no PDF Editor program remains.
-- Development overrides are now `MONOGRAPH_PDF_RUNTIME_DIR`, `MONOGRAPH_PDF_USER_DATA_DIR` (and `MONOGRAPH_PDF_HEADLESS`, …); the `PDFEDITOR_*` names still work as deprecated aliases during 0.2.x. Temporary folders are named `monographpdf*` / `monograph-pdf-theme`; Setup and the uninstaller clean both the new and the PDF Editor names.
-- The release build refuses to rebuild `installer\release\` while it holds another, unarchived release; the frozen PDF Editor 0.1.5 release is kept unchanged under `releases\PDFEditor_0.1.5\`.
+#### Installer (upgrade groundwork from the last internal series)
 
-#### Installer (upgrade and migration groundwork, previously planned as 0.1.6)
-
-- **Upgrade cleanup**: during an upgrade, Setup removes files belonging to the previous application (from the previous `{app}\installed_files.txt` when present, otherwise a conservative allowlist of known application folders/files) before installing the new application files. Unknown or user-created files in the selected folder are preserved. The destination is never deleted wholesale. Settings and recent files are kept on upgrade; documents are never removed.
-- **Existing-install detection and migration**: Setup finds a prior install via AppId uninstall registry, App Paths, known defaults, then a verified Start Menu shortcut (fallback only). Same destination → automatic in-place upgrade. Different destination → dialog offering upgrade in the existing location (recommended) or install in the new location and remove owned application files from the old path **after** the new install is validated. Unregistered look-alike folders are logged and left untouched.
-- **Silent policy**: different `/DIR` without `/MIGRATEINSTALL` keeps the registered location; `/MIGRATEINSTALL` migrates and cleans old owned files after success.
-- Setup ships `installed_files.txt` (built by `scripts\packaging\write_installed_manifest.py`) listing owned relative install paths for the next upgrade.
-- Setup refuses to continue while `MonographPDF.exe` or `PDF_editor.exe` is running (silent install fails safely).
-- Expanded `[InstallDelete]` to include `licenses\`, root documentation files, and related owned trees so obsolete license/doc files do not linger.
+- Owned-file cleanup via `installed_files.txt` (or a conservative allowlist); destination never wiped wholesale; settings and documents kept on upgrade.
+- Same-folder upgrade is automatic; a different folder offers keep-existing (recommended) or move-after-validation; silent Setup keeps the registered path unless `/MIGRATEINSTALL`.
+- Setup refuses to continue while the installed program (or an earlier internal executable still running) cannot be replaced.
 
 ### [0.1.5] — 2026-10-15
 

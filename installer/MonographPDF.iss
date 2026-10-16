@@ -2,11 +2,10 @@
 ; Build with installer\build_release.bat (or: tools\inno\ISCC.exe installer\MonographPDF.iss)
 ; Produces installer\MonographPDF_{version}_Setup.exe from the PyInstaller onedir build in dist\MonographPDF.
 ;
-; Monograph PDF is the successor to PDF Editor (final release 0.1.5). Setup keeps PDF Editor's AppId,
-; so Windows and Setup see Monograph PDF as the next version of the same application: an existing
-; PDF Editor installation is upgraded (in place, or moved to a "Monograph PDF" folder), its Start
-; menu entries, file-type registrations and App Paths entry are replaced, and one installed
-; application remains. The Legacy* names below are used only to recognise and clean up PDF Editor.
+; Setup keeps a stable AppId so an earlier internal development build (executable PDF_editor.exe,
+; folders named "PDF Editor", final internal freeze 0.1.5) is recognised and replaced: one installed
+; application remains (in place, or moved to a "Monograph PDF" folder). The Legacy* names below are
+; used only for that internal-compatibility detection and cleanup — not as public product history.
 
 #define AppName "Monograph PDF"
 #define AppExe "MonographPDF.exe"
@@ -17,7 +16,7 @@
 #define AppRegKey "Software\Monograph PDF"
 #define CapKey AppRegKey + "\Capabilities"
 
-; ---- Predecessor: PDF Editor <= 0.1.5 (migration and compatibility only) ----
+; ---- Earlier internal build (<= 0.1.5): detection and cleanup identifiers only ----
 #define LegacyName "PDF Editor"
 #define LegacyExe "PDF_editor.exe"
 #define LegacyProgIdPdf "PDFEditor.Document"
@@ -255,7 +254,7 @@ var
   CleanOldLocationAfterInstall: Boolean;
   MigrateInstallFlag: Boolean;
   SmokeTestPassed: Boolean;
-  { PDF Editor (<= 0.1.5) found: the upgrade is also a product-rename migration }
+  { Earlier internal build (<= 0.1.5) found: upgrade / move to Monograph PDF folders }
   LegacyUpgrade: Boolean;
   { Renamed folder suggested for a PDF Editor folder named "PDF Editor" ('' = keep the location) }
   RenamedDir: String;
@@ -1294,7 +1293,7 @@ begin
       CleanOldLocationAfterInstall := False;
     end;
   end;
-  { Silent /MIGRATEINSTALL without /DIR on a PDF Editor folder: move it to the renamed folder }
+  { Silent /MIGRATEINSTALL without /DIR on an earlier-internal folder: move to Monograph PDF folder }
   if LegacyUpgrade and MigrateInstallFlag and (not CmdHasDir()) and (RenamedDir <> '') and
      SameInstallPath(WizardDirValue, PreviousInstallDir) then
   begin
@@ -1386,7 +1385,7 @@ begin
   { Silent different-directory policy (InitializeWizard already redirects without the flag):
       - default: upgrade at the existing registered path (no duplicate install)
       - /MIGRATEINSTALL: install to the requested /DIR (or, for a "PDF Editor" folder without /DIR,
-        to the renamed "Monograph PDF" folder) and remove owned files at OLD after success
+        to the "Monograph PDF" folder) and remove owned files at OLD after success
      Resolve migration intent before the running-app check so OLD_PATH processes are covered. }
   if WizardSilent and (PreviousInstallDir <> '') and
      (not SameInstallPath(PreviousInstallDir, ExpandConstant('{app}'))) then

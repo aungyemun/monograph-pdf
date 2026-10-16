@@ -1,6 +1,6 @@
-"""One-time migration of a user's PDF Editor (<= 0.1.5) data to Monograph PDF.
+"""One-time copy of a user's earlier internal-build (<= 0.1.5) data into Monograph PDF folders.
 
-PDF Editor kept its data in ``%APPDATA%\\PDF Editor`` and ``%LOCALAPPDATA%\\PDF Editor``;
+Earlier internal builds kept data in ``%APPDATA%\\PDF Editor`` and ``%LOCALAPPDATA%\\PDF Editor``;
 Monograph PDF uses ``%APPDATA%\\Monograph PDF`` and ``%LOCALAPPDATA%\\Monograph PDF``. The first
 time Monograph PDF starts for a Windows user, it copies what is still useful:
 
@@ -11,11 +11,11 @@ time Monograph PDF starts for a Windows user, it copies what is still useful:
 * nothing else: the cache is rebuilt, temporary files and logs are not carried over, and
   password-protected documents never have recovery copies.
 
-The PDF Editor folders are never changed or deleted here. A record of the migration
+The earlier internal AppData folders are never changed or deleted here. A record
 (``legacy_migration.json`` in the new settings folder) makes it run once and tells the
-uninstaller that the legacy folders belonged to this user's PDF Editor installation.
-Each user is migrated by their own first start, so a per-machine upgrade works for every
-account on the computer. The migration never runs for the self-check or the tests (the user-data
+uninstaller that those folders belonged to this user's earlier internal installation.
+Each user is handled by their own first start, so a per-machine upgrade works for every
+account on the computer. This never runs for the self-check or the tests (the user-data
 folder is redirected there) or when ``MONOGRAPH_PDF_NO_LEGACY_MIGRATION=1``.
 """
 

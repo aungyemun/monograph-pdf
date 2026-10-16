@@ -1,7 +1,7 @@
 """Environment-variable overrides for development, testing and the installer's self-check.
 
-Monograph PDF reads ``MONOGRAPH_PDF_<NAME>``. The ``PDFEDITOR_<NAME>`` spelling of PDF Editor
-(final release 0.1.5) is still accepted as a deprecated alias during the 0.2.x series, so older
+Monograph PDF reads ``MONOGRAPH_PDF_<NAME>``. The ``PDFEDITOR_<NAME>`` spelling from earlier
+internal builds (<= 0.1.5) is still accepted as a deprecated alias during the 0.2.x series, so older
 development scripts keep working; it will be removed in a later release. Precedence:
 
     MONOGRAPH_PDF_<NAME>  →  PDFEDITOR_<NAME> (deprecated)  →  built-in default

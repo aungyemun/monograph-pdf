@@ -202,7 +202,6 @@ def _readme(manifest: dict, version: str) -> str:
         "",
         f"This archive is the corresponding source for the Monograph PDF {version} binary release",
         f"(`MonographPDF_{version}_Setup.exe` / `MonographPDF_{version}_Installer.zip`). It is published together with the release.",
-        "Monograph PDF is the successor to PDF Editor (final release 0.1.5).",
         "",
         "| Folder | Contents |",
         "| :--- | :--- |",

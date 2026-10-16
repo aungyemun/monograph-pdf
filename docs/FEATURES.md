@@ -42,7 +42,7 @@ This document is the developer-facing feature map of Monograph PDF. How to use e
 
 ### Forms / tables / layout
 - **Direct fill in Select mode** (click field → type; Tab order; checkbox/radio/dropdown) — Forms mode not required for filling
-- Field formatting from the field toolbar: font, size (A− / A+), bold, italic, color, UPPER / lower case, alignment left / center / right / **justify** and top / middle / bottom, wrap; for the whole entry or for **selected words** (saved as rich text: `/RV` + `/DS`, plain text in `/V`, custom appearance stream); justify and vertical position are kept in private field keys (`PDFEditorAlign`, `PDFEditorVAlign` — internal key names, kept stable so documents saved by any version read the same)
+- Field formatting from the field toolbar: font, size (A− / A+), bold, italic, color, UPPER / lower case, alignment left / center / right / **justify** and top / middle / bottom, wrap; for the whole entry or for **selected words** (saved as rich text: `/RV` + `/DS`, plain text in `/V`, custom appearance stream); justify and vertical position are stored in private PDF field keys whose names are kept stable so documents remain readable across versions
 - Fields shown in several places (same name) receive the entry and formatting in every place
 - **View ▸ Highlight Fillable Fields** (UI-only; never written into saved files)
 - Read & edit AcroForm: text, multiline, checkbox, radio, dropdown, date-style, signature (**visual only** — not cryptographic)

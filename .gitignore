@@ -40,12 +40,6 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
-# Local runtime downloads (engines may be large; track policy in docs)
-runtime/bin/*
-!runtime/bin/.gitkeep
-runtime/lib/*
-!runtime/lib/.gitkeep
-
 # Do not commit accidental root artifacts
 /*.log
 /*.pdf
@@ -90,7 +84,6 @@ tests/integration/test_user_real_pdfs.py
 models/*
 !models/.gitkeep
 engines/ocr/*
-!engines/ocr/.gitkeep
 !engines/ocr/MANIFEST.json
 
 # Secrets, certificates and signing keys never belong in the repository
@@ -138,7 +131,17 @@ ENV/
 /tests/outputs/**/*.xlsx
 /tests/outputs/**/*.pptx
 
-# Local validation evidence and working folders
+# Local validation evidence and working folders (release validation stays on the developer's computer)
 /validation/
+/evidence/
+/qa/
+/screenshots/
 /_to_delete/
 /_review/
+/junit*.xml
+.coverage.*
+installer_test*.log
+# Release-validation reports, manual checklists and VM instructions (local only unless approved)
+/Monograph_PDF_*_Self_Test_Report*.md
+/Monograph_PDF_*_Checklists*.md
+/Monograph_PDF_*_VM_*.md

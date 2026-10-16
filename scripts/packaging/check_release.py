@@ -20,7 +20,7 @@ check-source  the source archive (make_source_archive.py) matches the release: e
        development files, secrets or private paths, and every release file whose license requires
        corresponding source (REQUIRES_SOURCE) is covered.
 guard-frozen  installer\\release is about to be rebuilt: if it holds another version's release (for
-       example the frozen PDF Editor 0.1.5), an identical copy must exist under releases\\.
+       example the frozen internal archive PDFEditor_0.1.5), an identical copy must exist under releases\\.
 
 An unknown program file fails the build, so a new library cannot enter a release without being
 added here and to THIRD_PARTY_NOTICES.md.

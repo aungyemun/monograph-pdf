@@ -27,7 +27,7 @@
 | Engine | Role | State |
 |---|---|---|
 | PyMuPDF | Open, render, edit bake, text search, metadata, security, redaction, annotations | Active via `engines/mupdf_backend` |
-| qpdf | Reserved optional integration | Not used or shipped in v0.2.0 (`engines/qpdf` placeholder may remain) |
+| qpdf | Reserved optional integration | Not used or shipped in v0.2.0 |
 | Tesseract | Offline OCR | Vendored `engines/ocr` + `models/tessdata` (`eng`/`jpn`/`osd`) |
 
 ## Viewer / document detection (best-effort)
