@@ -2,11 +2,13 @@
 
 <img src="resources/icons/source/monograph_pdf_logo_512.png" alt="Monograph PDF logo" width="160">
 
-**Offline, privacy-first PDF editor for Windows.**
+**Offline PDF editor for Windows.**
 
-Monograph PDF is the successor to PDF Editor beginning with version 0.2.0. PDF Editor 0.1.5 was the final release under the old name; an installed PDF Editor is upgraded by Monograph PDF Setup, keeping your settings and documents.
+**Monograph PDF 0.2.0** is a desktop application for viewing, editing, annotating, organizing, converting, protecting, and managing PDF documents. It performs its core PDF operations locally on your computer, without requiring a cloud service. The application combines PDF viewing, text and object editing, form handling, page management, conversion, OCR, password protection, annotations, signatures, and other document workflow tools in one desktop interface.
 
-Monograph PDF itself makes no network connections, does not upload documents, and does not collect usage data. Opening a PDF never changes it — edits are written only when you save. Optional Microsoft Office or LibreOffice conversion: Monograph PDF does not upload the document; conversion uses the locally installed suite, which follows its own settings and remote-content behavior.
+Monograph PDF itself makes no network connections, does not upload documents, and does not collect usage data. Opening a PDF never changes it — edits are written only when you save. Optional Microsoft Office or LibreOffice conversion is performed through the locally installed suite, which follows its own settings and remote-content behavior.
+
+Monograph PDF is the successor to PDF Editor; PDF Editor 0.1.5 was the final release under the old name. Running Monograph PDF Setup on a computer with PDF Editor upgrades it and keeps your settings and documents.
 
 Current development version: **0.2.0 — Unreleased** (latest release: PDF Editor 0.1.5)
 
@@ -19,24 +21,45 @@ Current development version: **0.2.0 — Unreleased** (latest release: PDF Edito
 
 ---
 
-## Screenshot
+## Interface
 
-![Monograph PDF showing a PDF in the viewer, with the page thumbnails, the toolbar and the document panel](docs/images/monograph-pdf-ui.png)
+<p align="center">
+  <img src="docs/images/monograph-pdf-ui.png"
+       alt="Monograph PDF desktop application interface"
+       width="100%">
+</p>
 
-*Monograph PDF 0.2.0: viewer and editor with page thumbnails, toolbar and document properties.*
+<p align="center">
+  <em>Monograph PDF desktop interface (light theme).</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/monograph-pdf-start-dark.png"
+       alt="Monograph PDF start page in the dark theme"
+       width="49%">
+  <img src="docs/images/monograph-pdf-viewer-dark.png"
+       alt="Monograph PDF viewer with a PDF open in the dark theme"
+       width="49%">
+</p>
+
+<p align="center">
+  <em>Start page and document view in the dark theme.</em>
+</p>
 
 ---
 
 ## Overview
 
-* Read, search and print PDFs
-* Fill in and design PDF forms
-* Edit text, add text boxes, images, shapes and comments
-* Merge, split, rotate and rearrange pages
-* Convert PDF to Word and back; images or Office files to PDF
-* Protect PDFs with a password and permissions, or unlock them
-* Watermarks, headers, footers, page numbers and visual signatures
-* Offline OCR (English and Japanese)
+* View, search, navigate, and print PDF documents
+* Edit existing text and add text boxes
+* Add images, shapes, annotations, and comments
+* Fill, edit, and design PDF forms
+* Merge, split, rotate, extract, and rearrange pages
+* Convert PDF to Word and create PDFs from images or Office documents
+* Protect PDFs with passwords and permissions, or remove supported protection when authorized
+* Add watermarks, headers, footers, and page numbers
+* Add visual signatures
+* Perform offline OCR in English and Japanese
 
 Details: [User Guide](docs/USER_GUIDE.md) · [Features](docs/FEATURES.md)
 
@@ -44,45 +67,64 @@ Details: [User Guide](docs/USER_GUIDE.md) · [Features](docs/FEATURES.md)
 
 ## Download
 
-A Monograph PDF release consists of:
+A Monograph PDF release includes:
 
-* `Setup.exe` — the installer (recommended); built as `installer\MonographPDF_{version}_Setup.exe`
-* `MonographPDF_{version}_Installer.zip` — the installer together with end-user documentation
-* `MonographPDF_{version}_Source.zip` — corresponding Monograph PDF release source (application, build, installer, documentation and release tests) plus corresponding source of the bundled AGPL, GPL and LGPL components; local personal-document validation utilities are excluded
-* `SHA256SUMS.txt` — checksums of `Setup.exe`, `MonographPDF.exe` and the source archive
+* `MonographPDF_{version}_Setup.exe` — Windows installer (recommended)
+* `MonographPDF_{version}_Installer.zip` — installer together with end-user documentation
+* `MonographPDF_{version}_Source.zip` — corresponding application source, build and installer scripts, documentation, release tests, and required corresponding source for bundled AGPL, GPL, and LGPL components
+* `SHA256SUMS.txt` — SHA-256 checksums for release artifacts
 
-Version 0.2.0 has not been released yet. Installer binaries are build outputs; they are not committed to the source repository.
+Version 0.2.0 is currently under development and has not yet been released.
+
+Generated installers, binaries, release archives, local validation outputs, private test material, and personal-document validation utilities are not committed to the source repository.
 
 ---
 
 ## Quick Start
 
-1. Run `Setup.exe`.
-2. Keep **Register Monograph PDF for PDF files** selected if you want it in **Open with**.
+1. Run `MonographPDF_{version}_Setup.exe`.
+2. Keep **Register Monograph PDF for PDF files** selected if you want Monograph PDF to appear in **Open with**.
 3. Start **Monograph PDF** from the Start menu (**Monograph PDF** folder) or the desktop shortcut. The program is `MonographPDF.exe`.
-4. Open a PDF with **File ▸ Open…** (Ctrl+O), or drag a file onto the window.
-5. Use the start-screen tools or the menus; press **Ctrl+S** to save.
+4. Open a PDF with **File ▸ Open…** (`Ctrl+O`), or drag a PDF into the application window.
+5. Use the toolbar, menus, inspector, or start-page tools to work with the document.
+6. Press **Ctrl+S** to save your changes.
 
-To make Monograph PDF your default PDF app: **Help ▸ Make Monograph PDF the Default PDF App…**
+To make Monograph PDF your default PDF application, use **Help ▸ Make Monograph PDF the Default PDF App…** and complete the selection in Windows Settings.
 
-Upgrading from PDF Editor: run the new `Setup.exe`; see [Upgrading from PDF Editor](INSTALLATION.md#upgrading-from-pdf-editor).
+Upgrading from PDF Editor: run the new Setup; see [Upgrading from PDF Editor](INSTALLATION.md#upgrading-from-pdf-editor).
 
 ---
 
 ## Known Limitations
 
-* Windows 10 or 11 (64-bit) only (validated release platform). macOS support is planned; it is not available yet.
-* Word, Excel and PowerPoint to PDF requires Microsoft Office or LibreOffice on the computer.
-* PDF to Word is high-fidelity for most documents; complex layouts, unusual fonts, or scanned pages may need manual adjustment.
-* Signatures are visual only — certificate-based digital signatures are not included.
-* Windows does not allow any program to make itself the default PDF app silently. If PDF Editor was your default PDF app, choose Monograph PDF once in Windows Settings after upgrading.
-* The build is not code-signed; check `SHA256SUMS.txt` before trusting SmartScreen “Run anyway”.
+* Windows 10 or 11 (64-bit) is currently the validated release platform.
+* macOS support is planned but is not yet available.
+* Android support is planned for a future version.
+* Word, Excel, and PowerPoint to PDF conversion requires Microsoft Office or LibreOffice to be installed locally.
+* PDF to Word conversion is designed for high fidelity, but complex layouts, unusual fonts, or scanned pages may require manual adjustment.
+* Signatures are visual only; certificate-based digital signatures are not currently included.
+* Windows does not allow applications to silently make themselves the default PDF viewer. Choose Monograph PDF manually in Windows Settings if you want it as the default; this includes the case where PDF Editor was your default PDF app before upgrading.
+* Windows builds are currently unsigned, so Microsoft SmartScreen may display a warning. Verify downloaded release files against the published `SHA256SUMS.txt` before running them.
 
 ---
 
 ## Privacy
 
-Monograph PDF does not upload documents, collect usage data, show advertising, use online OCR, or download code, plugins, OCR models or updates at runtime. Settings and the recent-files list: `%APPDATA%\Monograph PDF`. Temporary files, logs and recovery sessions: `%LOCALAPPDATA%\Monograph PDF` (cleaned automatically; no recovery copy for password-protected PDFs; nothing written into the installation folder). Settings of PDF Editor (`%APPDATA%\PDF Editor`) are copied once, at the first start. See [Security and Privacy](docs/SECURITY_AND_PRIVACY.md).
+Monograph PDF does not upload documents, collect usage data, show advertising, use online OCR, or download executable code, plugins, OCR models, or updates at runtime.
+
+Settings and the recent-files list are stored under:
+
+```text
+%APPDATA%\Monograph PDF
+```
+
+Temporary files, logs, and recovery sessions are stored under:
+
+```text
+%LOCALAPPDATA%\Monograph PDF
+```
+
+These working files are cleaned up automatically. No recovery copy is kept for password-protected PDFs, and nothing is written into the installation folder. Settings of PDF Editor (`%APPDATA%\PDF Editor`) are copied once, at the first start. See [Security and Privacy](docs/SECURITY_AND_PRIVACY.md).
 
 ---
 
