@@ -1,12 +1,54 @@
 # Changelog
 
-All notable changes to Monograph PDF.
-Monograph PDF is the successor to PDF Editor beginning with version 0.2.0. Entries for 0.1.5 and earlier are kept as released under the name PDF Editor.
-Versions follow `VERSION` (see `docs/RELEASE_AND_VERSIONING.md`).
+All notable changes to Monograph PDF. Versions follow `VERSION` (see `docs/RELEASE_AND_VERSIONING.md`).
 
 ## [0.2.0] — Unreleased
 
-### Product identity
+First public release of Monograph PDF, in preparation. It has not been released yet.
+
+### Features
+
+- View, search, navigate and print PDF documents; opening a document never changes it, edits are written only when you save.
+- Edit existing text and add text boxes, images, shapes, annotations and comments.
+- Fill, edit and design PDF forms.
+- Merge, split, rotate, extract and rearrange pages.
+- Convert PDF to Word and create PDFs from images or Word, Excel and PowerPoint documents (Microsoft Office or LibreOffice is used for Office files).
+- Protect PDFs with passwords and permissions, or remove supported protection when authorized.
+- Add watermarks, headers, footers and page numbers; add visual signatures; apply redactions.
+- Perform offline OCR on scanned PDFs and images containing English or Japanese text.
+- Light and dark themes, a start page, a built-in User Guide.
+
+### Windows installer
+
+- Per-machine (`C:\Program Files\Monograph PDF`) or per-user (`%LOCALAPPDATA%\Programs\Monograph PDF`) installation; optional Start menu and desktop shortcuts, **Open with** and `.pdf` registrations. Setup never makes itself the default PDF app; use **Help ▸ Make Monograph PDF the Default PDF App…**.
+- Reinstalling over an existing Monograph PDF installation replaces only files Setup installed (owned-file list `installed_files.txt`, otherwise a conservative allowlist); unknown or user-created files are preserved. Choosing a different folder offers an in-place upgrade or a move that removes the old files only after the new installation passes its self-check. Silent Setup keeps the registered location unless `/MIGRATEINSTALL` is given.
+- Setup refuses to continue while `MonographPDF.exe` is running; it ends with an offline self-check (PDF engine, rendering, encryption, PDF to Word, OCR, main window, no network use).
+- The uninstaller removes the installation, shortcuts, registrations, recent files and working files, optionally the settings, and never user documents.
+- Windows builds are not code-signed; verify downloads against `SHA256SUMS.txt`.
+
+### Security
+
+- Monograph PDF makes no network connections: the release build leaves out Qt's network and TLS plugins and Python's SSL module, and the self-check fails if anything tries to connect.
+- PDF JavaScript, actions and launch commands are never run; external programs are started by full path only; Office conversions run with macros disabled.
+- No recovery copy is kept for password-protected PDFs.
+- Release-candidate audit: `reports/audit/SECURITY_AUDIT_0.2.0.md` (no blocker; one MEDIUM dependency finding, Pillow 11.1.0, open).
+- Exporting a placed picture reads only PNG, JPEG, BMP, GIF, TIFF and WEBP files, so Pillow's rarely used decoders (PSD, FITS, JPEG 2000, …) are never run on a user-supplied file.
+- A printer whose name contains a quotation mark is never passed to the printer-preferences command line.
+
+### Testing
+
+- Unit, UI, integration and installer tests, a packaged-application smoke test, a release-content check and a branding scan; see `docs/TESTING.md`.
+- Security audit of the release candidate: `reports/audit/SECURITY_AUDIT_0.2.0.md`.
+
+## Internal development history
+
+Versions before 0.2.0 were internal development builds and were not public releases. Their entries are kept below as the development record; they describe the product under its earlier internal name, and nothing in them is a published release.
+
+### Internal compatibility notes for 0.2.0
+
+These describe behaviour kept only so that machines that ran an earlier internal build keep working; it is not user-facing functionality.
+
+#### Product identity
 
 - PDF Editor has been renamed to Monograph PDF.
 - v0.1.5 remains the final release under the PDF Editor name.
@@ -20,19 +62,19 @@ Details:
 - New logo (open book with “M”, PDF page and pen) from `resources/icons/source/Monograph_PDF_logo.png`; `scripts/generate_branding_icons.py` makes `monograph_pdf.ico` (16–256 px), the window, taskbar, Start page and About icons and the Setup wizard images from it. The PDF Editor logo is no longer an application resource.
 - Default folders `C:\Program Files\Monograph PDF` / `%LOCALAPPDATA%\Programs\Monograph PDF`; data in `%APPDATA%\Monograph PDF` and `%LOCALAPPDATA%\Monograph PDF`; Start menu folder **Monograph PDF** with **Monograph PDF** and **Monograph PDF User Guide**.
 - Windows registration uses `MonographPDF.exe`, ProgIDs `MonographPDF.Document` / `MonographPDF.Convertible` and the Default apps name **Monograph PDF**; Setup still never makes itself the default PDF app. Help menu: **Make Monograph PDF the Default PDF App…**.
-- About shows Monograph PDF, its version, a new description and the note that Monograph PDF succeeds PDF Editor.
+- About shows Monograph PDF, its version, description, author, license and privacy information.
 - The license is unchanged: Monograph PDF is AGPL-3.0-or-later and every bundled component keeps its license and version.
 
-### Upgrade from PDF Editor
+#### Upgrade from PDF Editor
 
 - Setup keeps PDF Editor's application ID, so it recognises PDF Editor ≤ 0.1.5 (uninstall entry, `InstallLocation`, `UninstallString`, `DisplayIcon`, App Paths, the default `PDF Editor` folders, and a verified Start menu shortcut as a last resort) and replaces it: one installed application remains.
-- **Upgrade to Monograph PDF** page: for a folder named `PDF Editor` the recommended choice installs into the renamed `Monograph PDF` folder, checks the new installation and only then removes PDF Editor's application files from the old folder (files you added are kept; the folder is removed only if empty); the alternative upgrades in the existing location. Silent Setup keeps the location unless `/MIGRATEINSTALL` is given.
+- **Existing installation found** page: for a folder named `PDF Editor` the recommended choice installs into the renamed `Monograph PDF` folder, checks the new installation and only then removes PDF Editor's application files from the old folder (files you added are kept; the folder is removed only if empty); the alternative upgrades in the existing location. Silent Setup keeps the location unless `/MIGRATEINSTALL` is given.
 - After the upgrade, PDF Editor's App Paths entry, ProgIDs, Open with entries, Default apps capability, Start menu folder and desktop shortcut are removed once `PDF_editor.exe` is gone; an unregistered second PDF Editor copy is left untouched. A running `PDF_editor.exe` stops Setup.
 - On its first start for each Windows user, Monograph PDF copies that user's PDF Editor preferences, recent files (existing files only) and recovery sessions; cache, logs and temporary files are not carried over and the PDF Editor folders are left unchanged (`%APPDATA%\Monograph PDF\legacy_migration.json` records the copy). Uninstalling Monograph PDF also cleans those PDF Editor folders, only for a user whose data was migrated and only when no PDF Editor program remains.
 - Development overrides are now `MONOGRAPH_PDF_RUNTIME_DIR`, `MONOGRAPH_PDF_USER_DATA_DIR` (and `MONOGRAPH_PDF_HEADLESS`, …); the `PDFEDITOR_*` names still work as deprecated aliases during 0.2.x. Temporary folders are named `monographpdf*` / `monograph-pdf-theme`; Setup and the uninstaller clean both the new and the PDF Editor names.
 - The release build refuses to rebuild `installer\release\` while it holds another, unarchived release; the frozen PDF Editor 0.1.5 release is kept unchanged under `releases\PDFEditor_0.1.5\`.
 
-### Installer (upgrade and migration groundwork, previously planned as 0.1.6)
+#### Installer (upgrade and migration groundwork, previously planned as 0.1.6)
 
 - **Upgrade cleanup**: during an upgrade, Setup removes files belonging to the previous application (from the previous `{app}\installed_files.txt` when present, otherwise a conservative allowlist of known application folders/files) before installing the new application files. Unknown or user-created files in the selected folder are preserved. The destination is never deleted wholesale. Settings and recent files are kept on upgrade; documents are never removed.
 - **Existing-install detection and migration**: Setup finds a prior install via AppId uninstall registry, App Paths, known defaults, then a verified Start Menu shortcut (fallback only). Same destination → automatic in-place upgrade. Different destination → dialog offering upgrade in the existing location (recommended) or install in the new location and remove owned application files from the old path **after** the new install is validated. Unregistered look-alike folders are logged and left untouched.
@@ -41,25 +83,11 @@ Details:
 - Setup refuses to continue while `MonographPDF.exe` or `PDF_editor.exe` is running (silent install fails safely).
 - Expanded `[InstallDelete]` to include `licenses\`, root documentation files, and related owned trees so obsolete license/doc files do not linger.
 
-### Security
-
-- Release-candidate audit: `reports/audit/SECURITY_AUDIT_0.2.0.md` (no blocker; one MEDIUM dependency finding, Pillow 11.1.0, open).
-- Exporting a placed picture reads only PNG, JPEG, BMP, GIF, TIFF and WEBP files, so Pillow's rarely used decoders (PSD, FITS, JPEG 2000, …) are never run on a user-supplied file.
-- A printer whose name contains a quotation mark is no longer passed to the printer-preferences command line.
-
-### Testing
-
-- `tests\unit\test_security_validation_0_2_0.py` for the two hardening changes above; `scripts\test_installer.ps1` section 21 now also checks, per machine, the user-added file, registrations, Default apps, the default `.pdf` choice, shortcuts and uninstall.
-- `scripts\test_installer.ps1` upgrade/migration matrix: same-folder cleanup, trailing-slash same-path, silent keep-old vs `/MIGRATEINSTALL`, stale second folder untouched, AppData preserved, running-app refusal, non-empty destination unrelated files preserved.
-- `tests\unit\test_installed_manifest.py` for safe relative paths in the owned-file manifest.
-- `scripts\test_installer.ps1` PDF Editor 0.1.5 → Monograph PDF matrix with the frozen 0.1.5 Setup: running `PDF_editor.exe`, in-place upgrade, first-start settings / recent-files / recovery-session migration, registrations and shortcuts replaced, complete uninstall after migration, `/MIGRATEINSTALL` to the renamed folder with an unregistered second copy left alone, Start menu fallback, and (when elevated) Program Files.
-- `tests\unit\test_monograph_migration.py`, `tests\unit\test_product_meta.py`, `tests\ui\test_branding_ui.py`: product identity and PE version strings, icon sizes and transparency, About, environment aliases, AppData migration, temporary-folder names, installer upgrade logic and the frozen-release guard.
-
-## [0.1.5] — 2026-10-15
+### [0.1.5] — 2026-10-15
 
 A full audit of every menu (File, Edit, View, Insert, Forms, Organize, Convert, OCR, Protect, Sign, Help) and the toolbar, alone and in combination, and a security, privacy, dependency and installer audit (`reports/audit/SECURITY_AUDIT_0.1.5.md`).
 
-### Security
+#### Security
 
 - External programs (File Explorer, printer preferences, Windows PowerShell for Microsoft Office, LibreOffice) are started by full path only; a same-named program in the current folder, for example next to a downloaded PDF, could be started before. LibreOffice is taken only from its own installation folder, no longer from `PATH` or the current folder.
 - `uninstall.exe` started `cmd.exe` by name while running from `%TEMP%`, so a program named `cmd.exe` placed in `%TEMP%` could have run (with administrator rights during a per-machine uninstall), and a cancelled uninstall moved its parked copy back from `%TEMP%` without checking it. It now starts its clean-up by full path and restores itself from the copy it read into memory.
@@ -72,7 +100,7 @@ A full audit of every menu (File, Edit, View, Insert, Forms, Organize, Convert, 
 - **Source archive**: each release includes `PDFEditor_<version>_Source.zip` — corresponding PDF Editor release source (application, build, installer, documentation and release tests) plus the corresponding source of every bundled AGPL, GPL and LGPL component (PyMuPDF and MuPDF, pdf2docx, PySide6 and Qt, and the OCR engine's GLib, Pango, cairo, FriBidi, libthai, libdatrie, Graphite2, libiconv, gettext and JBIG-KIT as the MSYS2 source packages of exactly the shipped DLLs). Local personal-document validation utilities are excluded. The release build fails if a release file needing corresponding source is not covered. The GPL, LGPL and MPL license texts are installed in the `licenses` folder.
 - `THIRD_PARTY_NOTICES.md` and `licenses/DEPENDENCY_INVENTORY.md` now list every shipped component (including the OCR engine's libraries, OpenSSL, OpenBLAS and the Microsoft C runtime) and no longer list qpdf, which was never shipped; the earlier statement that FFmpeg was not included was wrong and is now true.
 
-### Changed
+#### Changed
 
 - Documentation consolidation for release readiness: PDF Editor license expression standardized to **AGPL-3.0-or-later** (grant already allowed “or later”); `DIRECTORY_STRUCTURE.md` removed (layout moved into `docs/ARCHITECTURE.md` and `docs/BUILD_AND_RUNTIME.md`); `INSTALLATION.md` limited to end-user install/uninstall; Office conversion wording no longer implies the external suite is absolutely offline; qpdf documented as reserved and not shipped; `SHA256SUMS.txt` documented for Setup.exe, PDF_editor.exe and the source archive.
 - **Conversion Quality Guide** is a readable table (Conversion · Quality · What to expect) in plain language, with nothing cut off.
@@ -81,7 +109,7 @@ A full audit of every menu (File, Edit, View, Insert, Forms, Organize, Convert, 
 - **Print**: the paper starts at the size that matches the document (for example A4) instead of the printer's default (often Letter).
 - **About**: Enter closes the box (View License was the default button).
 
-### Fixed
+#### Fixed
 
 - **Copies and conversions ignored unsaved changes**: Save a Copy (selected pages, flattened PDF, copy with metadata), Reduce File Size, Watermark, Header & Footer, Split, Extract Pages, Copy Pages to another PDF, Protect with Password, Unlock PDF, Remove Metadata and every Convert ▸ PDF to … command now use the document as shown, including text boxes, shapes, images and form entries not yet saved. The open file is not changed.
 - **Saving a password-protected PDF removed its password**; Save and Save As now keep the passwords and permissions, and the document stays open after saving.
@@ -92,9 +120,9 @@ A full audit of every menu (File, Edit, View, Insert, Forms, Organize, Convert, 
 - With no document open, empty submenus (Save a Copy, Arrange, Align & Distribute, Selected Image, Shapes, Add Field, Tables) and Insert ▸ Shapes ▸ Circle were enabled; a submenu is now enabled only when it has something to use.
 - Toolbar: disabled split buttons (Shape ▾, Fit ▾) kept a dark arrow, and a disabled Select tool kept its highlight; both now look disabled.
 
-## [0.1.4] — 2026-10-08
+### [0.1.4] — 2026-10-08
 
-### Added
+#### Added
 
 - **Print preview**: File ▸ Print now opens PDF Editor's own print dialog with a live preview of each sheet, plus printer, copies, page range, paper, orientation (Auto per page), scaling (Fit / Actual size / Shrink large pages), color and two-sided options. Windows' dialog previously showed “This app doesn't support print preview”.
 - Form-field toolbar: **alignment** (left / center / right) and **text color**.
@@ -103,7 +131,7 @@ A full audit of every menu (File, Edit, View, Insert, Forms, Organize, Convert, 
 - **Justify** for form fields with wrapped text: lines reach both edges of the box (extra space between words, or between characters for Japanese); a paragraph's last line stays left. PDF fields only know left / center / right, so other apps show these fields left-aligned; PDF Editor keeps them justified when the file is reopened.
 - **Vertical position** (top / middle / bottom) for form fields and text boxes, on the field and text toolbars. A field's choice is saved in the PDF and kept when the file is reopened.
 
-### Changed
+#### Changed
 
 - **Uninstaller**: installed builds include a standard `uninstall.exe`, registered with **Settings ▸ Apps ▸ Installed apps**. Uninstalling asks whether to also remove your settings (complete removal; `/REMOVEUSERDATA` when silent), refuses to run while PDF Editor is open, lists anything it could not delete, and never removes your documents. The Start menu no longer has an uninstall shortcut (Windows 10/11 practice).
 - **User Guide** rewritten for release: clearer structure (Getting started to Troubleshooting), menu paths checked against the app, uninstall instructions, no developer commands; developer documents updated to match.
@@ -114,7 +142,7 @@ A full audit of every menu (File, Edit, View, Insert, Forms, Organize, Convert, 
 - Footer: the redundant “Ready” word is gone (“Saved” / “Modified” already show the state).
 - Print Preview is no longer a separate File menu item (the Print dialog has the preview; Ctrl+Shift+P still works).
 
-### Fixed
+#### Fixed
 
 - About ▸ Office Integration reported Windows 11 as “Windows 10”.
 - **Printing a filled-in form before saving printed the empty form**: unsaved form entries (and field formatting) were missing from the print preview and the printout when no text box, shape or image had been added. Every unsaved change is now printed; the file on disk is not changed.
@@ -144,14 +172,14 @@ A full audit of every menu (File, Edit, View, Insert, Forms, Organize, Convert, 
 - Print dialog: **Printing preferences…** opens the printer driver's own settings instead of Windows' print dialog (which showed a second Print button and “This app doesn't support print preview”).
 - Font list could shrink to 3 fonts after the installer's self-check saved a font list made without access to the system fonts; such lists are no longer cached or trusted.
 
-## [0.1.3] — 2026-10-08
+### [0.1.3] — 2026-10-08
 
-### Added
+#### Added
 
 - **Form fields: Bold, Italic, UPPERCASE and lowercase** on the toolbar and in the Properties panel (Style and Case rows). Case buttons also work on text boxes.
 - **Start page Recent list** shows a file icon, name, folder and date; one click opens; right-click offers Open, Show in Folder and Remove from List. Show in Folder now selects the file in Explorer.
 
-### Fixed
+#### Fixed
 
 - **Japanese + Latin + numbers in form fields**: full-width letters and digits (ＡＢＣ１２３) were saved as “······”, and normal digits after Japanese text were spread out. Such entries are now drawn with an embedded Unicode font subset (≈10 KB), stay searchable, and Japanese forms keep their own font in the field settings.
 - Form fields now show their real font (e.g. Courier, MS Mincho) instead of “sans-serif”.
@@ -160,16 +188,16 @@ A full audit of every menu (File, Edit, View, Insert, Forms, Organize, Convert, 
 - Low-contrast text: footer, start-page labels and hints, Properties section titles, menu section headers and placeholders now meet the 4.5 : 1 contrast guideline in light and dark themes; dialog warnings and password errors are readable in dark theme.
 - Start-page tool icons follow the dark theme from the first launch.
 
-## [0.1.2] — 2026-10-08
+### [0.1.2] — 2026-10-08
 
-### Added
+#### Added
 
 - **Change Page Size…** (Organize menu, page toolbar, Properties panel): A3–A6, B4/B5 (JIS and ISO), Letter, Legal, Tabloid, Executive, Japanese postcard or a custom size; fit, fill, stretch or keep original size; orientation; margin; page scope. Content is scaled as vectors, and form fields, links and comments move with it. Saved as a new PDF.
 - **Font search**: type a few letters in any Font box to list every installed font containing them; the font is applied only when you pick it.
 - **Wrap Text** button on the text toolbar, next to the font controls.
 - Form fields now show **Font, Size, −/+ and Wrap Text** on the toolbar while selected.
 
-### Changed
+#### Changed
 
 - **New application logo** (red document with quill) for the app icon, taskbar, start screen, About box and installer. The artwork is kept in `resources/icons/source/PDF_logo.png`; `scripts/prepare_logo.py` makes the transparent master and the build generates every icon size from it.
 - **Properties panel** reorganised into Text / Paragraph / Box groups: B/I/U toggle buttons, color swatches without hex-code boxes, position and size on two rows, rotation in degrees and opacity in percent. Removed the read-only text line, the non-working “Writing” option and the “Optional” status row on form fields.
@@ -177,15 +205,15 @@ A full audit of every menu (File, Edit, View, Insert, Forms, Organize, Convert, 
 - Replace / Save Selected Image are greyed out unless an image is selected.
 - Clearer OCR-missing and redaction messages (no developer paths or outdated command names).
 
-### Fixed
+#### Fixed
 
 - **Save on Windows** failed with “Permission denied” when saving over the open file; the file is now released before it is replaced (with a short retry if another program has it open).
 
-## [0.1.1] — 2026-10-08
+### [0.1.1] — 2026-10-08
 
 Documentation consolidation and About / Help UI sync.
 
-### Changed
+#### Changed
 
 - Canonical `docs/` set reduced to eight Markdown files; child user-guide pages merged into `docs/USER_GUIDE.md`.
 - Changelog relocated to repository root (`CHANGELOG.md`).
@@ -194,11 +222,11 @@ Documentation consolidation and About / Help UI sync.
 - Conversion and offline privacy claims aligned across README, docs, and UI (absolute layout guarantees removed).
 - License introductory source-availability wording improved (AGPL legal text unchanged).
 
-## [0.1.0] — 2026-10-08
+### [0.1.0] — 2026-10-08
 
 First release with a Windows installer.
 
-### Added
+#### Added
 
 - **PDF to Word with layout** — layout engine keeps fonts, sizes, colors, tables, images, columns, page size and margins. Optional Microsoft Word reflow engine and a text-only mode; page range; runs in the background with progress; can open the result when finished.
 - **Word, Excel and PowerPoint to PDF** — uses the installed Office application's native PDF export or print path (Microsoft Office or LibreOffice); macros are never run. Office files and images can also be opened directly and become a new unsaved PDF.
@@ -211,7 +239,7 @@ First release with a Windows installer.
 - `PDF_editor.exe --smoke-test` offline self-check.
 - Root documentation set: README, INSTALLATION, DIRECTORY_STRUCTURE, LICENSE, THIRD_PARTY_NOTICES, SECURITY, CITATION.
 
-### Changed
+#### Changed
 
 - **Menus reorganised** into File · Edit · View · Insert · Forms · Organize · Convert · OCR · Protect · Sign · Help. The Export menu was merged into **File → Save a Copy** and **Convert**; Merge and Split head the Organize menu; Convert is split into *Create PDF* and *Convert PDF to*.
 - **Command names** made consistent (Title Case, “PDF to Word…”, “Protect with Password…”, “Unlock PDF (Remove Password)…”, “Type a Signature…”); tooltips no longer repeat shortcuts.
@@ -221,7 +249,7 @@ First release with a Windows installer.
 - Installed copies keep working files in `%LOCALAPPDATA%\PDF Editor`.
 - License clarified as **AGPL-3.0** (the license of the bundled PDF engine).
 
-## [0.0.16] and earlier
+### [0.0.16] and earlier
 
 Development releases.
 

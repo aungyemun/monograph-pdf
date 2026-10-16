@@ -3,9 +3,9 @@
 Version always comes from the VERSION file via core.versioning / app.read_version.
 Do not duplicate product strings elsewhere; import from here.
 
-Monograph PDF is the successor to PDF Editor (final release 0.1.5). The ``LEGACY_*`` values
-describe that predecessor; they are used only to find and migrate an earlier installation and
-its settings, never as the active identity.
+Internal compatibility: the ``LEGACY_*`` values describe earlier internal development builds
+(0.1.x); they are used only to find and migrate such an installation and its settings, never
+as the active identity.
 """
 
 from __future__ import annotations
@@ -37,10 +37,9 @@ PRODUCT_DESCRIPTION = (
     "Monograph PDF is an offline, privacy-first desktop application for viewing, editing, "
     "organizing, converting, protecting, signing and processing PDF documents."
 )
-PRODUCT_HISTORY_NOTE = "Monograph PDF succeeds PDF Editor, whose final release was version 0.1.5."
 PRODUCT_LICENSE = "AGPL-3.0-or-later"
 
-# Predecessor product (migration and compatibility only)
+# Earlier internal development builds (internal compatibility only)
 LEGACY_PRODUCT_NAME = "PDF Editor"
 LEGACY_EXECUTABLE_NAME = "PDF_editor.exe"
 LEGACY_DATA_FOLDER_NAME = "PDF Editor"

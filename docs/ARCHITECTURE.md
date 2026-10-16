@@ -1,6 +1,6 @@
 # Architecture
 
-Monograph PDF (formerly PDF Editor, final release 0.1.5) is a Windows-first, offline desktop PDF toolkit. Source is Python 3.11/3.12-compatible; the UI uses PySide6 (Qt); PDF rendering/core operations use PyMuPDF; OCR uses vendored Tesseract. qpdf — still a reserved optional integration; not used or shipped in v0.2.0. End users install it with Setup and start `MonographPDF.exe` with no mandatory internet and no user-installed Python, Tesseract, or Qt.
+Monograph PDF is a Windows-first, offline desktop PDF toolkit. Source is Python 3.11/3.12-compatible; the UI uses PySide6 (Qt); PDF rendering/core operations use PyMuPDF; OCR uses vendored Tesseract. qpdf — still a reserved optional integration; not used or shipped in v0.2.0. End users install it with Setup and start `MonographPDF.exe` with no mandatory internet and no user-installed Python, Tesseract, or Qt.
 
 ## Layout
 
@@ -63,7 +63,7 @@ Root: `README.md`, `INSTALLATION.md`, `LICENSE.md`, `THIRD_PARTY_NOTICES.md`, `S
 %LOCALAPPDATA%\Monograph PDF\runtime\  Cache, temp, logs, recovery sessions
 %LOCALAPPDATA%\Monograph PDF\logs\     Setup self-check report
 
-%APPDATA%\PDF Editor\, %LOCALAPPDATA%\PDF Editor\   PDF Editor (<= 0.1.5) data: read once by the
+%APPDATA%\PDF Editor\, %LOCALAPPDATA%\PDF Editor\   Internal compatibility: data of earlier internal builds, read once by the
                                 first start (core/legacy_migration.py), never changed
 ```
 
@@ -72,7 +72,7 @@ Nothing is written into `{app}` during normal use. User documents are never stor
 ## Process model
 
 1. User starts `MonographPDF.exe` (or `python -m app` in a populated `./env` for development).
-2. `app.bootstrap.main` ensures runtime folder layout, copies a PDF Editor user's settings once (`core.legacy_migration`), creates `QApplication`, shows `ui.main_window.MainWindow` (or, with `--smoke-test`, runs the offline self-check; with `--user-guide`, shows only the User Guide).
+2. `app.bootstrap.main` ensures runtime folder layout, copies settings of an earlier internal build once, if present (`core.legacy_migration`, internal compatibility), creates `QApplication`, shows `ui.main_window.MainWindow` (or, with `--smoke-test`, runs the offline self-check; with `--user-guide`, shows only the User Guide).
 3. Open/view flows use `core.document.open_document` → `engines.mupdf_backend.MuPdfBackend` (PyMuPDF). Source files are never modified on open.
 4. `EditableDocument` holds overlay objects in PDF coordinates; the canvas paints them in real time. Commands on `CommandStack` provide Undo/Redo.
 5. Save / Save As call `engines.bake_edits.bake_via_backend` to write overlays into a PDF file. Session JSON under `runtime/sessions/` enables crash recovery without touching the original until Save.
@@ -89,7 +89,7 @@ Platform status: Windows 10/11 x64 supported (primary); macOS planned; Android f
 
 ## Versioning
 
-All product **version** metadata must read `VERSION` through `core.versioning` / `app.read_version`. Product **name, executable name, PE version strings, copyright, data-folder names, branding paths and the predecessor's (PDF Editor's) names** come from `core.product_meta` (do not duplicate). See [RELEASE_AND_VERSIONING.md](RELEASE_AND_VERSIONING.md).
+All product **version** metadata must read `VERSION` through `core.versioning` / `app.read_version`. Product **name, executable name, PE version strings, copyright, data-folder names, branding paths and the internal-compatibility names of earlier internal builds** come from `core.product_meta` (do not duplicate). See [RELEASE_AND_VERSIONING.md](RELEASE_AND_VERSIONING.md).
 
 ## Related docs
 

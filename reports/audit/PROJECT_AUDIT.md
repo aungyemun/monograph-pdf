@@ -1,8 +1,8 @@
 # Monograph PDF — Project Audit
 
-Canonical functional audit record (security, privacy, dependencies and licenses of the last release: [SECURITY_AUDIT_0.1.5.md](SECURITY_AUDIT_0.1.5.md)). Update these files in place; do not create FINAL/status variant copies. Monograph PDF is the successor to PDF Editor; the 0.1.5 entries below are the record of the final PDF Editor release.
+Canonical functional audit record (security, privacy, dependencies and licenses of the last internal build: [SECURITY_AUDIT_0.1.5.md](SECURITY_AUDIT_0.1.5.md); release candidate: [SECURITY_AUDIT_0.2.0.md](SECURITY_AUDIT_0.2.0.md)). Update these files in place; do not create FINAL/status variant copies. The 0.1.5 entries below are the record of an internal development build (not a public release).
 
-## 0.2.0 — Unreleased (product rename: PDF Editor → Monograph PDF)
+## 0.2.0 — Unreleased (first public release)
 
 | Field | Value |
 |---|---|
@@ -10,16 +10,16 @@ Canonical functional audit record (security, privacy, dependencies and licenses 
 | VERSION | 0.2.0 (Unreleased — not frozen) |
 | Canonical exe | `./MonographPDF.exe` (+ `_internal/` onedir payload); `dist/MonographPDF/` |
 | Release (build output, not published) | `installer/release/`: `Setup.exe`, `MonographPDF_0.2.0_Source.zip`, `SHA256SUMS.txt`, documentation; `installer/MonographPDF_0.2.0_Installer.zip` |
-| Frozen predecessor | PDF Editor 0.1.5, kept unchanged in `releases/PDFEditor_0.1.5/` |
+| Internal development archive | last internal build 0.1.5, kept unchanged in `releases/PDFEditor_0.1.5/` (not a public release) |
 | Tests (Windows) | unit + UI + integration suites (`scripts/build_release.ps1`, `pytest tests\unit tests\ui tests\integration`) |
-| Installer test | `scripts/test_installer.ps1`, including the PDF Editor 0.1.5 → Monograph PDF matrix (sections 14–21) |
+| Installer test | `scripts/test_installer.ps1`, including the internal-compatibility matrix for earlier internal builds (sections 14–21) |
 | Branding scan | `scripts/packaging/branding_scan.py` (repository and built application) |
 
-Scope: product identity (name, executable, PE version resource, About, Start page, window and taskbar icon, Help menu), new logo and icon set, Setup (AppId kept, legacy detection, Upgrade to Monograph PDF page, in-place and moved upgrades, registry / shortcut / Open with migration, uninstall), per-user data migration, environment-variable aliases, temporary-folder names, source archive and checksums naming, documentation, and the protection of the frozen 0.1.5 release.
+Scope: product identity (name, executable, PE version resource, About, Start page, window and taskbar icon, Help menu), new logo and icon set, Setup (AppId kept, legacy detection, Existing installation found page, in-place and moved upgrades, registry / shortcut / Open with migration, uninstall), per-user data migration, environment-variable aliases, temporary-folder names, source archive and checksums naming, documentation, and the protection of the frozen 0.1.5 release.
 
 Results are recorded in the release review for 0.2.0; 0.2.0 stays Unreleased until the maintainer approves the release freeze.
 
-## 0.1.5 — PDF Editor (final release, 2026-10-15)
+## 0.1.5 — internal development build (2026-10-15)
 
 | Field | Value |
 |---|---|

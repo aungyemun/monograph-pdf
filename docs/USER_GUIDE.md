@@ -47,7 +47,6 @@ Choose **Help ▸ Make Monograph PDF the Default PDF App…**. Windows asks you 
 ### Updating and uninstalling
 
 - **Update:** run the Setup program of the newer version. Your settings and recent files are kept.
-- **Coming from PDF Editor:** Monograph PDF is the new name of PDF Editor (its last version was 0.1.5). Run Monograph PDF Setup; it finds PDF Editor and offers **Upgrade to Monograph PDF** — either in a new *Monograph PDF* folder (recommended when PDF Editor is in its usual folder) or in the existing folder. Your documents are never touched, and the first time you start Monograph PDF it brings over your PDF Editor settings, recent files and any unsaved work it was keeping. Afterwards the Start menu shows **Monograph PDF** and **Monograph PDF User Guide**. If PDF Editor was your default PDF app, Windows asks you once to choose the app again — pick **Monograph PDF**.
 - **Uninstall:** open **Settings ▸ Apps ▸ Installed apps**, find **Monograph PDF** and choose **Uninstall**. You can also run `uninstall.exe` in the Monograph PDF installation folder.
   - Uninstalling removes the program, its shortcuts, its file-type registrations, its recent-files list and its working files (cache and temporary files).
   - The uninstaller asks whether to also remove your **settings** (theme, window layout and similar preferences). Choose **Yes** to leave nothing of Monograph PDF behind.
@@ -395,7 +394,7 @@ At the end of installation, Setup runs a short offline self-check of Monograph P
 
 ## Additional documentation
 
-These files are installed in the Monograph PDF installation folder (by default `C:\Program Files\Monograph PDF`, or the folder PDF Editor used if you kept it when upgrading):
+These files are installed in the Monograph PDF installation folder (by default `C:\Program Files\Monograph PDF`):
 
 - **README.md**: product overview
 - **CHANGELOG.md**: what changed in each version

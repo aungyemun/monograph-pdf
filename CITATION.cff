@@ -17,7 +17,6 @@ abstract: >
   permissions, watermarks, visual signatures, true redaction and offline OCR
   (English and Japanese). Monograph PDF itself makes no network connections on
   Windows 10/11; optional Office conversion uses a locally installed suite.
-  Previously distributed as PDF Editor through version 0.1.5.
 keywords:
   - PDF
   - PDF editor

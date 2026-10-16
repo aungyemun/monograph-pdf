@@ -109,10 +109,10 @@ def test_theme_copyright_visible_light_dark(window):
         assert COPYRIGHT_DISPLAY in label.text() or "Aung Ye Mun" in label.text()
 
 
-def test_about_shows_monograph_pdf_identity_and_history(window, qtbot):
+def test_about_shows_monograph_pdf_identity_without_product_history(window, qtbot):
     from PySide6.QtWidgets import QLabel, QPushButton, QTabWidget
 
-    from core.product_meta import PRODUCT_DESCRIPTION, PRODUCT_HISTORY_NOTE
+    from core.product_meta import PRODUCT_DESCRIPTION
     from ui.about_dialog import AboutDialog
 
     dlg = AboutDialog(window)
@@ -121,8 +121,10 @@ def test_about_shows_monograph_pdf_identity_and_history(window, qtbot):
     assert labels["AboutTitle"] == "Monograph PDF"
     assert labels["AboutVersion"] == f"Version {get_product_identity().version}"
     assert labels["AboutTagline"] == PRODUCT_DESCRIPTION
-    assert PRODUCT_HISTORY_NOTE in labels["AboutHistory"]
-    assert "succeeds PDF Editor" in PRODUCT_HISTORY_NOTE and "0.1.5" in PRODUCT_HISTORY_NOTE
+    assert "AboutHistory" not in labels
+    shown = " ".join(w.text() for w in dlg.findChildren(QLabel))
+    for banned in ("PDF Editor", "succeeds", "formerly", "previously known", "final release"):
+        assert banned not in shown, banned
     tabs = dlg.findChildren(QTabWidget)[0]
     names = [tabs.tabText(i) for i in range(tabs.count())]
     assert "Components" in names and "Office Integration" in names, names

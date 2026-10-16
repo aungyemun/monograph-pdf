@@ -1,6 +1,6 @@
 # Security and privacy
 
-This document is the technical reference for how Monograph PDF protects documents and the computer it runs on. The user-facing summary is in the [User Guide](USER_GUIDE.md#troubleshooting); the audit of the last release (PDF Editor 0.1.5) is in [SECURITY_AUDIT_0.1.5.md](../reports/audit/SECURITY_AUDIT_0.1.5.md). Monograph PDF is the successor to PDF Editor; the rename changes no guarantee below.
+This document is the technical reference for how Monograph PDF protects documents and the computer it runs on. The user-facing summary is in the [User Guide](USER_GUIDE.md#troubleshooting); the release-candidate audit is in [SECURITY_AUDIT_0.2.0.md](../reports/audit/SECURITY_AUDIT_0.2.0.md).
 
 ## Offline by design
 
@@ -65,9 +65,7 @@ Encrypted PDFs are handled locally by PyMuPDF (AES-256, or AES-128 when chosen).
 | Working files | `%LOCALAPPDATA%\Monograph PDF\runtime` (`cache`, `temp`, `logs`) | Page cache, temporary copies, timing logs | Always |
 | Recovery copies | `%LOCALAPPDATA%\Monograph PDF\runtime\sessions` | Unsaved text boxes, form entries and other edits of unprotected PDFs | Always |
 | Setup self-check report | `%LOCALAPPDATA%\Monograph PDF\logs\install_smoke_test.json` | Results of Setup's self-check (no user data) | Always |
-| Migration record | `%APPDATA%\Monograph PDF\legacy_migration.json` | Which PDF Editor files were copied at the first start (paths of the two PDF Editor folders; no document content) | With complete removal |
-| PDF Editor data (≤ 0.1.5) | `%APPDATA%\PDF Editor`, `%LOCALAPPDATA%\PDF Editor` | Left by PDF Editor; read once at the first start, never changed by Monograph PDF | Working files always and settings with complete removal — only when the migration record exists and no PDF Editor program remains |
-| Short-lived work folders | `%TEMP%\monographpdf*`, `%TEMP%\monograph-pdf-theme` (PDF Editor: `%TEMP%\pdfeditor*`, `%TEMP%\pdf-editor-theme`) | Conversion and OCR scratch files, theme images | Always (skipped while Monograph PDF or PDF Editor is running) |
+| Short-lived work folders | `%TEMP%\monographpdf*`, `%TEMP%\monograph-pdf-theme` | Conversion and OCR scratch files, theme images | Always (skipped while Monograph PDF is running) |
 | Registry | Open with, file types, Default apps, App Paths, Installed apps | Created by Setup only | Always |
 | Your documents | Wherever you save or export them | Saved PDFs, copies, conversions, images | **Never** |
 
@@ -76,11 +74,12 @@ Monograph PDF writes nothing into its installation folder while it runs, creates
 ## Installer and uninstaller
 
 - Setup asks for administrator rights only for an all-users installation (it offers a current-user installation without them), installs program files only into the installation folder, and registers only the documented file types (`.pdf`, plus Open with for images and Office files) and the Default apps entry.
-- During an upgrade, Setup removes files belonging to the previous application (Monograph PDF, or PDF Editor ≤ 0.1.5) (previous `{app}\installed_files.txt` when present, otherwise a conservative allowlist) before installing the new files. Unknown or user-created files in the selected folder are preserved. The destination folder is never deleted wholesale; paths are validated (no `..`, no drive roots, no profile/system roots, no reparse-point follow). When migrating to a new folder, owned files at the old path are removed only after the new install passes its offline self-check; settings (`%APPDATA%\Monograph PDF`) and documents are never removed merely because the install directory changed. Unregistered look-alike folders are not deleted. Setup refuses to proceed while `MonographPDF.exe` or `PDF_editor.exe` from the relevant installation is running.
-- Upgrading PDF Editor: Setup keeps PDF Editor's AppId (one Installed apps entry), replaces its registrations with Monograph PDF's, and removes PDF Editor's App Paths entry, ProgIDs, Open with values, Default apps capability, Start menu folder and desktop shortcut only when the `PDF_editor.exe` they point to is gone — registrations of a second, unregistered PDF Editor copy stay. Setup never sets the default PDF app (Windows protects that choice). Setup does not copy or delete user data; the application copies each user's PDF Editor settings at its first start (`core/legacy_migration.py`: no deletion, no link following, cache/temp/logs never copied, no recovery copy of protected PDFs exists to copy).
+- During an upgrade, Setup removes files belonging to the previous installation (previous `{app}\installed_files.txt` when present, otherwise a conservative allowlist) before installing the new files. Unknown or user-created files in the selected folder are preserved. The destination folder is never deleted wholesale; paths are validated (no `..`, no drive roots, no profile/system roots, no reparse-point follow). When migrating to a new folder, owned files at the old path are removed only after the new install passes its offline self-check; settings (`%APPDATA%\Monograph PDF`) and documents are never removed merely because the install directory changed. Unregistered look-alike folders are not deleted. Setup refuses to proceed while `MonographPDF.exe` from the relevant installation is running.
+- Setup never sets the default PDF app (Windows protects that choice) and never copies or deletes user data.
+- **Internal compatibility** (not user-facing): Setup keeps the AppId used by earlier internal development builds so that one *Installed apps* entry exists and such a copy is upgraded in place; registrations of an earlier internal build are removed only when the program they point to is gone. At its first start the application copies a user's settings, recent files and recovery sessions from that earlier build's folders, if present (`core/legacy_migration.py`: no deletion, no link following, cache, temporary files and logs never copied; the result is recorded in `%APPDATA%\Monograph PDF\legacy_migration.json`, which holds folder paths only, no document content). The uninstaller removes those earlier folders only when that record proves they were migrated for this user and no program of that build remains. Deprecated `PDFEDITOR_*` environment variables are read as aliases of `MONOGRAPH_PDF_*`.
 - Setup's self-check runs the installed program with a working folder inside Setup's own temporary folder.
 - The uninstaller removes the program, shortcuts, file-type and Default apps registrations, the Installed apps entry, the recent-files list and working files; settings only with consent (complete removal) or `/REMOVEUSERDATA`. It never removes user documents.
-- Removal is bounded: it deletes only folders named `Monograph PDF` inside the user's `%APPDATA%` or `%LOCALAPPDATA%` — PDF Editor's `PDF Editor` folders only when Monograph PDF's migration record proves they were migrated for this user and no PDF Editor program remains — never a folder that contains the installation folder, never a junction or symbolic link, and only `%TEMP%` folders whose names start with `monographpdf` or `pdfeditor` (or are `monograph-pdf-theme` / `pdf-editor-theme`).
+- Removal is bounded: it deletes only folders named `Monograph PDF` inside the user's `%APPDATA%` or `%LOCALAPPDATA%` — never a folder that contains the installation folder, never a junction or symbolic link, and only `%TEMP%` folders whose names start with `monographpdf` (or are `monograph-pdf-theme`).
 - `uninstall.exe` starts the Inno Setup uninstaller and waits for it. It moves itself to `%TEMP%` while waiting (so the installation folder can be removed); if the uninstall is cancelled, it restores itself from the copy it read into memory at start, never from the file in `%TEMP%`, and it starts its clean-up commands by full path.
 
 ## Release integrity
@@ -95,7 +94,7 @@ See `licenses/DEPENDENCY_INVENTORY.md` and `THIRD_PARTY_NOTICES.md`. The AGPL (M
 
 ## Development overrides
 
-`MONOGRAPH_PDF_RUNTIME_DIR`, `MONOGRAPH_PDF_USER_DATA_DIR` and the other `MONOGRAPH_PDF_*` variables (see [BUILD_AND_RUNTIME.md](BUILD_AND_RUNTIME.md#environment-variables-development-and-testing)) only redirect folders or switch off dialogs for development, tests and Setup's self-check; none enables network access or weakens a protection. PDF Editor's `PDFEDITOR_*` names are read as deprecated aliases during 0.2.x.
+`MONOGRAPH_PDF_RUNTIME_DIR`, `MONOGRAPH_PDF_USER_DATA_DIR` and the other `MONOGRAPH_PDF_*` variables (see [BUILD_AND_RUNTIME.md](BUILD_AND_RUNTIME.md#environment-variables-development-and-testing)) only redirect folders or switch off dialogs for development, tests and Setup's self-check; none enables network access or weakens a protection.
 
 ## Secure coding rules
 

@@ -1,4 +1,4 @@
-# PDF Editor 0.1.5 — Security, privacy, dependency and installer audit
+# Internal development record — 0.1.5 (earlier internal name "PDF Editor") — Security, privacy, dependency and installer audit
 
 | | |
 | :--- | :--- |

@@ -1,6 +1,6 @@
 # Monograph PDF Installation Guide
 
-Monograph PDF is a self-contained, offline Windows application. It is the successor to PDF Editor (final release 0.1.5). This guide covers system requirements, installation, upgrading from PDF Editor, file-type registration, uninstall, offline install testing and troubleshooting.
+Monograph PDF is a self-contained, offline Windows application. This guide covers system requirements, installation, file-type registration, uninstall, offline install testing and troubleshooting.
 
 ## System Requirements
 
@@ -26,11 +26,11 @@ Setup offers two install modes:
 
 Setup.exe does the following:
 
-1. If Setup finds an existing Monograph PDF installation, it uses that installation location by default. If it finds **PDF Editor**, it shows **Upgrade to Monograph PDF** (see [Upgrading from PDF Editor](#upgrading-from-pdf-editor)). If you choose a different folder, Setup asks whether to:
+1. If Setup finds an existing Monograph PDF installation, it uses that installation location by default. If you choose a different folder, Setup asks whether to:
    - **Upgrade using the existing installation location** (recommended), or
    - **Install Monograph PDF in the new location and remove the previous application** from the old location.
    User settings and documents are preserved in either case.
-2. During an upgrade, Setup removes files belonging to the previous application before installing the new application files (using the previous owned-file list `installed_files.txt` when present, otherwise a conservative allowlist of known application folders and files such as `PDF_editor.exe`). Unknown or user-created files in the selected folder are preserved. Settings and the recent-files list are kept on upgrade; your documents are never removed. On a **new** installation (no earlier installation registered) Setup starts with an empty recent-files list and clears leftover working files.
+2. During an upgrade, Setup removes files belonging to the previous application before installing the new application files (using the previous owned-file list `installed_files.txt` when present, otherwise a conservative allowlist of known application folders and files). Unknown or user-created files in the selected folder are preserved. Settings and the recent-files list are kept on upgrade; your documents are never removed. On a **new** installation (no earlier installation registered) Setup starts with an empty recent-files list and clears leftover working files.
 3. Copies `MonographPDF.exe` and its `_internal` runtime folder.
 4. Copies the offline OCR engine (`engines\ocr`) and language data (`models\tessdata`).
 5. Copies the license, third-party notices, changelog, User Guide (`docs\USER_GUIDE.md`), security policy, license texts (`licenses\`) and `uninstall.exe`.
@@ -48,45 +48,17 @@ If Monograph PDF is already installed and you pick another folder, Setup shows a
 
 Upgrading in the same folder removes owned application files first, then installs the new version, and replaces shortcuts (or removes them if their task is now unchecked).
 
-## Upgrading from PDF Editor
-
-PDF Editor has been renamed to Monograph PDF. Version 0.1.5 was the final PDF Editor release; Monograph PDF 0.2.0 is its successor and upgrades it — you do not need to uninstall PDF Editor first, and only one installed application remains afterwards.
-
-When Setup finds PDF Editor (through its Installed apps entry, `InstallLocation`, uninstall command, App Paths entry, the default folders `C:\Program Files\PDF Editor` / `%LOCALAPPDATA%\Programs\PDF Editor`, or — as a last resort — a verified **PDF Editor** Start menu shortcut), it shows **Upgrade to Monograph PDF**:
-
-> PDF Editor has been renamed to Monograph PDF.
->
-> An existing PDF Editor installation was found at: *OLD_PATH*
->
-> Monograph PDF can upgrade your existing installation while preserving your settings and documents.
-
-* When PDF Editor is in a folder named **PDF Editor** (the default), the recommended choice is **Install Monograph PDF in …\Monograph PDF and remove the previous PDF Editor application**. Setup installs Monograph PDF in the renamed folder (for example `C:\Program Files\Monograph PDF`), checks that it works, and only then removes PDF Editor's application files from the old folder. Files you added to the old folder are kept; the old folder is removed only if it is then empty. If the new folder already exists with other content, this choice is not offered.
-* **Upgrade using the existing installation location** keeps the current folder: `PDF_editor.exe` is replaced by `MonographPDF.exe` in place. This is the only choice for a PDF Editor folder with another name.
-* **Back** returns to the previous page without changes.
-
-In both cases Setup:
-
-* refuses to continue while `PDF_editor.exe` (or `MonographPDF.exe`) is running;
-* replaces the Installed apps entry (same application ID, now **Monograph PDF**, icon `MonographPDF.exe`, `uninstall.exe` as uninstall command), the App Paths entry, **Open with** and Default apps registrations, and the Start menu and desktop shortcuts. PDF Editor's entries (`PDF_editor.exe`, `PDFEditor.Document`, `PDFEditor.Convertible`, the **PDF Editor** Start menu folder and desktop shortcut) are removed once its program is gone;
-* leaves an unregistered second PDF Editor copy elsewhere untouched (it is only noted in the Setup log).
-
-Your settings move with you. The first time each Windows user starts Monograph PDF, it copies that user's PDF Editor settings (`%APPDATA%\PDF Editor\preferences.json`), the recent-files list (entries that still exist) and any unsaved-edit recovery sessions into the Monograph PDF folders. Cache, logs and temporary files are not carried over. The PDF Editor folders are left unchanged; uninstalling Monograph PDF later removes them as well, but only for a user whose data Monograph PDF migrated and only when no PDF Editor program remains.
-
-If you had chosen PDF Editor as your default PDF app, Windows asks you once to pick the app again (Windows does not let Setup make that choice for you) — choose **Monograph PDF**, or use **Help ▸ Make Monograph PDF the Default PDF App…**.
-
 ### Silent install (administrators)
 
 ```bat
 MonographPDF_0.2.0_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-MonographPDF_0.2.0_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /MIGRATEINSTALL
 MonographPDF_0.2.0_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="D:\Apps\Monograph PDF" /MIGRATEINSTALL
 ```
 
-* Same registered destination (or omit `/DIR`): automatic in-place upgrade — also for PDF Editor, which keeps its folder.
+* Same registered destination (or omit `/DIR`): automatic in-place upgrade.
 * Different `/DIR` **without** `/MIGRATEINSTALL`: Setup keeps the existing registered location (no duplicate registered install).
 * `/MIGRATEINSTALL` **with** a different `/DIR`: install at the new path, then remove owned application files from the old path after the new install is validated.
-* `/MIGRATEINSTALL` **without** `/DIR`, upgrading PDF Editor in a folder named `PDF Editor`: install in the renamed `Monograph PDF` folder next to it, then remove PDF Editor's files from the old folder.
-* A silent upgrade stops without changes while `PDF_editor.exe` or `MonographPDF.exe` is running.
+* A silent upgrade stops without changes while `MonographPDF.exe` is running.
 
 No internet connection is required during installation or for core Monograph PDF use. Optional Office conversion uses a suite already installed on the computer; Monograph PDF does not upload the document, but that suite follows its own settings and remote-content behavior.
 
@@ -115,9 +87,8 @@ If Monograph PDF is running, the uninstaller asks you to close it first. After y
 | :--- | :--- | :--- |
 | Application | Installation folder: `MonographPDF.exe`, `_internal`, OCR engine and language data, documentation, licenses, `uninstall.exe` | Files you added to the installation folder |
 | Windows integration | Start menu and desktop shortcuts; **Open with**, file-type, Default apps and Installed apps registrations | — |
-| Working files | Recent-files list; `%LOCALAPPDATA%\Monograph PDF` (cache, logs, recovery sessions, temporary files); Monograph PDF and PDF Editor folders in `%TEMP%` | — |
+| Working files | Recent-files list; `%LOCALAPPDATA%\Monograph PDF` (cache, logs, recovery sessions, temporary files); Monograph PDF working folders in `%TEMP%` | — |
 | Settings (`%APPDATA%\Monograph PDF`: theme, window layout, recently used fonts and colors) | When you answer **Yes** (complete removal) | When you answer **No** (default), for a later installation |
-| PDF Editor data migrated by Monograph PDF (`%APPDATA%\PDF Editor`, `%LOCALAPPDATA%\PDF Editor`) | Working files always; settings when you answer **Yes** — only if Monograph PDF migrated them for you and no PDF Editor program remains | Otherwise |
 | Your documents | Never | PDFs you saved, converted or exported files, and all other files |
 
 Notes:
@@ -160,14 +131,13 @@ Procedure:
 10. **OCR ▸ OCR Current Page…** on a scanned page.
 11. Uninstall from **Settings ▸ Apps** and choose **Yes** to remove settings; then confirm that the installation folder, the Start menu folder, `%APPDATA%\Monograph PDF` and `%LOCALAPPDATA%\Monograph PDF` are gone and **Open with** no longer lists Monograph PDF.
 12. Install again and confirm Monograph PDF starts with default settings.
-13. On a computer with PDF Editor 0.1.5 installed: run Setup, accept **Upgrade to Monograph PDF**, and confirm the theme and recent files carried over, the Start menu shows only **Monograph PDF**, and **Installed apps** lists only **Monograph PDF**.
 
 Expected result:
 
 * The app starts offline in a few seconds.
 * `%LOCALAPPDATA%\Monograph PDF\logs\install_smoke_test.json` reports `"passed": true`.
 
-Developers can run the automated version of this test, including the PDF Editor 0.1.5 upgrade matrix, with `scripts\test_installer.ps1` (see [Testing](docs/TESTING.md#installer-and-uninstaller-test)).
+Developers can run the automated version of this test with `scripts\test_installer.ps1` (see [Testing](docs/TESTING.md#installer-and-uninstaller-test)).
 
 ## Troubleshooting
 
@@ -177,8 +147,6 @@ If Monograph PDF does not start after installation:
 2. Check `%LOCALAPPDATA%\Monograph PDF\logs\install_smoke_test.json` from Setup, or run `"C:\Program Files\Monograph PDF\MonographPDF.exe" --smoke-test` from a Command Prompt and check `%LOCALAPPDATA%\Monograph PDF\runtime\logs\smoke_test.json`.
 3. Check `%LOCALAPPDATA%\Monograph PDF\runtime\logs\` for startup logs.
 4. Check your antivirus quarantine for `MonographPDF.exe` or files in `_internal`.
-
-If your PDF Editor settings did not carry over, start Monograph PDF once as the same Windows user; the copy is recorded in `%APPDATA%\Monograph PDF\legacy_migration.json`.
 
 If **Word, Excel or PowerPoint to PDF** says no office suite was found, open **Help ▸ About Monograph PDF ▸ Office Integration** to see what was detected. Install Microsoft Office or LibreOffice, or use *Save as PDF* in the application that created the file.
 

@@ -25,7 +25,6 @@ from PySide6.QtWidgets import (
 
 from core.product_meta import (
     PRODUCT_DESCRIPTION,
-    PRODUCT_HISTORY_NOTE,
     get_product_identity,
     resolve_about_logo_path,
 )
@@ -37,7 +36,7 @@ FEATURES = (
     "Merge, split, rotate, insert, extract, and reorder pages",
     "Convert PDF to Word, Excel, PowerPoint, images, and plain text",
     "Convert Word, Excel, PowerPoint, and images to PDF",
-    "Perform OCR on scanned pages (English and Japanese)",
+    "Perform offline OCR on scanned PDFs and images containing English or Japanese text",
     "Apply password protection and permissions, or remove encryption",
     "Add watermarks, headers, footers, and page numbers",
     "Place visual signatures and apply true redaction",
@@ -323,7 +322,6 @@ class AboutDialog(QDialog):
                 object_name="AboutPrivacy",
             )
         )
-        al.addWidget(_body_label(PRODUCT_HISTORY_NOTE, object_name="AboutHistory"))
         al.addStretch(1)
         al.addWidget(
             _body_label(

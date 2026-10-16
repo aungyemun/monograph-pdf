@@ -47,7 +47,7 @@ def test_canonical_identity_strings():
     assert PRODUCT_DESCRIPTION.startswith("Monograph PDF is an offline, privacy-first desktop application")
 
 
-def test_legacy_identity_is_only_the_predecessor():
+def test_legacy_identity_is_internal_compatibility_only():
     assert LEGACY_PRODUCT_NAME == "PDF Editor"
     assert LEGACY_EXECUTABLE_NAME == "PDF_editor.exe"
     assert LEGACY_FINAL_VERSION == "0.1.5"

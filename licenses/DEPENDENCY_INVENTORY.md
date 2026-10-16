@@ -1,6 +1,6 @@
 # Dependency inventory (Monograph PDF 0.2.0)
 
-Every third-party component that is shipped with, or used to build or test, Monograph PDF (the successor to PDF Editor; the components and versions are unchanged from PDF Editor 0.1.5, and the new name does not change any license). The release build enforces the shipped part: `scripts\packaging\check_release.py` fails when a program file (`.exe`, `.dll`, `.pyd`) does not belong to a component listed in its `RELEASE_COMPONENTS` table, or when that component is missing from `THIRD_PARTY_NOTICES.md`. Python packages are pinned in `requirements.txt`; the Tesseract build is recorded in `engines\ocr\MANIFEST.json`.
+Every third-party component that is shipped with, or used to build or test, Monograph PDF. The release build enforces the shipped part: `scripts\packaging\check_release.py` fails when a program file (`.exe`, `.dll`, `.pyd`) does not belong to a component listed in its `RELEASE_COMPONENTS` table, or when that component is missing from `THIRD_PARTY_NOTICES.md`. Python packages are pinned in `requirements.txt`; the Tesseract build is recorded in `engines\ocr\MANIFEST.json`.
 
 Status: **Runtime** = shipped in Setup.exe; **Build** = used only to produce the release; **Test** = development only; **External** = never shipped, used only if already installed.
 

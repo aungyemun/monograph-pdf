@@ -8,9 +8,7 @@
 
 Monograph PDF itself makes no network connections, does not upload documents, and does not collect usage data. Opening a PDF never changes it — edits are written only when you save. Optional Microsoft Office or LibreOffice conversion is performed through the locally installed suite, which follows its own settings and remote-content behavior.
 
-Monograph PDF is the successor to PDF Editor; PDF Editor 0.1.5 was the final release under the old name. Running Monograph PDF Setup on a computer with PDF Editor upgrades it and keeps your settings and documents.
-
-Current development version: **0.2.0 — Unreleased** (latest release: PDF Editor 0.1.5)
+Current development version: **0.2.0 — Unreleased**
 
 | Platform | Status |
 | :--- | :--- |
@@ -59,7 +57,7 @@ Current development version: **0.2.0 — Unreleased** (latest release: PDF Edito
 * Protect PDFs with passwords and permissions, or remove supported protection when authorized
 * Add watermarks, headers, footers, and page numbers
 * Add visual signatures
-* Perform offline OCR in English and Japanese
+* Perform offline OCR on scanned PDFs and images containing English or Japanese text
 
 Details: [User Guide](docs/USER_GUIDE.md) · [Features](docs/FEATURES.md)
 
@@ -84,14 +82,12 @@ Generated installers, binaries, release archives, local validation outputs, priv
 
 1. Run `MonographPDF_{version}_Setup.exe`.
 2. Keep **Register Monograph PDF for PDF files** selected if you want Monograph PDF to appear in **Open with**.
-3. Start **Monograph PDF** from the Start menu (**Monograph PDF** folder) or the desktop shortcut. The program is `MonographPDF.exe`.
+3. Start **Monograph PDF** from the Start menu or desktop shortcut.
 4. Open a PDF with **File ▸ Open…** (`Ctrl+O`), or drag a PDF into the application window.
 5. Use the toolbar, menus, inspector, or start-page tools to work with the document.
 6. Press **Ctrl+S** to save your changes.
 
 To make Monograph PDF your default PDF application, use **Help ▸ Make Monograph PDF the Default PDF App…** and complete the selection in Windows Settings.
-
-Upgrading from PDF Editor: run the new Setup; see [Upgrading from PDF Editor](INSTALLATION.md#upgrading-from-pdf-editor).
 
 ---
 
@@ -103,7 +99,7 @@ Upgrading from PDF Editor: run the new Setup; see [Upgrading from PDF Editor](IN
 * Word, Excel, and PowerPoint to PDF conversion requires Microsoft Office or LibreOffice to be installed locally.
 * PDF to Word conversion is designed for high fidelity, but complex layouts, unusual fonts, or scanned pages may require manual adjustment.
 * Signatures are visual only; certificate-based digital signatures are not currently included.
-* Windows does not allow applications to silently make themselves the default PDF viewer. Choose Monograph PDF manually in Windows Settings if you want it as the default; this includes the case where PDF Editor was your default PDF app before upgrading.
+* Windows does not allow applications to silently make themselves the default PDF viewer. Choose Monograph PDF manually in Windows Settings if you want it as the default.
 * Windows builds are currently unsigned, so Microsoft SmartScreen may display a warning. Verify downloaded release files against the published `SHA256SUMS.txt` before running them.
 
 ---
@@ -112,32 +108,24 @@ Upgrading from PDF Editor: run the new Setup; see [Upgrading from PDF Editor](IN
 
 Monograph PDF does not upload documents, collect usage data, show advertising, use online OCR, or download executable code, plugins, OCR models, or updates at runtime.
 
-Settings and the recent-files list are stored under:
+Application settings and recent-file information are stored locally on your computer. Temporary files, logs, and recovery sessions are also handled locally and cleaned up automatically.
 
-```text
-%APPDATA%\Monograph PDF
-```
+No recovery copy is kept for password-protected PDFs, and Monograph PDF does not write working data into the installation folder.
 
-Temporary files, logs, and recovery sessions are stored under:
-
-```text
-%LOCALAPPDATA%\Monograph PDF
-```
-
-These working files are cleaned up automatically. No recovery copy is kept for password-protected PDFs, and nothing is written into the installation folder. After an upgrade, the settings of the previous PDF Editor (`%APPDATA%\PDF Editor`) are migrated by copying them once, at the first start. See [Security and Privacy](docs/SECURITY_AND_PRIVACY.md).
+See [Security and Privacy](docs/SECURITY_AND_PRIVACY.md) for detailed information about local storage, temporary data, recovery behavior, and security-related design.
 
 ---
 
 ## Documentation
 
-For users (also in the installer package / the installed app where noted):
+For users:
 
-* [User Guide](docs/USER_GUIDE.md) — **Help ▸ User Guide** (F1) and the **Monograph PDF User Guide** Start menu entry
-* [Installation Guide](INSTALLATION.md) — in the downloadable release package
+* [User Guide](docs/USER_GUIDE.md) — also available in the application through **Help ▸ User Guide** (`F1`)
+* [Installation Guide](INSTALLATION.md)
 * [Changelog](CHANGELOG.md)
 * [Security Policy](SECURITY.md)
 
-For developers (repository `monograph-pdf` / source archive):
+For developers:
 
 * [Features](docs/FEATURES.md)
 * [File Formats and Compatibility](docs/FILE_FORMATS_AND_COMPATIBILITY.md)
@@ -151,23 +139,35 @@ For developers (repository `monograph-pdf` / source archive):
 
 ## Uninstallation
 
-**Settings ▸ Apps ▸ Installed apps** → **Monograph PDF** → **Uninstall** (or run `uninstall.exe` in the installation folder).
+**Settings ▸ Apps ▸ Installed apps** → **Monograph PDF** → **Uninstall**
 
-Removes the application, shortcuts, file-type registrations, recent-files list and working files (cache, logs, temporary files). Asks whether to remove settings. Your documents are never removed. Details: [Installation Guide — Uninstallation](INSTALLATION.md#uninstallation).
+You can also run the uninstaller from the Monograph PDF installation directory.
+
+Uninstallation removes the application, shortcuts, file registrations, recent-file information, and application working files such as cache, logs, and temporary files.
+
+You can choose whether to remove saved settings.
+
+Your PDF documents and other user-created files are never removed.
+
+See [Installation Guide — Uninstallation](INSTALLATION.md#uninstallation) for details.
 
 ---
 
 ## Citation
 
-Mun AY. **Monograph PDF: An offline desktop application for viewing, editing, organizing, converting, protecting and signing PDF documents.** Version 0.2.0 (unreleased). 2026. Previously distributed as PDF Editor through version 0.1.5.
+Mun AY. **Monograph PDF: An offline desktop application for viewing, editing, organizing, converting, protecting, and signing PDF documents.** Version 0.2.0. 2026. Unreleased.
 
-The citation will name the release date once 0.2.0 is released. See also `CITATION.cff`.
+The citation will include the release date once version 0.2.0 is released.
+
+See also [`CITATION.cff`](CITATION.cff).
 
 ---
 
 ## Author
 
-Design, development, testing, packaging and maintenance: **Aung Ye Mun**
+**Aung Ye Mun**
+
+Design, development, testing, documentation, packaging, and maintenance.
 
 ---
 
@@ -175,6 +175,14 @@ Design, development, testing, packaging and maintenance: **Aung Ye Mun**
 
 © 2026–Present Aung Ye Mun.
 
-Monograph PDF is free software under the **GNU Affero General Public License v3.0 or later** (**AGPL-3.0-or-later**). Its PDF engine (PyMuPDF / MuPDF) is under upstream AGPL-3.0; other bundled components keep their own licenses (see `THIRD_PARTY_NOTICES.md`). The new product name does not change any license. Each release includes `MonographPDF_{version}_Source.zip` beside the installer.
+Monograph PDF is free software licensed under the **GNU Affero General Public License v3.0 or later** (`AGPL-3.0-or-later`).
 
-See `LICENSE.md` for full details.
+The PDF engine, PyMuPDF / MuPDF, is distributed under its upstream AGPL-3.0 terms. Other bundled components retain their respective licenses.
+
+See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for third-party component and license information.
+
+Each release includes the corresponding:
+
+`MonographPDF_{version}_Source.zip`
+
+See [`LICENSE.md`](LICENSE.md) for full licensing information.

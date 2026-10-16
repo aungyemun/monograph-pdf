@@ -5,10 +5,8 @@
 | Version | Status |
 |---------|--------|
 | 0.2.x (Monograph PDF) | In development (0.2.0 unreleased); becomes the supported line when 0.2.0 is released |
-| 0.1.5 (PDF Editor) | Legacy — final PDF Editor release; supported until Monograph PDF 0.2.0 is released, after which fixes are made only in Monograph PDF |
-| < 0.1.5 | Not supported |
 
-Monograph PDF is the successor to PDF Editor; reports about PDF Editor 0.1.5 are welcome at the same address.
+Security fixes are made in the latest released version.
 
 ## Reporting a Vulnerability
 
@@ -32,7 +30,7 @@ Monograph PDF itself makes no network connections, does not upload documents, an
 - **Temporary files** — working files are kept under `%LOCALAPPDATA%\Monograph PDF\runtime` and cleaned up automatically; nothing is written into the installation folder, and no recovery copy is kept for password-protected PDFs. Uninstalling removes them, the recent-files list and, if the user chooses, all settings; it never removes user documents.
 - **Network** — Monograph PDF makes no network connections; the release build leaves out Qt's network and TLS plugins and Python's SSL module, and the installer's self-check fails if anything tries to connect. No telemetry, advertising, online OCR or runtime downloads.
 
-Technical details: [Security and Privacy](docs/SECURITY_AND_PRIVACY.md). Audit evidence for the last release (PDF Editor 0.1.5): [SECURITY_AUDIT_0.1.5.md](reports/audit/SECURITY_AUDIT_0.1.5.md); the 0.2.0 release-candidate audit: [SECURITY_AUDIT_0.2.0.md](reports/audit/SECURITY_AUDIT_0.2.0.md) (no blocker; one MEDIUM dependency finding open).
+Technical details: [Security and Privacy](docs/SECURITY_AND_PRIVACY.md). Audit evidence: the 0.2.0 release-candidate audit, [SECURITY_AUDIT_0.2.0.md](reports/audit/SECURITY_AUDIT_0.2.0.md) (no blocker; one MEDIUM dependency finding open).
 
 ## Bundled Third-Party Components (summary)
 

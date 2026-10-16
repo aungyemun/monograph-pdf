@@ -1,16 +1,20 @@
-"""Branding scan: find every remaining reference to the predecessor product PDF Editor and classify it.
+"""Branding scan: find every remaining reference to the earlier internal name "PDF Editor" and classify it.
 
     python scripts/packaging/branding_scan.py [--layout <built app folder>] [--json <out>] [--show <class>]
 
 Searched patterns: PDF Editor, PDF_editor(.exe), PDFEditor_, PDF_logo.png, pdf_editor.ico, and the old
 %APPDATA% / %LOCALAPPDATA% / Program Files paths. Every match is classified as
 
-  EXPECTED-HISTORICAL               release history (CHANGELOG entries <= 0.1.5, the 0.1.5 audit,
-                                    statements that Monograph PDF succeeds PDF Editor)
+  EXPECTED-HISTORICAL               internal development record (CHANGELOG "Internal development
+                                    history", the 0.1.5 audit)
   EXPECTED-MIGRATION-COMPATIBILITY  code, installer, tests and documentation that recognise, upgrade,
                                     migrate or clean up PDF Editor installations and data, deprecated
                                     PDFEDITOR_* aliases, PDF private keys kept for file compatibility
-  INCORRECT-STALE-BRANDING          anything else: the old name used as the active product identity
+  INCORRECT-STALE-BRANDING          anything else, and ANY match in a public-facing file (README,
+                                    INSTALLATION, SECURITY, CITATION, LICENSE, THIRD_PARTY_NOTICES,
+                                    User Guide, FEATURES, security/privacy doc, dependency inventory,
+                                    the public part of CHANGELOG): Monograph PDF is presented as a
+                                    standalone product, so no old-name wording may appear there
 
 Exit code 1 when an INCORRECT-STALE-BRANDING match exists. With --layout, the files of a built
 application (text files, and file names) are scanned too: there every match is stale unless it is
@@ -39,6 +43,11 @@ SCAN_FILES = ["README.md", "INSTALLATION.md", "LICENSE.md", "THIRD_PARTY_NOTICES
 SKIP_PARTS = {"__pycache__", ".pytest_cache", "env", "build", "dist", "release", "outputs", "samples", ".git"}
 TEXT = {".py", ".ps1", ".bat", ".iss", ".cs", ".md", ".txt", ".json", ".cff", ".qss", ".ini", ".cfg", ""}
 
+# Public-facing documents: the old name must not appear at all (standalone product, first public release)
+PUBLIC_FILES = {
+    "README.md", "INSTALLATION.md", "SECURITY.md", "CITATION.cff", "LICENSE.md", "THIRD_PARTY_NOTICES.md",
+    "docs/USER_GUIDE.md", "docs/FEATURES.md", "docs/SECURITY_AND_PRIVACY.md", "licenses/DEPENDENCY_INVENTORY.md",
+}
 HISTORICAL_FILES = {"reports/audit/SECURITY_AUDIT_0.1.5.md"}
 # Files whose purpose is recognising / migrating / cleaning up PDF Editor or testing that
 MIGRATION_FILES = {
@@ -76,12 +85,14 @@ def _files(root: Path) -> list[Path]:
 
 def _changelog_history_start(lines: list[str]) -> int:
     for i, line in enumerate(lines):
-        if line.startswith("## [0.1.5]"):
+        if line.startswith("## Internal development history") or line.startswith("## [0.1.5]"):
             return i
     return len(lines)
 
 
 def classify(rel: str, line: str, lineno: int, history_from: int, previous: str = "") -> str:
+    if rel in PUBLIC_FILES or (rel == "CHANGELOG.md" and lineno < history_from):
+        return "INCORRECT-STALE-BRANDING"
     if rel in HISTORICAL_FILES or (rel == "CHANGELOG.md" and lineno >= history_from):
         return "EXPECTED-HISTORICAL"
     if rel in MIGRATION_FILES or LEGACY_IDENT.search(line):
@@ -129,12 +140,10 @@ def scan(root: Path = ROOT, layout: Path | None = None) -> list[dict]:
                 history_from = _changelog_history_start(lines) if f.name == "CHANGELOG.md" else 0
                 for i, line in enumerate(lines):
                     for m in PATTERN.finditer(line):
-                        cls = classify(f.name if f.name in ("CHANGELOG.md",) else rel, line, i, history_from,
-                                       lines[i - 1] if i else "")
-                        if f.name not in ("CHANGELOG.md", "README.md", "THIRD_PARTY_NOTICES.md", "LICENSE.md",
-                                          "INSTALLATION.md", "USER_GUIDE.md", "SECURITY.md", "DEPENDENCY_INVENTORY.md",
-                                          "CITATION.cff"):
-                            cls = "INCORRECT-STALE-BRANDING"
+                        # only the internal development history of the changelog may name the old product
+                        cls = "INCORRECT-STALE-BRANDING"
+                        if f.name == "CHANGELOG.md":
+                            cls = classify("CHANGELOG.md", line, i, history_from, lines[i - 1] if i else "")
                         hits.append({"file": rel, "line": i + 1, "match": m.group(0), "class": cls, "text": line.strip()[:200]})
     return hits
 

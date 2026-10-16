@@ -1267,14 +1267,13 @@ var
 begin
   if LegacyUpgrade then
   begin
-    Body := 'PDF Editor has been renamed to Monograph PDF.' + #13#10#13#10 +
-            'An existing PDF Editor installation was found at:' + #13#10 + PreviousInstallDir + #13#10#13#10 +
-            'Monograph PDF can upgrade your existing installation while preserving your settings and documents.';
-    UpgradePage := CreateInputOptionPage(wpLicense, 'Upgrade to Monograph PDF',
-      'PDF Editor has been renamed to Monograph PDF.', Body, True, False);
+    Body := 'An existing installation was found at:' + #13#10 + PreviousInstallDir + #13#10#13#10 +
+            'Monograph PDF can upgrade this installation while preserving your settings and documents.';
+    UpgradePage := CreateInputOptionPage(wpLicense, 'Existing installation found',
+      'Setup found an existing installation on this computer.', Body, True, False);
     if RenamedDir <> '' then
     begin
-      UpgradePage.Add('Install Monograph PDF in ' + RenamedDir + ' and remove the previous PDF Editor application (recommended)');
+      UpgradePage.Add('Install Monograph PDF in ' + RenamedDir + ' and remove the previous application (recommended)');
       UpgradePage.Add('Upgrade using the existing installation location (' + PreviousInstallDir + ')');
     end
     else

@@ -4,7 +4,7 @@ This document identifies the third-party software redistributed with Monograph P
 
 License texts: `LICENSE.md` (Monograph PDF: **AGPL-3.0-or-later**; PyMuPDF/MuPDF retain upstream **AGPL-3.0**) and, in the `licenses` folder of the installation, GPL-2.0, GPL-3.0, LGPL-2.1, LGPL-3.0, MPL-1.1 and the GCC Runtime Library Exception. Corresponding Monograph PDF release source, including application, build, installer, documentation and release tests, together with the corresponding source of every bundled AGPL, GPL and LGPL component, is published with each release as `MonographPDF_0.2.0_Source.zip` (see [Corresponding source](#corresponding-source)). Local personal-document validation utilities that contain private or machine-local paths are intentionally excluded from that archive.
 
-Monograph PDF is the successor to PDF Editor (final release 0.1.5). The new name does not change the licensing of Monograph PDF or of any bundled component; the bundled components and their versions are the same as in PDF Editor 0.1.5.
+Each bundled component keeps its own license, listed below.
 
 All **bundled** components listed below run locally. None of them is used by Monograph PDF to communicate over a network. Optional external Microsoft Office / LibreOffice (not included) follow their own settings and behavior when invoked for conversion. The release build removes the parts of the bundled libraries that only serve network use (Qt network and TLS plugins, Python's SSL module, OpenCV's FFmpeg video I/O); `scripts\packaging\check_release.py` fails a build that contains a program file not listed here.
 

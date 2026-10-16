@@ -258,12 +258,12 @@ def test_installer_recognises_pdf_editor_installations():
 
 def test_upgrade_page_wording():
     code = _section("Code")
-    assert "'Upgrade to Monograph PDF'" in code
-    assert "'PDF Editor has been renamed to Monograph PDF.'" in code
-    assert "'An existing PDF Editor installation was found at:'" in code
+    assert "'Existing installation found'" in code
+    assert "'An existing installation was found at:'" in code
+    assert "has been renamed" not in code  # no product-history wording in Setup
     assert "preserving your settings and documents" in code
     assert "'Upgrade using the existing installation location (" in code
-    assert "and remove the previous PDF Editor application" in code
+    assert "and remove the previous application" in code
     assert "'Cancel — Go back'" in code
 
 
@@ -361,9 +361,12 @@ def test_frozen_pdf_editor_artifacts_are_excluded_from_source_and_git():
 def test_historical_changelog_entries_are_kept():
     log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert "## [0.2.0] — Unreleased" in log
-    assert "## [0.1.5] — 2026-10-15" in log and "## [0.1.4] — 2026-10-08" in log
-    assert "## [0.1.6]" not in log  # folded into 0.2.0, never released
-    assert log.index("## [0.2.0]") < log.index("## [0.1.5]")
+    assert "## Internal development history" in log
+    assert "### [0.1.5] — 2026-10-15" in log and "### [0.1.4] — 2026-10-08" in log
+    assert "[0.1.6]" not in log  # folded into 0.2.0, never released
+    assert log.index("## [0.2.0]") < log.index("## Internal development history") < log.index("### [0.1.5]")
+    public = log[: log.index("## Internal development history")]
+    assert "PDF Editor" not in public  # the public 0.2.0 entry presents a standalone product
 
 
 # ----------------------------------------------------------------- branding scan

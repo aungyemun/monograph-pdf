@@ -35,9 +35,8 @@ In practical terms:
 
 Third-party components retain their own licenses. See `THIRD_PARTY_NOTICES.md`.
 
-Monograph PDF is the successor to PDF Editor (final release 0.1.5) and continues it under the same
-license; the change of name does not change the license of Monograph PDF or of any bundled
-component. Earlier PDF Editor releases remain available under the license they were released with.
+Monograph PDF is licensed under the GNU Affero General Public License v3.0 or later. Bundled
+third-party components keep their own licenses.
 
 ## GNU Affero General Public License, version 3
 
