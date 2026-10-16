@@ -1,0 +1,35 @@
+{
+  "note": "Bundled OFL fallback fonts for offline editing. Viewing uses embedded PDF fonts via MuPDF.",
+  "fonts": [
+    {
+      "family": "Noto Sans",
+      "style": "Regular",
+      "file": "NotoSans-Regular.ttf",
+      "scripts": [
+        "latin",
+        "symbols"
+      ],
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "Noto Serif",
+      "style": "Regular",
+      "file": "NotoSerif-Regular.ttf",
+      "scripts": [
+        "latin"
+      ],
+      "license": "OFL-1.1"
+    },
+    {
+      "family": "Noto Sans CJK JP",
+      "style": "Regular",
+      "file": "NotoSansCJKjp-Regular.otf",
+      "scripts": [
+        "japanese",
+        "latin",
+        "cjk-punctuation"
+      ],
+      "license": "OFL-1.1"
+    }
+  ]
+}

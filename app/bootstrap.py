@@ -1,0 +1,144 @@
+"""Application bootstrap: show UI early; defer nonessential work after first frame."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+# Project root on sys.path when run from source. The built app imports only the modules
+# bundled inside it, never .py files placed beside MonographPDF.exe.
+_ROOT = Path(__file__).resolve().parents[1]
+if not getattr(sys, "frozen", False) and str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Start the Qt application and show the main window. Returns process exit code."""
+    argv = list(sys.argv if argv is None else argv)
+    # The installer passes --runtime-dir so its self-check never writes into Program Files.
+    if "--runtime-dir" in argv:
+        i = argv.index("--runtime-dir")
+        if i + 1 < len(argv):
+            from core import app_env
+
+            app_env.set("RUNTIME_DIR", argv[i + 1])
+            del argv[i : i + 2]
+    if "--smoke-test" in argv:
+        from app.smoke_test import run_smoke_test
+
+        return run_smoke_test(argv)
+
+    from core.startup_timing import mark, reset, write_log
+
+    reset()
+    mark("process_entry")
+
+    from app.paths import ensure_runtime_layout
+    from app import __version__
+
+    mark("paths_version")
+
+    # Minimal UI stack first — heavy PDF/OCR/convert imports deferred after show.
+    from PySide6.QtCore import QTimer, Qt
+    from PySide6.QtWidgets import QLabel
+
+    from app.qt_app import create_application
+    from core.product_meta import COPYRIGHT_OWNER, PRODUCT_NAME
+    from core.user_prefs import UserPreferences
+    from ui.branding import apply_application_icon
+    from ui.theme import apply_theme
+
+    mark("pyside_import")
+
+    ensure_runtime_layout()
+    mark("runtime_layout")
+
+    # First start after an upgrade from PDF Editor (<= 0.1.5): copy this user's settings,
+    # recent files and recovery sessions (never deletes the PDF Editor folders)
+    from core.legacy_migration import migrate_at_startup
+
+    migrate_at_startup()
+    mark("legacy_migration")
+
+    app = create_application(argv)
+    mark("qapplication")
+    app.setApplicationName(PRODUCT_NAME)
+    app.setOrganizationName(COPYRIGHT_OWNER)
+    app.setApplicationVersion(__version__)
+    apply_theme(app, UserPreferences.load().theme)
+    apply_application_icon(app)
+    mark("theme_icon")
+
+    # Start menu "User Guide": the guide alone, in Monograph PDF's own viewer (no .md app needed)
+    if "--user-guide" in argv:
+        from ui.app_dialogs import UserGuideDialog
+
+        guide = UserGuideDialog()
+        guide.setWindowTitle(f"{PRODUCT_NAME} User Guide")
+        guide.exec()
+        return 0
+
+    # Brief splash while the editor shell imports (onedir avoids onefile extract delay).
+    splash = QLabel(PRODUCT_NAME)
+    splash.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    splash.setFixedSize(300, 110)
+    splash.setStyleSheet(
+        "background-color:#1c2430;color:#e7eef8;font-size:17px;font-weight:600;"
+        "border:1px solid #2e3a4a;"
+    )
+    splash.setWindowFlags(
+        Qt.WindowType.SplashScreen
+        | Qt.WindowType.FramelessWindowHint
+        | Qt.WindowType.WindowStaysOnTopHint
+    )
+    splash.show()
+    app.processEvents()
+    mark("splash_visible")
+
+    from ui.main_window import MainWindow
+
+    mark("main_window_import")
+
+    window = MainWindow()
+    mark("mainwindow_ctor")
+    window.show()
+    splash.close()
+    app.processEvents()
+    mark("first_visible")
+    write_log(tag="startup")
+
+    # Defer nonessential probes, temp cleanup, and warm imports
+    def _deferred_warmup() -> None:
+        mark("deferred_warmup_start")
+        try:
+            from core.organize.temputil import cleanup_abandoned_temps
+
+            cleanup_abandoned_temps()
+        except Exception:  # noqa: BLE001
+            pass
+        # Warm frozen-collected modules without blocking first paint
+        for mod in (
+            "engines.mupdf_backend",
+            "engines.bake_edits",
+            "core.forms.acroform",
+            "core.tables.detect",
+            "core.organize",
+            "core.convert",
+            "core.annotations",
+            "core.security",
+            "core.redaction",
+            "core.signatures",
+        ):
+            try:
+                __import__(mod)
+            except Exception:  # noqa: BLE001
+                pass
+        mark("deferred_warmup_done")
+        write_log(tag="startup")
+
+    QTimer.singleShot(0, _deferred_warmup)
+    return int(app.exec())
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

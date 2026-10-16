@@ -1,0 +1,9 @@
+﻿{
+    "vendored_at":  "2026-10-07T12:10:21.6704938+09:00",
+    "tessdata":  {
+                     "jpn":  true,
+                     "osd":  true,
+                     "eng":  true
+                 },
+    "tesseract":  true
+}

@@ -1,0 +1,517 @@
+{
+  "release": "0.2.0",
+  "archive": "MonographPDF_0.2.0_Source.zip",
+  "components": [
+    {
+      "id": "monograph-pdf",
+      "name": "Monograph PDF",
+      "version": "0.2.0",
+      "license": "AGPL-3.0-or-later",
+      "covers": [
+        "MonographPDF.exe",
+        "uninstall.exe"
+      ],
+      "location": "monograph-pdf/",
+      "files": [],
+      "notes": "Complete source of Monograph PDF (successor to PDF Editor) with build, installer and test scripts (monograph-pdf/ folder)."
+    },
+    {
+      "id": "pymupdf",
+      "name": "PyMuPDF",
+      "version": "1.25.3",
+      "license": "AGPL-3.0",
+      "covers": [
+        "_internal/pymupdf/*",
+        "_internal/pymupdf-*.dist-info/*"
+      ],
+      "location": "third-party/pymupdf/",
+      "files": [
+        {
+          "name": "pymupdf-1.25.3.tar.gz",
+          "sha256": "b640187c64c5ac5d97505a92e836da299da79c2f689f3f94a67a37a493492193",
+          "urls": [
+            "https://files.pythonhosted.org/packages/06/47/b61c1c44b87cbdaeecdec3f43ce524ed6b3c72172bc6184eb82c94fbc43d/pymupdf-1.25.3.tar.gz"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mupdf",
+      "name": "MuPDF (built into PyMuPDF 1.25.3)",
+      "version": "1.25.4",
+      "license": "AGPL-3.0",
+      "covers": [
+        "_internal/pymupdf/mupdfcpp64.dll",
+        "_internal/pymupdf/_mupdf.pyd"
+      ],
+      "location": "third-party/mupdf/",
+      "files": [
+        {
+          "name": "mupdf-1.25.4-source.tar.gz",
+          "sha256": "74b943038fe81594bf7fc5621c60bca588b2847f0d46fb2e99652a21fa0d9491",
+          "urls": [
+            "https://mupdf.com/downloads/archive/mupdf-1.25.4-source.tar.gz"
+          ],
+          "verified_by": "SHA-256 recorded at first download over HTTPS from mupdf.com"
+        }
+      ],
+      "notes": "PyMuPDF 1.25.3's setup.py builds MuPDF 1.25.4 from this tarball (version_mupdf = '1.25.4')."
+    },
+    {
+      "id": "pdf2docx",
+      "name": "pdf2docx",
+      "version": "0.5.8",
+      "license": "GPL-3.0-only",
+      "covers": [
+        "_internal/pdf2docx-*.dist-info/*",
+        "MonographPDF.exe"
+      ],
+      "location": "third-party/pdf2docx/",
+      "files": [
+        {
+          "name": "pdf2docx-0.5.8.tar.gz",
+          "sha256": "e723f639728193468602b69eade2fe62df5f5d339d2630228e325f4cc61c1918",
+          "urls": [
+            "https://files.pythonhosted.org/packages/source/p/pdf2docx/pdf2docx-0.5.8.tar.gz"
+          ]
+        }
+      ],
+      "notes": "Pure Python; its modules are inside MonographPDF.exe."
+    },
+    {
+      "id": "pyside6",
+      "name": "PySide6 / Shiboken6",
+      "version": "6.8.1.1",
+      "license": "LGPL-3.0-only",
+      "covers": [
+        "_internal/PySide6/*.pyd",
+        "_internal/PySide6/pyside6.abi3.dll",
+        "_internal/shiboken6/*.pyd",
+        "_internal/shiboken6/shiboken6.abi3.dll"
+      ],
+      "location": "third-party/qt/",
+      "files": [
+        {
+          "name": "pyside-setup-everywhere-src-6.8.1.1.tar.xz",
+          "sha256": "e1f198f0a9f6f0e694e3b44406166834e27cffa3f23c5a439c934e5c4faba468",
+          "urls": [
+            "https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.8.1-src/pyside-setup-everywhere-src-6.8.1.1.tar.xz"
+          ],
+          "sha256_url": "https://download.qt.io/official_releases/QtForPython/pyside6/PySide6-6.8.1-src/pyside-setup-everywhere-src-6.8.1.1.tar.xz.sha256"
+        }
+      ]
+    },
+    {
+      "id": "qt-qtbase",
+      "name": "Qt qtbase",
+      "version": "6.8.1",
+      "license": "LGPL-3.0-only",
+      "covers": [
+        "_internal/PySide6/Qt6Core.dll",
+        "_internal/PySide6/Qt6Gui.dll",
+        "_internal/PySide6/Qt6Widgets.dll",
+        "_internal/PySide6/Qt6PrintSupport.dll",
+        "_internal/PySide6/Qt6OpenGL.dll",
+        "_internal/PySide6/plugins/platforms/*",
+        "_internal/PySide6/plugins/styles/*",
+        "_internal/PySide6/plugins/imageformats/qgif.dll",
+        "_internal/PySide6/plugins/imageformats/qico.dll",
+        "_internal/PySide6/plugins/imageformats/qjpeg.dll"
+      ],
+      "location": "third-party/qt/",
+      "files": [
+        {
+          "name": "qtbase-everywhere-src-6.8.1.tar.xz",
+          "sha256": "40b14562ef3bd779bc0e0418ea2ae08fa28235f8ea6e8c0cb3bce1d6ad58dcaf",
+          "md5_list": "https://download.qt.io/archive/qt/6.8/6.8.1/submodules/md5sums.txt",
+          "urls": [
+            "https://download.qt.io/archive/qt/6.8/6.8.1/submodules/qtbase-everywhere-src-6.8.1.tar.xz",
+            "https://download.qt.io/official_releases/qt/6.8/6.8.1/submodules/qtbase-everywhere-src-6.8.1.tar.xz"
+          ],
+          "sha256_url": "https://download.qt.io/archive/qt/6.8/6.8.1/submodules/qtbase-everywhere-src-6.8.1.tar.xz.sha256"
+        }
+      ]
+    },
+    {
+      "id": "qt-qtsvg",
+      "name": "Qt qtsvg",
+      "version": "6.8.1",
+      "license": "LGPL-3.0-only",
+      "covers": [
+        "_internal/PySide6/Qt6Svg.dll",
+        "_internal/PySide6/plugins/iconengines/*",
+        "_internal/PySide6/plugins/imageformats/qsvg.dll"
+      ],
+      "location": "third-party/qt/",
+      "files": [
+        {
+          "name": "qtsvg-everywhere-src-6.8.1.tar.xz",
+          "sha256": "3d0de73596e36b2daa7c48d77c4426bb091752856912fba720215f756c560dd0",
+          "md5_list": "https://download.qt.io/archive/qt/6.8/6.8.1/submodules/md5sums.txt",
+          "urls": [
+            "https://download.qt.io/archive/qt/6.8/6.8.1/submodules/qtsvg-everywhere-src-6.8.1.tar.xz",
+            "https://download.qt.io/official_releases/qt/6.8/6.8.1/submodules/qtsvg-everywhere-src-6.8.1.tar.xz"
+          ],
+          "sha256_url": "https://download.qt.io/archive/qt/6.8/6.8.1/submodules/qtsvg-everywhere-src-6.8.1.tar.xz.sha256"
+        }
+      ]
+    },
+    {
+      "id": "qt-qtimageformats",
+      "name": "Qt qtimageformats",
+      "version": "6.8.1",
+      "license": "LGPL-3.0-only",
+      "covers": [
+        "_internal/PySide6/plugins/imageformats/qicns.dll",
+        "_internal/PySide6/plugins/imageformats/qtga.dll",
+        "_internal/PySide6/plugins/imageformats/qtiff.dll",
+        "_internal/PySide6/plugins/imageformats/qwbmp.dll",
+        "_internal/PySide6/plugins/imageformats/qwebp.dll"
+      ],
+      "location": "third-party/qt/",
+      "files": [
+        {
+          "name": "qtimageformats-everywhere-src-6.8.1.tar.xz",
+          "sha256": "138cc2909aa98f5ff7283e36eb3936eb5e625d3ca3b4febae2ca21d8903dd237",
+          "md5_list": "https://download.qt.io/archive/qt/6.8/6.8.1/submodules/md5sums.txt",
+          "urls": [
+            "https://download.qt.io/archive/qt/6.8/6.8.1/submodules/qtimageformats-everywhere-src-6.8.1.tar.xz",
+            "https://download.qt.io/official_releases/qt/6.8/6.8.1/submodules/qtimageformats-everywhere-src-6.8.1.tar.xz"
+          ],
+          "sha256_url": "https://download.qt.io/archive/qt/6.8/6.8.1/submodules/qtimageformats-everywhere-src-6.8.1.tar.xz.sha256"
+        }
+      ]
+    },
+    {
+      "id": "ocr-glib2",
+      "name": "GLib (libglib, libgio, libgobject, libgmodule)",
+      "version": "2.80.2 (MSYS2 build 2.80.2-2)",
+      "license": "LGPL-2.1-or-later",
+      "covers": [
+        "engines/ocr/libglib-2.0-0.dll",
+        "engines/ocr/libgio-2.0-0.dll",
+        "engines/ocr/libgobject-2.0-0.dll",
+        "engines/ocr/libgmodule-2.0-0.dll"
+      ],
+      "location": "third-party/ocr-engine/glib2/",
+      "files": [
+        {
+          "name": "mingw-w64-glib2-2.80.2-2.src.tar.zst",
+          "sha256": "be28e1bd8a3185fbba52d82e7db621756bf7218e962f8bd1be8f55fa4d09a3e0",
+          "urls": [
+            "https://repo.msys2.org/mingw/sources/mingw-w64-glib2-2.80.2-2.src.tar.zst",
+            "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-glib2-2.80.2-2.src.tar.zst"
+          ],
+          "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
+        }
+      ],
+      "notes": "MSYS2 package mingw-w64-x86_64-glib2-2.80.2-2-any.pkg.tar.zst: every DLL listed is byte-identical to that package. The MSYS2 source package contains the upstream release archive, the PKGBUILD and every patch the package was built with.",
+      "binaries": {
+        "engines/ocr/libglib-2.0-0.dll": "12b2f4d609a5d3cf714a8c502074409d32f21082a682373f4e1bca36821f08bc",
+        "engines/ocr/libgio-2.0-0.dll": "07bda2471ca0490598d1e6fbdfc8958cd91926d68effc90d9eda0ea2f9279c7c",
+        "engines/ocr/libgobject-2.0-0.dll": "4fcf4fb2d5ef234e717b389f3b637f05ee6ff111b698ef59664394f10622aef6",
+        "engines/ocr/libgmodule-2.0-0.dll": "8cf9bb9be24c88a66ad478214a55357a9d44702636789dfa436ca509457d781c"
+      },
+      "msys2": {
+        "binary_package": "mingw-w64-x86_64-glib2-2.80.2-2-any.pkg.tar.zst",
+        "source_package": "mingw-w64-glib2-2.80.2-2.src.tar.zst",
+        "recipe_commit": "2030516c40175691c481e0b8640626f72a2eee3e"
+      }
+    },
+    {
+      "id": "ocr-pango",
+      "name": "Pango",
+      "version": "1.52.2 (MSYS2 build 1.52.2-1)",
+      "license": "LGPL-2.1-or-later",
+      "covers": [
+        "engines/ocr/libpango-1.0-0.dll",
+        "engines/ocr/libpangocairo-1.0-0.dll",
+        "engines/ocr/libpangoft2-1.0-0.dll",
+        "engines/ocr/libpangowin32-1.0-0.dll"
+      ],
+      "location": "third-party/ocr-engine/pango/",
+      "files": [
+        {
+          "name": "mingw-w64-pango-1.52.2-1.src.tar.zst",
+          "sha256": "ee4954bcf887f28ca8bd4bbc2bbc1a1b8b154a3264d3a05ebcfdc572ecc2d23d",
+          "urls": [
+            "https://repo.msys2.org/mingw/sources/mingw-w64-pango-1.52.2-1.src.tar.zst",
+            "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-pango-1.52.2-1.src.tar.zst"
+          ],
+          "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
+        }
+      ],
+      "notes": "MSYS2 package mingw-w64-x86_64-pango-1.52.2-1-any.pkg.tar.zst: every DLL listed is byte-identical to that package. The MSYS2 source package contains the upstream release archive, the PKGBUILD and every patch the package was built with.",
+      "binaries": {
+        "engines/ocr/libpango-1.0-0.dll": "834caf40403a447634b0e80ff4ea290f1ee361364cf24ffc8bb55b048f9254a9",
+        "engines/ocr/libpangocairo-1.0-0.dll": "ee706c4561af24de6cbe7ad10b46852fc8b0f328534ea2beb5f1147696e87b55",
+        "engines/ocr/libpangoft2-1.0-0.dll": "7c80bc1949255a8bc62fe05ab003b777aa844ac8f6c5da1ebc4c49ee35f3b9b8",
+        "engines/ocr/libpangowin32-1.0-0.dll": "d940a831f2a9be33dd36ff3d8b97488a068b1699fb6b2e874633d4d5564f301c"
+      },
+      "msys2": {
+        "binary_package": "mingw-w64-x86_64-pango-1.52.2-1-any.pkg.tar.zst",
+        "source_package": "mingw-w64-pango-1.52.2-1.src.tar.zst",
+        "recipe_commit": "f94e59d1d8c9fb2827bc4f9875b180369dd2dedb"
+      }
+    },
+    {
+      "id": "ocr-cairo",
+      "name": "cairo",
+      "version": "1.18.0 (MSYS2 build 1.18.0-3)",
+      "license": "LGPL-2.1-only OR MPL-1.1",
+      "covers": [
+        "engines/ocr/libcairo-2.dll"
+      ],
+      "location": "third-party/ocr-engine/cairo/",
+      "files": [
+        {
+          "name": "mingw-w64-cairo-1.18.0-3.src.tar.zst",
+          "sha256": "3b6e404e5f2a13ced506c37e5c27bcecca974b3a63b3589850f1fd30aa4b9af8",
+          "urls": [
+            "https://repo.msys2.org/mingw/sources/mingw-w64-cairo-1.18.0-3.src.tar.zst",
+            "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-cairo-1.18.0-3.src.tar.zst"
+          ],
+          "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
+        }
+      ],
+      "notes": "MSYS2 package mingw-w64-x86_64-cairo-1.18.0-3-any.pkg.tar.zst: every DLL listed is byte-identical to that package. The MSYS2 source package contains the upstream release archive, the PKGBUILD and every patch the package was built with.",
+      "binaries": {
+        "engines/ocr/libcairo-2.dll": "c531e50be733f641e39419bf62cb799698b20086afb958d73f56677ea0c3f9da"
+      },
+      "msys2": {
+        "binary_package": "mingw-w64-x86_64-cairo-1.18.0-3-any.pkg.tar.zst",
+        "source_package": "mingw-w64-cairo-1.18.0-3.src.tar.zst",
+        "recipe_commit": "462a745374ff3f5d8052e54ac3a0b88a6e9179c1"
+      }
+    },
+    {
+      "id": "ocr-fribidi",
+      "name": "GNU FriBidi",
+      "version": "1.0.14 (MSYS2 build 1.0.14-1)",
+      "license": "LGPL-2.1-or-later",
+      "covers": [
+        "engines/ocr/libfribidi-0.dll"
+      ],
+      "location": "third-party/ocr-engine/fribidi/",
+      "files": [
+        {
+          "name": "mingw-w64-fribidi-1.0.14-1.src.tar.zst",
+          "sha256": "d8ceee0255e0200377c01a4fbebe895842faf49885fc98ff19a635238ec0a51c",
+          "urls": [
+            "https://repo.msys2.org/mingw/sources/mingw-w64-fribidi-1.0.14-1.src.tar.zst",
+            "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-fribidi-1.0.14-1.src.tar.zst"
+          ],
+          "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
+        }
+      ],
+      "notes": "MSYS2 package mingw-w64-x86_64-fribidi-1.0.14-1-any.pkg.tar.zst: every DLL listed is byte-identical to that package. The MSYS2 source package contains the upstream release archive, the PKGBUILD and every patch the package was built with.",
+      "binaries": {
+        "engines/ocr/libfribidi-0.dll": "449085380e54089871ccc9f32b715f65a2e53eb9f5125793fed900461d29a420"
+      },
+      "msys2": {
+        "binary_package": "mingw-w64-x86_64-fribidi-1.0.14-1-any.pkg.tar.zst",
+        "source_package": "mingw-w64-fribidi-1.0.14-1.src.tar.zst",
+        "recipe_commit": "d8c4b069b1aeb389f8d0de96394a96d259545571"
+      }
+    },
+    {
+      "id": "ocr-libthai",
+      "name": "libthai",
+      "version": "0.1.29 (MSYS2 build 0.1.29-3)",
+      "license": "LGPL-2.1-or-later",
+      "covers": [
+        "engines/ocr/libthai-0.dll"
+      ],
+      "location": "third-party/ocr-engine/libthai/",
+      "files": [
+        {
+          "name": "mingw-w64-libthai-0.1.29-3.src.tar.zst",
+          "sha256": "6010a30c34f0f23a10f6174fd42ccaf7cabd0adb3dfe42ca435e0f7b1f977490",
+          "urls": [
+            "https://repo.msys2.org/mingw/sources/mingw-w64-libthai-0.1.29-3.src.tar.zst",
+            "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-libthai-0.1.29-3.src.tar.zst"
+          ],
+          "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
+        }
+      ],
+      "notes": "MSYS2 package mingw-w64-x86_64-libthai-0.1.29-3-any.pkg.tar.zst: every DLL listed is byte-identical to that package. The MSYS2 source package contains the upstream release archive, the PKGBUILD and every patch the package was built with.",
+      "binaries": {
+        "engines/ocr/libthai-0.dll": "420e08cedaf9daaabcf8f6c92349d9dadb7b5ad9e4e79d1126bb2a55a7cdbe09"
+      },
+      "msys2": {
+        "binary_package": "mingw-w64-x86_64-libthai-0.1.29-3-any.pkg.tar.zst",
+        "source_package": "mingw-w64-libthai-0.1.29-3.src.tar.zst",
+        "recipe_commit": "61b154a513d745e1675bd20fd6cbda8954991b2e"
+      }
+    },
+    {
+      "id": "ocr-libdatrie",
+      "name": "libdatrie",
+      "version": "0.2.13 (MSYS2 build 0.2.13-3)",
+      "license": "LGPL-2.1-or-later",
+      "covers": [
+        "engines/ocr/libdatrie-1.dll"
+      ],
+      "location": "third-party/ocr-engine/libdatrie/",
+      "files": [
+        {
+          "name": "mingw-w64-libdatrie-0.2.13-3.src.tar.zst",
+          "sha256": "bca8a3d93f01f68390cde45edbfb89c5b2e376e5e8ce60742e16c21d37281ddc",
+          "urls": [
+            "https://repo.msys2.org/mingw/sources/mingw-w64-libdatrie-0.2.13-3.src.tar.zst",
+            "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-libdatrie-0.2.13-3.src.tar.zst"
+          ],
+          "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
+        }
+      ],
+      "notes": "MSYS2 package mingw-w64-x86_64-libdatrie-0.2.13-3-any.pkg.tar.zst: every DLL listed is byte-identical to that package. The MSYS2 source package contains the upstream release archive, the PKGBUILD and every patch the package was built with.",
+      "binaries": {
+        "engines/ocr/libdatrie-1.dll": "f760aef8a31b7c3670484ca4eabab1ab8e95c14052167e191463f6371c3f0850"
+      },
+      "msys2": {
+        "binary_package": "mingw-w64-x86_64-libdatrie-0.2.13-3-any.pkg.tar.zst",
+        "source_package": "mingw-w64-libdatrie-0.2.13-3.src.tar.zst",
+        "recipe_commit": "e1ca0b46235ae3d8f74bf46102eb75af8c41d70e"
+      }
+    },
+    {
+      "id": "ocr-graphite2",
+      "name": "Graphite2",
+      "version": "1.3.14 (MSYS2 build 1.3.14-3)",
+      "license": "LGPL-2.1-or-later OR MPL-2.0 OR GPL-2.0-or-later",
+      "covers": [
+        "engines/ocr/libgraphite2.dll"
+      ],
+      "location": "third-party/ocr-engine/graphite2/",
+      "files": [
+        {
+          "name": "mingw-w64-graphite2-1.3.14-3.src.tar.zst",
+          "sha256": "68e0325574ee5bfcb49b3b6bb09e318356740e909b7a6f8ff936638f6af0bbc3",
+          "urls": [
+            "https://repo.msys2.org/mingw/sources/mingw-w64-graphite2-1.3.14-3.src.tar.zst",
+            "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-graphite2-1.3.14-3.src.tar.zst"
+          ],
+          "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
+        }
+      ],
+      "notes": "MSYS2 package mingw-w64-x86_64-graphite2-1.3.14-3-any.pkg.tar.zst: every DLL listed is byte-identical to that package. The MSYS2 source package contains the upstream release archive, the PKGBUILD and every patch the package was built with.",
+      "binaries": {
+        "engines/ocr/libgraphite2.dll": "f927efecd958f0e54a24ae297f86cd6aed05e7fc20e5da0882050ab9ec464395"
+      },
+      "msys2": {
+        "binary_package": "mingw-w64-x86_64-graphite2-1.3.14-3-any.pkg.tar.zst",
+        "source_package": "mingw-w64-graphite2-1.3.14-3.src.tar.zst",
+        "recipe_commit": "ced2cae1ea79baf30254fdd34712b40ccdad1e16"
+      }
+    },
+    {
+      "id": "ocr-libiconv",
+      "name": "GNU libiconv",
+      "version": "1.17 (MSYS2 build 1.17-4)",
+      "license": "LGPL-2.1-or-later (library)",
+      "covers": [
+        "engines/ocr/libiconv-2.dll"
+      ],
+      "location": "third-party/ocr-engine/libiconv/",
+      "files": [
+        {
+          "name": "mingw-w64-libiconv-1.17-4.src.tar.zst",
+          "sha256": "709ddc76a1a6ca4c4ce31dc65282c327cfefbcb5a37447ea84f0e056a27abe96",
+          "urls": [
+            "https://repo.msys2.org/mingw/sources/mingw-w64-libiconv-1.17-4.src.tar.zst",
+            "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-libiconv-1.17-4.src.tar.zst"
+          ],
+          "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
+        }
+      ],
+      "notes": "MSYS2 package mingw-w64-x86_64-libiconv-1.17-4-any.pkg.tar.zst: every DLL listed is byte-identical to that package. The MSYS2 source package contains the upstream release archive, the PKGBUILD and every patch the package was built with.",
+      "binaries": {
+        "engines/ocr/libiconv-2.dll": "967189adfbc889fde89aafc867f7a1f02731f8592cf6fd5a4ace1929213e2e13"
+      },
+      "msys2": {
+        "binary_package": "mingw-w64-x86_64-libiconv-1.17-4-any.pkg.tar.zst",
+        "source_package": "mingw-w64-libiconv-1.17-4.src.tar.zst",
+        "recipe_commit": "093ab192533820af5b5d8a333db35e550ec89829"
+      }
+    },
+    {
+      "id": "ocr-gettext",
+      "name": "GNU gettext runtime (libintl)",
+      "version": "0.22.5 (MSYS2 build 0.22.5-2)",
+      "license": "LGPL-2.1-or-later (libintl)",
+      "covers": [
+        "engines/ocr/libintl-8.dll"
+      ],
+      "location": "third-party/ocr-engine/gettext/",
+      "files": [
+        {
+          "name": "mingw-w64-gettext-0.22.5-2.src.tar.zst",
+          "sha256": "ed247fb2795bfeffb1922813da25a642bd8173ad3bfb1de12d13b2b5ef46805c",
+          "urls": [
+            "https://repo.msys2.org/mingw/sources/mingw-w64-gettext-0.22.5-2.src.tar.zst",
+            "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-gettext-0.22.5-2.src.tar.zst"
+          ],
+          "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
+        }
+      ],
+      "notes": "MSYS2 package mingw-w64-x86_64-gettext-runtime-0.22.5-2-any.pkg.tar.zst: every DLL listed is byte-identical to that package. The MSYS2 source package contains the upstream release archive, the PKGBUILD and every patch the package was built with.",
+      "binaries": {
+        "engines/ocr/libintl-8.dll": "42a63cb4c3c28a683d9f6c3510de5ec17849eb18c097fa02cd78aeb800bff202"
+      },
+      "msys2": {
+        "binary_package": "mingw-w64-x86_64-gettext-runtime-0.22.5-2-any.pkg.tar.zst",
+        "source_package": "mingw-w64-gettext-0.22.5-2.src.tar.zst",
+        "recipe_commit": "141548534dd1a3604e422f6306328373aa6babb7"
+      }
+    },
+    {
+      "id": "ocr-jbigkit",
+      "name": "JBIG-KIT",
+      "version": "2.1 (MSYS2 build 2.1-5)",
+      "license": "GPL-2.0-or-later",
+      "covers": [
+        "engines/ocr/libjbig-0.dll"
+      ],
+      "location": "third-party/ocr-engine/jbigkit/",
+      "files": [
+        {
+          "name": "mingw-w64-jbigkit-2.1-5.src.tar.zst",
+          "sha256": "402e264e13ffd10424d3217e83076d9e1e3ab0db16303a33d42a4bd4cda4088b",
+          "urls": [
+            "https://repo.msys2.org/mingw/sources/mingw-w64-jbigkit-2.1-5.src.tar.zst",
+            "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-jbigkit-2.1-5.src.tar.zst"
+          ],
+          "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
+        }
+      ],
+      "notes": "MSYS2 package mingw-w64-x86_64-jbigkit-2.1-5-any.pkg.tar.zst: every DLL listed is byte-identical to that package. The MSYS2 source package contains the upstream release archive, the PKGBUILD and every patch the package was built with.",
+      "binaries": {
+        "engines/ocr/libjbig-0.dll": "275a827ba6839d47cfdbe059db1b1b403a92ff26e2b76a29362915487868bef2"
+      },
+      "msys2": {
+        "binary_package": "mingw-w64-x86_64-jbigkit-2.1-5-any.pkg.tar.zst",
+        "source_package": "mingw-w64-jbigkit-2.1-5.src.tar.zst",
+        "recipe_commit": "828182ad91f260eba55f388ef5f9d310e888711c"
+      }
+    }
+  ],
+  "exempt": [
+    {
+      "covers": [
+        "MonographPDF.exe"
+      ],
+      "component": "PyInstaller bootloader 6.11.1",
+      "license": "GPL-2.0-or-later with bootloader exception",
+      "reason": "The bootloader exception permits distributing the compiled bootloader combined with any program without GPL obligations."
+    },
+    {
+      "covers": [
+        "engines/ocr/libgcc_s_seh-1.dll",
+        "engines/ocr/libstdc++-6.dll"
+      ],
+      "component": "GCC runtime libraries",
+      "license": "GPL-3.0-or-later with GCC Runtime Library Exception 3.1",
+      "reason": "The runtime library exception permits distribution without source obligations (license text in third_party/licenses)."
+    }
+  ]
+}

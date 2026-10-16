@@ -1,0 +1,9 @@
+Tesseract OCR
+Copyright 2024 Google LLC and contributors
+License: Apache License 2.0
+https://github.com/tesseract-ocr/tesseract
+
+Monograph PDF includes a Windows build of Tesseract under engines/ocr and
+ships language data (eng, jpn, osd) under models/tessdata for fully offline
+optical character recognition. Trained data files originate from the
+tessdata_fast / tessdata repositories and retain their upstream licensing.

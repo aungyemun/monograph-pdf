@@ -1,0 +1,22 @@
+# Runtime / app (install into ./env; wheels may be cached under ./packages/wheels)
+PySide6==6.8.1.1
+PyMuPDF==1.25.3
+packaging==24.2
+python-docx==1.1.2
+openpyxl==3.1.5
+python-pptx==1.0.2
+Pillow==11.1.0
+
+# PDF -> Word layout engine (GPL-3.0) and its dependencies, pinned together so pip keeps PyMuPDF at the
+# version above (newer pdf2docx releases pull in a newer PyMuPDF).
+pdf2docx==0.5.8
+opencv-python-headless==4.10.0.84
+numpy==2.1.3
+fonttools==4.54.1
+fire==0.7.1
+termcolor==3.3.0
+
+# Dev / test / packaging
+pytest==8.3.4
+pytest-qt==4.4.0
+pyinstaller==6.11.1

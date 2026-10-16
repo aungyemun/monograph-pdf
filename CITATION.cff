@@ -1,0 +1,29 @@
+﻿cff-version: 1.2.0
+title: "Monograph PDF"
+message: "If you use this software in your research, please cite it as below."
+type: software
+authors:
+  - family-names: "Mun"
+    given-names: "Aung Ye"
+    email: "aungyemun25@gmail.com"
+version: "0.2.0"
+license: "AGPL-3.0-or-later"
+repository-code: "https://github.com/aungyemun/monograph-pdf"
+abstract: >
+  An offline desktop application for viewing, editing, organizing, converting,
+  protecting and signing PDF documents. Supports form filling and design, text
+  and image editing, merge/split/rotate, layout-preserving PDF to Word
+  conversion, Office and image to PDF, AES-256 password protection with
+  permissions, watermarks, visual signatures, true redaction and offline OCR
+  (English and Japanese). Monograph PDF itself makes no network connections on
+  Windows 10/11; optional Office conversion uses a locally installed suite.
+  Previously distributed as PDF Editor through version 0.1.5.
+keywords:
+  - PDF
+  - PDF editor
+  - PDF forms
+  - PDF to Word
+  - document conversion
+  - OCR
+  - Windows
+  - offline

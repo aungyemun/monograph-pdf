@@ -1,0 +1,106 @@
+# Local environment and caches
+env/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.cache/
+
+# Build / dist intermediates (keep folders via .gitkeep)
+build/*
+!build/.gitkeep
+dist/*
+!dist/.gitkeep
+
+# Test outputs (keep structure)
+tests/outputs/logs/*
+!tests/outputs/logs/.gitkeep
+tests/outputs/screenshots/*
+!tests/outputs/screenshots/.gitkeep
+tests/outputs/junit/*
+!tests/outputs/junit/.gitkeep
+tests/outputs/coverage/*
+!tests/outputs/coverage/.gitkeep
+tests/outputs/temp/*
+!tests/outputs/temp/.gitkeep
+tests/outputs/generated/*
+!tests/outputs/generated/.gitkeep
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Local runtime downloads (engines may be large; track policy in docs)
+runtime/bin/*
+!runtime/bin/.gitkeep
+runtime/lib/*
+!runtime/lib/.gitkeep
+
+# Do not commit accidental root artifacts
+/*.log
+/*.pdf
+/*.png
+/*.tmp
+/coverage.xml
+/junit.xml
+
+# PyInstaller onedir payload beside ./MonographPDF.exe (rebuild via scripts/build_exe.ps1)
+/_internal/
+/MonographPDF.exe
+# Left by PDF Editor (<= 0.1.5) builds
+/PDF_editor.exe
+
+# Working files of a run from the project folder
+runtime/cache/*
+runtime/temp/*
+runtime/sessions/*
+runtime/logs/*
+runtime/recent_files.json
+
+# Release outputs (rebuilt by scripts/build_release.ps1)
+installer/*_Setup.exe
+installer/*.zip
+installer/release/
+installer/build_release_summary.txt
+tests/outputs/**/*.pdf
+# Frozen earlier releases kept byte for byte (e.g. releases/PDFEditor_0.1.5); published, not source
+/releases/
+
+# Local test material and private validation utilities (they name personal documents)
+tests/samples/*
+!tests/samples/.gitkeep
+scripts/validate_real_pdfs.py
+scripts/run_live_real_pdf_qa.py
+tests/integration/test_live_real_pdf_qa.py
+tests/integration/test_user_real_pdfs.py
+
+# Third-party source downloads, local tools, OCR binaries and models (fetched by the build scripts)
+/packages/
+/tools/
+models/*
+!models/.gitkeep
+engines/ocr/*
+!engines/ocr/.gitkeep
+!engines/ocr/MANIFEST.json
+
+# Secrets, certificates and signing keys never belong in the repository
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+*.spc
+*.kdbx
