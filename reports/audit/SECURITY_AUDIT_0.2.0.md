@@ -2,7 +2,7 @@
 
 Status: **0.2.0 is Unreleased.** This audit was run against the repository at the commit named in the release record. Results below are factual; items that could not be performed are marked as such.
 
-Result: **no BLOCKER and no unresolved HIGH finding.** One MEDIUM finding (a pinned dependency with known advisories) is open and needs an owner decision before the freeze.
+Result: **no BLOCKER and no unresolved HIGH finding.** The MEDIUM finding (Pillow advisories) is fixed by the upgrade to Pillow 12.3.0. One LOW finding is known and open (finding 13).
 
 ## Method
 
@@ -12,7 +12,7 @@ Source review of every place that starts a program, writes or deletes files, rea
 
 | # | Severity | Area | Finding | Status |
 | :-- | :-- | :-- | :-- | :-- |
-| 1 | MEDIUM | Dependencies | Pinned Pillow 11.1.0 has 17 known advisories fixed in Pillow 12.1.1 – 12.3.0 (PSD and JPEG 2000 decoder memory errors, decompression bombs, font and PDF-parser denial of service, native heap writes through public API misuse). Pillow reads a user-supplied file in only one place (`export_image_box`); every other use decodes PNG data produced by the application itself. The release is not allowed to change dependency versions. | Mitigated: `export_image_box` now decodes only PNG, JPEG, BMP, GIF, TIFF and WEBP (`SAFE_IMAGE_FORMATS`), which removes the PSD and JPEG 2000 paths. **Open:** upgrade Pillow to 12.3.0 or later in a release that is allowed to change dependency versions, then re-run the full suite. |
+| 1 | MEDIUM | Dependencies | Pillow 11.1.0 (the version pinned when this audit started) had 17 known advisories fixed in Pillow 12.1.1 – 12.3.0 (PSD and JPEG 2000 decoder memory errors, decompression bombs, font and PDF-parser denial of service, native heap writes through public API misuse). Pillow reads a user-supplied file in two places (placing a picture, `export_image_box`, and saving it, `bake_edits`); every other use decodes PNG data produced by the application itself. Pillow is now pinned to 12.3.0. | Mitigated: both now decode only PNG, JPEG, BMP, GIF, TIFF and WEBP (`SAFE_IMAGE_FORMATS`), which removes the PSD and JPEG 2000 paths. **Fixed:** Pillow upgraded to 12.3.0; the full test suite, the packaged smoke test and the release checks were re-run. |
 | 2 | LOW | External process | The printer name was placed inside a quoted `rundll32 printui.dll,PrintUIEntry /n "…"` argument; a printer name containing a quote could add arguments. Printer names are created by the local administrator. | Fixed: such a printer is not passed to rundll32. |
 | 3 | LOW | Dependencies | fontTools 4.54.1: CVE-2025-66034 affects the `fontTools.varLib` command-line script (`.designspace` files). The application never runs that script. | Not reachable; fixed in fontTools 4.60.2 (needs a pdf2docx compatibility check). |
 | 4 | INFO | Dependencies | pytest 8.3.4 advisory PYSEC-2026-1845 (UNIX `/tmp` directory handling). Development and test only; not shipped. | None needed. |
@@ -24,6 +24,7 @@ Source review of every place that starts a program, writes or deletes files, rea
 | 10 | INFO | Privacy | No code path imports a network library other than the socket guard used by the self-check; the OCR child process has proxy variables removed. The built application showed no TCP/UDP endpoints during the runtime check. This is not a packet capture. | Claim consistent with the observed behaviour. |
 | 11 | INFO | Updates | The application has no update check and downloads nothing. | None. |
 | 12 | INFO | Signing | The build is not code-signed; `SHA256SUMS.txt` is the integrity reference. | Documented in the README. |
+| 13 | LOW | Usability | **Show in folder** starts `explorer.exe` without catching `OSError`; if Explorer cannot start, no message is shown. No crash or data loss. | Known; not changed in this release candidate. |
 
 ## Checklist coverage
 

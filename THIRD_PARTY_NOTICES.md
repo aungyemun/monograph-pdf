@@ -28,7 +28,7 @@ All **bundled** components listed below run locally. None of them is used by Mon
 | openpyxl / et_xmlfile | 3.1.5 / 2.0.0 | Writing Excel (`.xlsx`) files | Bundled runtime | MIT |
 | python-pptx / XlsxWriter | 1.0.2 / 3.2.9 | Writing PowerPoint (`.pptx`) files | Bundled runtime | MIT / BSD-2-Clause |
 | lxml | 6.1.3 | XML processing for Office writers | Bundled runtime | BSD-3-Clause |
-| Pillow | 11.1.0 | Image import and export | Bundled runtime | MIT-CMU (HPND) |
+| Pillow | 12.3.0 | Image import and export | Bundled runtime | MIT-CMU (HPND) |
 | packaging / typing_extensions | 24.2 / 4.16.0 | Version parsing; typing support | Bundled runtime | Apache-2.0 OR BSD-2-Clause / PSF |
 | Tesseract OCR | 5.4.0 (Windows build) | Offline optical character recognition | Bundled runtime (separate program) | Apache-2.0 |
 | Tesseract support libraries | see [Tesseract OCR](#tesseract-ocr) | Image formats, text layout and compression for Tesseract | Bundled runtime (separate program) | Various (listed below) |
@@ -121,7 +121,7 @@ The OpenCV wheel includes additional third-party notices (for example libpng, li
 - License: MIT-CMU (Historical Permission Notice and Disclaimer)
 - Source: https://github.com/python-pillow/Pillow
 
-Pillow's wheel includes libjpeg-turbo, libpng, libtiff, libwebp, OpenJPEG, FreeType, Little CMS and zlib under their own permissive licenses.
+Pillow's wheel includes Brotli, FreeType, HarfBuzz, Little CMS (lcms2), libavif, libjpeg-turbo, libpng, libwebp, OpenJPEG, libtiff, XZ Utils (liblzma) and zlib-ng. Their license texts are part of the Pillow distribution (`PIL` folder and `pillow-12.3.0.dist-info\licenses\LICENSE` in the shipped runtime) and are permissive (MIT, BSD-style, IJG, zlib, libpng, 0BSD; FreeType under its FreeType License). Monograph PDF decodes only PNG, JPEG, BMP, GIF, TIFF and WEBP files supplied by a user; the AVIF code is present in the wheel but is not used on user files.
 
 ## Tesseract OCR
 

@@ -211,3 +211,55 @@ def test_picture_full_turn_equals_no_turn(tmp_path: Path):
     a, _ = _render_with_picture(tmp_path, 0, 1.0, "zero")
     b, _ = _render_with_picture(tmp_path, 360, 1.0, "full")
     assert a.samples == b.samples
+
+
+# ------------------------------------------------------------------ crop + opacity + any angle
+
+
+def _two_colour_picture(path: Path) -> None:
+    img = Image.new("RGB", (120, 60), (220, 30, 30))
+    img.paste((30, 30, 220), (60, 0, 120, 60))  # right half blue
+    img.save(path)
+
+
+@pytest.mark.parametrize("opacity", [1.0, 0.5])
+@pytest.mark.parametrize("crop", [(0.5, 0.0, 1.0, 1.0), (0.0, 0.0, 0.5, 0.5), (0.25, 0.25, 0.75, 0.75)])
+@pytest.mark.parametrize("angle", [0, 20, 45, 90, 137, 180, 270, 333, 360])
+def test_crop_opacity_and_angle_together(tmp_path: Path, angle: float, crop, opacity: float):
+    src = tmp_path / "blank.pdf"
+    doc = fitz.open()
+    doc.new_page(width=PAGE_W, height=PAGE_H)
+    doc.save(src.as_posix())
+    doc.close()
+    pic = tmp_path / "two.png"
+    _two_colour_picture(pic)
+    rect = Rect(125, 160, 150, 75)
+    pdf = open_document(src)
+    try:
+        edit = EditableDocument(pdf)
+        edit.add_image(
+            ImageBox(page_index=0, rect=rect, source_path=str(pic), rotation=angle, opacity=opacity, crop=crop),
+            record_dirty=False,
+        )
+        dest = tmp_path / "o.pdf"
+        bake_into_document(edit, dest)
+    finally:
+        pdf.close()
+    out = fitz.open(dest.as_posix())
+    try:
+        assert len(out[0].get_images()) == 1, "picture missing from the saved PDF"
+        pix = out[0].get_pixmap(matrix=fitz.Matrix(ZOOM, ZOOM), alpha=False)
+    finally:
+        out.close()
+    x0, y0, x1, y1 = _bbox_of_ink(pix)
+    rad = math.radians(angle)
+    c, s = abs(math.cos(rad)), abs(math.sin(rad))
+    assert abs((x1 - x0) - (rect.w * c + rect.h * s) * ZOOM) <= 5
+    assert abs((y1 - y0) - (rect.w * s + rect.h * c) * ZOOM) <= 5
+    cx, cy = (rect.x + rect.w / 2) * ZOOM, (rect.y + rect.h / 2) * ZOOM
+    assert abs((x0 + x1) / 2 - cx) <= 5 and abs((y0 + y1) / 2 - cy) <= 5
+    r, g, b = pix.pixel(int(cx), int(cy))
+    if crop == (0.5, 0.0, 1.0, 1.0):  # only the blue half is kept
+        assert b > r and b > g
+    elif crop == (0.0, 0.0, 0.5, 0.5):  # only the red quarter-left is kept
+        assert r > b and r > g
