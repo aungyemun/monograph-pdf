@@ -124,7 +124,7 @@ Temporary files, logs, and recovery sessions are stored under:
 %LOCALAPPDATA%\Monograph PDF
 ```
 
-These working files are cleaned up automatically. No recovery copy is kept for password-protected PDFs, and nothing is written into the installation folder. Settings of PDF Editor (`%APPDATA%\PDF Editor`) are copied once, at the first start. See [Security and Privacy](docs/SECURITY_AND_PRIVACY.md).
+These working files are cleaned up automatically. No recovery copy is kept for password-protected PDFs, and nothing is written into the installation folder. After an upgrade, the settings of the previous PDF Editor (`%APPDATA%\PDF Editor`) are migrated by copying them once, at the first start. See [Security and Privacy](docs/SECURITY_AND_PRIVACY.md).
 
 ---
 
