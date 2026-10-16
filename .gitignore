@@ -105,6 +105,40 @@ engines/ocr/*
 *.spc
 *.kdbx
 
-# local release-validation logs
+# Generated binaries and archives never belong in the repository (installers and ZIPs are build outputs)
+*.exe
+*.dll
+*.pyd
+*.so
+*.msi
+*.zip
+*.7z
+*.whl
+*.log
+*.tmp
+*.pid
+*.dmp
+*.bak
+*.orig
+*.rej
+*.traineddata
+
+# More virtual-environment, cache and test-output names
+venv/
+ENV/
+.tox/
+.nox/
+.hypothesis/
+.pytest_cache/
+/tests/outputs/**/*.png
+/tests/outputs/**/*.json
+/tests/outputs/**/*.txt
+/tests/outputs/**/*.xml
+/tests/outputs/**/*.docx
+/tests/outputs/**/*.xlsx
+/tests/outputs/**/*.pptx
+
+# Local validation evidence and working folders
 /validation/
 /_to_delete/
+/_review/
