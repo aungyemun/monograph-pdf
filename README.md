@@ -19,6 +19,14 @@ Current development version: **0.2.0 — Unreleased** (latest release: PDF Edito
 
 ---
 
+## Screenshot
+
+![Monograph PDF showing a PDF in the viewer, with the page thumbnails, the toolbar and the document panel](docs/images/monograph-pdf-ui.png)
+
+*Monograph PDF 0.2.0: viewer and editor with page thumbnails, toolbar and document properties.*
+
+---
+
 ## Overview
 
 * Read, search and print PDFs
