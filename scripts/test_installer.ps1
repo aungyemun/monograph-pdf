@@ -1,4 +1,4 @@
-# Installer / uninstaller test of Monograph PDF Setup.exe (per-user install into a test folder).
+﻿# Installer / uninstaller test of Monograph PDF Setup.exe (per-user install into a test folder).
 #
 #   clean install (all tasks) -> files, registrations, Start menu, self-check -> launch app ->
 #   open User Guide -> uninstall refused while running -> complete uninstall (/REMOVEUSERDATA)
@@ -708,15 +708,60 @@ try {
         } else {
             $pfOld = Join-Path $env:ProgramFiles "PDF Editor"
             $pfNew = Join-Path $env:ProgramFiles "Monograph PDF"
-            $argsM = @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/ALLUSERS", "/TASKS=`"startmenu`"")
+            $pfStale = Join-Path $env:LOCALAPPDATA "PDFEditorStaleCopyTest"
+            $hklmCls = "HKLM:\Software\Classes"
+            $hklmApp = "HKLM:\Software\Microsoft\Windows\CurrentVersion\App Paths"
+            $commonGroup = Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs"
+            $userChoiceKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.pdf\UserChoice"
+            $choiceBefore = RegDefault $userChoiceKey "ProgId"
+            $argsM = @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/ALLUSERS", "/TASKS=`"startmenu,assocpdf,assocother`"")
             $code = WaitExit (Start-Process $LegacySetup -ArgumentList ($argsM + "/LOG=`"$(Join-Path $Work 'pf-legacy.log')`"") -PassThru) 600
             Check "PDF Editor installed in Program Files (exit 0)" ($code -eq 0 -and (Test-Path (Join-Path $pfOld "PDF_editor.exe"))) "exit $code"
-            $code = WaitExit (Start-Process $Setup -ArgumentList ($argsM + "/MIGRATEINSTALL", "/LOG=`"$(Join-Path $Work 'pf-migrate.log')`"") -PassThru) 600
+            Check "PDF Editor registered per machine (HKLM Installed apps)" (Test-Path -LiteralPath $machineKey)
+            Set-Content -LiteralPath (Join-Path $pfOld "my_notes.txt") "keep me" -Encoding UTF8
+            Remove-Item $pfStale -Recurse -Force -ErrorAction SilentlyContinue
+            New-Item -ItemType Directory -Force -Path $pfStale | Out-Null
+            Copy-Item (Join-Path $pfOld "PDF_editor.exe") $pfStale
+            Set-Content -LiteralPath (Join-Path $pfStale "stale_marker.txt") "do not delete" -Encoding UTF8
+            $log = Join-Path $Work 'pf-migrate.log'
+            $code = WaitExit (Start-Process $Setup -ArgumentList ($argsM + "/MIGRATEINSTALL", "/LOG=`"$log`"") -PassThru) 600
             Check "moved to C:\Program Files\Monograph PDF (exit 0)" ($code -eq 0 -and (Test-Path (Join-Path $pfNew "MonographPDF.exe"))) "exit $code"
-            Check "C:\Program Files\PDF Editor removed" (-not (Test-Path $pfOld))
+            Check "old PDF_editor.exe removed" (-not (Test-Path (Join-Path $pfOld "PDF_editor.exe")))
+            Check "old application files removed" (-not (Test-Path (Join-Path $pfOld "_internal")) -and -not (Test-Path (Join-Path $pfOld "unins000.exe")))
+            Check "user-added file in the old folder preserved" (Test-Path (Join-Path $pfOld "my_notes.txt"))
+            Check "old folder kept because it is not empty" (Test-Path $pfOld)
+            $selfOut = Join-Path $Work "pf-smoke.txt"
+            $sp = Start-Process (Join-Path $pfNew "MonographPDF.exe") -ArgumentList "--smoke-test" -PassThru -Wait -RedirectStandardOutput $selfOut -ErrorAction SilentlyContinue
+            Check "MonographPDF.exe --smoke-test passes from Program Files" ($sp -and $sp.ExitCode -eq 0) "exit $($sp.ExitCode)"
+            $u = Get-ItemProperty -LiteralPath $machineKey -ErrorAction SilentlyContinue
+            Check "Installed apps (HKLM): Monograph PDF" ($u -and $u.DisplayName -like "Monograph PDF*" -and $u.DisplayVersion -ne "0.1.5") "$($u.DisplayName) $($u.DisplayVersion)"
+            Check "Installed apps: InstallLocation Program Files\Monograph PDF" ($u.InstallLocation.TrimEnd('\') -eq $pfNew) "$($u.InstallLocation)"
+            Check "Installed apps: UninstallString in the new folder" ($u.UninstallString -eq "`"$pfNew\uninstall.exe`"") "$($u.UninstallString)"
+            $entries = @()
+            foreach ($root in "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall", "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall") {
+                $entries += @(Get-ChildItem $root -ErrorAction SilentlyContinue | Where-Object { (Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).DisplayName -match "^(Monograph PDF|PDF Editor)" })
+            }
+            Check "exactly one Monograph PDF / PDF Editor Installed apps entry" ($entries.Count -eq 1) "$($entries.Count) entries"
+            Check "App Paths (HKLM) -> new MonographPDF.exe" ((RegDefault "$hklmApp\MonographPDF.exe") -eq (Join-Path $pfNew "MonographPDF.exe"))
+            Check "App Paths (HKLM) PDF_editor.exe removed" (-not (Test-Path -LiteralPath "$hklmApp\PDF_editor.exe"))
+            Check "Open with: ProgID MonographPDF.Document (HKLM)" ((Test-Path -LiteralPath "$hklmCls\MonographPDF.Document") -and (HasValue "$hklmCls\.pdf\OpenWithProgids" "MonographPDF.Document"))
+            Check "Open with: ProgID command -> Program Files\Monograph PDF" ((RegDefault "$hklmCls\MonographPDF.Document\shell\open\command") -like "*$pfNew\MonographPDF.exe*")
+            Check "Applications\MonographPDF.exe registered (HKLM)" (Test-Path -LiteralPath "$hklmCls\Applications\MonographPDF.exe")
+            Check "Default apps capabilities registered (HKLM)" ((Test-Path -LiteralPath "HKLM:\Software\Monograph PDF") -and (HasValue "HKLM:\Software\RegisteredApplications" "Monograph PDF"))
+            Check "PDF Editor ProgIDs removed (HKLM)" (-not (Test-Path -LiteralPath "$hklmCls\PDFEditor.Document") -and -not (Test-Path -LiteralPath "$hklmCls\PDFEditor.Convertible") -and -not (Test-Path -LiteralPath "$hklmCls\Applications\PDF_editor.exe"))
+            Check "PDF Editor Open with / Default apps entries removed (HKLM)" (-not (HasValue "$hklmCls\.pdf\OpenWithProgids" "PDFEditor.Document") -and -not (HasValue "HKLM:\Software\RegisteredApplications" "PDF Editor") -and -not (Test-Path -LiteralPath "HKLM:\Software\PDF Editor"))
+            Check "Setup did not change the user's default .pdf app" ((RegDefault $userChoiceKey "ProgId") -eq $choiceBefore) "before '$choiceBefore' after '$(RegDefault $userChoiceKey 'ProgId')'"
+            Check "Start menu (all users): Monograph PDF -> Program Files" ((Test-Path (Join-Path $commonGroup "Monograph PDF\Monograph PDF.lnk")) -and (Shortcut (Join-Path $commonGroup "Monograph PDF\Monograph PDF.lnk")).Target -eq (Join-Path $pfNew "MonographPDF.exe"))
+            Check "Start menu (all users): Monograph PDF User Guide" (Test-Path (Join-Path $commonGroup "Monograph PDF\Monograph PDF User Guide.lnk"))
+            Check "Start menu (all users): PDF Editor folder removed" (-not (Test-Path (Join-Path $commonGroup "PDF Editor")))
+            Check "unregistered second PDF Editor copy untouched" ((Test-Path (Join-Path $pfStale "PDF_editor.exe")) -and (Test-Path (Join-Path $pfStale "stale_marker.txt")))
             $code = WaitExit (Start-Process (Join-Path $pfNew "uninstall.exe") -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -PassThru) 300
             WaitUninstallerGone
             Check "per-machine uninstall exit 0" ($code -eq 0) "exit $code"
+            Check "uninstall removed the HKLM registration, App Paths, ProgIDs and Program Files\Monograph PDF" (-not (Test-Path -LiteralPath $machineKey) -and -not (Test-Path -LiteralPath "$hklmApp\MonographPDF.exe") -and -not (Test-Path -LiteralPath "$hklmCls\MonographPDF.Document") -and -not (Test-Path $pfNew))
+            Check "user-added file still preserved after uninstall" (Test-Path (Join-Path $pfOld "my_notes.txt"))
+            Check "unregistered second PDF Editor copy still untouched" (Test-Path (Join-Path $pfStale "stale_marker.txt"))
+            Remove-Item $pfOld, $pfStale -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 }

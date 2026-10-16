@@ -365,6 +365,10 @@ class PrintDialog(QDialog):
         if info is None:
             return
         if sys.platform == "win32":
+            if '"' in info.printerName():
+                # The name is placed inside a quoted command-line argument: a name that itself
+                # contains a quote could add arguments, so such a printer is not handed to rundll32.
+                return
             proc = QProcess(self)
             from core.safe_paths import windows_tool
 

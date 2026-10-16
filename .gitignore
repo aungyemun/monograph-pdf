@@ -104,3 +104,7 @@ engines/ocr/*
 *.crt
 *.spc
 *.kdbx
+
+# local release-validation logs
+/validation/
+/_to_delete/

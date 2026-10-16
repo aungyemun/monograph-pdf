@@ -9,6 +9,9 @@ from typing import Any
 
 from core.editing.geometry import Rect
 
+# Pillow decoders allowed for placed pictures (matches the Add image file filters)
+SAFE_IMAGE_FORMATS = ["PNG", "JPEG", "BMP", "GIF", "TIFF", "WEBP"]
+
 
 @dataclass
 class ImageBox:
@@ -77,7 +80,9 @@ def export_image_box(box: ImageBox, destination: Path) -> Path:
 
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    im = Image.open(box.source_path)
+    # Only the everyday raster formats are decoded: Pillow's rarely used readers (PSD, FITS,
+    # JPEG 2000, ...) are not needed for pictures placed in a PDF and are a larger attack surface.
+    im = Image.open(box.source_path, formats=SAFE_IMAGE_FORMATS)
     w, h = im.size
     l, t, r, b = box.crop
     box_px = im.crop((int(l * w), int(t * h), int(r * w), int(b * h)))

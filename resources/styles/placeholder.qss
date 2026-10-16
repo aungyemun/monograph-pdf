@@ -1,7 +1,0 @@
-/* Placeholder stylesheet — real theme in a later stage. */
-QMainWindow {
-    background-color: #f3f4f6;
-}
-QStatusBar {
-    background-color: #e5e7eb;
-}

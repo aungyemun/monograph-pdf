@@ -41,8 +41,15 @@ Details:
 - Setup refuses to continue while `MonographPDF.exe` or `PDF_editor.exe` is running (silent install fails safely).
 - Expanded `[InstallDelete]` to include `licenses\`, root documentation files, and related owned trees so obsolete license/doc files do not linger.
 
+### Security
+
+- Release-candidate audit: `reports/audit/SECURITY_AUDIT_0.2.0.md` (no blocker; one MEDIUM dependency finding, Pillow 11.1.0, open).
+- Exporting a placed picture reads only PNG, JPEG, BMP, GIF, TIFF and WEBP files, so Pillow's rarely used decoders (PSD, FITS, JPEG 2000, …) are never run on a user-supplied file.
+- A printer whose name contains a quotation mark is no longer passed to the printer-preferences command line.
+
 ### Testing
 
+- `tests\unit\test_security_validation_0_2_0.py` for the two hardening changes above; `scripts\test_installer.ps1` section 21 now also checks, per machine, the user-added file, registrations, Default apps, the default `.pdf` choice, shortcuts and uninstall.
 - `scripts\test_installer.ps1` upgrade/migration matrix: same-folder cleanup, trailing-slash same-path, silent keep-old vs `/MIGRATEINSTALL`, stale second folder untouched, AppData preserved, running-app refusal, non-empty destination unrelated files preserved.
 - `tests\unit\test_installed_manifest.py` for safe relative paths in the owned-file manifest.
 - `scripts\test_installer.ps1` PDF Editor 0.1.5 → Monograph PDF matrix with the frozen 0.1.5 Setup: running `PDF_editor.exe`, in-place upgrade, first-start settings / recent-files / recovery-session migration, registrations and shortcuts replaced, complete uninstall after migration, `/MIGRATEINSTALL` to the renamed folder with an unregistered second copy left alone, Start menu fallback, and (when elevated) Program Files.
