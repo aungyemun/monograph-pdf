@@ -48,7 +48,8 @@ if (-not $SkipTests) {
     Step "Running tests"
     $env:QT_QPA_PLATFORM = "offscreen"
     $env:MONOGRAPH_PDF_HEADLESS = "1"
-    & $Py -m pytest -q -p no:cacheprovider -o addopts="" tests\unit tests\ui
+    # Match pytest.ini: unit + integration + ui (strengthen, do not skip suites)
+    & $Py -m pytest -q -p no:cacheprovider -o addopts="" tests\unit tests\integration tests\ui
     if ($LASTEXITCODE -ne 0) { throw "Tests failed - release not built." }
     $TestResult = "passed"
     Remove-Item Env:QT_QPA_PLATFORM, Env:MONOGRAPH_PDF_HEADLESS -ErrorAction SilentlyContinue

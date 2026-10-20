@@ -70,10 +70,14 @@ class UserPreferences:
     show_attachments_tab: bool = True
     recent_limit: int = 12
     highlight_fillable_fields: bool = True
+    highlight_color: str = "#ffff00"  # markup highlight stroke (CSS hex)
+    underline_color: str = "#0000ff"
+    strikeout_color: str = "#ff0000"
     last_fit_mode: str = "fit_width"  # fit_width | fit_page | actual_size
     recent_fonts: list | None = None
     recent_colors: list | None = None
     inspector_sections: dict | None = None
+    page_mark_presets: dict | None = None  # last settings of Header/Footer, Watermark and Background
 
     def path(self) -> Path:
         return user_data_dir() / "preferences.json"

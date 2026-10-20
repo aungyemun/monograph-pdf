@@ -18,9 +18,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
-    QPushButton,
-    QSlider,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -222,116 +219,9 @@ class _PageScope(QWidget):
         return None
 
 
-class WatermarkDialog(QDialog):
-    def __init__(self, parent=None, *, page_count: int = 0, current_page: int = 0) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Watermark")
-        self.setMinimumWidth(440)
-        root = QVBoxLayout(self)
-        root.setSpacing(10)
-        root.addWidget(_title("Add a text watermark"))
-        layout = QFormLayout()
-        layout.setVerticalSpacing(8)
-        self.text = QLineEdit("CONFIDENTIAL")
-        layout.addRow("Text:", self.text)
-        self.fontsize = QSpinBox()
-        self.fontsize.setRange(8, 200)
-        self.fontsize.setValue(48)
-        self.fontsize.setSuffix(" pt")
-        layout.addRow("Size:", self.fontsize)
-        self.rotation = QComboBox()
-        for label, deg in (("Diagonal (45°)", 45), ("Horizontal", 0), ("Vertical (90°)", 90), ("Diagonal (−45°)", -45)):
-            self.rotation.addItem(label, deg)
-        layout.addRow("Orientation:", self.rotation)
-        op_row = QHBoxLayout()
-        self.opacity = QSpinBox()
-        self.opacity.setRange(5, 100)
-        self.opacity.setValue(25)
-        self.opacity.setSuffix(" %")
-        slider = QSlider(Qt.Orientation.Horizontal)
-        slider.setRange(5, 100)
-        slider.setValue(25)
-        slider.valueChanged.connect(self.opacity.setValue)
-        self.opacity.valueChanged.connect(slider.setValue)
-        op_row.addWidget(slider, 1)
-        op_row.addWidget(self.opacity)
-        layout.addRow("Opacity:", op_row)
-        self._color = QColor("#8c8c8c")
-        self.color_btn = QPushButton()
-        self.color_btn.setToolTip("Watermark color")
-        self.color_btn.setFixedWidth(90)
-        self.color_btn.clicked.connect(self._pick_color)
-        self._sync_color()
-        layout.addRow("Color:", self.color_btn)
-        self.scope = _PageScope(page_count, current_page)
-        layout.addRow("Pages:", self.scope)
-        root.addLayout(layout)
-        root.addWidget(_hint("The watermark is written to a new PDF — the open document is not changed."))
-        buttons = _ok_cancel(self, "Save As…")
-        ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
-        self.text.textChanged.connect(lambda t: ok.setEnabled(bool(t.strip())))
-        root.addWidget(buttons)
-
-
-    def _sync_color(self) -> None:
-        c = self._color
-        text = "#ffffff" if c.lightness() < 128 else "#111827"
-        self.color_btn.setText(c.name().upper())
-        self.color_btn.setStyleSheet(f"background:{c.name()}; color:{text}; border:1px solid #9aa3af;")
-
-    def _pick_color(self) -> None:
-        from PySide6.QtWidgets import QColorDialog
-
-        c = QColorDialog.getColor(self._color, self, "Watermark Color")
-        if c.isValid():
-            self._color = c
-            self._sync_color()
-
-    def color_rgb(self) -> tuple[float, float, float]:
-        return (self._color.redF(), self._color.greenF(), self._color.blueF())
-
-
-class HeaderFooterDialog(QDialog):
-    NUMBER_FORMATS = (
-        ("1 / 12", "{page} / {total}"),
-        ("Page 1 of 12", "Page {page} of {total}"),
-        ("1", "{page}"),
-        ("- 1 -", "- {page} -"),
-    )
-
-    def __init__(self, parent=None, *, page_count: int = 0, current_page: int = 0) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Header, Footer & Page Numbers")
-        self.setMinimumWidth(460)
-        root = QVBoxLayout(self)
-        root.setSpacing(10)
-        root.addWidget(_title("Header, footer & page numbers"))
-        layout = QFormLayout()
-        layout.setVerticalSpacing(8)
-        self.header = QLineEdit()
-        self.header.setPlaceholderText("Text at the top-left of each page")
-        self.footer = QLineEdit()
-        self.footer.setPlaceholderText("Text at the bottom-left of each page")
-        layout.addRow("Header:", self.header)
-        layout.addRow("Footer:", self.footer)
-        self.fontsize = QSpinBox()
-        self.fontsize.setRange(6, 36)
-        self.fontsize.setValue(9)
-        self.fontsize.setSuffix(" pt")
-        layout.addRow("Text size:", self.fontsize)
-        self.page_numbers = QCheckBox("Add page numbers (bottom-right)")
-        self.page_numbers.setChecked(True)
-        layout.addRow("", self.page_numbers)
-        self.number_format = QComboBox()
-        for label, fmt in self.NUMBER_FORMATS:
-            self.number_format.addItem(label, fmt)
-        self.page_numbers.toggled.connect(self.number_format.setEnabled)
-        layout.addRow("Number style:", self.number_format)
-        self.scope = _PageScope(page_count, current_page)
-        layout.addRow("Pages:", self.scope)
-        root.addLayout(layout)
-        root.addWidget(_hint("Written to a new PDF — the open document is not changed."))
-        root.addWidget(_ok_cancel(self, "Save As…"))
+# Watermark and header/footer dialogs live in ui/page_marks_dialogs.py (live preview, presets,
+# picture watermarks, backgrounds); the names stay importable from here.
+from ui.page_marks_dialogs import HeaderFooterDialog, WatermarkDialog  # noqa: E402,F401
 
 
 def _open_document_path(widget) -> Path | None:
@@ -399,6 +289,46 @@ def fidelity_confirm(parent, title: str, notice: str) -> bool:
     box.button(QMessageBox.StandardButton.Ok).setText("Continue…")
     box.setDefaultButton(QMessageBox.StandardButton.Ok)
     return box.exec() == QMessageBox.StandardButton.Ok
+
+
+class PdfToPowerPointDialog(QDialog):
+    """Choose how a PDF becomes slides: whole pages as pictures, or pictures plus editable text."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        from PySide6.QtWidgets import QRadioButton
+
+        from core.convert.pdf_to_pptx import EDITABLE_NOTICE, LAYOUT_NOTICE
+
+        self.setWindowTitle("PDF to PowerPoint")
+        self.setMinimumWidth(500)
+        root = QVBoxLayout(self)
+        root.setSpacing(10)
+        root.addWidget(_title("Convert PDF to PowerPoint (.pptx)"))
+        size_note = QLabel(
+            "Slides use the PDF's page size (an A4 PDF gives A4 slides). If the pages differ in size, the "
+            "slide is the widest × tallest page and each page is centered at its true size."
+        )
+        size_note.setWordWrap(True)
+        root.addWidget(size_note)
+        self._layout = QRadioButton("Layout-preserving (recommended)")
+        self._layout.setChecked(True)
+        self._editable = QRadioButton("Editable text")
+        for radio, note in ((self._layout, LAYOUT_NOTICE), (self._editable, EDITABLE_NOTICE)):
+            root.addWidget(radio)
+            detail = note.split(": ", 1)[1]
+            lab = QLabel(detail[:1].upper() + detail[1:])
+            lab.setWordWrap(True)
+            lab.setContentsMargins(24, 0, 0, 0)
+            root.addWidget(lab)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Continue…")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        root.addWidget(buttons)
+
+    def mode(self) -> str:
+        return "editable" if self._editable.isChecked() else "layout"
 
 
 class PdfToWordDialog(QDialog):

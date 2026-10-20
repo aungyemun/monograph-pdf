@@ -8,13 +8,12 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QSize, Qt, QTimer
-from PySide6.QtGui import QAction, QActionGroup, QDragEnterEvent, QDropEvent, QIntValidator, QKeySequence
+from PySide6.QtGui import QAction, QActionGroup, QDragEnterEvent, QDropEvent, QImage, QIntValidator, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QWidgetAction,
     QComboBox,
     QFileDialog,
-    QFontComboBox,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -38,7 +37,7 @@ from core.document import (
 from core.editing.edit_model import EditableDocument, EditTool, WorkspaceMode
 from core.editing.session_store import clear_session, read_session, write_session
 from core.layout.ops import LayoutPolicy
-from core.product_meta import PRODUCT_NAME, get_product_identity
+from core.product_meta import PRODUCT_NAME
 from core.recent_files import RecentFiles
 from core.user_prefs import UserPreferences
 from ui.about_dialog import AboutDialog
@@ -227,7 +226,7 @@ class MainWindow(QMainWindow):
         self.act_paste.setShortcut(QKeySequence.StandardKey.Paste)
         self.act_paste.triggered.connect(self._paste)
 
-        self.act_duplicate = QAction("D&uplicate", self)
+        self.act_duplicate = QAction("Dupl&icate", self)
         self.act_duplicate.setShortcut(QKeySequence("Ctrl+D"))
         self.act_duplicate.triggered.connect(self._duplicate)
 
@@ -391,6 +390,10 @@ class MainWindow(QMainWindow):
         self.act_watermark.triggered.connect(self._watermark)
         self.act_header_footer = QAction("&Header / Footer / Page Numbers…", self)
         self.act_header_footer.triggered.connect(self._header_footer)
+        self.act_background = QAction("&Background…", self)
+        self.act_background.triggered.connect(self._background)
+        self.act_remove_page_design = QAction("Remove Header, Footer, Watermark or Background…", self)
+        self.act_remove_page_design.triggered.connect(self._remove_page_design)
         self.act_convert_caps = QAction("Capabilities && Limitations…", self)
         self.act_convert_caps.triggered.connect(self._show_convert_capabilities)
         self.act_export_image = QAction("Export Selected &Image…", self)
@@ -400,16 +403,22 @@ class MainWindow(QMainWindow):
         self.act_export_image.setEnabled(False)  # enabled while an image is selected
         self.act_replace_image.setEnabled(False)
 
-        # Annotations
-        self.act_annot_highlight = QAction("&Highlight Selection Region", self)
+        # Annotations (menu titles finalized in _build_extra_actions)
+        self.act_annot_highlight = QAction("&Highlight Text", self)
         self.act_annot_highlight.setCheckable(True)
-        self.act_annot_highlight.triggered.connect(lambda: self._annot_markup("highlight"))
+        self.act_annot_highlight.triggered.connect(self._toggle_highlight_tool)
         self._tool_group.addAction(self.act_annot_highlight)
-        self.act_annot_underline = QAction("&Underline Selection Region", self)
+        self.act_annot_eraser = QAction("&Eraser", self)
+        self.act_annot_eraser.setCheckable(True)
+        self.act_annot_eraser.triggered.connect(self._toggle_eraser_tool)
+        self._tool_group.addAction(self.act_annot_eraser)
+        self._markup_sticky = None  # "highlight" while continuous Highlight is armed
+        self._eraser_active = False
+        self.act_annot_underline = QAction("&Underline Text", self)
         self.act_annot_underline.triggered.connect(lambda: self._annot_markup("underline"))
-        self.act_annot_strike = QAction("Stri&keout Selection Region", self)
+        self.act_annot_strike = QAction("Stri&kethrough Text", self)
         self.act_annot_strike.triggered.connect(lambda: self._annot_markup("strikeout"))
-        self.act_annot_comment = QAction("Text &Comment…", self)
+        self.act_annot_comment = QAction("Sticky &Note Comment…", self)
         self.act_annot_comment.triggered.connect(self._annot_comment)
         self.act_annot_callout = QAction("Call&out…", self)
         self.act_annot_callout.triggered.connect(self._annot_callout)
@@ -460,6 +469,8 @@ class MainWindow(QMainWindow):
         self.act_redact_mark.triggered.connect(self._redact_mark_region)
         self.act_redact_text = QAction("Mark &Text…", self)
         self.act_redact_text.triggered.connect(self._redact_mark_text)
+        self.act_redact_pages = QAction("Mark &Whole Pages for Redaction…", self)
+        self.act_redact_pages.triggered.connect(self._redact_mark_pages)
         self.act_redact_preview = QAction("Preview Redaction &Count", self)
         self.act_redact_preview.triggered.connect(self._redact_preview)
         self.act_redact_apply = QAction("&Apply True Redaction…", self)
@@ -588,7 +599,7 @@ class MainWindow(QMainWindow):
         self.act_find = QAction("&Find…", self)
         self.act_find.setShortcut(QKeySequence.StandardKey.Find)
         self.act_find.triggered.connect(self._focus_search)
-        self.act_find_next = QAction("Find &Next", self)
+        self.act_find_next = QAction("Find Ne&xt", self)
         self.act_find_next.setShortcut(QKeySequence.StandardKey.FindNext)
         self.act_find_next.triggered.connect(self._find_next)
         self.act_about = QAction("&About", self)
@@ -645,7 +656,8 @@ class MainWindow(QMainWindow):
             self.act_select_tool: "Select and move objects",
             self.act_text_tool: "Add a text box",
             self.act_image_tool: "Place an image on the current page",
-            self.act_annot_highlight: "Highlight text — drag across it on the page",
+            self.act_annot_highlight: "Highlight — click to toggle on/off; draw over text or any blank area; change colour without leaving the tool; Esc cancels a stroke, Esc again exits",
+            self.act_annot_eraser: "Eraser — click a highlight or ink annotation to remove it; click again or Esc to exit; Undo restores it",
             self.act_annot_comment: "Add a sticky-note comment",
             self.act_open: "Open a PDF",
             self.act_save: "Save changes",
@@ -689,6 +701,7 @@ class MainWindow(QMainWindow):
         keys(self.act_annot_arrow, "A")
         keys(self.act_annot_ink, "P")
         keys(self.act_annot_highlight, "H")
+        keys(self.act_annot_eraser, "Shift+E")
         keys(self.act_annot_underline, "U")
         keys(self.act_annot_strike, "K")
         keys(self.act_annot_comment, "N")
@@ -755,6 +768,7 @@ class MainWindow(QMainWindow):
             self.act_sec_meta_rm: ("&Remove Metadata…", "Save a copy without title, author and other hidden information"),
             self.act_redact_mark: ("Mark &Area for Redaction", "Drag over content to remove"),
             self.act_redact_text: ("Mark &Text for Redaction…", "Find and mark every occurrence of a word or phrase"),
+            self.act_redact_pages: ("Mark &Whole Pages for Redaction…", "Mark everything on chosen pages; the pages stay, empty"),
             self.act_redact_preview: ("&Count Marked Redactions", "How many areas are marked and not yet removed"),
             self.act_redact_apply: ("Apply &Redactions…", "Permanently remove the marked content and save a copy"),
             self.act_sig_typed: ("&Type a Signature…", "Type your name and place it as a visual signature"),
@@ -762,6 +776,9 @@ class MainWindow(QMainWindow):
             self.act_sig_image: ("Signature from &Image…", "Place a scanned or photographed signature"),
             self.act_watermark: ("&Watermark…", "Add text such as CONFIDENTIAL across the pages"),
             self.act_header_footer: ("&Header, Footer && Page Numbers…", "Add text and page numbers to the page margins"),
+            self.act_background: ("&Background…", "Put a color or picture behind the page content"),
+            self.act_remove_page_design: ("&Remove Header, Footer, Watermark or Background…",
+                                          "Remove page design added earlier by Monograph PDF"),
             self.act_merge: ("&Merge PDFs…", "Combine several PDFs into one file"),
             self.act_split: ("&Split PDF…", "Split into several files by page ranges or bookmarks"),
             self.act_page_sizes: ("Change Page &Size…", "Convert pages to A4, Letter, Legal, B5 … and fit the content"),
@@ -797,6 +814,7 @@ class MainWindow(QMainWindow):
             (self.act_text_tool, "Text"),
             (self.act_image_tool, "Image"),
             (self.act_annot_highlight, "Highlight"),
+            (self.act_annot_eraser, "Eraser"),
             (self.act_annot_comment, "Comment"),
             (self.act_fit_width, "Fit Width"),
             (self.act_fit_page, "Fit Page"),
@@ -846,8 +864,9 @@ class MainWindow(QMainWindow):
             tip="Open Windows settings to choose Monograph PDF for .pdf files",
         )
         self.act_default_app.setVisible(sys.platform.startswith("win"))
+        set_action_icon(self.act_default_app, "default_app")
         self.act_select_all = new("Select &All", self._select_all, "Ctrl+A")
-        self.act_deselect = new("&Deselect All", self._deselect_all, "Ctrl+Shift+A")
+        self.act_deselect = new("D&eselect All", self._deselect_all, "Ctrl+Shift+A")
         self.act_find_prev = new("Find Pre&vious", self._find_prev, "Shift+F3")
         self.act_first = new("&First Page", self._first_page, "Home")
         self.act_last = new("&Last Page", self._last_page, "End")
@@ -863,6 +882,21 @@ class MainWindow(QMainWindow):
             "Show in &Folder", self._show_in_folder, tip="Open the folder that contains this PDF"
         )
         self.act_clear_recent = new("&Clear Recent Files", self._clear_recent)
+        self.act_add_bookmark = new(
+            "&Bookmark for This Page…", lambda: self._bookmark_add(self._left.current_bookmark()), "Ctrl+B",
+            tip="Add a bookmark that opens the current page",
+        )
+        set_action_icon(self.act_add_bookmark, "bookmark_add")
+        self.act_remove_hidden = new(
+            "Remove &Hidden Information…", self._remove_hidden_info,
+            tip="Find and remove metadata, attached files, scripts, comments and other hidden content",
+        )
+        set_action_icon(self.act_remove_hidden, "sanitize")
+        self.act_copy_page_image = new(
+            "Copy Page as &Picture", self._copy_page_as_picture, "Ctrl+Alt+C",
+            tip="Copy the current page, as shown, to the clipboard as a picture",
+        )
+        set_action_icon(self.act_copy_page_image, "snapshot")
         self.act_shortcuts = new("&Keyboard Shortcuts", self._show_shortcuts, "Ctrl+/", "F12")
         self.act_user_guide = new("&User Guide", self._show_user_guide, "F1")
 
@@ -880,6 +914,9 @@ class MainWindow(QMainWindow):
             self.act_field_next,
             self.act_field_clear,
             self.act_rotate_pages,
+            self.act_add_bookmark,
+            self.act_remove_hidden,
+            self.act_copy_page_image,
         )
 
     def _assign_icons(self) -> None:
@@ -910,6 +947,7 @@ class MainWindow(QMainWindow):
             "arrow": self.act_annot_arrow,
             "freehand": self.act_annot_ink,
             "highlight": self.act_annot_highlight,
+            "eraser": self.act_annot_eraser,
             "underline": self.act_annot_underline,
             "strikeout": self.act_annot_strike,
             "comment": self.act_annot_comment,
@@ -1015,6 +1053,32 @@ class MainWindow(QMainWindow):
             ("style_copy", self.act_paste_style),
             ("bring_forward", self.act_bring_front),
             ("send_backward", self.act_send_back),
+            ("obj_align_right", self.act_align_right),
+            ("obj_align_top", self.act_align_top),
+            ("obj_align_middle", self.act_align_cv),
+            ("obj_align_bottom", self.act_align_bottom),
+            ("distribute_v", self.act_dist_v),
+            ("find_next", self.act_find_next),
+            ("find_prev", self.act_find_prev),
+            ("deselect", self.act_deselect),
+            ("folder", self.act_show_in_folder),
+            ("clear_list", self.act_clear_recent),
+            ("background", self.act_background),
+            ("page_design_remove", self.act_remove_page_design),
+            ("select_fields", self.act_form_select),
+            ("date_field", self.act_form_date),
+            ("accept", self.act_form_accept),
+            ("reject", self.act_form_reject),
+            ("row_add", self.act_table_add_row),
+            ("row_delete", self.act_table_del_row),
+            ("col_add", self.act_table_add_col),
+            ("col_delete", self.act_table_del_col),
+            ("pages_to_doc", self.act_copy_to_doc),
+            ("pages_move", self.act_move_to_doc),
+            ("redact_pages", self.act_redact_pages),
+            ("count", self.act_redact_preview),
+            ("about", self.act_about),
+            ("rotate_cw", self.act_rotate_pages),
         ):
             set_action_icon(act, name)
 
@@ -1085,6 +1149,7 @@ class MainWindow(QMainWindow):
         edit.addAction(self.act_paste)
         edit.addAction(self.act_duplicate)
         edit.addAction(self.act_delete)
+        edit.addAction(self.act_copy_page_image)
         edit.addSeparator()
         edit.addAction(self.act_select_tool)
         edit.addAction(self.act_select_all)
@@ -1093,7 +1158,7 @@ class MainWindow(QMainWindow):
         edit.addAction(self.act_copy_style)
         edit.addAction(self.act_paste_style)
         edit.addSeparator()
-        arrange = edit.addMenu("A&rrange")
+        arrange = edit.addMenu("Arra&nge")
         set_action_icon(arrange.menuAction(), "bring_forward")
         for act in (self.act_bring_front, self.act_bring_forward, self.act_send_backward, self.act_send_back):
             arrange.addAction(act)
@@ -1113,7 +1178,7 @@ class MainWindow(QMainWindow):
         modes = edit.addMenu("&Workspace Mode")
         for act in (self.act_mode_edit, self.act_mode_forms, self.act_mode_layout, self.act_mode_tables):
             modes.addAction(act)
-        image_menu = edit.addMenu("Selected &Image")
+        image_menu = edit.addMenu("Selected I&mage")
         set_action_icon(image_menu.menuAction(), "image")
         image_menu.addAction(self.act_replace_image)
         image_menu.addAction(self.act_export_image)
@@ -1164,6 +1229,7 @@ class MainWindow(QMainWindow):
         self._menu_section(insert, "Comments && markup")
         for act in (
             self.act_annot_highlight,
+            self.act_annot_eraser,
             self.act_annot_underline,
             self.act_annot_strike,
             self.act_annot_comment,
@@ -1171,9 +1237,13 @@ class MainWindow(QMainWindow):
             self.act_annot_stamp,
         ):
             insert.addAction(act)
+        self._menu_section(insert, "Navigation")
+        insert.addAction(self.act_add_bookmark)
         self._menu_section(insert, "Page design")
         insert.addAction(self.act_watermark)
         insert.addAction(self.act_header_footer)
+        insert.addAction(self.act_background)
+        insert.addAction(self.act_remove_page_design)
 
         # ---------------------------------------------------------------- Forms
         forms = mb.addMenu("F&orms")
@@ -1256,6 +1326,7 @@ class MainWindow(QMainWindow):
         self._menu_section(protect, "Redaction")
         protect.addAction(self.act_redact_mark)
         protect.addAction(self.act_redact_text)
+        protect.addAction(self.act_redact_pages)
         protect.addAction(self.act_redact_preview)
         protect.addAction(self.act_redact_apply)
         self._menu_section(protect, "Document information")
@@ -1263,6 +1334,7 @@ class MainWindow(QMainWindow):
         protect.addAction(self.act_sec_meta)
         protect.addAction(self.act_sec_attach)
         protect.addAction(self.act_sec_meta_rm)
+        protect.addAction(self.act_remove_hidden)
 
         # ---------------------------------------------------------------- Sign
         sign = mb.addMenu("&Sign")
@@ -1283,7 +1355,42 @@ class MainWindow(QMainWindow):
         # delete the menu when they are garbage-collected, so it is not used for this.
         self._menus_by_action = {m.menuAction(): m for m in self.findChildren(QMenu)}
         for m in mb.findChildren(QMenu, options=Qt.FindChildOption.FindDirectChildrenOnly):
+            self._assign_unique_mnemonics(m)
+        for m in mb.findChildren(QMenu, options=Qt.FindChildOption.FindDirectChildrenOnly):
             m.aboutToShow.connect(lambda m=m: self._sync_submenus(m))
+
+    def _assign_unique_mnemonics(self, menu: QMenu) -> None:
+        """Every item in a menu gets its own Alt-letter. An item keeps its letter when no earlier
+        item uses it; otherwise it moves to a free letter (start of a word first, then any letter).
+        Runs over submenus too; Open Recent numbers its own entries."""
+        if menu is getattr(self, "_recent_menu", None):
+            return
+        used: set[str] = set()
+        pending: list[QAction] = []
+        for a in menu.actions():
+            if a.isSeparator() or isinstance(a, QWidgetAction):
+                continue
+            plain = a.text().replace("&&", "\u0000")
+            i = plain.find("&")
+            letter = plain[i + 1].lower() if 0 <= i < len(plain) - 1 else ""
+            if letter and letter.isalnum() and letter not in used:
+                used.add(letter)
+            else:
+                pending.append(a)
+        for a in pending:
+            plain = a.text().replace("&&", "\u0000").replace("&", "")
+            words = [k for k, ch in enumerate(plain) if ch.isalpha() and (k == 0 or not plain[k - 1].isalnum())]
+            others = [k for k, ch in enumerate(plain) if ch.isalnum() and k not in words]
+            for k in words + others:
+                if plain[k].lower() not in used:
+                    used.add(plain[k].lower())
+                    plain = plain[:k] + "&" + plain[k:]
+                    break
+            a.setText(plain.replace("\u0000", "&&"))
+        for a in menu.actions():
+            sub = self._menus_by_action.get(a)
+            if sub is not None:
+                self._assign_unique_mnemonics(sub)
 
     def _sync_submenus(self, menu: QMenu | None = None) -> None:
         """A submenu is enabled only when something in it can be used (Open Recent always opens,
@@ -1375,6 +1482,9 @@ class MainWindow(QMainWindow):
         self._shape_button.setDefaultAction(self.act_annot_rect)
         bar.addWidget(self._shape_button)
         labelled(self.act_annot_highlight)
+        self._highlight_color_button = self._build_highlight_color_button()
+        bar.addWidget(self._highlight_color_button)
+        labelled(self.act_annot_eraser)
         bar.addAction(self.act_annot_comment)
 
         spacer = QWidget()
@@ -1449,11 +1559,17 @@ class MainWindow(QMainWindow):
         self._left.pagesReordered.connect(self._on_thumbs_reordered)
         self._left.searchRequested.connect(self._run_search_query)
         self._left.bookmarkActivated.connect(self._canvas.go_to_page)
+        self._left.bookmarkAddRequested.connect(self._bookmark_add)
+        self._left.bookmarkRenameRequested.connect(self._bookmark_rename)
+        self._left.bookmarkDeleteRequested.connect(self._bookmark_delete)
+        self._left.bookmarkMoveRequested.connect(self._bookmark_move)
+        self._left.bookmarkRetargetRequested.connect(self._bookmark_retarget)
         self._canvas.pageChanged.connect(self._on_page_changed)
         self._canvas.zoomChanged.connect(self._on_zoom_changed)
         self._canvas.selectionChanged.connect(self._on_selection_changed)
         self._canvas.editModelChanged.connect(self._on_edit_changed)
         self._canvas.requestStatus.connect(self.statusBar().showMessage)
+        self._canvas.regionPickCancelled.connect(self._on_region_pick_cancelled)
         self._canvas.fieldValueEdited.connect(self._on_field_typed)
         self._canvas.fieldEditorFormatChanged.connect(self._on_field_editor_format)
         self._inspector.styleEdited.connect(self._on_edit_changed)
@@ -1652,6 +1768,11 @@ class MainWindow(QMainWindow):
             else:
                 clear_session(self._document.path)
         self._autosave.stop()
+        self._markup_sticky = None
+        self._eraser_active = False
+        if self._canvas.region_pick_active:
+            self._canvas.cancel_region_pick(announce=False)
+        self.act_select_tool.setChecked(True)
         self._converted_from = None
         self._search_hits = []
         self._search_index = -1
@@ -1692,6 +1813,22 @@ class MainWindow(QMainWindow):
         backend = getattr(self._document, "_backend", None) if self._document is not None else None
         return getattr(backend, "_password", None)
 
+    def _report_font_notes(self) -> None:
+        """After a save: say which fonts could not be embedded (their text was saved with a built-in face)."""
+        from core.editing import system_fonts
+
+        notes = system_fonts.take_notes()
+        if not notes:
+            return
+        lines = chr(10).join(f"•  {family}: {reason}" for family, reason in sorted(notes.items()))
+        QMessageBox.information(
+            self,
+            "Fonts in the saved PDF",
+            "Some text could not be saved with the font you chose, so a similar built-in font was used. "
+            "It looks the same in Monograph PDF now, but other PDF programs will show a similar, not identical, "
+            f"typeface.{chr(10)}{chr(10)}{lines}",
+        )
+
     def _bake_to(self, dest: Path) -> bool:
         """Write the edited document to ``dest``.
 
@@ -1703,8 +1840,10 @@ class MainWindow(QMainWindow):
         import time
         import uuid
 
+        from core.editing import system_fonts
         from engines.bake_edits import bake_via_backend
 
+        system_fonts.take_notes()  # forget fallbacks noted by earlier temporary bakes (print, export)
         dest = Path(dest)
         password = self._open_password()
         current = Path(self._document.path) if self._document and self._document.path else None
@@ -1719,19 +1858,21 @@ class MainWindow(QMainWindow):
         try:
             bake_via_backend(self._edit, tmp)
             self._document.close()  # release the file handle before replacing the file
-            for attempt in range(6):
+            delays = (0.1, 0.2, 0.4, 0.8, 1.0, 1.0, 1.0)  # ~4.5 s in all, then the user is told
+            for attempt in range(len(delays) + 1):
                 try:
                     os.replace(tmp, dest)
                     break
                 except PermissionError:
-                    # Another program (often an antivirus scan or a PDF viewer) has the file open
-                    if attempt == 5:
+                    # Another program (often an antivirus scan or a PDF viewer) has the file open. The lock is
+                    # never bypassed: wait a little, then report it and keep the edits.
+                    if attempt == len(delays):
                         raise PermissionError(
                             f"“{dest.name}” is open in another program, so it could not be replaced. "
                             "Your changes are still here — close the other program and save again, "
                             "or use Save As."
                         ) from None
-                    time.sleep(0.25)
+                    time.sleep(delays[attempt])
         except Exception:
             if self._document is not None and getattr(self._document, "_closed", False):
                 # Keep working on the original so no edits are lost
@@ -1766,6 +1907,7 @@ class MainWindow(QMainWindow):
             self._bake_to(path)
             self._edit.mark_clean()
             clear_session(path)
+            self._report_font_notes()
             # Reload from saved file to sync backend
             self._document.close()
             self._document = open_document(path, password=password)
@@ -1806,6 +1948,7 @@ class MainWindow(QMainWindow):
             self._bake_to(dest)
             self._edit.mark_clean()
             clear_session(old_path)
+            self._report_font_notes()
         except Exception as exc:  # noqa: BLE001
             self.report_error(
                 "Save As failed",
@@ -1896,6 +2039,8 @@ class MainWindow(QMainWindow):
         if tool == EditTool.FORM_DETECT:
             self._detect_fields()
             return
+        self._markup_sticky = None
+        self._eraser_active = False
         if self._canvas.region_pick_active:
             self._canvas.cancel_region_pick(announce=False)
         if self._edit is not None:
@@ -2158,10 +2303,17 @@ class MainWindow(QMainWindow):
                 self._on_edit_changed()
 
     def _undo(self) -> None:
+        # While typing / pasting in a text or field editor, undo the editor first
+        if self._canvas.try_editor_undo():
+            self._on_edit_changed()
+            return
         if self._edit:
             self._edit.undo()
 
     def _redo(self) -> None:
+        if self._canvas.try_editor_redo():
+            self._on_edit_changed()
+            return
         if self._edit:
             self._edit.redo()
 
@@ -2175,6 +2327,9 @@ class MainWindow(QMainWindow):
 
     def _paste(self) -> None:
         if self._edit is None:
+            return
+        # In-place editors handle Ctrl+V themselves; do not paste overlay objects over them
+        if self._canvas.editor_active():
             return
         payload = self._canvas._canvas._object_clipboard  # noqa: SLF001
         if payload:
@@ -2215,8 +2370,14 @@ class MainWindow(QMainWindow):
             self._dirty_label.style().polish(self._dirty_label)
         self._dirty_label.setText(text)
         can = self._edit is not None
-        self.act_undo.setEnabled(can and self._edit.commands.can_undo_now)
-        self.act_redo.setEnabled(can and self._edit.commands.can_redo_now)
+        editor_undo = editor_redo = False
+        if self._canvas.editor_active():
+            ed = self._canvas._canvas._text_editor or self._canvas._canvas._field_editor  # noqa: SLF001
+            if ed is not None:
+                editor_undo = ed.document().isUndoAvailable()
+                editor_redo = ed.document().isRedoAvailable()
+        self.act_undo.setEnabled(can and (self._edit.commands.can_undo_now or editor_undo))
+        self.act_redo.setEnabled(can and (self._edit.commands.can_redo_now or editor_redo))
         # Skip / debounce heavy chrome refresh during live drag/type or burst edits
         if getattr(self._canvas._canvas, "_live_interaction", False):  # noqa: SLF001
             return
@@ -2335,8 +2496,6 @@ class MainWindow(QMainWindow):
             title("Text")
             box = self._selected_text_box()
             if box is not None:
-                from PySide6.QtGui import QFont
-
                 self._font_family.set_family(box.style.font_family or "Segoe UI")
                 self._font_size.blockSignals(True)
                 self._font_size.setCurrentText(f"{box.style.font_size:.0f} pt")
@@ -3124,9 +3283,12 @@ class MainWindow(QMainWindow):
             self.act_optimize,
             self.act_watermark,
             self.act_header_footer,
+            self.act_background,
+            self.act_remove_page_design,
             self.act_export_image,
             self.act_replace_image,
             self.act_annot_highlight,
+            self.act_annot_eraser,
             self.act_annot_underline,
             self.act_annot_strike,
             self.act_annot_comment,
@@ -3145,6 +3307,7 @@ class MainWindow(QMainWindow):
             self.act_sec_attach,
             self.act_redact_mark,
             self.act_redact_text,
+            self.act_redact_pages,
             self.act_redact_preview,
             self.act_redact_apply,
             self.act_sig_typed,
@@ -3197,10 +3360,15 @@ class MainWindow(QMainWindow):
         )
         return resp == QMessageBox.StandardButton.Yes
 
-    def _refresh_after_page_ops(self, *, focus: int | None = None) -> None:
+    def _refresh_after_page_ops(self, *, focus: int | None = None, changed_pages=None) -> None:
+        """Rebuild the views after a page operation. ``changed_pages`` (e.g. rotation) keeps the cached
+        analysis of every other page instead of re-reading the whole document."""
         if self._document is None:
             return
-        self._document.invalidate_pages()
+        if changed_pages is None:
+            self._document.invalidate_pages()
+        else:
+            self._document.refresh_pages(changed_pages)
         focus = 0 if focus is None else max(0, min(focus, self._document.page_count - 1))
         self._left.set_document(self._document)
         self._canvas.set_document(self._document)
@@ -3211,7 +3379,8 @@ class MainWindow(QMainWindow):
         self._left.set_current_page(focus)
         self._on_edit_changed()
         self._update_title()
-        self.statusBar().showMessage(f"{self._document.page_count} pages", 4000)
+        n = self._document.page_count
+        self.statusBar().showMessage(f"{n} page" if n == 1 else f"{n} pages", 4000)
 
     def _on_thumbs_reordered(self, new_order: list) -> None:
         if self._document is None or self._edit is None:
@@ -3254,7 +3423,7 @@ class MainWindow(QMainWindow):
             return
         if not self._warn_signatures_if_needed():
             return
-        path, _ = QFileDialog.getOpenFileName(self, "Insert PDF", "", "PDF Files (*.pdf)")
+        path, _ = QFileDialog.getOpenFileName(self, "Insert PDF", self._doc_dir(), "PDF Files (*.pdf)")
         if not path:
             return
         from core.organize.page_ops import insert_pdf_pages
@@ -3330,7 +3499,7 @@ class MainWindow(QMainWindow):
             return
         if not self._warn_signatures_if_needed():
             return
-        path, _ = QFileDialog.getOpenFileName(self, "Replacement PDF page", "", "PDF Files (*.pdf)")
+        path, _ = QFileDialog.getOpenFileName(self, "Replacement PDF page", self._doc_dir(), "PDF Files (*.pdf)")
         if not path:
             return
         from core.organize.page_ops import replace_page
@@ -3353,18 +3522,147 @@ class MainWindow(QMainWindow):
         self._edit.mark_dirty()
         self._refresh_after_page_ops(focus=idx)
 
+    # --- bookmarks ------------------------------------------------------------------------
+
+    def _bookmark_command(self, new_toc, label: str, select: int | None) -> bool:
+        if self._document is None or self._edit is None:
+            return False
+        from core.organize.bookmarks import SetOutlineCommand
+
+        def changed(select=select) -> None:
+            self._left.reload_bookmarks(select=select)
+            self._on_edit_changed()
+            self._update_title()
+
+        try:
+            cmd = SetOutlineCommand(self._edit, new_toc, label=label, on_changed=changed)
+            self._edit.commands.execute(cmd)
+        except Exception as exc:  # noqa: BLE001
+            self.report_error("Bookmarks", str(exc))
+            return False
+        self._on_edit_changed()
+        return True
+
+    def _suggest_bookmark_title(self, page: int) -> str:
+        try:
+            for line in self._document.page_text(page).splitlines():
+                line = " ".join(line.split())
+                if 3 <= len(line) <= 80:
+                    return line
+        except Exception:  # noqa: BLE001
+            pass
+        return f"Page {page + 1}"
+
+    def _bookmark_add(self, after: int = -1) -> None:
+        if self._document is None or self._edit is None:
+            return
+        if not self._warn_signatures_if_needed():
+            return
+        from PySide6.QtWidgets import QInputDialog
+
+        from core.organize.bookmarks import read_toc, with_added
+
+        page = self._canvas.focus_page
+        title, ok = QInputDialog.getText(
+            self, "Add Bookmark", f"Bookmark title (opens page {page + 1}):",
+            text=self._suggest_bookmark_title(page),
+        )
+        if not ok or not title.strip():
+            return
+        toc = read_toc(self._document)
+        new, index = with_added(toc, title, page, after=after if after >= 0 else None)
+        if self._bookmark_command(new, "Add bookmark", index):
+            self._left.show_bookmarks()
+            self.statusBar().showMessage(f"Bookmark added for page {page + 1}", 4000)
+
+    def _bookmark_rename(self, index: int) -> None:
+        if self._document is None or index < 0:
+            return
+        from PySide6.QtWidgets import QInputDialog
+
+        from core.organize.bookmarks import read_toc, with_renamed
+
+        toc = read_toc(self._document)
+        if index >= len(toc):
+            return
+        title, ok = QInputDialog.getText(self, "Rename Bookmark", "Bookmark title:", text=str(toc[index][1]))
+        if not ok or not title.strip() or title.strip() == str(toc[index][1]):
+            return
+        self._bookmark_command(with_renamed(toc, index, title), "Rename bookmark", index)
+
+    def _bookmark_delete(self, index: int) -> None:
+        if self._document is None or index < 0:
+            return
+        from core.organize.bookmarks import read_toc, subtree_end, with_deleted
+
+        toc = read_toc(self._document)
+        if index >= len(toc):
+            return
+        children = subtree_end(toc, index) - index - 1
+        if children:
+            answer = QMessageBox.question(
+                self, "Delete Bookmark",
+                f"“{toc[index][1]}” has {children} bookmark{'s' if children != 1 else ''} under it. "
+                "Delete them too?",
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        new = with_deleted(toc, index)
+        self._bookmark_command(new, "Delete bookmark", min(index, len(new) - 1) if new else None)
+
+    def _bookmark_move(self, index: int, step: int) -> None:
+        if self._document is None or index < 0:
+            return
+        from core.organize.bookmarks import read_toc, with_moved
+
+        toc = read_toc(self._document)
+        if index >= len(toc):
+            return
+        new, at = with_moved(toc, index, step)
+        if at == index:
+            self.statusBar().showMessage("The bookmark cannot move further at its level", 4000)
+            return
+        self._bookmark_command(new, "Move bookmark", at)
+
+    def _bookmark_retarget(self, index: int) -> None:
+        if self._document is None or index < 0:
+            return
+        from core.organize.bookmarks import read_toc, with_target
+
+        toc = read_toc(self._document)
+        if index >= len(toc):
+            return
+        page = self._canvas.focus_page
+        if self._bookmark_command(with_target(toc, index, page), "Change bookmark page", index):
+            self.statusBar().showMessage(f"“{toc[index][1]}” now opens page {page + 1}", 4000)
+
     def _rotate_selected(self, degrees: int) -> None:
         if self._document is None or self._edit is None:
             return
         pages = self._selected_pages()
-        from core.organize.page_ops import rotate_pages
+        if not pages or not self._warn_signatures_if_needed():
+            return
+        self._rotate_pages(pages, degrees)
 
+    def _rotate_pages(self, pages: list[int], degrees: int) -> bool:
+        """Undoable page turn; overlays move with the page (see core.organize.rotate_command)."""
+        from core.organize.rotate_command import RotatePagesCommand
+
+        focus = pages[0] if pages else 0
         try:
-            rotate_pages(self._document, pages, degrees)
-            self._edit.mark_dirty()
-            self._refresh_after_page_ops(focus=pages[0] if pages else 0)
+            cmd = RotatePagesCommand(
+                self._document,
+                self._edit,
+                pages,
+                degrees,
+                on_changed=lambda: self._refresh_after_page_ops(focus=focus, changed_pages=pages),
+            )
+            self._edit.commands.execute(cmd)
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.warning(self, "Rotate", str(exc))
+            self.report_error("Rotate", str(exc))
+            return False
+        self._on_edit_changed()  # the command is on the undo stack only now: enable Undo
+        return True
 
     def _crop_page(self) -> None:
         if self._document is None or self._edit is None:
@@ -3411,7 +3709,7 @@ class MainWindow(QMainWindow):
         if move and not self._warn_signatures_if_needed():
             return
         path, _ = QFileDialog.getOpenFileName(
-            self, "Target PDF (will be saved as a new file)", "", "PDF Files (*.pdf)"
+            self, "Target PDF (will be saved as a new file)", self._doc_dir(), "PDF Files (*.pdf)"
         )
         if not path:
             return
@@ -3566,11 +3864,13 @@ class MainWindow(QMainWindow):
         from ui.convert_dialogs import choose_save
 
         paths, _ = QFileDialog.getOpenFileNames(
-            self, "Images to PDF", "", "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp)"
+            self, "Images to PDF", self._doc_dir(), "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp)"
         )
         if not paths:
             return
-        dest = choose_save(self, "Save PDF", "images.pdf", "PDF (*.pdf)")
+        first = Path(paths[0])
+        name = f"{first.stem}.pdf" if len(paths) == 1 else "images.pdf"
+        dest = choose_save(self, "Save PDF", str(first.with_name(name)), "PDF (*.pdf)")
         if not dest:
             return
         try:
@@ -3754,18 +4054,20 @@ class MainWindow(QMainWindow):
     def _pdf_to_pptx(self) -> None:
         if self._document is None:
             return
-        from core.convert.pdf_to_pptx import FIDELITY_NOTICE, pdf_to_pptx
-        from ui.convert_dialogs import choose_save, fidelity_confirm
+        from core.convert.pdf_to_pptx import PptxReport, pdf_to_pptx
+        from ui.convert_dialogs import PdfToPowerPointDialog, choose_save
 
-        if not fidelity_confirm(self, "PDF to PowerPoint", FIDELITY_NOTICE):
+        dlg = PdfToPowerPointDialog(self)
+        if dlg.exec() != dlg.DialogCode.Accepted:
             return
         dest = choose_save(self, "Save as PowerPoint", self._suggest("", "pptx"), "PowerPoint (*.pptx)")
         if not dest:
             return
         try:
+            report = PptxReport()
             with self._current_document() as src:
-                pdf_to_pptx(src, dest)
-            self.statusBar().showMessage(f"Saved {dest.name}", 6000)
+                pdf_to_pptx(src, dest, mode=dlg.mode(), report=report)
+            self.statusBar().showMessage(f"Saved {dest.name} — {report.summary()}", 8000)
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(self, "PDF to PowerPoint", str(exc))
 
@@ -3855,99 +4157,106 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Optimize", str(exc))
 
     def _watermark(self) -> None:
-        if self._document is None:
-            return
-        from core.convert.watermark import apply_watermark
-        from ui.convert_dialogs import WatermarkDialog, choose_save
+        from ui.page_marks_dialogs import WatermarkDialog
 
-        dlg = WatermarkDialog(self, page_count=self._document.page_count, current_page=self._canvas.focus_page)
-        if dlg.exec() != dlg.DialogCode.Accepted:
-            return
-        try:
-            wm_pages = dlg.scope.pages()
-        except Exception as exc:  # noqa: BLE001
-            self.report_error("Watermark", f"Invalid page range: {exc}")
-            return
-        dest = choose_save(self, "Save Watermarked PDF", self._suggest("watermarked", "pdf"), "PDF (*.pdf)")
-        if not dest:
-            return
-        try:
-            with self._current_document() as src:
-                apply_watermark(
-                    src,
-                    dest,
-                    text=dlg.text.text() or "WATERMARK",
-                    opacity=dlg.opacity.value() / 100.0,
-                    rotate=float(dlg.rotation.currentData()),
-                    fontsize=float(dlg.fontsize.value()),
-                    pages=wm_pages,
-                    color=dlg.color_rgb(),
-                )
-            self.statusBar().showMessage(f"Wrote {dest.name}", 6000)
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.warning(self, "Watermark", str(exc))
+        self._page_design(WatermarkDialog, "Watermark", "watermarked", "Save Watermarked PDF")
 
     def _header_footer(self) -> None:
+        from ui.page_marks_dialogs import HeaderFooterDialog
+
+        self._page_design(HeaderFooterDialog, "Header / Footer", "numbered", "Save PDF with Header / Footer")
+
+    def _background(self) -> None:
+        from ui.page_marks_dialogs import BackgroundDialog
+
+        self._page_design(BackgroundDialog, "Background", "background", "Save PDF with Background")
+
+    def _page_design(self, dialog_cls, title: str, suffix: str, save_title: str) -> None:
+        """Header/footer, watermark or background: dialog with a live preview, then a new PDF.
+
+        The preview and the output both use the document as shown, unsaved changes included."""
         if self._document is None:
             return
-        from core.convert.watermark import apply_headers_footers, apply_page_numbers
-        from ui.convert_dialogs import HeaderFooterDialog, choose_save
+        from core.convert.page_marks import apply_page_marks
+        from ui.convert_dialogs import choose_save
 
-        dlg = HeaderFooterDialog(self, page_count=self._document.page_count, current_page=self._canvas.focus_page)
-        if dlg.exec() != dlg.DialogCode.Accepted:
-            return
-        try:
-            hf_pages = dlg.scope.pages()
-        except Exception as exc:  # noqa: BLE001
-            self.report_error("Header / Footer", f"Invalid page range: {exc}")
-            return
-        dest = choose_save(self, "Save PDF with Header / Footer", self._suggest("numbered", "pdf"), "PDF (*.pdf)")
-        if not dest:
-            return
-        try:
-            with self._current_document() as src:
-                apply_headers_footers(
-                    src,
-                    dest,
-                    header=dlg.header.text(),
-                    footer=dlg.footer.text(),
-                    fontsize=float(dlg.fontsize.value()),
-                    pages=hf_pages,
-                )
-            if dlg.page_numbers.isChecked():
-                import shutil
-                import tempfile
+        with self._current_document() as src:
+            dlg = dialog_cls(self, page_count=self._document.page_count, current_page=self._canvas.focus_page,
+                             source=src)
+            if dlg.exec() != dlg.DialogCode.Accepted:
+                return
+            try:
+                pages = dlg.scope.pages()
+            except Exception as exc:  # noqa: BLE001
+                self.report_error(title, f"Invalid page range: {exc}")
+                return
+            dest = choose_save(self, save_title, self._suggest(suffix, "pdf"), "PDF (*.pdf)")
+            if not dest:
+                return
+            try:
+                result = apply_page_marks(src, dest, pages=pages, replace_existing=dlg.replace.isChecked(),
+                                          **dlg.kwargs())
+            except Exception as exc:  # noqa: BLE001
+                QMessageBox.warning(self, title, str(exc))
+                return
+        note = f"Wrote {dest.name}"
+        if result.removed.get("replaced"):
+            note += f" — replaced the earlier one on {result.removed['replaced']} page(s)"
+        if result.font_size_reduced_on:
+            note += f" — text made smaller to fit on {len(result.font_size_reduced_on)} page(s)"
+        self.statusBar().showMessage(note, 8000)
 
-                numbered = open_document(dest)
-                tmp = Path(tempfile.mkdtemp(prefix="monographpdf-hf-")) / dest.name
-                try:
-                    try:
-                        apply_page_numbers(numbered, tmp, fmt=str(dlg.number_format.currentData()), pages=hf_pages)
-                    finally:
-                        numbered.close()
-                    shutil.move(str(tmp), str(dest))
-                finally:
-                    shutil.rmtree(tmp.parent, ignore_errors=True)
-            self.statusBar().showMessage(f"Wrote {dest.name}", 6000)
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.warning(self, "Header/Footer", str(exc))
+    def _remove_page_design(self) -> None:
+        if self._document is None:
+            return
+        from core.convert.page_marks import remove_page_marks
+        from ui.convert_dialogs import choose_save
+        from ui.page_marks_dialogs import RemoveMarksDialog
+
+        with self._current_document() as src:
+            dlg = RemoveMarksDialog(self, source=src)
+            if not any(dlg.counts.values()):
+                QMessageBox.information(
+                    self, "Remove Page Design",
+                    "No header, footer, watermark or background added by Monograph PDF was found in this document.\n\n"
+                    "Text or pictures added by other programs are part of the page and cannot be removed here.")
+                return
+            if dlg.exec() != dlg.DialogCode.Accepted:
+                return
+            dest = choose_save(self, "Save PDF without Page Design", self._suggest("plain", "pdf"), "PDF (*.pdf)")
+            if not dest:
+                return
+            try:
+                result = remove_page_marks(src, dest, dlg.kinds())
+            except Exception as exc:  # noqa: BLE001
+                QMessageBox.warning(self, "Remove Page Design", str(exc))
+                return
+        removed = sum(result.removed.values())
+        note = f"Wrote {dest.name} — removed {removed} item(s)"
+        if result.retained_objects:
+            note += f"; {result.retained_objects} no longer shown but still stored (shared with other pages)"
+        self.statusBar().showMessage(note, 8000)
 
     def _add_image(self) -> None:
         if self._document is None or self._edit is None:
             return
-        from core.editing.geometry import Rect
         from core.editing.image_box import ImageBox
 
         path, _ = QFileDialog.getOpenFileName(
-            self, "Add image", "", "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp)"
+            self, "Add image", self._doc_dir(), "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp)"
         )
         if not path:
             return
         page = self._canvas.focus_page
         info = self._document.page(page)
+        from PySide6.QtGui import QImageReader
+
+        from core.editing.image_box import default_image_rect
+
+        size = QImageReader(path).size()  # header only: the picture is not decoded here
         box = ImageBox(
             page_index=page,
-            rect=Rect(72, 72, min(240.0, info.width_pt - 96), min(180.0, info.height_pt - 96)),
+            rect=default_image_rect(size.width(), size.height(), info.display_width_pt, info.display_height_pt),
             source_path=path,
             z_index=self._edit.next_z(),
         )
@@ -3984,7 +4293,7 @@ class MainWindow(QMainWindow):
             if oid not in self._edit.images:
                 continue
             path, _ = QFileDialog.getOpenFileName(
-                self, "Replace image", "", "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp)"
+                self, "Replace image", self._doc_dir(), "Images (*.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp)"
             )
             if not path:
                 return
@@ -4012,27 +4321,232 @@ class MainWindow(QMainWindow):
             h,
         )
 
-    def _annot_markup(self, kind: str) -> None:
+    def _toggle_highlight_tool(self) -> None:
+        """Toolbar / H: first click activates continuous Highlight; second click returns to Select."""
+        if getattr(self, "_markup_sticky", None) == "highlight":
+            if self._canvas.region_stroke_in_progress:
+                self._canvas.abort_active_region_stroke()
+            self._exit_markup_modes(message="Select mode")
+            return
+        self._eraser_active = False
+        self._annot_markup("highlight")
+
+    def _exit_markup_modes(self, *, message: str = "Select mode") -> None:
+        self._markup_sticky = None
+        self._eraser_active = False
+        if self._canvas.region_pick_active:
+            self._canvas.cancel_region_pick(announce=False)
+        self.act_select_tool.setChecked(True)
+        self.statusBar().showMessage(message, 3000)
+
+    def _toggle_eraser_tool(self) -> None:
+        """Toolbar eraser: toggle continuous removal of highlight / ink markup annotations."""
+        if getattr(self, "_eraser_active", False):
+            self._exit_markup_modes(message="Select mode")
+            return
         if self._document is None or not self._confirm_signed():
             self.act_select_tool.setChecked(True)
             return
-        from core.annotations import add_highlight, add_strikeout, add_underline
+        self._markup_sticky = None
+        if self._canvas.region_pick_active:
+            self._canvas.cancel_region_pick(announce=False)
+        self._eraser_active = True
+        self.act_annot_eraser.setChecked(True)
+        self._arm_eraser()
 
-        label = {"highlight": "Highlight", "underline": "Underline", "strikeout": "Strikethrough"}[kind]
-        fn = {"highlight": add_highlight, "underline": add_underline, "strikeout": add_strikeout}[kind]
+    def _arm_eraser(self) -> None:
+        if self._document is None or not getattr(self, "_eraser_active", False):
+            return
+        from core.annotations import annotations_at
+        from core.editing.annot_commands import EraseAnnotCommand
 
         def apply(page: int, rect) -> None:
+            if self._edit is None or self._document is None:
+                return
+            pt = self._to_page_point(page, rect.x, rect.y)
+            hits = annotations_at(self._document, page, pt)
+            if not hits:
+                self.statusBar().showMessage("Eraser: no highlight under the pointer — click a mark to remove it", 4000)
+                return
+            top = hits[-1]
+            try:
+                self._edit.commands.execute(
+                    EraseAnnotCommand(self._document, self._edit, page, int(top["xref"]))
+                )
+            except ValueError:
+                self.statusBar().showMessage("Eraser: that annotation could not be removed", 4000)
+                return
+            kind = top.get("kind") or "annotation"
+            self._after_annotation(page, f"Removed {kind} — click another, or Esc to finish")
+
+        self._pick_on_page(
+            "Eraser: click a highlight or ink annotation to remove it",
+            apply,
+            kind="erase",
+            default_size=(1.0, 1.0),
+        )
+
+    def _annot_markup(self, kind: str, *, rearm: bool = False) -> None:
+        if self._document is None or not self._confirm_signed():
+            self._markup_sticky = None
+            self._eraser_active = False
+            self.act_select_tool.setChecked(True)
+            return
+        from core.annotations import classify_stroke
+        from core.editing.annot_commands import HighlightStrokeCommand, MarkupAnnotCommand
+
+        label = {"highlight": "Highlight", "underline": "Underline", "strikeout": "Strikethrough"}[kind]
+        color = self._markup_color_rgb(kind)
+        pick_kind = "stroke" if kind == "highlight" else "rect"
+        # Highlight stays active until toggled off, Esc (twice if mid-stroke), another tool, or close.
+        self._eraser_active = False
+        self._markup_sticky = "highlight" if kind == "highlight" else None
+        prompt = (
+            "Highlight mode: draw over text or any area; click Highlight or Esc to finish"
+            if kind == "highlight"
+            else f"{label}: drag across the text"
+        )
+
+        def apply(page: int, rect) -> None:
+            if self._edit is None:
+                return
+            if kind == "highlight":
+                stroke = self._canvas.take_region_stroke()
+                locked = self._canvas.take_stroke_locked_color()
+                stroke_color = (
+                    (locked.redF(), locked.greenF(), locked.blueF())
+                    if locked is not None and locked.isValid()
+                    else self._markup_color_rgb("highlight")
+                )
+                if len(stroke) < 2:
+                    self.statusBar().showMessage("Highlight: drag to mark an area (a single click marks nothing)", 4000)
+                    return
+                page_pts = [self._to_page_point(page, p.x, p.y) for p in stroke]
+                lines, runs = classify_stroke(self._document, page, page_pts)
+                if not lines and not runs:
+                    self.statusBar().showMessage("Highlight: the stroke was too short to mark anything", 4000)
+                    return
+                self._edit.commands.execute(
+                    HighlightStrokeCommand(
+                        self._document, self._edit, page, lines, runs, color=stroke_color
+                    )
+                )
+                parts = []
+                if lines:
+                    parts.append(f"{len(lines)} text line(s)")
+                if runs:
+                    parts.append(f"{len(runs)} free-area stroke(s)")
+                self._after_annotation(
+                    page, "Highlight added (" + ", ".join(parts) + ") — keep drawing, or Esc to finish"
+                )
+                return
             area = self._to_page_rect(page, rect)
             lines = self._text_line_rects(page, area)
             if not lines:
-                if kind != "highlight":
-                    self.statusBar().showMessage(f"{label}: no text under the selected area", 5000)
-                    return
-                lines = [area]
-            fn(self._document, page, lines)
+                self.statusBar().showMessage(f"{label}: no text under the selected area", 5000)
+                return
+            self._edit.commands.execute(
+                MarkupAnnotCommand(self._document, self._edit, page, kind, lines, color=color)
+            )
             self._after_annotation(page, f"{label} added ({len(lines)} line(s))")
 
-        self._pick_on_page(f"{label}: drag across the text", apply, default_size=(200.0, 18.0))
+        from PySide6.QtGui import QColor
+
+        ink = QColor(*(int(round(c * 255)) for c in color))
+        self._pick_on_page(prompt, apply, kind=pick_kind, default_size=(200.0, 18.0), stroke_color=ink)
+
+    def _on_region_pick_cancelled(self) -> None:
+        """Esc with no unfinished stroke (or after mid-stroke cancel already happened): return to Select."""
+        self._markup_sticky = None
+        self._eraser_active = False
+        self.act_select_tool.setChecked(True)
+
+    def _markup_color_rgb(self, kind: str) -> tuple[float, float, float]:
+        """Current markup color as MuPDF RGB floats (0–1)."""
+        from PySide6.QtGui import QColor
+
+        hex_map = {
+            "highlight": getattr(self._prefs, "highlight_color", None) or "#ffff00",
+            "underline": getattr(self._prefs, "underline_color", None) or "#0000ff",
+            "strikeout": getattr(self._prefs, "strikeout_color", None) or "#ff0000",
+        }
+        c = QColor(hex_map.get(kind, "#ffff00"))
+        if not c.isValid():
+            c = QColor("#ffff00")
+        return (c.redF(), c.greenF(), c.blueF())
+
+    def _set_highlight_color(self, hex_color: str) -> None:
+        from PySide6.QtGui import QColor
+
+        c = QColor(hex_color)
+        if not c.isValid():
+            return
+        self._prefs.highlight_color = c.name()
+        self._prefs.save()
+        self._refresh_highlight_color_button()
+        # Colour changes apply to future strokes only; never activate/deactivate Highlight or cancel a stroke.
+        if getattr(self, "_markup_sticky", None) == "highlight":
+            if self._canvas.region_stroke_in_progress:
+                pass  # keep the in-progress stroke's locked colour
+            elif self._canvas.region_pick_active:
+                self._canvas.set_region_stroke_color(c)
+            else:
+                self._annot_markup("highlight")  # re-arm preview with the new colour
+
+    def _choose_custom_highlight_color(self) -> None:
+        from PySide6.QtGui import QColor
+        from PySide6.QtWidgets import QColorDialog
+
+        current = QColor(getattr(self._prefs, "highlight_color", "#ffff00") or "#ffff00")
+        chosen = QColorDialog.getColor(current, self, "Highlight color")
+        if chosen.isValid():
+            self._set_highlight_color(chosen.name())
+
+    def _refresh_highlight_color_button(self) -> None:
+        btn = getattr(self, "_highlight_color_button", None)
+        if btn is None:
+            return
+        hex_color = getattr(self._prefs, "highlight_color", "#ffff00") or "#ffff00"
+        btn.setStyleSheet(
+            f"QToolButton {{ background: {hex_color}; border: 1px solid #666; border-radius: 3px; }}"
+            f"QToolButton::menu-indicator {{ image: none; width: 0; }}"
+        )
+        btn.setToolTip(f"Highlight color ({hex_color})")
+
+    def _build_highlight_color_button(self) -> QToolButton:
+        """Toolbar swatch: preset highlight colors + custom picker."""
+        from PySide6.QtGui import QColor, QIcon, QPixmap
+
+        btn = QToolButton()
+        btn.setObjectName("HighlightColorButton")
+        btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        btn.setFixedSize(22, 22)
+        btn.setAutoRaise(True)
+        menu = QMenu(btn)
+        presets = (
+            ("#ffff00", "Yellow"),
+            ("#90ee90", "Light green"),
+            ("#87cefa", "Light blue"),
+            ("#ffb6c1", "Pink"),
+            ("#ffa500", "Orange"),
+            ("#da70d6", "Orchid"),
+            ("#ffffff", "White"),
+        )
+        for hex_color, name in presets:
+            act = QAction(name, menu)
+            pix = QPixmap(16, 16)
+            pix.fill(QColor(hex_color))
+            act.setIcon(QIcon(pix))
+            act.triggered.connect(lambda _=False, c=hex_color: self._set_highlight_color(c))
+            menu.addAction(act)
+        menu.addSeparator()
+        custom = QAction("Custom…", menu)
+        custom.triggered.connect(self._choose_custom_highlight_color)
+        menu.addAction(custom)
+        btn.setMenu(menu)
+        self._highlight_color_button = btn
+        self._refresh_highlight_color_button()
+        return btn
 
     def _annot_comment(self) -> None:
         if self._document is None or not self._confirm_signed():
@@ -4273,6 +4787,64 @@ class MainWindow(QMainWindow):
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(self, "Remove metadata", str(exc))
 
+    def _copy_page_as_picture(self) -> None:
+        if self._document is None:
+            return
+        page = self._canvas.focus_page
+        try:
+            with self._current_document() as src:
+                png = src.render_pixmap_png(page, zoom=150 / 72.0)
+        except Exception as exc:  # noqa: BLE001
+            self.report_error("Copy page", str(exc))
+            return
+        img = QImage.fromData(png, "PNG")
+        if img.isNull():
+            self.report_error("Copy page", "The page could not be drawn.")
+            return
+        QApplication.clipboard().setImage(img)
+        self.statusBar().showMessage(f"Page {page + 1} copied as a picture (150 dpi)", 5000)
+
+    def _remove_hidden_info(self) -> None:
+        if self._document is None:
+            return
+        from core.security.sanitize import remove_hidden, scan_hidden
+        from ui.convert_dialogs import choose_save
+        from ui.security_dialogs import RemoveHiddenInfoDialog
+
+        try:
+            with self._current_document() as src:
+                dlg = RemoveHiddenInfoDialog(scan_hidden(src), self)
+                if dlg.exec() != dlg.DialogCode.Accepted:
+                    return
+                dest = choose_save(self, "Save Cleaned PDF", self._suggest("clean", "pdf"), "PDF (*.pdf)")
+                if not dest:
+                    return
+                report = remove_hidden(src, dest, dlg.options())
+        except Exception as exc:  # noqa: BLE001
+            self.report_error("Remove hidden information", str(exc))
+            return
+        b, a = report.before, report.after
+        rows = []
+        for label, before, after in (
+            ("Document properties", b.metadata_fields + int(b.xmp_metadata), a.metadata_fields + int(a.xmp_metadata)),
+            ("Attached files", b.attachments, a.attachments),
+            ("Scripts and actions", b.javascript, a.javascript),
+            ("Page thumbnails", b.thumbnails, a.thumbnails),
+            ("Private application data", b.private_data, a.private_data),
+            ("Comments", b.comments, a.comments),
+            ("Form fields", b.form_fields, a.form_fields),
+            ("Links", b.links, a.links),
+            ("Bookmarks", b.bookmarks, a.bookmarks),
+            ("Pages with invisible text", b.hidden_text_pages, a.hidden_text_pages),
+        ):
+            if before or after:
+                rows.append(f"• {label}: {before} → {after}")
+        body = f"Saved {report.destination.name}.\n\n" + ("\n".join(rows) if rows else "Nothing hidden was found.")
+        if report.notes:
+            body += "\n\n" + "\n".join(report.notes)
+        QMessageBox.information(self, "Remove Hidden Information", body)
+        self.statusBar().showMessage(f"Wrote {report.destination.name}", 6000)
+
     def _inspect_attachments(self) -> None:
         if self._document is None:
             return
@@ -4331,6 +4903,36 @@ class MainWindow(QMainWindow):
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(self, "Redact text", str(exc))
 
+    def _redact_mark_pages(self) -> None:
+        if self._document is None or not self._confirm_signed():
+            return
+        from PySide6.QtWidgets import QInputDialog
+
+        from core.organize.page_ops import parse_page_ranges
+        from core.redaction import mark_pages
+
+        current = self._canvas.focus_page + 1
+        spec, ok = QInputDialog.getText(
+            self, "Mark pages for redaction",
+            f"Pages to redact completely (e.g. 2, 5-7). The document has {self._document.page_count} pages.\n"
+            "The pages stay in the document; everything on them is removed when you apply redactions.",
+            text=str(current),
+        )
+        if not ok or not spec.strip():
+            return
+        try:
+            pages = parse_page_ranges(spec.strip(), self._document.page_count)
+            marks = mark_pages(self._document, pages)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, "Mark pages for redaction", str(exc))
+            return
+        self._refresh_after_page_ops(focus=self._canvas.focus_page)
+        if self._edit and marks:
+            self._edit.mark_dirty()
+        n = len(marks)
+        self.statusBar().showMessage(
+            f"Marked {n} page{'s' if n != 1 else ''} for redaction — nothing is removed until you apply redactions", 7000)
+
     def _redact_preview(self) -> None:
         if self._document is None:
             return
@@ -4347,7 +4949,7 @@ class MainWindow(QMainWindow):
     def _redact_apply(self) -> None:
         if self._document is None or not self._confirm_signed():
             return
-        from core.redaction import apply_redactions, preview_redaction_count
+        from core.redaction import apply_redactions_report, preview_redaction_count
         from ui.convert_dialogs import choose_save
 
         n = preview_redaction_count(self._document)
@@ -4357,8 +4959,8 @@ class MainWindow(QMainWindow):
         resp = QMessageBox.warning(
             self,
             "Apply true redaction",
-            f"Apply {n} redaction(s)? This permanently removes content from the saved file "
-            "(not an opaque cover).",
+            f"Apply {n} redaction(s)? This permanently removes the content under the marks from the saved "
+            "file (not an opaque cover) — including form fields, comments and links that overlap a mark.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if resp != QMessageBox.StandardButton.Yes:
@@ -4367,13 +4969,103 @@ class MainWindow(QMainWindow):
         if not dest:
             return
         try:
-            apply_redactions(self._document, dest)
-            self.statusBar().showMessage(f"Redacted PDF saved: {dest.name}", 7000)
+            report = apply_redactions_report(self._document, dest)
             self._refresh_after_page_ops(focus=0)
             if self._edit:
                 self._edit.mark_dirty()
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(self, "Apply redaction", str(exc))
+            return
+        extra = []
+        if report.removed_form_fields:
+            extra.append(f"{report.removed_form_fields} form field(s)")
+        if report.removed_annotations:
+            extra.append(f"{report.removed_annotations} comment(s) or mark-up")
+        if report.removed_links:
+            extra.append(f"{report.removed_links} link(s)")
+        msg = f"Redacted PDF saved: {dest.name}"
+        if extra:
+            msg += " — also removed under the marks: " + ", ".join(extra)
+        self.statusBar().showMessage(msg, 9000)
+        if report.residue:
+            from core.redaction import UNCHECKED_ATTACHMENT
+
+            removable = [r for r in report.residue if r.where != UNCHECKED_ATTACHMENT]
+            unchecked = [r for r in report.residue if r.where == UNCHECKED_ATTACHMENT]
+            if removable:
+                self._offer_residue_scrub(dest, report.residue)
+            elif unchecked:
+                QMessageBox.information(
+                    self, "Attachments not checked",
+                    "The saved file has attachments. Monograph PDF never opens or reads attachments, so it could "
+                    "not check them for the redacted text:\n" + "\n".join(f"• {r.detail}" for r in unchecked[:12])
+                    + "\n\nReview them before sharing the file.")
+
+    def _offer_residue_scrub(self, dest, residue) -> None:
+        """The redacted text still occurs outside the page content: say where and offer to remove it."""
+        import os
+        import tempfile
+
+        import fitz
+
+        from core.redaction import UNCHECKED_ATTACHMENT, find_residue, marked_terms, scrub_residue
+
+        lines = [f"• {r.detail}" for r in residue[:12]]
+        if len(residue) > 12:
+            lines.append(f"• … and {len(residue) - 12} more")
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("Redacted text found elsewhere")
+        box.setText("The page content was redacted, but the same text still appears in the saved file:")
+        box.setInformativeText(
+            "\n".join(lines)
+            + "\n\nRemove it from these places too? Comment texts, bookmark titles and document properties "
+            "get “[redacted]”, form values are cleared, and attachments with the text in their name or "
+            "description are deleted. Attachment contents are never read, so they cannot be checked."
+        )
+        yes = box.addButton("Remove These Too", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Keep Them", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(yes)
+        box.exec()
+        if box.clickedButton() is not yes:
+            self.statusBar().showMessage(f"Redacted PDF saved: {dest.name} — text outside the pages was kept", 9000)
+            return
+        terms = marked_terms(self._document)
+        with fitz.open(dest) as probe:
+            if probe.needs_pass:  # never re-save a protected file without its protection
+                QMessageBox.warning(
+                    self, "Redaction",
+                    "The redacted file is password-protected, so the remaining text was not removed. "
+                    "Remove the protection, apply the redaction again, then protect the result.")
+                return
+        tmp = ""
+        try:
+            fd, tmp = tempfile.mkstemp(suffix=".pdf", dir=str(dest.parent))
+            os.close(fd)
+            with fitz.open(dest) as doc:
+                scrub_residue(doc, terms)
+                doc.save(tmp, garbage=4, deflate=True)
+            os.replace(tmp, dest)
+            with fitz.open(dest) as doc:
+                found = find_residue(doc, terms)
+            left = [r for r in found if r.where != UNCHECKED_ATTACHMENT]
+            unchecked = len(found) - len(left)
+        except Exception as exc:  # noqa: BLE001
+            if tmp:
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+            QMessageBox.warning(self, "Redaction", f"Could not remove the remaining text: {exc}")
+            return
+        if left:
+            QMessageBox.warning(self, "Redaction", "Some occurrences could not be removed:\n"
+                                + "\n".join(f"• {r.detail}" for r in left[:12]))
+        else:
+            note = f"Redacted PDF saved: {dest.name} — no other occurrences remain"
+            if unchecked:
+                note += f" ({unchecked} attachment(s) not checked: their content is never read)"
+            self.statusBar().showMessage(note, 12000)
 
     def _sig_typed(self) -> None:
         if self._document is None or not self._confirm_signed():
@@ -4399,7 +5091,7 @@ class MainWindow(QMainWindow):
         from core.signatures import insert_image_signature
 
         path, _ = QFileDialog.getOpenFileName(
-            self, "Signature from Image", "", "Images (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.tif *.tiff)"
+            self, "Signature from Image", self._doc_dir(), "Images (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.tif *.tiff)"
         )
         if not path:
             return
@@ -4467,6 +5159,7 @@ class MainWindow(QMainWindow):
                 color_mode=settings.color_mode,
                 scaling=settings.scaling,
                 orientation=settings.orientation,
+                comments=settings.comments,
             )
             mode = "black & white" if settings.color_mode == ColorMode.GRAYSCALE else "color"
             self.statusBar().showMessage(
@@ -4730,7 +5423,9 @@ class MainWindow(QMainWindow):
                 lines[key] = fitz.Rect(wr)
         return [Rect(r.x0, r.y0, r.width, r.height) for r in lines.values()]
 
-    def _pick_on_page(self, prompt: str, on_done, *, kind: str = "rect", default_size=(160.0, 40.0)) -> None:
+    def _pick_on_page(
+        self, prompt: str, on_done, *, kind: str = "rect", default_size=(160.0, 40.0), stroke_color=None
+    ) -> None:
         """Let the user drag a box (or click) on a page, then run ``on_done(page, display_rect)``."""
         if self._document is None:
             return
@@ -4751,9 +5446,33 @@ class MainWindow(QMainWindow):
             except Exception as exc:  # noqa: BLE001
                 self.report_error("Could not place item", str(exc))
             finally:
-                self.act_select_tool.setChecked(True)
+                if getattr(self, "_markup_sticky", None) and self._document is not None:
+                    QTimer.singleShot(0, self._rearm_sticky_markup)
+                elif getattr(self, "_eraser_active", False) and self._document is not None:
+                    QTimer.singleShot(0, self._rearm_eraser)
+                else:
+                    self.act_select_tool.setChecked(True)
 
-        self._canvas.begin_region_pick(prompt, done, kind=kind)
+        self._canvas.begin_region_pick(prompt, done, kind=kind, stroke_color=stroke_color)
+
+    def _rearm_sticky_markup(self) -> None:
+        kind = getattr(self, "_markup_sticky", None)
+        if (
+            kind
+            and self._document is not None
+            and not self._canvas.region_pick_active
+            and self.act_annot_highlight.isChecked()
+        ):
+            self._annot_markup(kind, rearm=True)
+
+    def _rearm_eraser(self) -> None:
+        if (
+            getattr(self, "_eraser_active", False)
+            and self._document is not None
+            and not self._canvas.region_pick_active
+            and self.act_annot_eraser.isChecked()
+        ):
+            self._arm_eraser()
 
     def _after_annotation(self, page: int, message: str) -> None:
         vbar = self._canvas.verticalScrollBar()
@@ -4886,7 +5605,6 @@ class MainWindow(QMainWindow):
     def _rotate_pages_dialog(self) -> None:
         if self._document is None or self._edit is None:
             return
-        from core.organize.page_ops import rotate_pages
         from ui.organize_dialogs import RotatePagesDialog
 
         dlg = RotatePagesDialog(
@@ -4901,13 +5619,10 @@ class MainWindow(QMainWindow):
             return
         if not pages:
             return
-        try:
-            rotate_pages(self._document, pages, dlg.degrees())
-        except Exception as exc:  # noqa: BLE001
-            self.report_error("Rotate Pages", str(exc))
+        if not self._warn_signatures_if_needed():
             return
-        self._edit.mark_dirty()
-        self._refresh_after_page_ops(focus=pages[0])
+        if not self._rotate_pages(pages, dlg.degrees()):
+            return
         self.statusBar().showMessage(f"Rotated {len(pages)} page(s) — Save to keep the change", 5000)
 
     def _make_default_app(self) -> None:

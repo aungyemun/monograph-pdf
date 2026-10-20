@@ -6,7 +6,6 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -179,7 +178,9 @@ class MergeDialog(QDialog):
         self._warn.setText(warn or "")
 
     def _add(self) -> None:
-        paths, _ = QFileDialog.getOpenFileNames(self, "Add PDFs", "", "PDF Files (*.pdf)")
+        last = self.job.sources[-1].path if self.job.sources else None
+        start = str(Path(last).parent) if last else getattr(self.parent(), "_doc_dir", lambda: "")()
+        paths, _ = QFileDialog.getOpenFileNames(self, "Add PDFs", start, "PDF Files (*.pdf)")
         for p in paths:
             src = self.job.add_path(Path(p))
             if src.open_error and "Password" in (src.open_error or ""):
@@ -236,9 +237,21 @@ class MergeDialog(QDialog):
             )
             if resp != QMessageBox.StandardButton.Yes:
                 return
+        prot = self.job.protection_warning()
+        if prot:
+            resp = QMessageBox.warning(
+                self,
+                "Protected files",
+                prot + "\n\nContinue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if resp != QMessageBox.StandardButton.Yes:
+                return
         from ui.convert_dialogs import choose_save
 
-        dest = choose_save(self, "Save combined PDF", "combined.pdf", "PDF (*.pdf)")
+        first = next((src.path for src in self.job.sources if src.path), None)
+        default = str(Path(first).with_name("combined.pdf")) if first else "combined.pdf"
+        dest = choose_save(self, "Save combined PDF", default, "PDF (*.pdf)")
         dest = str(dest) if dest else ""
         if not dest:
             return

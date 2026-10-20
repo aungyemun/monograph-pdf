@@ -1,1 +1,1 @@
-"""Vendored/native engine adapters (MuPDF via PyMuPDF, qpdf, Tesseract)."""
+"""Vendored/native engine adapters (MuPDF via PyMuPDF, Tesseract; optional qpdf probe)."""

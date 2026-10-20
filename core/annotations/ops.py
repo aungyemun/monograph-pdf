@@ -90,7 +90,10 @@ def add_highlight(
     *,
     color: tuple[float, float, float] = (1, 1, 0),
     content: str = "",
-) -> None:
+    nm: str | None = None,
+) -> int:
+    """Add a highlight; returns the annotation xref. ``nm`` gives it a stable identity (/NM) so undo
+    and redo find it again even when its xref changes."""
     page = _page(document, page_index)
     quads = [_fitz_rect(r) for r in rects]
     if not quads:
@@ -100,7 +103,10 @@ def add_highlight(
     if content:
         annot.set_info(content=content)
     annot.update()
+    if nm:
+        _set_nm(document, int(annot.xref), nm)
     document.invalidate_pages()
+    return int(annot.xref)
 
 
 def add_underline(
@@ -110,7 +116,7 @@ def add_underline(
     *,
     color: tuple[float, float, float] = (0, 0, 1),
     content: str = "",
-) -> None:
+) -> int:
     page = _page(document, page_index)
     annot = page.add_underline_annot([_fitz_rect(r) for r in rects])
     annot.set_colors(stroke=color)
@@ -118,6 +124,7 @@ def add_underline(
         annot.set_info(content=content)
     annot.update()
     document.invalidate_pages()
+    return int(annot.xref)
 
 
 def add_strikeout(
@@ -127,7 +134,7 @@ def add_strikeout(
     *,
     color: tuple[float, float, float] = (1, 0, 0),
     content: str = "",
-) -> None:
+) -> int:
     page = _page(document, page_index)
     annot = page.add_strikeout_annot([_fitz_rect(r) for r in rects])
     annot.set_colors(stroke=color)
@@ -135,6 +142,315 @@ def add_strikeout(
         annot.set_info(content=content)
     annot.update()
     document.invalidate_pages()
+    return int(annot.xref)
+
+
+def _set_nm(document: PdfDocument, xref: int, nm: str) -> None:
+    document._backend._doc.xref_set_key(xref, "NM", fitz.get_pdf_str(nm))  # noqa: SLF001
+
+
+def new_annotation_id() -> str:
+    import uuid
+
+    return "mpdf-" + uuid.uuid4().hex[:16]
+
+
+def find_annotation(document: PdfDocument, page_index: int, nm: str):
+    """The live annotation on the page whose /NM is ``nm`` (or None)."""
+    page = _page(document, page_index)
+    for annot in page.annots() or []:
+        if (annot.info or {}).get("id") == nm:
+            return annot
+    return None
+
+
+def delete_annotation_by_nm(document: PdfDocument, page_index: int, nm: str) -> bool:
+    page = _page(document, page_index)
+    for annot in list(page.annots() or []):
+        if (annot.info or {}).get("id") == nm:
+            page.delete_annot(annot)
+            document.invalidate_pages()
+            return True
+    return False
+
+
+ERASABLE = ("Highlight", "Underline", "StrikeOut", "Ink")
+
+
+def annotations_at(
+    document: PdfDocument, page_index: int, point: Point, *, tolerance_pt: float = 2.0
+) -> list[dict]:
+    """Erasable markup annotations under ``point`` (unrotated page space), topmost last.
+
+    A text markup is hit inside any of its quads; an ink annotation within half its stroke width of the
+    path. Each result: {"xref", "kind", "nm", "rect"}."""
+    import math
+
+    page = _page(document, page_index)
+    px, py = float(point.x), float(point.y)
+    hits: list[dict] = []
+    for annot in page.annots() or []:
+        kind = annot.type[1]
+        if kind not in ERASABLE:
+            continue
+        hit = False
+        if kind == "Ink":
+            half = max(0.5, float((annot.border or {}).get("width") or 1.0)) / 2.0 + tolerance_pt * 0.5
+            for stroke in annot.vertices or []:
+                pts = [(float(p[0]), float(p[1])) for p in stroke]
+                segs = list(zip(pts, pts[1:])) if len(pts) > 1 else [(pts[0], pts[0])]
+                for (x0, y0), (x1, y1) in segs:
+                    dx, dy = x1 - x0, y1 - y0
+                    seg = dx * dx + dy * dy
+                    t = 0.0 if seg == 0 else max(0.0, min(1.0, ((px - x0) * dx + (py - y0) * dy) / seg))
+                    if math.hypot(px - (x0 + t * dx), py - (y0 + t * dy)) <= half:
+                        hit = True
+                        break
+                if hit:
+                    break
+        else:
+            v = annot.vertices or []
+            for i in range(0, len(v) - 3, 4):
+                xs = [p[0] for p in v[i : i + 4]]
+                ys = [p[1] for p in v[i : i + 4]]
+                if min(xs) - 0.5 <= px <= max(xs) + 0.5 and min(ys) - 0.5 <= py <= max(ys) + 0.5:
+                    hit = True
+                    break
+        if hit:
+            r = annot.rect
+            hits.append({"xref": int(annot.xref), "kind": kind, "nm": (annot.info or {}).get("id") or "",
+                         "rect": (float(r.x0), float(r.y0), float(r.x1), float(r.y1))})
+    return hits
+
+
+def snapshot_annotation(document: PdfDocument, page_index: int, xref: int) -> dict | None:
+    """Everything needed to recreate a markup annotation exactly (type, geometry, colour, opacity, identity)."""
+    page = _page(document, page_index)
+    for annot in page.annots() or []:
+        if int(annot.xref) != int(xref):
+            continue
+        kind = annot.type[1]
+        info = annot.info or {}
+        snap = {
+            "kind": kind,
+            "colors": dict(annot.colors or {}),
+            "opacity": float(annot.opacity),
+            "nm": info.get("id") or "",
+            "subject": info.get("subject") or "",
+            "content": info.get("content") or "",
+            "width": float((annot.border or {}).get("width") or 1.0),
+            "rect": tuple(annot.rect),
+        }
+        if kind == "Ink":
+            snap["strokes"] = [[(float(p[0]), float(p[1])) for p in st] for st in (annot.vertices or [])]
+            bm = document._backend._doc.xref_get_key(int(xref), "BM")  # noqa: SLF001
+            snap["blend"] = bm[1].lstrip("/") if bm and bm[0] != "null" else ""
+        else:
+            v = [(float(p[0]), float(p[1])) for p in (annot.vertices or [])]
+            snap["quads"] = [v[i : i + 4] for i in range(0, len(v) - 3, 4)]
+        return snap
+    return None
+
+
+def restore_annotation(document: PdfDocument, page_index: int, snap: dict) -> int:
+    """Recreate an annotation from ``snapshot_annotation`` data with the same identity (/NM). Returns the new xref."""
+    page = _page(document, page_index)
+    kind = snap["kind"]
+    stroke = snap["colors"].get("stroke") or (1, 1, 0)
+    if kind == "Ink":
+        annot = page.add_ink_annot(snap["strokes"])
+        annot.set_border(width=snap["width"])
+    else:
+        quads = [fitz.Quad(*[fitz.Point(*p) for p in q]) for q in snap["quads"]]
+        adder = {"Highlight": page.add_highlight_annot, "Underline": page.add_underline_annot,
+                 "StrikeOut": page.add_strikeout_annot}[kind]
+        annot = adder(quads)
+    annot.set_colors(stroke=tuple(stroke))
+    if snap["opacity"] >= 0:
+        annot.set_opacity(snap["opacity"])
+    if snap.get("subject") or snap.get("content"):
+        annot.set_info(subject=snap.get("subject", ""), content=snap.get("content", ""))
+    if kind == "Ink" and snap.get("blend"):
+        annot.update(blend_mode=snap["blend"])
+    else:
+        annot.update()
+    if snap.get("nm"):
+        _set_nm(document, int(annot.xref), snap["nm"])
+    document.invalidate_pages()
+    return int(annot.xref)
+
+
+def delete_annotation_by_xref(document: PdfDocument, page_index: int, xref: int) -> bool:
+    """Remove one annotation by xref. Returns True if something was deleted."""
+    page = _page(document, page_index)
+    for annot in list(page.annots() or []):
+        if int(annot.xref) == int(xref):
+            page.delete_annot(annot)
+            document.invalidate_pages()
+            return True
+    return False
+
+
+def text_rects_along_stroke(
+    document: PdfDocument,
+    page_index: int,
+    points: Sequence[Point],
+    *,
+    radius_pt: float = 1.5,
+) -> list[Rect]:
+    """Text the pen actually passed over: per text line, from the first to the last character
+    the stroke touches (within ``radius_pt``), so a partial word is highlighted as drawn and a
+    stroke across one line never picks up the line above or below."""
+    if len(points) < 1:
+        return []
+    page = _page(document, page_index)
+    pts = _densify([(float(p.x), float(p.y)) for p in points])
+    out: list[Rect] = []
+    raw = page.get_text("rawdict")
+    for block in raw.get("blocks", []):
+        if block.get("type") != 0:
+            continue
+        for line in block.get("lines", []):
+            lx0, ly0, lx1, ly1 = line["bbox"]
+            # Only strokes that reach this line's band can select anything on it.
+            if not any(ly0 - radius_pt <= y <= ly1 + radius_pt and lx0 - radius_pt <= x <= lx1 + radius_pt
+                       for x, y in pts):
+                continue
+            chars = [c for span in line.get("spans", []) for c in span.get("chars", [])]
+            hit = [
+                i for i, c in enumerate(chars)
+                if _char_touched(c["bbox"], ly0, ly1, pts, radius_pt)
+            ]
+            if not hit:
+                continue
+            first, last = hit[0], hit[-1]
+            while first < last and chars[first]["c"].isspace():
+                first += 1
+            while last > first and chars[last]["c"].isspace():
+                last -= 1
+            if chars[first]["c"].isspace():
+                continue
+            x0 = chars[first]["bbox"][0]
+            x1 = chars[last]["bbox"][2]
+            if x1 - x0 > 0.5:
+                out.append(Rect(x0, ly0, x1 - x0, ly1 - ly0))
+    return out
+
+
+FREE_HIGHLIGHT_WIDTH = 11.0
+FREE_HIGHLIGHT_OPACITY = 0.4
+FREE_HIGHLIGHT_SUBJECT = "Free-area highlight"
+
+
+def classify_stroke(
+    document: PdfDocument,
+    page_index: int,
+    points: Sequence[Point],
+    *,
+    radius_pt: float = 1.5,
+    min_free_len: float = 4.0,
+) -> tuple[list[Rect], list[list[tuple[float, float]]]]:
+    """Split one pen stroke into text highlights and free-area runs (page space).
+
+    Parts of the stroke over a character of a text line become text highlights (as with
+    ``text_rects_along_stroke``); every other part (blank margin, picture, table cell, scan)
+    becomes a free run for an ink-style highlight. A stroke may produce both."""
+    if not points:
+        return [], []
+    page = _page(document, page_index)
+    dense = _densify([(float(p.x), float(p.y)) for p in points], step=1.0)
+    bands: list[tuple[float, float, float, float]] = []
+    for block in page.get_text("dict").get("blocks", []):
+        if block.get("type") != 0:
+            continue
+        for line in block.get("lines", []):
+            if any(s.get("text", "").strip() for s in line.get("spans", [])):
+                bands.append(tuple(line["bbox"]))
+
+    def on_text(x: float, y: float) -> bool:
+        return any(x0 - radius_pt <= x <= x1 + radius_pt and y0 - radius_pt <= y <= y1 + radius_pt
+                   for x0, y0, x1, y1 in bands)
+
+    text_pts: list[Point] = []
+    runs: list[list[tuple[float, float]]] = []
+    cur: list[tuple[float, float]] = []
+    for x, y in dense:
+        if on_text(x, y):
+            text_pts.append(Point(x, y))
+            if cur:
+                runs.append(cur)
+                cur = []
+        else:
+            cur.append((x, y))
+    if cur:
+        runs.append(cur)
+    rects = text_rects_along_stroke(document, page_index, text_pts) if text_pts else []
+    free: list[list[tuple[float, float]]] = []
+    for run in runs:
+        length = sum(abs(b[0] - a[0]) + abs(b[1] - a[1]) for a, b in zip(run, run[1:]))
+        if length >= min_free_len:
+            free.append(_thin(run))
+    return rects, free
+
+
+def _thin(run: list[tuple[float, float]], keep: float = 3.0) -> list[tuple[float, float]]:
+    """Fewer ink points (every ~3 pt) while keeping the first and last."""
+    out = [run[0]]
+    for p in run[1:-1]:
+        if abs(p[0] - out[-1][0]) + abs(p[1] - out[-1][1]) >= keep:
+            out.append(p)
+    if len(run) > 1:
+        out.append(run[-1])
+    return out
+
+
+def add_free_highlight(
+    document: PdfDocument,
+    page_index: int,
+    runs: Sequence[Sequence[tuple[float, float]]],
+    *,
+    color: tuple[float, float, float] = (1, 1, 0),
+    width: float = FREE_HIGHLIGHT_WIDTH,
+    opacity: float = FREE_HIGHLIGHT_OPACITY,
+    nm: str | None = None,
+) -> int:
+    """Marker-style highlight over any area: a translucent, multiplied ink annotation. Returns its xref."""
+    page = _page(document, page_index)
+    ink = [[(float(x), float(y)) for x, y in run] for run in runs if len(run) >= 2]
+    if not ink:
+        raise ValueError("no ink points")
+    annot = page.add_ink_annot(ink)
+    annot.set_border(width=width)
+    annot.set_colors(stroke=color)
+    annot.set_opacity(opacity)
+    annot.set_info(subject=FREE_HIGHLIGHT_SUBJECT)
+    annot.update(blend_mode="Multiply")
+    if nm:
+        _set_nm(document, int(annot.xref), nm)
+    document.invalidate_pages()
+    return int(annot.xref)
+
+
+def _densify(pts: list[tuple[float, float]], step: float = 0.75) -> list[tuple[float, float]]:
+    """Samples along every stroke segment so fast pen movement cannot skip characters."""
+    if len(pts) < 2:
+        return list(pts)
+    dense = [pts[0]]
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        n = max(1, int(max(abs(x1 - x0), abs(y1 - y0)) / step))
+        for k in range(1, n + 1):
+            t = k / n
+            dense.append((x0 + (x1 - x0) * t, y0 + (y1 - y0) * t))
+    return dense
+
+
+def _char_touched(bbox, ly0: float, ly1: float, pts, radius: float) -> bool:
+    x0, _y0, x1, _y1 = bbox
+    # Vertical extent is the whole line band so glyph heights do not change what is hit.
+    for x, y in pts:
+        if x0 - radius <= x <= x1 + radius and ly0 - radius <= y <= ly1 + radius:
+            return True
+    return False
 
 
 def add_text_comment(

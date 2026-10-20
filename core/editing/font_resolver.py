@@ -148,6 +148,11 @@ def resolve_font(requested: str, sample_text: str = "") -> FontResolution:
     stripped = strip_subset_prefix(original)
     family_guess = normalize_family_name(stripped) if stripped else "sans-serif"
     requested_key = family_guess or "sans-serif"
+    # normalize_family_name turns the CSS generic "sans-serif" into "sans serif", which then prefix-matched
+    # the odd Windows face "Sans Serif Collection" (ascent 28 / descent 18 at 17 px: text drawn low and clipped).
+    generic_key = stripped.strip().lower().replace(" ", "-")
+    if generic_key in _GENERIC:
+        requested_key = generic_key
 
     _register_bundled_with_qt()
     available = _available_families()

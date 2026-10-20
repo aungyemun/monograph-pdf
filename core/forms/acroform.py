@@ -7,6 +7,7 @@ from typing import Any
 import fitz
 
 from core.editing.geometry import Rect
+from core.page_space import rect_to_display, rect_to_page
 from core.forms.display import sanitize_field_value
 from core.forms.fields import FieldType, FormField
 
@@ -85,6 +86,8 @@ def _pdf_color_hex(color: Any) -> str:
 def _widget_to_field(page_index: int, widget: Any, doc: fitz.Document | None = None) -> FormField:
     ftype = _TYPE_MAP.get(int(getattr(widget, "field_type", -1)), FieldType.TEXT)
     rect = widget.rect
+    if doc is not None:  # MuPDF reports widgets in unrotated page space; the editor uses display space
+        rect = rect_to_display(doc.load_page(page_index), rect)
     name = str(getattr(widget, "field_name", "") or "")
     raw_value = str(getattr(widget, "field_value", "") or "")
     # /TU tooltip — metadata only
@@ -229,7 +232,7 @@ def apply_field_values_to_doc(doc: fitz.Document, fields: list[FormField]) -> No
             if not dirty:
                 continue
             try:
-                w.rect = fitz.Rect(model.rect.x, model.rect.y, model.rect.x1, model.rect.y1)
+                w.rect = rect_to_page(page, fitz.Rect(model.rect.x, model.rect.y, model.rect.x1, model.rect.y1))
                 if model.field_type in (FieldType.CHECKBOX, FieldType.RADIO):
                     on_state = getattr(w, "on_state", None) or "Yes"
                     w.field_value = on_state if model.checked else "Off"
@@ -426,10 +429,11 @@ def _apply_text_style(doc: fitz.Document, w, model: FormField) -> None:
             pass
 
 
-def flatten_form_fields(doc: fitz.Document) -> None:
-    """Bake widget appearances into page content and remove form fields."""
+def flatten_form_fields(doc: fitz.Document, *, comments: bool = True) -> None:
+    """Bake widget appearances into page content and remove form fields. ``comments=False``
+    leaves comments and markup as annotations (printing draws them, or leaves them out)."""
     try:
-        doc.bake()  # PyMuPDF >= 1.23 style when available
+        doc.bake(annots=comments, widgets=True)  # PyMuPDF >= 1.23 style when available
         return
     except Exception:  # noqa: BLE001
         pass
@@ -476,7 +480,7 @@ def create_widget_on_page(
     w = fitz.Widget()
     w.field_type = type_map.get(field.field_type, getattr(fitz, "PDF_WIDGET_TYPE_TEXT", 7))
     w.field_name = field.name or f"field_{field.object_id[:8]}"
-    w.rect = fitz.Rect(field.rect.x, field.rect.y, field.rect.x1, field.rect.y1)
+    w.rect = rect_to_page(page, fitz.Rect(field.rect.x, field.rect.y, field.rect.x1, field.rect.y1))
     w.field_value = field.value
     w.text_fontsize = field.font_size
     if field.field_type == FieldType.MULTILINE:
@@ -484,6 +488,12 @@ def create_widget_on_page(
     if field.field_type == FieldType.DROPDOWN and field.options:
         w.choice_values = field.options
     page.add_widget(w)
+    if page.rotation:
+        try:  # /MK /R: the entry reads upright on a turned page
+            doc.xref_set_key(int(w.xref), "MK/R", str(int(page.rotation)))
+            w.update()
+        except Exception:  # noqa: BLE001
+            pass
     field.is_acroform = True
     field.is_candidate = False
     try:

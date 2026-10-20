@@ -2,14 +2,14 @@
 
 Canonical functional audit record (security, privacy, dependencies and licenses of the last internal build: [SECURITY_AUDIT_0.1.5.md](SECURITY_AUDIT_0.1.5.md); release candidate: [SECURITY_AUDIT_0.2.0.md](SECURITY_AUDIT_0.2.0.md)). Update these files in place; do not create FINAL/status variant copies. The 0.1.5 entries below are the record of an internal development build (not a public release).
 
-## 0.2.0 — Unreleased (first public release)
+## 0.2.1 — Unreleased (first public release line)
 
 | Field | Value |
 |---|---|
 | Audit date | 2026-10-16 |
-| VERSION | 0.2.0 (Unreleased — not frozen) |
+| VERSION | 0.2.1 (Unreleased — not frozen) |
 | Canonical exe | `./MonographPDF.exe` (+ `_internal/` onedir payload); `dist/MonographPDF/` |
-| Release (build output, not published) | `installer/release/`: `Setup.exe`, `MonographPDF_0.2.0_Source.zip`, `SHA256SUMS.txt`, documentation; `installer/MonographPDF_0.2.0_Installer.zip` |
+| Release (build output, not published) | `installer/release/`: `Setup.exe`, `MonographPDF_0.2.1_Source.zip`, `SHA256SUMS.txt`, documentation; `installer/MonographPDF_0.2.1_Installer.zip` |
 | Internal development archive | last internal build 0.1.5, kept unchanged in `releases/PDFEditor_0.1.5/` (not a public release) |
 | Tests (Windows) | unit + UI + integration suites (`scripts/build_release.ps1`, `pytest tests\unit tests\ui tests\integration`) |
 | Installer test | `scripts/test_installer.ps1`, including the internal-compatibility matrix for earlier internal builds (sections 14–21) |
@@ -17,7 +17,7 @@ Canonical functional audit record (security, privacy, dependencies and licenses 
 
 Scope: product identity (name, executable, PE version resource, About, Start page, window and taskbar icon, Help menu), new logo and icon set, Setup (AppId kept, legacy detection, Existing installation found page, in-place and moved upgrades, registry / shortcut / Open with cleanup, uninstall), per-user data continuity from earlier internal builds, environment-variable aliases, temporary-folder names, source archive and checksums naming, documentation, and the protection of the frozen 0.1.5 internal archive.
 
-Results are recorded in the release review for 0.2.0; 0.2.0 stays Unreleased until the maintainer approves the release freeze.
+Results are recorded in the release review for 0.2.x; 0.2.1 stays Unreleased until the maintainer approves the release freeze. Text-edit undo and highlight pen/color UI were verified in the UI suite and a live deep-UI subset (Edit, Insert markup, combinations C1/C5).
 
 ## 0.1.5 — internal development build (2026-10-15)
 
@@ -28,7 +28,7 @@ Results are recorded in the release review for 0.2.0; 0.2.0 stays Unreleased unt
 | Canonical exe | `./PDF_editor.exe` (+ `_internal/` onedir payload) |
 | Internal freeze archive | `Setup.exe`, `PDFEditor_0.1.5_Source.zip`, `SHA256SUMS.txt`, documentation; `installer/installer.zip` (kept in `releases/PDFEditor_0.1.5/`; not a public release) |
 | Tests (Windows) | unit + UI suite, all passing (run by `scripts/build_release.ps1`) |
-| UI audit | every menu (File, Edit, View, Insert, Forms, Organize, Convert, OCR, Protect, Sign, Help) and toolbar item, alone and in combination: 32 scenarios, 408 checks (`build/deep_ui_audit.py`, not shipped) |
+| UI audit | every menu (File, Edit, View, Insert, Forms, Organize, Convert, OCR, Protect, Sign, Help) and toolbar item, alone and in combination: 32 scenarios, 408 checks (`scripts/deep_ui_audit.py`, developer harness, not in Setup) |
 | Installer test | install → use → uninstall → reinstall (`scripts/test_installer.ps1`), all checks passing |
 
 ### Method

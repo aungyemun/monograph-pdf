@@ -15,7 +15,8 @@ class PageContentKind(str, Enum):
 
 @dataclass(frozen=True)
 class PageInfo:
-    """Immutable page metadata. Dimensions are in PDF points (unscaled)."""
+    """Immutable page metadata. Dimensions are in PDF points (unscaled) of the displayed page,
+    i.e. with /Rotate applied."""
 
     index: int
     width_pt: float
@@ -29,13 +30,10 @@ class PageInfo:
 
     @property
     def display_width_pt(self) -> float:
-        """Width after page /Rotate is applied for layout."""
-        if self.rotation % 180 == 90:
-            return self.height_pt
+        """Width as displayed. ``width_pt`` is MuPDF's page rectangle, which already has /Rotate
+        applied (a 90° page reports height × width), so it is not swapped again here."""
         return self.width_pt
 
     @property
     def display_height_pt(self) -> float:
-        if self.rotation % 180 == 90:
-            return self.width_pt
         return self.height_pt

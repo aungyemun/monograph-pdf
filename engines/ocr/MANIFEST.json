@@ -1,9 +1,10 @@
 ﻿{
-    "vendored_at":  "2026-10-07T12:10:21.6704938+09:00",
+    "vendored_at":  "2026-10-18T09:24:52.6486263+09:00",
+    "tesseract":  true,
+    "restored_from":  "_to_delete\\prev_build_8c292f4\\dist\\MonographPDF\\engines\\ocr",
     "tessdata":  {
                      "jpn":  true,
                      "osd":  true,
                      "eng":  true
-                 },
-    "tesseract":  true
+                 }
 }

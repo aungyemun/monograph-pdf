@@ -359,14 +359,17 @@ def test_frozen_pdf_editor_artifacts_are_excluded_from_source_and_git():
 
 
 def test_historical_changelog_entries_are_kept():
+    from core.versioning import get_version
+
     log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## [0.2.0] — Unreleased" in log
+    ver = get_version()
+    assert re.search(rf"^## \[{re.escape(ver)}\] — (Unreleased|\d{{4}}-\d{{2}}-\d{{2}})$", log, re.M)
     assert "## Internal development history" in log
     assert "### [0.1.5] — 2026-10-15" in log and "### [0.1.4] — 2026-10-08" in log
-    assert "[0.1.6]" not in log  # folded into 0.2.0, never released
-    assert log.index("## [0.2.0]") < log.index("## Internal development history") < log.index("### [0.1.5]")
+    assert "[0.1.6]" not in log  # folded into the 0.2.x public line, never released
+    assert log.index(f"## [{ver}]") < log.index("## Internal development history") < log.index("### [0.1.5]")
     public = log[: log.index("## Internal development history")]
-    assert "PDF Editor" not in public  # the public 0.2.0 entry presents a standalone product
+    assert "PDF Editor" not in public  # the public entry presents a standalone product
 
 
 # ----------------------------------------------------------------- branding scan

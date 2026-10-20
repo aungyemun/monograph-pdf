@@ -57,6 +57,14 @@ EXCLUDE_PATHS = [
     # Development checks that open the developer's own documents by name (personal data)
     "scripts/validate_real_pdfs.py", "scripts/run_live_real_pdf_qa.py",
     "tests/integration/test_live_real_pdf_qa.py", "tests/integration/test_user_real_pdfs.py",
+    "tests/integration/test_round6_real_pdfs.py",
+    # Local release-validation material: reports, evidence and one-off QA scripts (they name the
+    # developer's own documents and folders; kept on the developer's computer, see .gitignore)
+    "reports/audit/qa_evidence/*", "reports/audit/MONOGRAPH_PDF_*.md", "reports/audit/FINAL_*.md",
+    "reports/audit/INSTALLATION_AND_RUNTIME_AUDIT.md", "reports/audit/SOURCE_AND_ARCHITECTURE_AUDIT.md",
+    "reports/audit/CONVERSION_AND_OUTPUT_FIDELITY.md", "reports/audit/PROFESSIONAL_FEATURE_GAP_ANALYSIS.md",
+    "reports/audit/PROJECT_CLEANUP_INVENTORY.md", "reports/audit/MENU_AND_TOOLBAR_TEST_MATRIX.md",
+    "scripts/qa_*", "scripts/gui_driver.ps1", "scripts/office_open_check.ps1", "scripts/powerpoint_export.ps1",
 ]
 EXCLUDE_NAMES = ["*.pyc", "*.pyo", "*.log", ".env", ".env.*", "*.pem", "*.key", "*.pfx", "*.p12", "*.kdbx", "Thumbs.db", "desktop.ini"]
 TEXT_SUFFIXES = {".py", ".md", ".txt", ".json", ".ps1", ".bat", ".iss", ".cs", ".cff", ".ini", ".cfg", ".toml", ".xml", ".html", ".svg"}

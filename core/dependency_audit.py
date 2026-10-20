@@ -16,16 +16,17 @@ class AcceptedDependency:
     notes: str
 
 
-# Canonical accepted set for scaffolding. Engines (Tesseract/qpdf) are vendored later.
+# Scaffolding summary only. The authoritative shipped inventory is
+# licenses/DEPENDENCY_INVENTORY.md and THIRD_PARTY_NOTICES.md (kept in sync with the release).
 ACCEPTED_DEPENDENCIES: tuple[AcceptedDependency, ...] = (
     AcceptedDependency(
-        name="Python 3.12+",
-        purpose="Application language (source-compatible; runtime bundled in release)",
+        name="Python 3.11.x",
+        purpose="Application language (source-compatible with 3.11/3.12; runtime bundled in release)",
         license="PSF",
         redistributable=True,
         windows_support="official",
         offline_ok=True,
-        notes="Dev may use 3.11+ if 3.12 unavailable; target lock is 3.12.",
+        notes="Release builds use Python 3.11.9; developers may use 3.11 or 3.12.",
     ),
     AcceptedDependency(
         name="PySide6",

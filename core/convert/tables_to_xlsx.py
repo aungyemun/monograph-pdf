@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from openpyxl import Workbook
@@ -11,8 +12,22 @@ from core.tables.detect import detect_tables
 
 FIDELITY_NOTICE = (
     "Best-effort: tables are found from the lines drawn on the page. "
-    "Merged cells, formatting and tables without ruled lines may be missing."
+    "Merged cells, formatting and tables without ruled lines may be missing. "
+    "Plain numbers become Excel numbers; everything else (dates, codes with leading zeros, text) stays text."
 )
+
+_PLAIN_NUMBER = re.compile(r"^-?(0|[1-9]\d{0,14})(\.\d{1,10})?$")
+_GROUPED_NUMBER = re.compile(r"^-?[1-9]\d{0,2}(,\d{3})+(\.\d{1,10})?$")
+
+
+def cell_value(text: str):
+    """A plain number as int/float, anything else unchanged. Leading zeros (codes, phone numbers),
+    dates, percentages and long digit strings are kept as text so no information is changed."""
+    t = (text or "").strip()
+    if _PLAIN_NUMBER.match(t) or _GROUPED_NUMBER.match(t):
+        t = t.replace(",", "")
+        return float(t) if "." in t else int(t)
+    return text
 
 
 def tables_to_xlsx(
@@ -38,7 +53,7 @@ def tables_to_xlsx(
             for c in range(table.ncols):
                 cell = table.cells.get((r, c))
                 value = cell.text if cell else ""
-                ws.cell(row=r + 1, column=c + 1, value=value)
+                ws.cell(row=r + 1, column=c + 1, value=cell_value(value))
     destination.parent.mkdir(parents=True, exist_ok=True)
     wb.save(destination.as_posix())
     return destination

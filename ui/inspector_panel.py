@@ -554,7 +554,8 @@ class InspectorPanel(QScrollArea):
             from core.editing.font_resolver import resolve_font
 
             fres = resolve_font(box.style.font_family, box.text or "")
-            if box.font_substituted or fres.substituted:
+            generic = (box.style.font_family or "").strip().lower() in ("sans-serif", "serif", "monospace")
+            if (box.font_substituted or fres.substituted) and not generic:  # a generic name is not a missing font
                 note = QLabel(f"Shown with {box.resolved_font or fres.resolved} (font not installed)")
                 note.setObjectName("InspectorWarn")
                 note.setWordWrap(True)

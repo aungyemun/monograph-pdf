@@ -132,7 +132,9 @@ def _print_temp_path() -> Path:
     return TEMP_DIR / f"print-bake-{uuid.uuid4().hex}.pdf"
 
 
-def prepare_current_source(document: PdfDocument, edit: Any | None = None, *, flatten: bool = False) -> PrintSource:
+def prepare_current_source(
+    document: PdfDocument, edit: Any | None = None, *, flatten: bool = False, flatten_comments: bool = True
+) -> PrintSource:
     """The document as it is shown, including every unsaved change: text boxes, shapes, images,
     tables, typed form entries and field formatting, replaced text and page changes.
 
@@ -148,10 +150,12 @@ def prepare_current_source(document: PdfDocument, edit: Any | None = None, *, fl
     dest = _print_temp_path()
     prev_flatten = bool(getattr(edit, "flatten_on_save", False))
     try:
+        edit.flatten_comments = flatten_comments
         bake_via_backend(edit, dest, flatten=flatten or prev_flatten, keep_encryption=False)
     finally:
         try:
             edit.flatten_on_save = prev_flatten
+            edit.flatten_comments = True
         except Exception:  # noqa: BLE001
             pass
 
@@ -160,8 +164,9 @@ def prepare_current_source(document: PdfDocument, edit: Any | None = None, *, fl
 
 
 def prepare_print_source(document: PdfDocument, edit: Any | None = None) -> PrintSource:
-    """Like ``prepare_current_source``, flattened so field appearances print reliably."""
-    return prepare_current_source(document, edit, flatten=True)
+    """Like ``prepare_current_source``, with form fields flattened so their appearances print
+    reliably. Comments stay annotations, so the print job can include or leave them out."""
+    return prepare_current_source(document, edit, flatten=True, flatten_comments=False)
 
 
 def effective_print_dpi(printer: Any | None = None, *, fallback: int = 300, floor: int = 220, ceiling: int = 400) -> int:
@@ -177,19 +182,59 @@ def effective_print_dpi(printer: Any | None = None, *, fallback: int = 300, floo
     return max(floor, min(ceiling, res))
 
 
+def _is_comment(annot) -> bool:
+    import fitz
+
+    return annot.type[0] not in (fitz.PDF_ANNOT_WIDGET, fitz.PDF_ANNOT_LINK, fitz.PDF_ANNOT_POPUP)
+
+
+def _render_without_comments(document: PdfDocument, page_index: int, zoom: float) -> bytes | None:
+    """PNG of the page with comments and markup left out (form fields still print), or None when
+    the page has no comments."""
+    import fitz
+
+    src = document._backend._doc  # noqa: SLF001
+    page = src.load_page(page_index)
+    if not any(_is_comment(a) for a in page.annots()):
+        return None
+    one = fitz.open()
+    try:
+        one.insert_pdf(src, from_page=page_index, to_page=page_index)
+        p = one.load_page(0)
+        for annot in [a for a in p.annots() if _is_comment(a)]:
+            p.delete_annot(annot)
+        return p.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False).tobytes("png")
+    finally:
+        one.close()
+
+
 def render_page_png_for_print(
     document: PdfDocument,
     page_index: int,
     *,
     dpi: int = 300,
     color_mode: ColorMode = ColorMode.COLOR,
+    comments: bool = True,
 ) -> bytes:
-    """Rasterize one page at print DPI; optional grayscale for black-and-white jobs."""
+    """Rasterize one page at print DPI; optional grayscale for black-and-white jobs.
+    ``comments=False`` leaves out comments and markup (notes, highlights, shapes, stamps);
+    form fields and the page itself still print."""
     zoom = max(0.5, float(dpi) / 72.0)
-    png = document.render_pixmap_png(page_index, zoom=zoom)
+    png = None if comments else _render_without_comments(document, page_index, zoom)
+    if png is None:
+        png = document.render_pixmap_png(page_index, zoom=zoom)
     if color_mode != ColorMode.GRAYSCALE:
         return png
     return _png_to_grayscale(png)
+
+
+def order_print_pages(pages: list[int], *, subset: str = "all", reverse: bool = False) -> list[int]:
+    """Apply an odd / even page-number subset (page numbers are 1-based) and reverse order."""
+    if subset == "odd":
+        pages = [p for p in pages if (p + 1) % 2 == 1]
+    elif subset == "even":
+        pages = [p for p in pages if (p + 1) % 2 == 0]
+    return list(reversed(pages)) if reverse else list(pages)
 
 
 def _png_to_grayscale(png: bytes) -> bytes:

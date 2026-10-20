@@ -58,6 +58,10 @@ PRUNE = [
     "_internal/cv2/opencv_videoio_ffmpeg*.dll",
     "_internal/_ssl.pyd",
     "_internal/libssl-3.dll",
+    # PyInstaller's Qt hook copies any OpenSSL 3 DLLs it finds on PATH next to QtNetwork (which is
+    # removed above). On a machine with Git for Windows on PATH these are Git's MSYS2 builds.
+    "_internal/libssl-3-x64.dll",
+    "_internal/libcrypto-3-x64.dll",
 ]
 
 # component -> (file patterns relative to the installation folder, name in THIRD_PARTY_NOTICES.md)
@@ -140,6 +144,9 @@ def prune(dist: Path) -> int:
             else:
                 target.unlink()
     names = {p.name.lower() for p in removed if p.suffix.lower() in (".dll", ".pyd")}
+    # a name only counts as missing when no copy of it is left anywhere in the bundle (the OCR engine
+    # ships its own libcrypto-3-x64.dll beside libarchive)
+    names -= {p.name.lower() for p in dist.rglob("*") if p.is_file()}
     try:
         import pefile  # noqa: F401
     except ImportError:

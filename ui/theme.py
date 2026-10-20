@@ -388,6 +388,8 @@ QComboBox::down-arrow { image: url($asset_prefix:chevron-down.png); width: 12px;
 QComboBox::down-arrow:disabled { image: url($asset_prefix:chevron-down-disabled.png); }
 QComboBox QAbstractItemView { background: $surface; border: 1px solid $border_strong; border-radius: 6px; padding: 4px; outline: none; selection-background-color: $accent_soft; selection-color: $text; }
 QAbstractSpinBox { padding-right: 20px; }
+QAbstractSpinBox QLineEdit { padding: 0; border: none; background: transparent; min-height: 0; }
+QColorDialog QAbstractSpinBox { min-width: 70px; }
 QAbstractSpinBox::up-button, QAbstractSpinBox::down-button { subcontrol-origin: border; width: 18px; border: none; background: transparent; }
 QAbstractSpinBox::up-button { subcontrol-position: top right; border-top-right-radius: 6px; }
 QAbstractSpinBox::down-button { subcontrol-position: bottom right; border-bottom-right-radius: 6px; }

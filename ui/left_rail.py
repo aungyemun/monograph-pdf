@@ -2,20 +2,23 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QTabWidget,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from core.document import PdfDocument
 from ui.thumbnail_panel import ThumbnailPanel
-from ui.toolbar_icons import icon_bookmarks, icon_pages, icon_search, make_icon
+from ui.toolbar_icons import icon_bookmarks, icon_pages, icon_search, make_icon, set_action_icon
 
 
 class LeftRail(QTabWidget):
@@ -23,6 +26,12 @@ class LeftRail(QTabWidget):
     pagesReordered = Signal(list)
     searchRequested = Signal(str)
     bookmarkActivated = Signal(int)
+    # Bookmark editing requests (index in the flat outline; -1 = none selected)
+    bookmarkAddRequested = Signal(int)
+    bookmarkRenameRequested = Signal(int)
+    bookmarkDeleteRequested = Signal(int)
+    bookmarkMoveRequested = Signal(int, int)
+    bookmarkRetargetRequested = Signal(int)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -48,14 +57,48 @@ class LeftRail(QTabWidget):
         self._bookmarks = QListWidget()
         self._bookmarks.setAccessibleName("Bookmarks")
         self._bookmarks.itemActivated.connect(self._on_bookmark)
-        self._bookmarks_empty = QLabel("No bookmarks in this document.")
+        self._bookmarks.itemClicked.connect(self._on_bookmark)
+        self._bookmarks.currentRowChanged.connect(lambda _r: self._sync_bookmark_buttons())
+        self._bookmarks.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._bookmarks.customContextMenuRequested.connect(self._bookmark_menu)
+        self._bookmarks_empty = QLabel("No bookmarks yet. Use Add Bookmark to mark the current page.")
         self._bookmarks_empty.setWordWrap(True)
         self._bookmarks_empty.setObjectName("ContextHint")
+        tools = QHBoxLayout()
+        tools.setContentsMargins(0, 0, 0, 0)
+        tools.setSpacing(2)
+        self._bm_buttons: dict[str, QToolButton] = {}
+        for key, icon_name, tip, slot in (
+            ("add", "bookmark_add", "Add a bookmark for the current page (Ctrl+B)",
+             lambda: self.bookmarkAddRequested.emit(self._bookmarks.currentRow())),
+            ("rename", "rename", "Rename the selected bookmark (F2)",
+             lambda: self.bookmarkRenameRequested.emit(self._bookmarks.currentRow())),
+            ("target", "bookmark_target", "Point the selected bookmark at the current page",
+             lambda: self.bookmarkRetargetRequested.emit(self._bookmarks.currentRow())),
+            ("up", "move_up", "Move the selected bookmark up",
+             lambda: self.bookmarkMoveRequested.emit(self._bookmarks.currentRow(), -1)),
+            ("down", "move_down", "Move the selected bookmark down",
+             lambda: self.bookmarkMoveRequested.emit(self._bookmarks.currentRow(), 1)),
+            ("delete", "delete", "Delete the selected bookmark and the bookmarks under it",
+             lambda: self.bookmarkDeleteRequested.emit(self._bookmarks.currentRow())),
+        ):
+            b = QToolButton()
+            b.setObjectName(f"Bookmark_{key}")
+            b.setAutoRaise(True)
+            b.setIconSize(QSize(18, 18))
+            set_action_icon(b, icon_name)
+            b.setToolTip(tip)
+            b.setAccessibleName(tip.split(" (")[0])
+            b.clicked.connect(slot)
+            tools.addWidget(b)
+            self._bm_buttons[key] = b
+        tools.addStretch(1)
+        bl.addLayout(tools)
         bl.addWidget(self._bookmarks_empty)
         bl.addWidget(self._bookmarks, 1)
         self._bookmarks_tab = self.addTab(bookmarks_page, "Bookmarks")
         self.setTabIcon(self._bookmarks_tab, icon_bookmarks())
-        self.setTabToolTip(self._bookmarks_tab, "Outline / bookmarks when present")
+        self.setTabToolTip(self._bookmarks_tab, "Bookmarks — go to, add, rename, reorder or delete")
 
         search_page = QWidget()
         sl = QVBoxLayout(search_page)
@@ -132,6 +175,7 @@ class LeftRail(QTabWidget):
         self._bookmarks_empty.show()
         self._attach_empty.show()
         self.setTabVisible(self._bookmarks_tab, False)
+        self._sync_bookmark_buttons()
         self.setTabVisible(self._attach_tab, False)
 
     def set_document(self, document: PdfDocument) -> None:
@@ -167,32 +211,75 @@ class LeftRail(QTabWidget):
 
     def _on_bookmark(self, item: QListWidgetItem) -> None:
         idx = int(item.data(Qt.ItemDataRole.UserRole))
+        if idx < 0:
+            return
         self.bookmarkActivated.emit(idx)
         self.pageActivated.emit(idx)
 
-    def _load_bookmarks(self, document: PdfDocument) -> None:
+    def _load_bookmarks(self, document: PdfDocument, *, select: int | None = None) -> None:
+        from core.organize.bookmarks import list_bookmarks
+
         self._bookmarks.clear()
-        doc = document._backend._doc  # noqa: SLF001
-        toc = []
-        try:
-            toc = doc.get_toc(simple=True) or []
-        except Exception:  # noqa: BLE001
-            toc = []
-        if not toc:
-            self._bookmarks_empty.show()
-            self.setTabVisible(self._bookmarks_tab, False)
-            return
-        self._bookmarks_empty.hide()
+        marks = list_bookmarks(document)
         self.setTabVisible(self._bookmarks_tab, True)
-        for entry in toc:
-            if not entry or len(entry) < 3:
-                continue
-            level, title, page1 = int(entry[0]), str(entry[1] or "Untitled"), int(entry[2])
-            page0 = max(0, min(document.page_count - 1, page1 - 1))
-            indent = "  " * max(0, level - 1)
-            item = QListWidgetItem(f"{indent}{title}")
-            item.setData(Qt.ItemDataRole.UserRole, page0)
+        self._bookmarks_empty.setVisible(not marks)
+        for bm in marks:
+            indent = "    " * max(0, bm.level - 1)
+            item = QListWidgetItem(f"{indent}{bm.title}")
+            item.setData(Qt.ItemDataRole.UserRole, bm.page)
+            item.setData(Qt.ItemDataRole.UserRole + 1, bm.index)
+            item.setToolTip(f"{bm.title} — page {bm.page + 1}" if bm.page >= 0 else f"{bm.title} — no page in this file")
             self._bookmarks.addItem(item)
+        if select is not None and 0 <= select < self._bookmarks.count():
+            self._bookmarks.setCurrentRow(select)
+        self._sync_bookmark_buttons()
+
+    def reload_bookmarks(self, select: int | None = None) -> None:
+        if self._document is not None:
+            self._load_bookmarks(self._document, select=select)
+
+    def current_bookmark(self) -> int:
+        return self._bookmarks.currentRow()
+
+    def show_bookmarks(self) -> None:
+        self.setTabVisible(self._bookmarks_tab, True)
+        self.setCurrentIndex(self._bookmarks_tab)
+
+    def set_bookmarks_editable(self, editable: bool) -> None:
+        self._bookmarks_editable = bool(editable)
+        self._sync_bookmark_buttons()
+
+    def _sync_bookmark_buttons(self) -> None:
+        editable = getattr(self, "_bookmarks_editable", True) and self._document is not None
+        has = self._bookmarks.currentRow() >= 0
+        self._bm_buttons["add"].setEnabled(editable)
+        for key in ("rename", "target", "up", "down", "delete"):
+            self._bm_buttons[key].setEnabled(editable and has)
+
+    def _bookmark_menu(self, pos) -> None:
+        if self._document is None:
+            return
+        row = self._bookmarks.indexAt(pos).row()
+        if row >= 0:
+            self._bookmarks.setCurrentRow(row)
+        menu = QMenu(self)
+        for key, text in (("add", "Add Bookmark"), ("rename", "Rename…"), ("target", "Set to Current Page"),
+                          ("up", "Move Up"), ("down", "Move Down"), ("delete", "Delete")):
+            b = self._bm_buttons[key]
+            act = menu.addAction(b.icon(), text)
+            act.setEnabled(b.isEnabled())
+            act.triggered.connect(b.click)
+        menu.exec(self._bookmarks.viewport().mapToGlobal(pos))
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802
+        if self.currentIndex() == self._bookmarks_tab and self._bookmarks.hasFocus():
+            if event.key() == Qt.Key.Key_F2 and self._bm_buttons["rename"].isEnabled():
+                self._bm_buttons["rename"].click()
+                return
+            if event.key() == Qt.Key.Key_Delete and self._bm_buttons["delete"].isEnabled():
+                self._bm_buttons["delete"].click()
+                return
+        super().keyPressEvent(event)
 
     def _load_attachments(self, document: PdfDocument) -> None:
         self._attachments.clear()

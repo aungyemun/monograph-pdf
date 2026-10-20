@@ -12,6 +12,7 @@ from core.editing.image_box import SAFE_IMAGE_FORMATS
 from core.editing.font_resolver import resolve_font
 from core.editing.text_box import TextAlign, VAlign
 from core.editing.text_layout import layout_text_box
+from core.page_space import rect_to_page
 
 
 def _parse_color(hex_color: str) -> tuple[float, float, float] | None:
@@ -122,6 +123,45 @@ def _draw_text_box(page: fitz.Page, rect: fitz.Rect, box, family: str, fontsize:
         scratch.close()
 
 
+class _OverlayTargets:
+    """Where overlays are drawn at Save.
+
+    Editor geometry is in display space (the page as shown after /Rotate), but MuPDF draws into the
+    unrotated page. On a turned page the overlays are therefore drawn upright on a scratch page of
+    the displayed size and placed onto the real page turned back by the page's rotation, so every
+    object lands exactly where it was on screen and reads the right way up. Unrotated pages are
+    drawn on directly. The page's own content is never touched.
+    """
+
+    def __init__(self, doc: fitz.Document) -> None:
+        self.doc = doc
+        self._scratch: fitz.Document | None = None
+        self._pages: dict[int, int] = {}
+
+    def page(self, index: int) -> fitz.Page:
+        real = self.doc.load_page(index)
+        if not real.rotation:
+            return real
+        if self._scratch is None:
+            self._scratch = fitz.open()
+        if index not in self._pages:
+            sp = self._scratch.new_page(width=real.rect.width, height=real.rect.height)
+            self._pages[index] = sp.number
+        return self._scratch.load_page(self._pages[index])
+
+    def merge(self) -> None:
+        for index, number in self._pages.items():
+            real = self.doc.load_page(index)
+            target = real.rect * real.derotation_matrix
+            target.normalize()
+            real.show_pdf_page(target, self._scratch, number, rotate=int(real.rotation), keep_proportion=False, overlay=True)
+
+    def close(self) -> None:
+        if self._scratch is not None:
+            self._scratch.close()
+            self._scratch = None
+
+
 def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryption: bool = True) -> None:
     """
     Open a working copy of the live document (or source path), apply redactions + text boxes,
@@ -129,6 +169,7 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
     A password-protected document keeps its protection unless ``keep_encryption`` is False.
     """
     doc = _working_copy(edit, keep_encryption=keep_encryption)
+    targets = _OverlayTargets(doc)
     try:
 
         # Controlled native replacements first
@@ -145,7 +186,7 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
                 rect_t = plan.get("rect")
                 if page_index is not None and rect_t:
                     page = doc.load_page(page_index)
-                    r = fitz.Rect(rect_t[0], rect_t[1], rect_t[0] + rect_t[2], rect_t[1] + rect_t[3])
+                    r = rect_to_page(page, fitz.Rect(rect_t[0], rect_t[1], rect_t[0] + rect_t[2], rect_t[1] + rect_t[3]))
                     page.add_redact_annot(r, fill=(1, 1, 1))
         # Apply redactions page-wise
         touched = {
@@ -160,10 +201,20 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
                 pass
 
         for box in edit.all_objects():
-            page = doc.load_page(box.page_index)
+            page = targets.page(box.page_index)
             layout = layout_text_box(box)
             res = resolve_font(box.style.font_family, box.text)
             family = layout.resolved_font or res.resolved
+            # The font the user picked is used (and embedded) when it is installed and may be embedded;
+            # characters it lacks (Japanese in a Latin font ...) fall back inside draw_text. Only when it
+            # is missing does the resolver's substitute take over, and the user is told.
+            from core.editing import system_fonts
+
+            wanted = (box.style.font_family or "").strip()
+            if wanted and system_fonts.find_font_file(wanted):
+                family = wanted
+            elif wanted:
+                system_fonts.note_fallback(wanted, f"this font is not installed; saved with {family}")
             fontsize = layout.font_size
             pad = box.style.padding
             # Ensure bake rect is tall enough for MuPDF insert_textbox (needs slack).
@@ -180,7 +231,12 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
 
             text_rect = fitz.Rect(rect.x0 + pad, rect.y0 + pad, rect.x1 - pad, rect.y1 - pad)
             if box.text and text_rect.width > 1 and text_rect.height > 1:
+                earlier = system_fonts.take_notes()
                 _draw_text_box(page, text_rect, box, family, fontsize)
+                # only the font the user picked is worth reporting; the resolver's own stand-ins are not
+                mine = system_fonts.take_notes()
+                for fam, why in {**earlier, **{k: v for k, v in mine.items() if k == wanted}}.items():
+                    system_fonts.note_fallback(fam, why)
             _ = family  # reserved for embedded-font path
 
         # Forms: create new widgets, apply values/geometry, optional flatten
@@ -200,7 +256,7 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
                     create_widget_on_page(doc, field)
                 except Exception:  # noqa: BLE001
                     # Visual fallback for unsupported widget creation
-                    page = doc.load_page(field.page_index)
+                    page = targets.page(field.page_index)
                     r = fitz.Rect(field.rect.x, field.rect.y, field.rect.x1, field.rect.y1)
                     page.draw_rect(r, color=(0.2, 0.2, 0.2), width=0.6)
                     label = field.value or ("X" if field.checked else "")
@@ -214,7 +270,7 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
         for table in edit.tables.values():
             if not isinstance(table, TableModel):
                 continue
-            page = doc.load_page(table.page_index)
+            page = targets.page(table.page_index)
             for r in range(table.nrows):
                 for c in range(table.ncols):
                     cell = table.cells.get((r, c))
@@ -244,7 +300,7 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
         # Placed images
         for img in getattr(edit, "images", {}).values():
             try:
-                page = doc.load_page(img.page_index)
+                page = targets.page(img.page_index)
                 rect = fitz.Rect(img.rect.x, img.rect.y, img.rect.x1, img.rect.y1)
                 path = Path(img.source_path)
                 if not path.is_file():
@@ -291,7 +347,7 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
         # Vector shape overlays
         for shape in getattr(edit, "shapes", {}).values():
             try:
-                page = doc.load_page(shape.page_index)
+                page = targets.page(shape.page_index)
                 stroke = _parse_color(getattr(shape, "stroke_color", "#000000")) or (0, 0, 0)
                 fill = _parse_color(getattr(shape, "fill_color", "#00000000"))
                 width = float(getattr(shape, "stroke_width", 1.5) or 1.5)
@@ -328,8 +384,9 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
             except Exception:  # noqa: BLE001
                 continue
 
+        targets.merge()
         if edit.flatten_on_save:
-            flatten_form_fields(doc)
+            flatten_form_fields(doc, comments=bool(getattr(edit, "flatten_comments", True)))
 
         encrypt = fitz.PDF_ENCRYPT_KEEP if _is_protected(doc) else fitz.PDF_ENCRYPT_NONE
         doc.save(
@@ -340,6 +397,7 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
             incremental=False,
         )
     finally:
+        targets.close()
         doc.close()
 
 

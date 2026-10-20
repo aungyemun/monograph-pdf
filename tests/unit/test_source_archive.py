@@ -109,8 +109,12 @@ def test_source_selection_leaves_out_development_and_personal_files():
                                  "releases/")), f
         assert not f.endswith((".pyc", ".exe", ".dll", ".zip")), f
     for personal in ("scripts/validate_real_pdfs.py", "tests/integration/test_user_real_pdfs.py",
-                     "tests/integration/test_live_real_pdf_qa.py", "scripts/run_live_real_pdf_qa.py"):
+                     "tests/integration/test_live_real_pdf_qa.py", "scripts/run_live_real_pdf_qa.py",
+                     "tests/integration/test_round6_real_pdfs.py",
+                     "reports/audit/MONOGRAPH_PDF_COMPREHENSIVE_QA_REPORT.md"):
         assert personal not in files
+    assert not [f for f in files if f.startswith("reports/audit/qa_evidence/") or f.startswith("scripts/qa_")]
+    assert "reports/audit/PROJECT_AUDIT.md" in files  # published audit summaries stay
     problems = [p for rel in files if Path(rel).suffix.lower() in msa.TEXT_SUFFIXES
                 for p in msa.scan_text(rel, (ROOT / rel).read_bytes())]
     assert problems == []

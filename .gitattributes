@@ -1,0 +1,15 @@
+# Binary files: never convert line endings (a PDF's byte offsets break if they change)
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.tif binary
+*.tiff binary
+*.bmp binary
+*.webp binary
+*.ttf binary
+*.otf binary
+*.docx binary
+*.xlsx binary
+*.pptx binary

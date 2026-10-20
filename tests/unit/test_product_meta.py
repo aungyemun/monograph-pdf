@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from PIL import Image
@@ -53,8 +54,9 @@ def test_legacy_identity_is_internal_compatibility_only():
     assert LEGACY_FINAL_VERSION == "0.1.5"
 
 
-def test_version_is_0_2_0_development():
-    assert get_version() == "0.2.0"
+def test_version_is_on_the_public_0_2_line():
+    assert re.fullmatch(r"0\.2\.\d+", get_version())
+    assert get_version() == (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 
 def test_identity_version_from_version_file():

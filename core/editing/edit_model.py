@@ -701,12 +701,14 @@ class EditableDocument:
         ok = self.commands.undo()
         if ok:
             self.mark_dirty()
+            self._notify()  # listeners saw the stacks mid-operation (page commands refresh the view themselves)
         return ok
 
     def redo(self) -> bool:
         ok = self.commands.redo()
         if ok:
             self.mark_dirty()
+            self._notify()
         return ok
 
     # --- forms / tables / layout -----------------------------------------

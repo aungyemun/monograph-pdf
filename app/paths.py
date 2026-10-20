@@ -103,7 +103,8 @@ if not VERSION_FILE.is_file():
 
 
 TEST_OUTPUTS = TESTS_DIR / "outputs" if not INSTALLED_READ_ONLY else RUNTIME_DIR / "logs"
-TEST_LOGS = TEST_OUTPUTS / "logs"
+# Installed copies already keep these under RUNTIME_DIR / "logs" (no second "logs" folder)
+TEST_LOGS = TEST_OUTPUTS / "logs" if not INSTALLED_READ_ONLY else TEST_OUTPUTS
 TEST_SCREENSHOTS = TEST_OUTPUTS / "screenshots"
 TEST_JUNIT = TEST_OUTPUTS / "junit"
 TEST_COVERAGE = TEST_OUTPUTS / "coverage"

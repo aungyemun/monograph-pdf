@@ -23,6 +23,7 @@ KNOWN = (
     "HEADLESS",
     "FORCE_DARK",
     "STARTUP_TIMING",
+    "PERF_LOG",
     "DISABLE_OFFICE",
     "NO_LEGACY_MIGRATION",
 )

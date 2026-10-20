@@ -361,6 +361,16 @@ def _highlight(p, c):
     p.drawLine(QPointF(4.5, 15.5), QPointF(9, 15))
 
 
+@icon("eraser")
+def _eraser(p, c):
+    # Angled eraser block (parallelogram) with a darker tip
+    p.setBrush(_soft(c, 50))
+    _poly(p, [(4, 13), (12, 4), (16, 7.5), (8, 16.5)], fill=_soft(c, 50))
+    p.setBrush(c)
+    _poly(p, [(12, 4), (16, 7.5), (14.5, 9), (10.5, 5.5)], fill=c)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+
+
 @icon("underline")
 def _underline(p, c):
     path = QPainterPath(QPointF(6, 3.5))
@@ -1101,6 +1111,296 @@ def _sign_draw(p, c):
 
 
 # ------------------------------------------------------------------ public helpers
+
+
+# ------------------------------------------------------------------ additional commands
+
+
+def _plus(p: QPainter, cx: float, cy: float, r: float = 2.5) -> None:
+    p.drawLine(QPointF(cx - r, cy), QPointF(cx + r, cy))
+    p.drawLine(QPointF(cx, cy - r), QPointF(cx, cy + r))
+
+
+def _minus(p: QPainter, cx: float, cy: float, r: float = 2.5) -> None:
+    p.drawLine(QPointF(cx - r, cy), QPointF(cx + r, cy))
+
+
+@icon("obj_align_right")
+def _oar(p, c):
+    p.drawLine(QPointF(17, 2.5), QPointF(17, 17.5))
+    p.drawRect(QRectF(3.5, 5, 11, 3.5))
+    p.drawRect(QRectF(7.5, 11.5, 7, 3.5))
+
+
+@icon("obj_align_top")
+def _oat(p, c):
+    p.drawLine(QPointF(2.5, 3), QPointF(17.5, 3))
+    p.drawRect(QRectF(5, 5.5, 3.5, 11))
+    p.drawRect(QRectF(11.5, 5.5, 3.5, 7))
+
+
+@icon("obj_align_middle")
+def _oam(p, c):
+    p.drawLine(QPointF(2.5, 10), QPointF(17.5, 10))
+    p.drawRect(QRectF(5, 4, 3.5, 12))
+    p.drawRect(QRectF(11.5, 6.5, 3.5, 7))
+
+
+@icon("obj_align_bottom")
+def _oab(p, c):
+    p.drawLine(QPointF(2.5, 17), QPointF(17.5, 17))
+    p.drawRect(QRectF(5, 3.5, 3.5, 11))
+    p.drawRect(QRectF(11.5, 7.5, 3.5, 7))
+
+
+@icon("distribute_v")
+def _distv(p, c):
+    p.drawLine(QPointF(3, 3), QPointF(17, 3))
+    p.drawLine(QPointF(3, 17), QPointF(17, 17))
+    p.drawRect(QRectF(6, 7.5, 8, 5))
+
+
+@icon("find_next")
+def _find_next(p, c):
+    p.drawEllipse(QRectF(2.5, 2.5, 9, 9))
+    p.drawLine(QPointF(10, 10), QPointF(12.5, 12.5))
+    _poly(p, [(13.5, 11), (17, 14.5), (13.5, 18)], close=False)
+
+
+@icon("find_prev")
+def _find_prev(p, c):
+    p.drawEllipse(QRectF(8.5, 2.5, 9, 9))
+    p.drawLine(QPointF(10, 10), QPointF(7.5, 12.5))
+    _poly(p, [(6.5, 11), (3, 14.5), (6.5, 18)], close=False)
+
+
+@icon("deselect")
+def _deselect(p, c):
+    pen = QPen(c, 1.4, Qt.PenStyle.DashLine)
+    pen.setDashPattern([2, 2])
+    p.setPen(pen)
+    p.drawRect(QRectF(2.5, 2.5, 15, 15))
+    p.setPen(QPen(c, 1.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+    p.drawLine(QPointF(7, 7), QPointF(13, 13))
+    p.drawLine(QPointF(13, 7), QPointF(7, 13))
+
+
+@icon("folder")
+def _folder(p, c):
+    _poly(p, [(2.5, 5), (7.5, 5), (9, 6.5), (17.5, 6.5), (17.5, 16), (2.5, 16)])
+    p.drawLine(QPointF(2.5, 9), QPointF(17.5, 9))
+
+
+@icon("clear_list")
+def _clear_list(p, c):
+    for y in (5, 9, 13):
+        p.drawLine(QPointF(3, y), QPointF(10, y))
+    p.drawLine(QPointF(12, 11), QPointF(17, 16))
+    p.drawLine(QPointF(17, 11), QPointF(12, 16))
+
+
+@icon("background")
+def _background(p, c):
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(_soft(c, 90))
+    p.drawRoundedRect(QRectF(4, 2.5, 12, 15), 1, 1)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.setPen(QPen(c, 1.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+    p.drawRoundedRect(QRectF(4, 2.5, 12, 15), 1, 1)
+    p.drawLine(QPointF(7, 7), QPointF(13, 7))
+    p.drawLine(QPointF(7, 10.5), QPointF(13, 10.5))
+
+
+@icon("page_design_remove")
+def _pd_remove(p, c):
+    p.drawRoundedRect(QRectF(3, 2.5, 10, 13), 1, 1)
+    p.drawLine(QPointF(5.5, 5.3), QPointF(10.5, 5.3))
+    p.drawLine(QPointF(5.5, 12.7), QPointF(8.5, 12.7))
+    p.drawLine(QPointF(12.5, 12.5), QPointF(17.5, 17.5))
+    p.drawLine(QPointF(17.5, 12.5), QPointF(12.5, 17.5))
+
+
+@icon("date_field")
+def _date_field(p, c):
+    p.drawRoundedRect(QRectF(3, 4, 14, 13), 1.5, 1.5)
+    p.drawLine(QPointF(3, 8), QPointF(17, 8))
+    p.drawLine(QPointF(7, 2.5), QPointF(7, 5.5))
+    p.drawLine(QPointF(13, 2.5), QPointF(13, 5.5))
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(c)
+    for x in (6, 10, 14):
+        p.drawRect(QRectF(x - 1, 10.5, 2, 2))
+    p.drawRect(QRectF(5, 13.5, 2, 2))
+
+
+@icon("select_fields")
+def _select_fields(p, c):
+    p.drawRoundedRect(QRectF(2.5, 4, 11, 6), 1, 1)
+    _poly(p, [(10, 9), (10, 18), (12.5, 15.5), (14.5, 19), (16, 18.2), (14, 14.8), (17.5, 14.5)])
+
+
+@icon("accept")
+def _accept(p, c):
+    p.drawEllipse(QRectF(2.5, 2.5, 15, 15))
+    _poly(p, [(6.5, 10.5), (9, 13), (14, 7.5)], close=False)
+
+
+@icon("reject")
+def _reject(p, c):
+    p.drawEllipse(QRectF(2.5, 2.5, 15, 15))
+    p.drawLine(QPointF(7.3, 7.3), QPointF(12.7, 12.7))
+    p.drawLine(QPointF(12.7, 7.3), QPointF(7.3, 12.7))
+
+
+def _grid(p: QPainter) -> None:
+    p.drawRoundedRect(QRectF(2.5, 3.5, 11, 10), 1, 1)
+    p.drawLine(QPointF(2.5, 8.5), QPointF(13.5, 8.5))
+    p.drawLine(QPointF(8, 3.5), QPointF(8, 13.5))
+
+
+@icon("row_add")
+def _row_add(p, c):
+    _grid(p)
+    _plus(p, 15, 15.5)
+
+
+@icon("row_delete")
+def _row_del(p, c):
+    _grid(p)
+    _minus(p, 15, 15.5)
+
+
+@icon("col_add")
+def _col_add(p, c):
+    _grid(p)
+    p.drawLine(QPointF(16.5, 4), QPointF(16.5, 9))
+    p.drawLine(QPointF(14, 6.5), QPointF(19, 6.5))
+
+
+@icon("col_delete")
+def _col_del(p, c):
+    _grid(p)
+    p.drawLine(QPointF(14, 6.5), QPointF(19, 6.5))
+
+
+@icon("pages_to_doc")
+def _pages_to_doc(p, c):
+    p.drawRoundedRect(QRectF(2.5, 3, 7, 9), 1, 1)
+    p.drawRoundedRect(QRectF(11, 8, 7, 9.5), 1, 1)
+    p.drawLine(QPointF(6, 14.5), QPointF(9.5, 14.5))
+    _poly(p, [(8, 12.8), (9.7, 14.5), (8, 16.2)], close=False)
+
+
+@icon("pages_move")
+def _pages_move(p, c):
+    pen = QPen(c, 1.4, Qt.PenStyle.DashLine)
+    pen.setDashPattern([2, 2])
+    p.setPen(pen)
+    p.drawRoundedRect(QRectF(2.5, 3, 7, 9), 1, 1)
+    p.setPen(QPen(c, 1.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+    p.drawRoundedRect(QRectF(11, 8, 7, 9.5), 1, 1)
+    p.drawLine(QPointF(6, 14.5), QPointF(9.5, 14.5))
+    _poly(p, [(8, 12.8), (9.7, 14.5), (8, 16.2)], close=False)
+
+
+@icon("redact_pages")
+def _redact_pages(p, c):
+    p.drawRoundedRect(QRectF(4, 2.5, 12, 15), 1, 1)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(c)
+    p.drawRect(QRectF(6.5, 5, 7, 10))
+
+
+@icon("count")
+def _count(p, c):
+    p.drawRoundedRect(QRectF(2.5, 4, 15, 12), 2, 2)
+    f = QFont()
+    f.setPixelSize(8)
+    f.setBold(True)
+    p.setFont(f)
+    p.drawText(QRectF(2.5, 4, 15, 12), Qt.AlignmentFlag.AlignCenter, "123")
+
+
+@icon("about")
+def _about(p, c):
+    p.drawEllipse(QRectF(2.5, 2.5, 15, 15))
+    p.drawLine(QPointF(10, 9), QPointF(10, 14))
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(c)
+    p.drawEllipse(QRectF(9.1, 5.4, 1.8, 1.8))
+
+
+@icon("bookmark_add")
+def _bookmark_add(p, c):
+    _poly(p, [(4, 2.5), (11.5, 2.5), (11.5, 16.5), (7.75, 13), (4, 16.5)])
+    _plus(p, 15.5, 6)
+
+
+@icon("rename")
+def _rename(p, c):
+    p.drawRoundedRect(QRectF(2.5, 6, 15, 8), 1.5, 1.5)
+    p.drawLine(QPointF(12, 3.5), QPointF(12, 16.5))
+    p.drawLine(QPointF(10.5, 3.5), QPointF(13.5, 3.5))
+    p.drawLine(QPointF(10.5, 16.5), QPointF(13.5, 16.5))
+
+
+@icon("move_up")
+def _move_up(p, c):
+    p.drawLine(QPointF(10, 16.5), QPointF(10, 4))
+    _poly(p, [(5.5, 8.5), (10, 4), (14.5, 8.5)], close=False)
+
+
+@icon("move_down")
+def _move_down(p, c):
+    p.drawLine(QPointF(10, 3.5), QPointF(10, 16))
+    _poly(p, [(5.5, 11.5), (10, 16), (14.5, 11.5)], close=False)
+
+
+@icon("bookmark_target")
+def _bookmark_target(p, c):
+    _poly(p, [(3, 2.5), (9.5, 2.5), (9.5, 14.5), (6.25, 11.5), (3, 14.5)])
+    p.drawRoundedRect(QRectF(11.5, 7, 6, 8), 1, 1)
+    p.drawLine(QPointF(9.5, 11), QPointF(11.5, 11))
+
+
+@icon("sanitize")
+def _sanitize(p, c):
+    _doc(p, 3.5, 2.5, 10, 13.5)
+    p.drawLine(QPointF(6, 6.5), QPointF(11, 6.5))
+    p.drawLine(QPointF(6, 9.5), QPointF(9, 9.5))
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(c)
+    for x, y, r in ((15.5, 13, 1.6), (13, 16.5, 1.3), (17, 17, 1.1)):
+        p.drawEllipse(QPointF(x, y), r, r)
+
+
+@icon("snapshot")
+def _snapshot(p, c):
+    pen = QPen(c, 1.4, Qt.PenStyle.DashLine)
+    pen.setDashPattern([2, 2])
+    p.setPen(pen)
+    p.drawRect(QRectF(2.5, 2.5, 11, 9))
+    p.setPen(QPen(c, 1.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+    p.drawRoundedRect(QRectF(8, 9.5, 9.5, 8), 1, 1)
+    p.drawRect(QRectF(10.5, 8, 4, 1.5))
+
+
+@icon("default_app")
+def _default_app(p, c):
+    _doc(p, 3.5, 2.5, 10, 13.5)
+    p.drawEllipse(QRectF(10.5, 10.5, 7.5, 7.5))
+    _poly(p, [(12.3, 14.3), (13.8, 15.8), (16.3, 12.8)], close=False)
+
+
+@icon("numbering")
+def _numbering(p, c):
+    p.drawRoundedRect(QRectF(4, 2.5, 12, 15), 1, 1)
+    f = QFont()
+    f.setPixelSize(6)
+    f.setBold(True)
+    p.setFont(f)
+    p.drawText(QRectF(4, 11, 12, 6), Qt.AlignmentFlag.AlignCenter, "001")
+
 
 
 def icon_open() -> QIcon:

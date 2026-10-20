@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-import os
+import re
 import time
 from pathlib import Path
 
@@ -11,6 +11,8 @@ from pathlib import Path
 _marks: dict[str, float] = {}
 _t0: float | None = None
 from core import app_env  # noqa: E402
+
+KEEP_LOGS = 20  # timestamped logs kept per tag; older ones are deleted
 
 _enabled = app_env.get("STARTUP_TIMING", "1").lower() not in (
     "0",
@@ -72,4 +74,21 @@ def write_log(path: Path | None = None, *, tag: str = "startup") -> Path | None:
     # Also keep a stable latest pointer for before/after comparison
     latest = path.parent / f"{tag}-latest.json"
     latest.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+    _prune(path.parent, tag)
     return path
+
+
+def _prune(folder: Path, tag: str, keep: int = KEEP_LOGS) -> None:
+    """Keep only the newest ``keep`` timestamped logs of ``tag`` (one is written per launch)."""
+    pattern = re.compile(rf"{re.escape(tag)}-(\d+)\.json")
+    try:
+        stamped = sorted(
+            (int(m.group(1)), p) for p in folder.glob(f"{tag}-*.json") if (m := pattern.fullmatch(p.name))
+        )
+        for _stamp, old in stamped[:-keep] if keep > 0 else stamped:
+            try:
+                old.unlink()
+            except OSError:
+                pass
+    except OSError:
+        pass

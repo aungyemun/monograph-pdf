@@ -94,3 +94,17 @@ def export_image_box(box: ImageBox, destination: Path) -> Path:
         box_px.putalpha(alpha)
     box_px.save(destination.as_posix())
     return destination
+
+
+def default_image_rect(width_px: int, height_px: int, page_w: float, page_h: float, *, x: float = 72.0, y: float = 72.0,
+                       max_w: float = 240.0, max_h: float = 180.0):
+    """Where a newly added picture goes: at (x, y), as large as fits max_w × max_h (and the page margins) with
+    the picture's own proportions. Unknown size falls back to the old fixed box."""
+    from core.editing.geometry import Rect
+
+    avail_w = max(24.0, min(max_w, page_w - 2 * 48.0))
+    avail_h = max(24.0, min(max_h, page_h - 2 * 48.0))
+    if width_px <= 0 or height_px <= 0:
+        return Rect(x, y, avail_w, avail_h)
+    scale = min(avail_w / width_px, avail_h / height_px)
+    return Rect(x, y, max(8.0, width_px * scale), max(8.0, height_px * scale))

@@ -95,6 +95,16 @@ class MergeJob:
             "Source files are not modified."
         )
 
+    def protection_warning(self) -> str | None:
+        """Password-protected inputs: the combined file is written without protection."""
+        named = [s.display_name for s in self.sources if s.encrypted and not s.open_error]
+        if not named:
+            return None
+        return (
+            "These files are password-protected: " + ", ".join(named[:5]) + ". The combined PDF will not be "
+            "protected. To protect it, use Protect ▸ Protect with Password… after combining."
+        )
+
 
 def combine_to_pdf(
     job: MergeJob,
@@ -121,11 +131,13 @@ def combine_to_pdf(
     try:
         total = job.total_output_pages()
         done = 0
+        outline: list[list] = []
         for src in ready:
             if cancel and cancel():
                 raise InterruptedError("Combine cancelled")
             doc = _open_external(src.path, password=src.password)
             try:
+                outline += _remapped_outline(doc, src.effective_pages(), out.page_count)
                 for p in src.effective_pages():
                     if cancel and cancel():
                         raise InterruptedError("Combine cancelled")
@@ -135,6 +147,8 @@ def combine_to_pdf(
                         progress(done, total, f"Adding {src.display_name} page {p + 1}")
             finally:
                 doc.close()
+        if outline:
+            out.set_toc(outline)
         out.save(staging.as_posix(), garbage=3, deflate=True)
     except Exception:
         out.close()
@@ -148,6 +162,29 @@ def combine_to_pdf(
     if progress:
         progress(total, total, "Combine complete")
     return destination
+
+
+def _remapped_outline(doc: fitz.Document, pages: list[int], base: int) -> list[list]:
+    """A source's bookmarks pointing at their pages in the combined file.
+
+    Bookmarks to pages that are not included are left out; levels are evened out so that a kept
+    child whose parent was left out stays valid (an outline level may rise by one step only).
+    """
+    where = {p: base + i for i, p in enumerate(pages)}
+    out: list[list] = []
+    prev = 0
+    try:
+        toc = doc.get_toc(simple=True) or []
+    except Exception:  # noqa: BLE001 — a broken outline does not stop the merge
+        return []
+    for level, title, page in toc:
+        target = where.get(int(page) - 1)
+        if target is None:
+            continue
+        level = max(1, min(int(level), prev + 1))
+        out.append([level, str(title), target + 1])
+        prev = level
+    return out
 
 
 def _detect_sigs(doc: fitz.Document) -> bool:

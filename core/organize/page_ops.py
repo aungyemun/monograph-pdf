@@ -291,7 +291,7 @@ def rotate_pages(document: PdfDocument, pages: Sequence[int], degrees: int) -> N
             raise IndexError(f"page out of range: {p}")
         page = d.load_page(int(p))
         page.set_rotation((int(page.rotation) + int(degrees)) % 360)
-    invalidate_page_cache(document)
+    document.refresh_pages(pages)  # only these pages changed: no need to re-read the whole document
 
 
 def crop_page(
@@ -401,7 +401,7 @@ def warning_for_signatures(document: PdfDocument) -> str | None:
     if meta.has_digital_signatures:
         return (
             "This document appears to contain digital signature fields or signature "
-            "dictionaries. Reordering, inserting, deleting, or combining pages will "
+            "dictionaries. Reordering, rotating, inserting, deleting, or combining pages will "
             "invalidate cryptographic signatures."
         )
     return None

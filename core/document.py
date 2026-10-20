@@ -103,6 +103,19 @@ class PdfDocument:
         """Clear cached PageInfo after structural page operations."""
         self._pages = None
 
+    def refresh_pages(self, indices) -> None:
+        """Re-analyse only ``indices`` (e.g. rotated pages): their text and images are unchanged, so the
+        other pages keep their cached PageInfo. Falls back to a full reset when nothing is cached or the
+        page count no longer matches."""
+        self._ensure_open()
+        if self._pages is None or len(self._pages) != self.page_count:
+            self._pages = None
+            return
+        pages = list(self._pages)
+        for i in {int(i) for i in indices}:
+            pages[i] = self._backend.analyze_page(i)
+        self._pages = pages
+
     def page(self, index: int) -> PageInfo:
         pages = self.pages()
         if index < 0 or index >= len(pages):

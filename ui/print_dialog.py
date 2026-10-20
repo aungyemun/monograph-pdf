@@ -8,6 +8,7 @@ preview uses the same page placement as the print job (``core.printing.place_pag
 
 from __future__ import annotations
 
+import os
 import sys
 from dataclasses import dataclass
 
@@ -34,10 +35,26 @@ from PySide6.QtWidgets import (
 )
 
 from core.organize.page_ops import parse_page_ranges
-from core.printing import ColorMode, PageScaling, auto_landscape, place_page
+from core.printing import ColorMode, PageScaling, auto_landscape, order_print_pages, place_page
 
 _FALLBACK_SIZES = (QPageSize.PageSizeId.A4, QPageSize.PageSizeId.Letter, QPageSize.PageSizeId.Legal,
                    QPageSize.PageSizeId.A3, QPageSize.PageSizeId.B5, QPageSize.PageSizeId.A5)
+
+
+def _printer_com_safe() -> bool:
+    """False under headless / offscreen CI where Win32 printer COM often SEH-faults."""
+    if os.environ.get("MONOGRAPH_PDF_HEADLESS", "").strip() in ("1", "true", "yes"):
+        return False
+    return os.environ.get("QT_QPA_PLATFORM", "").strip().lower() != "offscreen"
+
+
+def _list_printers() -> list[QPrinterInfo]:
+    if not _printer_com_safe():
+        return []
+    try:
+        return list(QPrinterInfo.availablePrinters())
+    except Exception:  # noqa: BLE001
+        return []
 
 
 @dataclass
@@ -46,6 +63,7 @@ class PrintSettings:
     scaling: PageScaling
     orientation: str  # "auto" | "portrait" | "landscape"
     color_mode: ColorMode
+    comments: bool = True  # False: leave out comments and markup (form fields still print)
 
 
 class _SheetPreview(QWidget):
@@ -133,7 +151,7 @@ class PrintDialog(QDialog):
         self._cache: dict[tuple[int, bool], QImage] = {}
         self._margin_cache: dict[tuple, tuple[float, float, float, float]] = {}
         self._sheet = 0
-        self._printers = QPrinterInfo.availablePrinters()
+        self._printers = _list_printers()
         self._printer: QPrinter | None = None
 
         root = QHBoxLayout(self)
@@ -149,7 +167,12 @@ class PrintDialog(QDialog):
         form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         self.printer_combo = QComboBox()
-        default_name = QPrinterInfo.defaultPrinterName()
+        default_name = ""
+        if self._printers and _printer_com_safe():
+            try:
+                default_name = QPrinterInfo.defaultPrinterName()
+            except Exception:  # noqa: BLE001
+                default_name = ""
         for info in self._printers:
             self.printer_combo.addItem(info.printerName())
         if not self._printers:
@@ -206,6 +229,19 @@ class PrintDialog(QDialog):
         custom_row.addWidget(self.custom, 1)
         pages_box.addLayout(custom_row)
         pages_box.addWidget(self._range_error)
+        subset_row = QHBoxLayout()
+        subset_row.setContentsMargins(0, 0, 0, 0)
+        self.subset = QComboBox()
+        self.subset.setObjectName("PrintSubset")
+        self.subset.addItem("All pages", "all")
+        self.subset.addItem("Odd pages", "odd")
+        self.subset.addItem("Even pages", "even")
+        self.subset.setToolTip("Odd and even refer to page numbers — useful for printing two-sided by hand")
+        self.reverse = QCheckBox("Reverse order")
+        self.reverse.setObjectName("PrintReverse")
+        subset_row.addWidget(self.subset, 1)
+        subset_row.addWidget(self.reverse)
+        pages_box.addLayout(subset_row)
         pw = QWidget()
         pw.setLayout(pages_box)
         form.addRow("Pages:", pw)
@@ -226,6 +262,12 @@ class PrintDialog(QDialog):
         self.color.addItem("Color", ColorMode.COLOR.value)
         self.color.addItem("Black & white", ColorMode.GRAYSCALE.value)
         form.addRow("Color:", self.color)
+        self.comments = QComboBox()
+        self.comments.setObjectName("PrintComments")
+        self.comments.addItem("Document and comments", True)
+        self.comments.addItem("Document only", False)
+        self.comments.setToolTip("Comments are notes, highlights, shapes and stamps. Form fields always print.")
+        form.addRow("Comments:", self.comments)
         self.duplex = QComboBox()
         form.addRow("Two-sided:", self.duplex)
         left.addLayout(form)
@@ -274,8 +316,10 @@ class PrintDialog(QDialog):
         # --- wiring -------------------------------------------------------------------------
         self.printer_combo.currentIndexChanged.connect(self._printer_changed)
         self._props.clicked.connect(self._system_settings)
-        for combo in (self.paper, self.orientation, self.scaling, self.color):
+        for combo in (self.paper, self.orientation, self.scaling, self.color, self.comments):
             combo.currentIndexChanged.connect(self._refresh)
+        self.subset.currentIndexChanged.connect(self._pages_changed)
+        self.reverse.toggled.connect(self._pages_changed)
         for b in (self.r_all, self.r_current, self.r_selected, self.r_custom):
             b.toggled.connect(self._pages_changed)
         self.custom.textEdited.connect(lambda _t: self.r_custom.setChecked(True))
@@ -312,7 +356,13 @@ class PrintDialog(QDialog):
         current = self.paper.currentData()
         self.paper.blockSignals(True)
         self.paper.clear()
-        sizes = list(info.supportedPageSizes()) if info is not None else []
+        # Printer COM (Win32 spooler) can raise under offscreen / headless CI; fall back to stock sizes.
+        sizes: list[QPageSize] = []
+        if info is not None:
+            try:
+                sizes = list(info.supportedPageSizes())
+            except Exception:  # noqa: BLE001
+                sizes = []
         if not sizes:
             sizes = [QPageSize(s) for s in _FALLBACK_SIZES]
         seen = set()
@@ -328,9 +378,14 @@ class PrintDialog(QDialog):
             want = current.name()
         else:
             idx = self._document_paper_index()  # A4 form → A4 paper, when the printer has it
-            if idx < 0 and info is not None and info.defaultPageSize().isValid():
-                want = info.defaultPageSize().name()
-            elif idx < 0:
+            if idx < 0 and info is not None:
+                try:
+                    default = info.defaultPageSize()
+                    if default.isValid():
+                        want = default.name()
+                except Exception:  # noqa: BLE001
+                    want = None
+            if idx < 0 and want is None:
                 want = QPageSize(QPageSize.PageSizeId.A4).name()
         if idx < 0:
             idx = self.paper.findText(want)
@@ -341,7 +396,12 @@ class PrintDialog(QDialog):
         prev = self.duplex.currentData()
         self.duplex.clear()
         self.duplex.addItem("Off", QPrinter.DuplexMode.DuplexNone)
-        modes = list(info.supportedDuplexModes()) if info is not None else []
+        modes: list = []
+        if info is not None:
+            try:
+                modes = list(info.supportedDuplexModes())
+            except Exception:  # noqa: BLE001
+                modes = []
         if QPrinter.DuplexMode.DuplexLongSide in modes:
             self.duplex.addItem("Flip on long edge", QPrinter.DuplexMode.DuplexLongSide)
         if QPrinter.DuplexMode.DuplexShortSide in modes:
@@ -476,6 +536,11 @@ class PrintDialog(QDialog):
     # --- pages ---------------------------------------------------------------------------------
 
     def selected_pages(self) -> list[int]:
+        """Pages to print, in print order (range, then odd/even subset, then reverse)."""
+        return order_print_pages(self._range_pages(), subset=str(self.subset.currentData() or "all"),
+                                 reverse=self.reverse.isChecked())
+
+    def _range_pages(self) -> list[int]:
         if self.r_current.isChecked():
             return [self._current]
         if self.r_selected.isChecked() and self._selected:
@@ -488,7 +553,7 @@ class PrintDialog(QDialog):
         return list(range(self._n))
 
     def _pages_changed(self, *_args) -> None:
-        bad = self.r_custom.isChecked() and not self.selected_pages()
+        bad = self.r_custom.isChecked() and not self._range_pages()
         if bad and self.custom.text().strip():
             self._range_error.setText(f"Enter pages between 1 and {self._n}, e.g. 1-3, 5")
             self._range_error.show()
@@ -507,12 +572,19 @@ class PrintDialog(QDialog):
     # --- preview -------------------------------------------------------------------------------
 
     def _image(self, index: int, gray: bool) -> QImage | None:
-        key = (index, gray)
+        comments = bool(self.comments.currentData())
+        key = (index, gray, comments)
         img = self._cache.get(key)
         if img is None:
             dpr = max(1.0, float(self.devicePixelRatioF()))
             try:
-                png = self._doc.render_pixmap_png(index, zoom=110 / 72.0, dpr=dpr)
+                png = None
+                if not comments:
+                    from core.printing.ops import _render_without_comments
+
+                    png = _render_without_comments(self._doc, index, 110 / 72.0 * dpr)
+                if png is None:
+                    png = self._doc.render_pixmap_png(index, zoom=110 / 72.0, dpr=dpr)
             except Exception:  # noqa: BLE001
                 return None
             img = QImage.fromData(png, "PNG")
@@ -554,6 +626,7 @@ class PrintDialog(QDialog):
             scaling=PageScaling(self.scaling.currentData() or PageScaling.FIT.value),
             orientation=str(self.orientation.currentData() or "auto"),
             color_mode=ColorMode(self.color.currentData() or ColorMode.COLOR.value),
+            comments=bool(self.comments.currentData()),
         )
 
     def printer(self) -> QPrinter | None:
@@ -603,6 +676,7 @@ def print_document_pages(
     color_mode: ColorMode = ColorMode.COLOR,
     scaling: PageScaling = PageScaling.FIT,
     orientation: str = "fixed",
+    comments: bool = True,
 ) -> int:
     """Send pages to ``printer``. ``orientation='auto'`` turns the paper to match each page."""
     from core.printing import render_page_png_for_print
@@ -630,7 +704,7 @@ def print_document_pages(
             if n > 0:
                 set_orientation(index)
                 printer.newPage()
-            png = render_page_png_for_print(document, index, dpi=dpi, color_mode=color_mode)
+            png = render_page_png_for_print(document, index, dpi=dpi, color_mode=color_mode, comments=comments)
             img = QImage.fromData(png, "PNG")
             if img.isNull():
                 continue

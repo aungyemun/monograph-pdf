@@ -6,7 +6,8 @@ authors:
   - family-names: "Mun"
     given-names: "Aung Ye"
     email: "aungyemun25@gmail.com"
-version: "0.2.0"
+version: "0.2.2"
+date-released: "2026-10-21"
 license: "AGPL-3.0-or-later"
 repository-code: "https://github.com/aungyemun/monograph-pdf"
 abstract: >

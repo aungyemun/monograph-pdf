@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.editing.geometry import Rect
+from core.page_space import rect_to_display
 from core.editing.text_box import TextBox
 from core.editing.text_style import TextStyle
 
@@ -36,7 +37,7 @@ def extract_spans(backend: Any, page_index: int) -> list[NativeSpan]:
                 text = sp.get("text") or ""
                 if not text.strip():
                     continue
-                bbox = sp.get("bbox") or (0, 0, 0, 0)
+                bbox = rect_to_display(page, sp.get("bbox") or (0, 0, 0, 0))
                 font = str(sp.get("font") or "")
                 size = float(sp.get("size") or 12)
                 # Safe direct edit: single span, no complex writing mode flags

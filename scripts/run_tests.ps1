@@ -13,5 +13,6 @@ $LogDir = Join-Path $Root "tests\outputs\logs"
 New-Item -ItemType Directory -Force -Path (Split-Path $Junit), $LogDir | Out-Null
 $Log = Join-Path $LogDir ("pytest-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
 
-& $Py -m pytest tests/unit tests/integration -q --junitxml=$Junit 2>&1 | Tee-Object -FilePath $Log
+# Match pytest.ini testpaths: unit + integration + ui
+& $Py -m pytest tests/unit tests/integration tests/ui -q --junitxml=$Junit 2>&1 | Tee-Object -FilePath $Log
 exit $LASTEXITCODE

@@ -151,3 +151,31 @@ def test_duplicate_and_delete(edit_doc: EditableDocument):
     assert len(edit_doc.objects) == 2
     edit_doc.delete_selection()
     assert len(edit_doc.selected_objects()) == 0 or len(edit_doc.objects) <= 2
+
+
+def test_generic_sans_serif_resolves_to_a_normal_face_not_sans_serif_collection():
+    """Regression: the default text-box font "sans-serif" resolved to Windows' 'Sans Serif Collection', whose
+    line metrics are twice the normal height, so new text boxes drew their text low and clipped."""
+    from core.editing.font_resolver import resolve_font
+
+    for generic in ("sans-serif", "Sans-Serif", "serif", "monospace"):
+        r = resolve_font(generic, "Font test")
+        assert "collection" not in r.resolved.lower(), (generic, r)
+
+
+@pytest.mark.parametrize("w,h", [(240, 120), (120, 240), (1000, 1000), (3000, 500), (50, 400)])
+def test_new_picture_keeps_its_proportions(w, h):
+    """Regression (found in the packaged exe): a 240×120 picture was inserted in a fixed 240×180 box and stretched."""
+    from core.editing.image_box import default_image_rect
+
+    r = default_image_rect(w, h, 595.0, 842.0)
+    assert r.w / r.h == pytest.approx(w / h, rel=0.01)
+    assert r.w <= 240.0 + 1e-6 and r.h <= 180.0 + 1e-6
+    assert r.x1 <= 595.0 and r.y1 <= 842.0
+
+
+def test_new_picture_of_unknown_size_gets_the_default_box():
+    from core.editing.image_box import default_image_rect
+
+    r = default_image_rect(0, 0, 595.0, 842.0)
+    assert (r.w, r.h) == (240.0, 180.0)

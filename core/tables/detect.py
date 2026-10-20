@@ -7,6 +7,7 @@ from collections import defaultdict
 import fitz
 
 from core.editing.geometry import Rect
+from core.page_space import point_to_display, rect_to_display
 from core.tables.model import TableCell, TableModel
 
 # Minimum confidence to expose a table model to the UI
@@ -34,15 +35,43 @@ def detect_tables(doc: fitz.Document, page_index: int | None = None) -> list[Tab
         drawings = page.get_drawings() or []
         hs: list[tuple[float, float, float]] = []  # y, x0, x1
         vs: list[tuple[float, float, float]] = []  # x, y0, y1
+        def add_segment(p1, p2) -> None:
+            if abs(p1.y - p2.y) < 1.2 and abs(p1.x - p2.x) >= 20:
+                hs.append((p1.y, min(p1.x, p2.x), max(p1.x, p2.x)))
+            elif abs(p1.x - p2.x) < 1.2 and abs(p1.y - p2.y) >= 12:
+                vs.append((p1.x, min(p1.y, p2.y), max(p1.y, p2.y)))
+
+        cell_rects: list[fitz.Rect] = []
         for d in drawings:
             for item in d.get("items") or []:
-                if item[0] != "l":
-                    continue
-                p1, p2 = item[1], item[2]
-                if abs(p1.y - p2.y) < 1.2 and abs(p1.x - p2.x) >= 20:
-                    hs.append((p1.y, min(p1.x, p2.x), max(p1.x, p2.x)))
-                elif abs(p1.x - p2.x) < 1.2 and abs(p1.y - p2.y) >= 12:
-                    vs.append((p1.x, min(p1.y, p2.y), max(p1.y, p2.y)))
+                if item[0] == "l":
+                    add_segment(
+                        point_to_display(page, item[1].x, item[1].y), point_to_display(page, item[2].x, item[2].y)
+                    )
+                elif item[0] == "re":
+                    # Many generators draw cell borders as rectangles (outlined cells, or very thin filled
+                    # bars). A thin bar is one rule; an ordinary cell contributes its four edges.
+                    r = rect_to_display(page, item[1])
+                    if r.height <= 1.5 and r.width >= 20:
+                        add_segment(fitz.Point(r.x0, (r.y0 + r.y1) / 2), fitz.Point(r.x1, (r.y0 + r.y1) / 2))
+                    elif r.width <= 1.5 and r.height >= 12:
+                        add_segment(fitz.Point((r.x0 + r.x1) / 2, r.y0), fitz.Point((r.x0 + r.x1) / 2, r.y1))
+                    elif 20 <= r.width <= page.rect.width * 0.5 and 12 <= r.height <= page.rect.height * 0.25:
+                        cell_rects.append(r)
+        # Outlined cells count as table rules only when they tile: enough of them share an edge both
+        # sideways and top-to-bottom. Separate input boxes (forms) never do.
+        side = stacked = 0
+        for i, a in enumerate(cell_rects):
+            for b in cell_rects[i + 1 :]:
+                if abs(a.x1 - b.x0) < 1.5 or abs(b.x1 - a.x0) < 1.5:
+                    side += min(a.y1, b.y1) - max(a.y0, b.y0) > 4
+                if abs(a.y1 - b.y0) < 1.5 or abs(b.y1 - a.y0) < 1.5:
+                    stacked += min(a.x1, b.x1) - max(a.x0, b.x0) > 4
+        if side >= 3 and stacked >= 3:
+            for r in cell_rects:
+                for a, b in (((r.x0, r.y0), (r.x1, r.y0)), ((r.x0, r.y1), (r.x1, r.y1)),
+                             ((r.x0, r.y0), (r.x0, r.y1)), ((r.x1, r.y0), (r.x1, r.y1))):
+                    add_segment(fitz.Point(*a), fitz.Point(*b))
 
         if len(hs) < 3 or len(vs) < 2:
             continue
@@ -87,7 +116,8 @@ def detect_tables(doc: fitz.Document, page_index: int | None = None) -> list[Tab
         words = page.get_text("words") or []
         buckets: dict[tuple[int, int], list[str]] = defaultdict(list)
         for w in words:
-            x0, y0, x1, y1, text = w[0], w[1], w[2], w[3], w[4]
+            wd = rect_to_display(page, (w[0], w[1], w[2], w[3]))
+            x0, y0, x1, y1, text = wd.x0, wd.y0, wd.x1, wd.y1, w[4]
             cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
             if not (bounds.x <= cx <= bounds.x1 and bounds.y <= cy <= bounds.y1):
                 continue

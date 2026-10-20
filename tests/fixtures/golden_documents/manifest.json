@@ -1,0 +1,802 @@
+{
+ "reference_dpi": 40,
+ "password": "golden-open",
+ "documents": {
+  "a4_portrait": {
+   "pages": [
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "A4 portrait heading",
+       72,
+       90
+      ],
+      [
+       "Second line of body text",
+       72,
+       130
+      ]
+     ]
+    }
+   ],
+   "file": "pdf/a4_portrait.pdf"
+  },
+  "a4_landscape": {
+   "pages": [
+    {
+     "size": [
+      841.89,
+      595.276
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "A4 landscape heading",
+       72,
+       90
+      ]
+     ]
+    }
+   ],
+   "file": "pdf/a4_landscape.pdf"
+  },
+  "us_letter": {
+   "pages": [
+    {
+     "size": [
+      612.0,
+      792.0
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "US Letter heading",
+       72,
+       90
+      ]
+     ]
+    }
+   ],
+   "file": "pdf/us_letter.pdf"
+  },
+  "mixed_sizes": {
+   "pages": [
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Mixed page A4",
+       60,
+       80
+      ]
+     ]
+    },
+    {
+     "size": [
+      841.89,
+      1190.551
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Mixed page A3",
+       60,
+       80
+      ]
+     ]
+    },
+    {
+     "size": [
+      419.528,
+      595.276
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Mixed page A5",
+       60,
+       80
+      ]
+     ]
+    },
+    {
+     "size": [
+      841.89,
+      595.276
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Mixed page A4L",
+       60,
+       80
+      ]
+     ]
+    },
+    {
+     "size": [
+      612.0,
+      792.0
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Mixed page LT",
+       60,
+       80
+      ]
+     ]
+    }
+   ],
+   "file": "pdf/mixed_sizes.pdf"
+  },
+  "multipage_12": {
+   "pages": [
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Multipage document page 1 of 12",
+       72,
+       90
+      ]
+     ]
+    },
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Multipage document page 2 of 12",
+       72,
+       90
+      ]
+     ]
+    },
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Multipage document page 3 of 12",
+       72,
+       90
+      ]
+     ]
+    },
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Multipage document page 4 of 12",
+       72,
+       90
+      ]
+     ]
+    },
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Multipage document page 5 of 12",
+       72,
+       90
+      ]
+     ]
+    },
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Multipage document page 6 of 12",
+       72,
+       90
+      ]
+     ]
+    },
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Multipage document page 7 of 12",
+       72,
+       90
+      ]
+     ]
+    },
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Multipage document page 8 of 12",
+       72,
+       90
+      ]
+     ]
+    },
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Multipage document page 9 of 12",
+       72,
+       90
+      ]
+     ]
+    },
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Multipage document page 10 of 12",
+       72,
+       90
+      ]
+     ]
+    },
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Multipage document page 11 of 12",
+       72,
+       90
+      ]
+     ]
+    },
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Multipage document page 12 of 12",
+       72,
+       90
+      ]
+     ]
+    }
+   ],
+   "file": "pdf/multipage_12.pdf"
+  },
+  "rotated_pages": {
+   "pages": [
+    {
+     "size": [
+      300,
+      500
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Rotated 0 anchor",
+       40,
+       80
+      ],
+      [
+       "Lower text",
+       40,
+       400
+      ]
+     ]
+    },
+    {
+     "size": [
+      300,
+      500
+     ],
+     "rotate": 90,
+     "texts": [
+      [
+       "Rotated 90 anchor",
+       40,
+       80
+      ],
+      [
+       "Lower text",
+       40,
+       400
+      ]
+     ]
+    },
+    {
+     "size": [
+      300,
+      500
+     ],
+     "rotate": 180,
+     "texts": [
+      [
+       "Rotated 180 anchor",
+       40,
+       80
+      ],
+      [
+       "Lower text",
+       40,
+       400
+      ]
+     ]
+    },
+    {
+     "size": [
+      300,
+      500
+     ],
+     "rotate": 270,
+     "texts": [
+      [
+       "Rotated 270 anchor",
+       40,
+       80
+      ],
+      [
+       "Lower text",
+       40,
+       400
+      ]
+     ]
+    }
+   ],
+   "file": "pdf/rotated_pages.pdf"
+  },
+  "english_text": {
+   "pages": [
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "The quick brown fox jumps over the lazy dog.",
+       72,
+       100
+      ],
+      [
+       "Pack my box with five dozen liquor jugs.",
+       72,
+       124
+      ],
+      [
+       "0123456789 punctuation: ; , . ! ?",
+       72,
+       148
+      ]
+     ]
+    }
+   ],
+   "file": "pdf/english_text.pdf"
+  },
+  "japanese_text": {
+   "pages": [
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "日本語のテキスト見本",
+       72,
+       100
+      ],
+      [
+       "東京都千代田区",
+       72,
+       130
+      ]
+     ]
+    }
+   ],
+   "fonts_embedded": true,
+   "file": "pdf/japanese_text.pdf"
+  },
+  "mixed_english_japanese": {
+   "pages": [
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Order number 2026-17",
+       72,
+       100
+      ],
+      [
+       "注文番号の確認",
+       72,
+       130
+      ]
+     ]
+    }
+   ],
+   "fonts_embedded": true,
+   "file": "pdf/mixed_english_japanese.pdf"
+  },
+  "embedded_subset_fonts": {
+   "pages": [
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Embedded subset Latin text",
+       72,
+       100
+      ]
+     ]
+    }
+   ],
+   "fonts_embedded": true,
+   "file": "pdf/embedded_subset_fonts.pdf"
+  },
+  "table_grid": {
+   "pages": [
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "R0C0",
+       80,
+       167
+      ],
+      [
+       "R0C1",
+       180,
+       167
+      ],
+      [
+       "R0C2",
+       280,
+       167
+      ],
+      [
+       "R0C3",
+       380,
+       167
+      ],
+      [
+       "R1C0",
+       80,
+       193
+      ],
+      [
+       "R1C1",
+       180,
+       193
+      ],
+      [
+       "R1C2",
+       280,
+       193
+      ],
+      [
+       "R1C3",
+       380,
+       193
+      ],
+      [
+       "R2C0",
+       80,
+       219
+      ],
+      [
+       "R2C1",
+       180,
+       219
+      ],
+      [
+       "R2C2",
+       280,
+       219
+      ],
+      [
+       "R2C3",
+       380,
+       219
+      ],
+      [
+       "R3C0",
+       80,
+       245
+      ],
+      [
+       "R3C1",
+       180,
+       245
+      ],
+      [
+       "R3C2",
+       280,
+       245
+      ],
+      [
+       "R3C3",
+       380,
+       245
+      ],
+      [
+       "R4C0",
+       80,
+       271
+      ],
+      [
+       "R4C1",
+       180,
+       271
+      ],
+      [
+       "R4C2",
+       280,
+       271
+      ],
+      [
+       "R4C3",
+       380,
+       271
+      ]
+     ],
+     "table": {
+      "rows": 5,
+      "cols": 4,
+      "x": 72,
+      "y": 150,
+      "cw": 100,
+      "rh": 26
+     }
+    }
+   ],
+   "file": "pdf/table_grid.pdf"
+  },
+  "images": {
+   "pages": [
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [],
+     "images": [
+      [
+       200,
+       120
+      ],
+      [
+       50,
+       50
+      ]
+     ]
+    }
+   ],
+   "file": "pdf/images.pdf"
+  },
+  "vector_graphics": {
+   "pages": [
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Vector graphics on a coloured background",
+       72,
+       120
+      ]
+     ],
+     "drawings_min": 3
+    }
+   ],
+   "file": "pdf/vector_graphics.pdf"
+  },
+  "annotations": {
+   "pages": [
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Annotated sentence for highlight",
+       72,
+       120
+      ]
+     ],
+     "annots": [
+      "Highlight",
+      "Text",
+      "Underline"
+     ]
+    }
+   ],
+   "file": "pdf/annotations.pdf"
+  },
+  "acroform": {
+   "pages": [
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Name:",
+       72,
+       112
+      ],
+      [
+       "Subscribe:",
+       72,
+       152
+      ]
+     ],
+     "widgets": [
+      [
+       "full_name",
+       [
+        160.0,
+        95.0,
+        400.0,
+        120.0
+       ],
+       "Golden Name"
+      ],
+      [
+       "subscribe",
+       [
+        160.0,
+        138.0,
+        176.0,
+        154.0
+       ],
+       null
+      ]
+     ]
+    }
+   ],
+   "file": "pdf/acroform.pdf"
+  },
+  "scanned_page": {
+   "pages": [
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [],
+     "images": [
+      [
+       1241,
+       625
+      ]
+     ],
+     "scan_text": "SCANNED PAGE REFERENCE TEXT"
+    }
+   ],
+   "file": "pdf/scanned_page.pdf"
+  },
+  "signature_field": {
+   "pages": [
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "Signature field present (unsigned)",
+       72,
+       100
+      ]
+     ]
+    }
+   ],
+   "has_signature_field": true,
+   "note": "A signature FIELD only. No fixture here carries a cryptographic signature: creating a valid one needs a certificate and is not offered by the app.",
+   "file": "pdf/signature_field.pdf"
+  },
+  "password_protected": {
+   "pages": [
+    {
+     "size": [
+      595.276,
+      841.89
+     ],
+     "rotate": 0,
+     "texts": [
+      [
+       "The quick brown fox jumps over the lazy dog.",
+       72,
+       100
+      ],
+      [
+       "Pack my box with five dozen liquor jugs.",
+       72,
+       124
+      ],
+      [
+       "0123456789 punctuation: ; , . ! ?",
+       72,
+       148
+      ]
+     ]
+    }
+   ],
+   "file": "pdf/password_protected.pdf",
+   "encrypted": true
+  }
+ }
+}

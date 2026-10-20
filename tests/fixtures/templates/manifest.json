@@ -1,0 +1,488 @@
+{
+ "password": "monograph",
+ "documents": {
+  "invoice_a4": {
+   "file": "pdf/invoice_a4.pdf",
+   "title": "Invoice (A4)",
+   "test_types": [
+    "tables",
+    "Excel export",
+    "text editing",
+    "print"
+   ],
+   "purpose": "A typical business invoice: ruled item table with right-aligned amounts, totals block, footer.",
+   "expect": {
+    "size": [
+     595.276,
+     841.89
+    ],
+    "text": [
+     "INVOICE",
+     "Total due",
+     "INV-2026-0417"
+    ],
+    "table": {
+     "rows": 6,
+     "cols": 5
+    },
+    "pages": 1
+   }
+  },
+  "business_report": {
+   "file": "pdf/business_report.pdf",
+   "title": "Annual report (6 pages, bookmarks)",
+   "test_types": [
+    "navigation",
+    "bookmarks",
+    "Word conversion",
+    "page operations",
+    "charts"
+   ],
+   "purpose": "Cover, contents, charts, tables and a risk register with a bookmark outline.",
+   "expect": {
+    "pages": 6,
+    "toc": 6,
+    "text": [
+     "Annual Operations Report",
+     "Revenue",
+     "Risks and actions"
+    ]
+   }
+  },
+  "scientific_paper_two_column": {
+   "file": "pdf/scientific_paper_two_column.pdf",
+   "title": "Scientific paper (2 pages)",
+   "test_types": [
+    "text selection",
+    "highlighting",
+    "math symbols",
+    "figures",
+    "references"
+   ],
+   "purpose": "Two-column paper with equations (Unicode), a vector figure, a table and references.",
+   "expect": {
+    "pages": 2,
+    "text": [
+     "Spectral Estimation",
+     "Abstract",
+     "References"
+    ],
+    "equations": true
+   }
+  },
+  "application_form_acroform": {
+   "file": "pdf/application_form_acroform.pdf",
+   "title": "Application form (AcroForm)",
+   "test_types": [
+    "forms",
+    "field formatting",
+    "tab order",
+    "flatten"
+   ],
+   "purpose": "Text, multi-line, combo, list, radio group, checkboxes, date and signature fields.",
+   "expect": {
+    "pages": 1,
+    "widgets": [
+     "first_name",
+     "last_name",
+     "email",
+     "phone",
+     "dob",
+     "country",
+     "plan",
+     "int_events",
+     "topics",
+     "comments",
+     "signature",
+     "sign_date"
+    ]
+   }
+  },
+  "contract_unsigned_signature_fields": {
+   "file": "pdf/contract_unsigned_signature_fields.pdf",
+   "title": "Contract with signature fields",
+   "test_types": [
+    "signatures",
+    "signed-document warnings",
+    "visual signatures"
+   ],
+   "purpose": "Clauses and two signature fields; carries no cryptographic signature.",
+   "expect": {
+    "pages": 1,
+    "signature_fields": 2,
+    "text": [
+     "Service Agreement",
+     "Confidentiality"
+    ]
+   }
+  },
+  "japanese_notice": {
+   "file": "pdf/japanese_notice.pdf",
+   "title": "Japanese notice",
+   "test_types": [
+    "Japanese text",
+    "embedded fonts",
+    "OCR",
+    "conversion"
+   ],
+   "purpose": "Fully Japanese page with a ruled table; embedded subset CJK font.",
+   "expect": {
+    "pages": 1,
+    "text": [
+     "お知らせ",
+     "年次点検",
+     "定期点検"
+    ],
+    "embedded_fonts": true
+   }
+  },
+  "bilingual_en_ja_letter": {
+   "file": "pdf/bilingual_en_ja_letter.pdf",
+   "title": "English/Japanese letter",
+   "test_types": [
+    "mixed language",
+    "font fallback",
+    "search",
+    "OCR"
+   ],
+   "purpose": "Latin and Japanese on the same lines.",
+   "expect": {
+    "pages": 1,
+    "text": [
+     "Welcome Letter",
+     "Order 2026-17",
+     "プログラム"
+    ],
+    "embedded_fonts": true
+   }
+  },
+  "account_statement_tables": {
+   "file": "pdf/account_statement_tables.pdf",
+   "title": "Account statement",
+   "test_types": [
+    "table extraction",
+    "numbers to Excel",
+    "negative values"
+   ],
+   "purpose": "Two ruled tables with money columns and a summary.",
+   "expect": {
+    "pages": 1,
+    "tables": 2
+   }
+  },
+  "brochure_landscape": {
+   "file": "pdf/brochure_landscape.pdf",
+   "title": "Brochure (A4 landscape)",
+   "test_types": [
+    "landscape",
+    "images",
+    "PowerPoint export",
+    "highlight over images"
+   ],
+   "purpose": "Gradient hero image, three feature cards, picture.",
+   "expect": {
+    "pages": 1,
+    "size": [
+     841.89,
+     595.276
+    ],
+    "images": 2,
+    "text": [
+     "Design for everyone",
+     "Private"
+    ]
+   }
+  },
+  "scanned_memo_300dpi": {
+   "file": "pdf/scanned_memo_300dpi.pdf",
+   "title": "Scanned memo (300 dpi)",
+   "test_types": [
+    "OCR",
+    "searchable PDF",
+    "image-only pages"
+   ],
+   "purpose": "Image-only page: no text layer until OCR.",
+   "expect": {
+    "pages": 1,
+    "scanned": true,
+    "scan_text": "MEMORANDUM",
+    "images": 1
+   }
+  },
+  "scanned_memo_noisy_skewed": {
+   "file": "pdf/scanned_memo_noisy_skewed.pdf",
+   "title": "Scanned memo (noisy, skewed)",
+   "test_types": [
+    "OCR robustness",
+    "low quality scans"
+   ],
+   "purpose": "The same memo at 200 dpi with noise, blur and a 1.3° tilt.",
+   "expect": {
+    "pages": 1,
+    "scanned": true,
+    "scan_text": "MEMORANDUM",
+    "images": 1
+   }
+  },
+  "mixed_sizes_and_rotations": {
+   "file": "pdf/mixed_sizes_and_rotations.pdf",
+   "title": "Mixed sizes and rotated pages",
+   "test_types": [
+    "rotation",
+    "page size",
+    "organize",
+    "print",
+    "PowerPoint sizing"
+   ],
+   "purpose": "A4, Letter, A3 landscape, A5 and A4 pages rotated 90/180/270.",
+   "expect": {
+    "pages": 7,
+    "rotations": [
+     0,
+     0,
+     0,
+     0,
+     90,
+     180,
+     270
+    ],
+    "sizes": [
+     [
+      595.276,
+      841.89
+     ],
+     [
+      612.0,
+      792.0
+     ],
+     [
+      1190.551,
+      841.89
+     ],
+     [
+      419.528,
+      595.276
+     ],
+     [
+      595.276,
+      841.89
+     ],
+     [
+      595.276,
+      841.89
+     ],
+     [
+      595.276,
+      841.89
+     ]
+    ]
+   }
+  },
+  "annotated_review_copy": {
+   "file": "pdf/annotated_review_copy.pdf",
+   "title": "Annotated review copy",
+   "test_types": [
+    "annotations",
+    "highlights",
+    "export",
+    "flatten"
+   ],
+   "purpose": "Highlight, underline, strikeout, note, free text, shapes, ink and stamp.",
+   "expect": {
+    "pages": 1,
+    "annots": [
+     "Highlight",
+     "Highlight",
+     "Underline",
+     "StrikeOut",
+     "Text",
+     "FreeText",
+     "Square",
+     "Circle",
+     "Line",
+     "Ink",
+     "Stamp"
+    ]
+   }
+  },
+  "highlight_playground": {
+   "file": "pdf/highlight_playground.pdf",
+   "title": "Highlight playground",
+   "test_types": [
+    "highlighting",
+    "free-area marking",
+    "images",
+    "tables",
+    "dark backgrounds"
+   ],
+   "purpose": "Text, blank margins, picture, table, chart, colour fields and dark graphics on one page.",
+   "expect": {
+    "pages": 1,
+    "images": 1,
+    "text": [
+     "Highlight playground",
+     "Figure A",
+     "White text on dark"
+    ]
+   }
+  },
+  "transparency_overlap": {
+   "file": "pdf/transparency_overlap.pdf",
+   "title": "Transparency and overlap",
+   "test_types": [
+    "rendering",
+    "annotation over graphics"
+   ],
+   "purpose": "Translucent shapes over text.",
+   "expect": {
+    "pages": 1,
+    "text": [
+     "Transparency and overlap"
+    ]
+   }
+  },
+  "image_heavy": {
+   "file": "pdf/image_heavy.pdf",
+   "title": "Image-heavy page",
+   "test_types": [
+    "optimisation",
+    "image export",
+    "memory"
+   ],
+   "purpose": "Four textured images.",
+   "expect": {
+    "pages": 1,
+    "images": 4
+   }
+  },
+  "fonts_specimen": {
+   "file": "pdf/fonts_specimen.pdf",
+   "title": "Font specimen",
+   "test_types": [
+    "fonts",
+    "font substitution",
+    "unicode"
+   ],
+   "purpose": "Base-14 faces plus an embedded subset font with symbols.",
+   "expect": {
+    "pages": 1,
+    "text": [
+     "Helvetica",
+     "Embedded subset"
+    ],
+    "embedded_fonts": true
+   }
+  },
+  "newsletter_two_column": {
+   "file": "pdf/newsletter_two_column.pdf",
+   "title": "Two-column newsletter",
+   "test_types": [
+    "text flow",
+    "Word conversion",
+    "selection across columns"
+   ],
+   "purpose": "Two text columns and a pull quote.",
+   "expect": {
+    "pages": 1,
+    "text": [
+     "Newsletter"
+    ]
+   }
+  },
+  "long_document_200_pages": {
+   "file": "pdf/long_document_200_pages.pdf",
+   "title": "200-page document",
+   "test_types": [
+    "performance",
+    "memory",
+    "navigation",
+    "rotation speed"
+   ],
+   "purpose": "200 pages with a 20-entry bookmark outline.",
+   "expect": {
+    "pages": 200,
+    "toc": 20
+   }
+  },
+  "empty_page": {
+   "file": "pdf/empty_page.pdf",
+   "title": "Empty page",
+   "test_types": [
+    "edge cases",
+    "blank page handling"
+   ],
+   "purpose": "One page without content.",
+   "expect": {
+    "pages": 1,
+    "text": []
+   }
+  },
+  "cropbox_offset": {
+   "file": "pdf/cropbox_offset.pdf",
+   "title": "CropBox inside MediaBox",
+   "test_types": [
+    "geometry",
+    "CropBox offsets",
+    "coordinates"
+   ],
+   "purpose": "Visible area is smaller than the MediaBox and does not start at the origin.",
+   "expect": {
+    "pages": 1,
+    "cropbox": [
+     50,
+     60,
+     562,
+     732
+    ],
+    "mediabox": [
+     0,
+     0,
+     612,
+     792
+    ]
+   }
+  },
+  "password_protected_aes256": {
+   "file": "pdf/password_protected_aes256.pdf",
+   "title": "Password-protected invoice (AES-256)",
+   "test_types": [
+    "encryption",
+    "password prompt",
+    "wrong password"
+   ],
+   "purpose": "Open password is 'monograph'.",
+   "expect": {
+    "pages": 1,
+    "encrypted": true,
+    "password": "monograph"
+   }
+  },
+  "permissions_restricted": {
+   "file": "pdf/permissions_restricted.pdf",
+   "title": "Restricted permissions (no copy, no edit)",
+   "test_types": [
+    "permissions",
+    "owner password"
+   ],
+   "purpose": "Opens without a password; copying and modifying are not permitted.",
+   "expect": {
+    "pages": 1,
+    "encrypted": true,
+    "can_copy": false
+   }
+  },
+  "damaged_truncated": {
+   "file": "pdf/damaged_truncated.pdf",
+   "title": "Truncated (damaged) file",
+   "test_types": [
+    "error handling",
+    "repair",
+    "invalid files"
+   ],
+   "purpose": "Half of a valid PDF: must be refused or repaired safely, never crash.",
+   "expect": {
+    "damaged": true
+   }
+  }
+ }
+}

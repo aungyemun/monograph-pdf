@@ -77,6 +77,7 @@ scripts/validate_real_pdfs.py
 scripts/run_live_real_pdf_qa.py
 tests/integration/test_live_real_pdf_qa.py
 tests/integration/test_user_real_pdfs.py
+tests/integration/test_round6_real_pdfs.py
 
 # Third-party source downloads, local tools, OCR binaries and models (fetched by the build scripts)
 /packages/
@@ -145,3 +146,12 @@ installer_test*.log
 /Monograph_PDF_*_Self_Test_Report*.md
 /Monograph_PDF_*_Checklists*.md
 /Monograph_PDF_*_VM_*.md
+# Local audit reports, GUI evidence and one-off QA scripts (they name personal documents and folders;
+# also left out of the source archive by scripts/packaging/make_source_archive.py)
+/reports/audit/*
+!/reports/audit/PROJECT_AUDIT.md
+!/reports/audit/SECURITY_AUDIT_*.md
+/scripts/qa_*
+/scripts/gui_driver.ps1
+/scripts/office_open_check.ps1
+/scripts/powerpoint_export.ps1

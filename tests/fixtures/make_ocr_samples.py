@@ -16,22 +16,25 @@ def _render_text_pixmap(lines: list[str], *, fontsize: int, dpi: int, width: flo
     page.draw_rect(page.rect, color=(1, 1, 1), fill=(1, 1, 1))
     y = 48
     for line in lines:
-        inserted = False
-        if any(ord(ch) > 0x2E80 for ch in line):
-            for fontname in ("japan", "china-s", "korea", "cjk"):
-                try:
-                    page.insert_textbox(
-                        fitz.Rect(24, y - fontsize, width - 24, y + fontsize + 8),
-                        line,
-                        fontsize=fontsize,
-                        fontname=fontname,
-                    )
-                    inserted = True
-                    break
-                except Exception:  # noqa: BLE001
-                    continue
-        if not inserted:
-            page.insert_text((36, y), line, fontsize=fontsize, fontname="helv")
+        # Draw run by run: Latin text in Helvetica, Japanese in MuPDF's built-in CJK font, each at its
+        # natural width (a textbox in the CJK font spaces Latin letters out and wraps them).
+        x = 36.0
+        run, is_cjk = "", None
+        runs: list[tuple[str, bool]] = []
+        for ch in line:
+            cjk = ord(ch) > 0x2E80
+            if is_cjk is None or cjk == is_cjk:
+                run += ch
+            else:
+                runs.append((run, bool(is_cjk)))
+                run = ch
+            is_cjk = cjk
+        if run:
+            runs.append((run, bool(is_cjk)))
+        for text, cjk in runs:
+            fontname = "japan" if cjk else "helv"
+            page.insert_text((x, y), text, fontsize=fontsize, fontname=fontname)
+            x += fitz.get_text_length(text, fontname=fontname, fontsize=fontsize)
         y += fontsize + 18
     pix = page.get_pixmap(dpi=dpi, alpha=False)
     doc.close()

@@ -56,7 +56,9 @@ def test_monograph_pdf_license_expression_is_agpl_or_later():
     citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
     assert 'license: "AGPL-3.0-or-later"' in citation
     notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
-    assert "| Monograph PDF | 0.2.0 | AGPL-3.0-or-later |" in notices
+    from core.versioning import get_version
+
+    assert f"| Monograph PDF | {get_version()} | AGPL-3.0-or-later |" in notices
 
 
 def test_child_user_guide_and_changelogs_removed():

@@ -222,6 +222,10 @@ def test_highlight_snaps_to_text_under_dragged_area(doc_window, qtbot):
     assert annots, "highlight not created"
     x0, y0, x1, y1 = annots[-1].rect
     assert x0 <= r.x0 + 2 and x1 >= r.x1 - 2 and y0 <= r.y0 + 2 and y1 >= r.y1 - 2
+    # Highlight is continuous: it stays armed after a stroke and Esc returns to Select.
+    qtbot.wait(40)
+    assert w.act_annot_highlight.isChecked() and w._canvas.region_pick_active  # noqa: SLF001
+    w._canvas._canvas.cancel_region_pick()  # noqa: SLF001 - same path as Esc
     assert w.act_select_tool.isChecked()
     assert w._edit.dirty  # noqa: SLF001
 

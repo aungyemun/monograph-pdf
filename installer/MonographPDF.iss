@@ -616,14 +616,16 @@ begin
   end;
 end;
 
-function QueryStartMenuInstallDir(): String;
+function QueryStartMenuInstallDir(const SkipProgramFiles: Boolean): String;
 var
   Lnk, Target, Dir: String;
   Candidates: array[0..3] of String;
   I: Integer;
 begin
   { Fallback only: a verified Start Menu shortcut whose target is MonographPDF.exe (or PDF Editor's
-    PDF_editor.exe). Do not use the group constant here — it is not initialized during InitializeSetup. }
+    PDF_editor.exe). Do not use the group constant here — it is not initialized during InitializeSetup.
+    SkipProgramFiles (a /CURRENTUSER run): a machine install's shortcut is noted and skipped, so the
+    search goes on to this user's own (for example an unregistered PDF Editor in a custom folder). }
   Result := '';
   Candidates[0] := ExpandConstant('{userprograms}\{#AppName}\{#AppName}.lnk');
   Candidates[1] := ExpandConstant('{commonprograms}\{#AppName}\{#AppName}.lnk');
@@ -640,8 +642,21 @@ begin
       Dir := RemoveBackslashUnlessRoot(ExtractFilePath(Target));
       if LooksLikeInstall(Dir) then
       begin
-        Result := Dir;
-        Exit;
+        if SkipProgramFiles and IsInside(Dir, ExpandConstant('{pf}')) then
+        begin
+          { Same note as NoteStaleCandidate (declared further down) }
+          Log('Detected additional Monograph PDF / PDF Editor folder (Start Menu (machine install)): ' + Dir +
+              ' (left untouched; registered install is authoritative)');
+          if StaleInstallNote = '' then
+            StaleInstallNote := Dir
+          else if Pos(Dir, StaleInstallNote) = 0 then
+            StaleInstallNote := StaleInstallNote + '; ' + Dir;
+        end
+        else
+        begin
+          Result := Dir;
+          Exit;
+        end;
       end;
     end;
   end;
@@ -735,7 +750,7 @@ begin
     NoteStaleCandidate(ExpandConstant('{localappdata}\Programs\{#LegacyName}'), 'PDF Editor default per-user Programs', Result);
   end;
 
-  Candidate := QueryStartMenuInstallDir();
+  Candidate := QueryStartMenuInstallDir(PreferCU);
   if Result = '' then
   begin
     if Candidate <> '' then

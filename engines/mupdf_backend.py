@@ -8,6 +8,7 @@ from typing import Any
 import fitz
 
 from core.document import DocumentMetadata, InvalidPdfError, PasswordRequiredError
+from core.page_space import rect_to_display
 from core.page_info import PageContentKind, PageInfo
 
 # Heuristic: mostly images + little text => scanned/image page
@@ -221,7 +222,7 @@ class MuPdfBackend:
                 if query not in text:
                     rects = []
             for r in rects:
-                hits.append((i, r))
+                hits.append((i, rect_to_display(page, r)))
         return hits
 
     def render_png(

@@ -87,9 +87,11 @@ def test_left_rail_pages_and_search_tabs(window):
     titles = [left.tabText(i) for i in range(left.count())]
     assert "Pages" in titles
     assert "Search" in titles
-    # Bookmarks / Files hidden when absent
+    # Bookmarks stay available (bookmarks can be added); Files is hidden when there are none
     bm_idx = next(i for i in range(left.count()) if left.tabText(i) == "Bookmarks")
-    assert not left.isTabVisible(bm_idx)
+    assert left.isTabVisible(bm_idx)
+    files_idx = next(i for i in range(left.count()) if left.tabText(i) == "Files")
+    assert not left.isTabVisible(files_idx)
 
 
 def test_contextual_toolbar_no_selection(window):

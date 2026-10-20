@@ -38,6 +38,11 @@ def needs_custom_appearance(field: Any) -> bool:
         return False
     if getattr(field, "runs", None):
         return True  # mixed fonts / sizes / styles inside the entry
+    from core.editing import system_fonts
+
+    family = str(getattr(field, "font_family", "") or "")
+    if family and system_fonts.find_font_file(family, bool(getattr(field, "bold", False)), bool(getattr(field, "italic", False))):
+        return True  # an installed font that can be embedded: MuPDF's own appearance only knows base-14
     if bool(getattr(field, "bold", False) or getattr(field, "italic", False)) or any(ord(c) > 0xFF for c in value):
         return True
     # MuPDF draws one line centred and wrapped text from the top; any other position is ours
@@ -67,15 +72,35 @@ def _auto_text_too_wide(field: Any, value: str) -> bool:
 
 
 def _latin_font(family: str, bold: bool, italic: bool) -> fitz.Font:
+    """The font for a family: the installed font itself when it may be embedded, else the closest base-14 face."""
+    from core.editing import system_fonts
     from core.forms.acroform import pdf_base_font
 
+    installed = system_fonts.load(family, bold, italic)
+    if installed is not None:
+        return installed
     names = _BASE.get(pdf_base_font(family), _BASE["Helv"])
     return fitz.Font(names[(1 if bold else 0) + (2 if italic else 0)])
 
 
+def _space_safe(font: fitz.Font) -> bool:
+    """False for an installed font whose space and no-break space share one glyph: MuPDF then writes the
+    text's spaces as U+00A0, so copied or searched text from other viewers would not contain real spaces."""
+    from core.editing.system_fonts import is_system_font, roundtrips
+
+    return not is_system_font(font) or roundtrips(font, " ")
+
+
 def _latin_has(font: fitz.Font, ch: str) -> bool:
-    """Latin, punctuation and symbols the base-14 font draws (– — “ ” € …); never CJK forms."""
+    """Latin, punctuation and symbols the base-14 font draws (– — “ ” € …); never CJK forms.
+    An embedded installed font draws every character it has a glyph for."""
+    from core.editing.system_fonts import is_system_font, roundtrips
+
     cp = ord(ch)
+    if is_system_font(font):
+        if ch in " 	":
+            return True
+        return bool(font.has_glyph(cp)) and roundtrips(font, ch)
     if cp <= 0xFF:
         return bool(font.has_glyph(cp)) or ch in " \t"
     return cp < 0x2E80 and bool(font.has_glyph(cp))
@@ -85,7 +110,7 @@ def _runs(text: str, latin: fitz.Font | None, cjk: fitz.Font) -> list[tuple[str,
     out: list[tuple[str, fitz.Font]] = []
     for ch in text:
         font = latin if (latin is not None and _latin_has(latin, ch)) else cjk
-        if ch == " " and out and out[-1][1].has_glyph(32):
+        if ch == " " and out and out[-1][1].has_glyph(32) and _space_safe(out[-1][1]):
             font = out[-1][1]  # a space stays with the word before it (copy / search keep it)
         if out and out[-1][1] is font:
             out[-1] = (out[-1][0] + ch, font)
@@ -179,8 +204,15 @@ class _Layout:
     def _font(self, ch: str, style: dict) -> fitz.Font:
         key = (style["family"], style["bold"], style["italic"])
         if key not in self._latin:
-            self._latin[key] = None if is_cjk_family(style["family"]) else _latin_font(*key)
+            if is_cjk_family(style["family"]):
+                from core.editing import system_fonts
+
+                self._latin[key] = system_fonts.load(*key)  # an embeddable Japanese system font, else the built-in CJK font
+            else:
+                self._latin[key] = _latin_font(*key)
         latin = self._latin[key]
+        if ch == " " and latin is not None and not _space_safe(latin):
+            return self.cjk  # spaces from a font that maps them to U+00A0 come from the built-in font
         return latin if (latin is not None and _latin_has(latin, ch)) else self.cjk
 
     def set_base(self, base: float) -> None:
@@ -189,7 +221,7 @@ class _Layout:
         for ch, style in zip(self.text, self._styles):
             size = float(style["size"] or 0) or base
             font = self._font(ch, style)
-            if ch == " " and self.items and self.items[-1][1] == size and self.items[-1][0].has_glyph(32):
+            if ch == " " and self.items and self.items[-1][1] == size and self.items[-1][0].has_glyph(32)                     and _space_safe(self.items[-1][0]):
                 font = self.items[-1][0]  # a space stays with the word before it (copy / search keep it)
             look = {"bold": style["bold"], "italic": style["italic"], "color": style["color"]}
             self.items.append((font, size, look))
@@ -450,26 +482,35 @@ def write_text_appearance(doc: fitz.Document, widget: Any, field: Any) -> bool:
     pad = 2.0 + bw
 
     scratch = fitz.open()
-    page = scratch.new_page(width=w, height=h)
-    draw_text(page, fitz.Rect(0, 0, w, h), field, pad=pad, multiline=multiline)
-    scratch.subset_fonts()
+    pages_before = doc.page_count
+    try:
+        page = scratch.new_page(width=w, height=h)
+        draw_text(page, fitz.Rect(0, 0, w, h), field, pad=pad, multiline=multiline)
+        scratch.subset_fonts()
 
-    doc.insert_pdf(scratch)
-    temp_index = doc.page_count - 1
-    temp = doc[temp_index]
-    body = b"".join(doc.xref_stream(x) or b"" for x in temp.get_contents())
-    res_kind, res = doc.xref_get_key(temp.xref, "Resources")
-    if res_kind == "xref":
-        res = doc.xref_object(int(res.split()[0]), compressed=True)
+        # The appearance is drawn on a temporary page appended to the user's document (so fonts and
+        # resources land in this file); it must be removed again even if a later step fails, or the
+        # saved PDF would gain an extra page (the caller keeps saving after an exception).
+        doc.insert_pdf(scratch)
+        temp_index = doc.page_count - 1
+        temp = doc[temp_index]
+        body = b"".join(doc.xref_stream(x) or b"" for x in temp.get_contents())
+        res_kind, res = doc.xref_get_key(temp.xref, "Resources")
+        if res_kind == "xref":
+            res = doc.xref_object(int(res.split()[0]), compressed=True)
 
-    old = doc.xref_stream(ap_xref) or b""
-    background = old.split(b"/Tx BMC", 1)[0] if b"/Tx BMC" in old else b""
-    if not background.strip():  # MuPDF draws the box inside /Tx BMC — draw it ourselves
-        background = _border_and_background(widget, w, h)
-    clip = f"q {pad / 2:.2f} {pad / 2:.2f} {w - pad:.2f} {h - pad:.2f} re W n\n".encode()
-    doc.update_stream(ap_xref, background + b"/Tx BMC\n" + clip + body + b"\nQ\nEMC\n")
-    doc.xref_set_key(ap_xref, "Resources", res)
-    doc.xref_set_key(ap_xref, "BBox", f"[0 0 {w:.4f} {h:.4f}]")
-    doc.xref_set_key(ap_xref, "Matrix", _ROTATION_MATRIX.get(rotation, "null"))
-    doc.delete_page(temp_index)
+        old = doc.xref_stream(ap_xref) or b""
+        background = old.split(b"/Tx BMC", 1)[0] if b"/Tx BMC" in old else b""
+        if not background.strip():  # MuPDF draws the box inside /Tx BMC — draw it ourselves
+            background = _border_and_background(widget, w, h)
+        clip = f"q {pad / 2:.2f} {pad / 2:.2f} {w - pad:.2f} {h - pad:.2f} re W n\n".encode()
+        matrix = _ROTATION_MATRIX.get(rotation, "null")
+        doc.update_stream(ap_xref, background + b"/Tx BMC\n" + clip + body + b"\nQ\nEMC\n")
+        doc.xref_set_key(ap_xref, "Resources", res)
+        doc.xref_set_key(ap_xref, "BBox", f"[0 0 {w:.4f} {h:.4f}]")
+        doc.xref_set_key(ap_xref, "Matrix", matrix)
+    finally:
+        while doc.page_count > pages_before:
+            doc.delete_page(doc.page_count - 1)
+        scratch.close()
     return True

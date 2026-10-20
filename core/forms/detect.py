@@ -8,6 +8,7 @@ import fitz
 
 from core.editing.geometry import Rect
 from core.forms.fields import FieldType, FormField
+from core.page_space import point_to_display, rect_to_display, rect_to_page
 
 
 def _nearby_label(page: fitz.Page, rect: fitz.Rect, max_dist: float = 36.0) -> tuple[str, float]:
@@ -18,7 +19,8 @@ def _nearby_label(page: fitz.Page, rect: fitz.Rect, max_dist: float = 36.0) -> t
     for b in blocks:
         if len(b) < 5 or b[6] != 0:  # text blocks only
             continue
-        bx0, by0, bx1, by1, text = b[0], b[1], b[2], b[3], str(b[4]).strip()
+        bd = rect_to_display(page, (b[0], b[1], b[2], b[3]))
+        bx0, by0, bx1, by1, text = bd.x0, bd.y0, bd.x1, bd.y1, str(b[4]).strip()
         if not text or len(text) > 80:
             continue
         # Left of field, vertically overlapping
@@ -56,7 +58,7 @@ def detect_field_candidates(doc: fitz.Document, page_index: int | None = None) -
         existing_rects: list[fitz.Rect] = []
         try:
             for w in page.widgets() or []:
-                existing_rects.append(w.rect)
+                existing_rects.append(rect_to_display(page, w.rect))
         except Exception:  # noqa: BLE001
             pass
 
@@ -68,13 +70,13 @@ def detect_field_candidates(doc: fitz.Document, page_index: int | None = None) -
             for item in d.get("items") or []:
                 kind = item[0]
                 if kind == "re":
-                    r = fitz.Rect(item[1])
+                    r = rect_to_display(page, item[1])
                     if 40 <= r.width <= page.rect.width * 0.9 and 12 <= r.height <= 80:
                         rects.append(r)
                     elif _is_checkbox_like(r):
                         rects.append(r)
                 elif kind == "l":
-                    p1, p2 = item[1], item[2]
+                    p1, p2 = point_to_display(page, item[1].x, item[1].y), point_to_display(page, item[2].x, item[2].y)
                     if abs(p1.y - p2.y) < 1.5 and abs(p1.x - p2.x) >= 40:
                         # Horizontal underline → field above the line
                         x0, x1 = min(p1.x, p2.x), max(p1.x, p2.x)
@@ -100,7 +102,7 @@ def detect_field_candidates(doc: fitz.Document, page_index: int | None = None) -
             if r.get_area() < 80 or overlaps_existing(r):
                 continue
             # Reject if substantial text already inside
-            inside = page.get_text("text", clip=r).strip()
+            inside = page.get_text("text", clip=rect_to_page(page, r)).strip()
             if len(inside) > 2 and r not in underlines:
                 continue
             label, conf = _nearby_label(page, r)

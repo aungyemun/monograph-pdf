@@ -133,6 +133,7 @@ class _CanvasWidget(QWidget):
     selectionChanged = Signal()
     editModelChanged = Signal()
     requestStatus = Signal(str)
+    regionPickCancelled = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -185,6 +186,11 @@ class _CanvasWidget(QWidget):
         self._region_origin: Point | None = None
         self._region_current: Point | None = None
         self._region_page: int = 0
+        self._region_stroke: list[Point] = []
+        self._region_stroke_color = QColor(255, 235, 59)
+        self._stroke_locked_color: QColor | None = None
+        self._region_stroke_aborted: bool = False
+        self._last_region_stroke: list[Point] = []
         # In-place form-field editor (real text widget: selection, caret, clipboard, undo)
         self._field_editor: QWidget | None = None
         self._field_editor_id: str | None = None
@@ -211,6 +217,10 @@ class _CanvasWidget(QWidget):
         self._region_pick = None
         self._region_origin = None
         self._region_current = None
+        self._region_stroke = []
+        self._stroke_locked_color = None
+        self._region_stroke_aborted = False
+        self._last_region_stroke = []
         self._discard_field_editor()
         self._discard_text_editor()
         self.updateGeometry()
@@ -303,19 +313,107 @@ class _CanvasWidget(QWidget):
         callback: Callable[[int, Rect, bool], None],
         *,
         kind: str = "rect",
+        stroke_color: QColor | None = None,
     ) -> None:
         """Next drag (or click) on a page calls ``callback(page, rect, was_click)``.
 
         ``rect`` is in display PDF points (same space as overlays). ``kind`` is
-        ``"rect"`` (drag a box) or ``"point"`` (single click). Esc cancels.
+        ``"rect"`` (drag a box), ``"point"`` / ``"erase"`` (single click), or ``"stroke"``
+        (freehand pen — stroke samples available via ``take_region_stroke``). Esc cancels.
         """
         self._region_pick = (prompt, callback, kind)
+        self._region_stroke_color = QColor(stroke_color) if stroke_color is not None else QColor(255, 235, 59)
         self._region_origin = None
         self._region_current = None
-        self.setCursor(Qt.CursorShape.CrossCursor)
+        self._region_stroke = []
+        self._stroke_locked_color = None
+        self._region_stroke_aborted = False
+        self._last_region_stroke = []
+        if kind == "stroke":
+            self.setCursor(self._marker_cursor())
+        elif kind == "erase":
+            self.setCursor(self._eraser_cursor())
+        else:
+            self.setCursor(Qt.CursorShape.CrossCursor)
         self.setFocus(Qt.FocusReason.OtherFocusReason)
-        self.requestStatus.emit(f"{prompt} — Esc to cancel")
+        tip = "Esc cancels the stroke; Esc again exits" if kind == "stroke" else "Esc to cancel"
+        self.requestStatus.emit(f"{prompt} — {tip}")
         self.update()
+
+    @property
+    def region_stroke_in_progress(self) -> bool:
+        """True while the mouse is down (or a stroke was started) during a region pick."""
+        return self._region_pick is not None and (
+            self._region_origin is not None or bool(self._region_stroke)
+        )
+
+    def set_region_stroke_color(self, color: QColor) -> None:
+        """Update the pen preview colour for the next stroke (does not recolour a stroke in progress)."""
+        self._region_stroke_color = QColor(color)
+        if self._region_pick is not None and self._region_pick[2] == "stroke" and not self.region_stroke_in_progress:
+            self.setCursor(self._marker_cursor())
+            self.update()
+
+    def take_stroke_locked_color(self) -> QColor | None:
+        """Colour frozen when the current/last stroke began (RGB for MuPDF)."""
+        c = self._stroke_locked_color
+        self._stroke_locked_color = None
+        return QColor(c) if c is not None else None
+
+    def abort_active_region_stroke(self) -> bool:
+        """Discard an unfinished stroke preview; keep the pick armed. Returns True if a stroke was aborted."""
+        if self._region_pick is None or not self.region_stroke_in_progress:
+            return False
+        self._region_stroke_aborted = True
+        self._region_origin = None
+        self._region_current = None
+        self._region_stroke = []
+        self._last_region_stroke = []
+        self._stroke_locked_color = None
+        kind = self._region_pick[2]
+        if kind == "stroke":
+            self.setCursor(self._marker_cursor())
+        elif kind == "erase":
+            self.setCursor(self._eraser_cursor())
+        self.requestStatus.emit("Stroke cancelled — keep drawing, or Esc to exit")
+        self.update()
+        return True
+
+    def _marker_cursor(self):
+        """Highlighter cursor: a crosshair with a swatch of the chosen colour beside it."""
+        from PySide6.QtGui import QCursor, QPixmap
+
+        pm = QPixmap(32, 32)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(QPen(QColor(30, 30, 30), 1))
+        p.drawLine(4, 12, 20, 12)
+        p.drawLine(12, 4, 12, 20)
+        sw = QColor(self._region_stroke_color)
+        p.setBrush(sw)
+        p.setPen(QPen(QColor(30, 30, 30), 1))
+        p.drawRoundedRect(18, 18, 12, 10, 2, 2)
+        p.end()
+        return QCursor(pm, 12, 12)
+
+    def _eraser_cursor(self):
+        """Eraser cursor: a small angled rectangle tip."""
+        from PySide6.QtGui import QCursor, QPixmap, QTransform
+
+        pm = QPixmap(32, 32)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(QPen(QColor(40, 40, 40), 1.2))
+        p.setBrush(QColor(245, 245, 245))
+        p.translate(16, 16)
+        p.rotate(-35)
+        p.drawRoundedRect(-5, -3, 14, 8, 1.5, 1.5)
+        p.setBrush(QColor(180, 80, 80))
+        p.drawRect(6, -3, 4, 8)
+        p.end()
+        return QCursor(pm, 10, 22)
 
     def cancel_region_pick(self, *, announce: bool = True) -> None:
         if self._region_pick is None:
@@ -323,10 +421,20 @@ class _CanvasWidget(QWidget):
         self._region_pick = None
         self._region_origin = None
         self._region_current = None
+        self._region_stroke = []
+        self._stroke_locked_color = None
+        self._region_stroke_aborted = False
         self.setCursor(Qt.CursorShape.ArrowCursor)
         if announce:
             self.requestStatus.emit("Cancelled")
+            self.regionPickCancelled.emit()
         self.update()
+
+    def take_region_stroke(self) -> list[Point]:
+        """Stroke samples from the last finished ``stroke`` region pick (display PDF points)."""
+        pts = list(self._last_region_stroke)
+        self._last_region_stroke = []
+        return pts
 
     def set_zoom_mode(self, mode: ZoomMode, viewport_size: QSize) -> None:
         self._zoom_mode = mode
@@ -561,13 +669,40 @@ class _CanvasWidget(QWidget):
                 if wr:
                     painter.drawRect(wr)
         if self._region_pick is not None and self._region_origin and self._region_current:
-            r = Rect.from_points(self._region_origin, self._region_current)
-            wr = self.pdf_rect_to_widget(self._region_page, r)
-            if wr:
-                pen = QPen(QColor("#d97706"), 1.5, Qt.PenStyle.DashLine)
-                painter.setPen(pen)
-                painter.setBrush(QColor(217, 119, 6, 38))
-                painter.drawRect(wr)
+            kind = self._region_pick[2]
+            if kind == "stroke" and len(self._region_stroke) >= 2:
+                from PySide6.QtGui import QPainterPath
+
+                path = QPainterPath()
+                first = True
+                for pt in self._region_stroke:
+                    wp = self.pdf_to_widget(self._region_page, pt)
+                    if wp is None:
+                        continue
+                    if first:
+                        path.moveTo(wp)
+                        first = False
+                    else:
+                        path.lineTo(wp)
+                if not first:
+                    # Marker preview: the chosen color, see-through like the saved highlight,
+                    # about one text line tall at the current zoom, with a flat marker tip.
+                    ink = QColor(self._region_stroke_color)
+                    ink.setAlpha(110)
+                    pen = QPen(ink, max(4.0, 11.0 * self._zoom), Qt.PenStyle.SolidLine)
+                    pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+                    pen.setJoinStyle(Qt.PenJoinStyle.BevelJoin)
+                    painter.setPen(pen)
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawPath(path)
+            else:
+                r = Rect.from_points(self._region_origin, self._region_current)
+                wr = self.pdf_rect_to_widget(self._region_page, r)
+                if wr:
+                    pen = QPen(QColor("#d97706"), 1.5, Qt.PenStyle.DashLine)
+                    painter.setPen(pen)
+                    painter.setBrush(QColor(217, 119, 6, 38))
+                    painter.drawRect(wr)
         painter.end()
 
     def _paint_forms(self, painter: QPainter, page_index: int) -> None:
@@ -1120,10 +1255,13 @@ class _CanvasWidget(QWidget):
             self.close_field_editor(commit=True)
         elif self._edit.editing_field_id:
             self._edit.commit_field_edit()
-        if self._edit.editing_object_id:
+        # Legacy typing without the widget editor (rare); editor path already committed above
+        if self._edit.editing_object_id and self._text_editor is None:
             box = self._edit.get(self._edit.editing_object_id)
             if box is not None:
-                self._edit.commit_text_edit(box.object_id, self._text_before, box.text)
+                before = self._text_editor_before or self._text_before
+                self._edit.commit_text_edit(box.object_id, before, box.text)
+            self._edit.editing_object_id = None
         self._mode = "idle"
         self._hover_field_id = None
         self._edit.clear_selection()
@@ -1337,9 +1475,11 @@ class _CanvasWidget(QWidget):
         editor.viewport().setAutoFillBackground(False)
         editor.document().setDocumentMargin(1)
         editor.setPlainText(box.text)
+        editor.document().clearUndoRedoStacks()
         self._text_editor = editor
         self._text_editor_id = object_id
         self._text_editor_before = box.text
+        self._text_before = box.text  # keep legacy paths in sync with the open session
         self._edit.selection = [object_id]
         self._edit.editing_object_id = object_id
         self._style_text_editor(box)
@@ -1354,6 +1494,38 @@ class _CanvasWidget(QWidget):
             editor.moveCursor(editor.textCursor().MoveOperation.End)
         self.update()
         return True
+
+    def try_editor_undo(self) -> bool:
+        """Undo inside the open text/field editor (Qt document stack). Syncs the model."""
+        editor = self._text_editor or self._field_editor
+        if editor is None:
+            return False
+        doc = editor.document()
+        if not doc.isUndoAvailable():
+            return False
+        doc.undo()
+        if self._text_editor is not None:
+            self._on_text_editor_changed()
+        elif self._field_editor is not None and self._field_editor_id and self._edit is not None:
+            self._on_field_editor_changed()
+        return True
+
+    def try_editor_redo(self) -> bool:
+        editor = self._text_editor or self._field_editor
+        if editor is None:
+            return False
+        doc = editor.document()
+        if not doc.isRedoAvailable():
+            return False
+        doc.redo()
+        if self._text_editor is not None:
+            self._on_text_editor_changed()
+        elif self._field_editor is not None and self._field_editor_id and self._edit is not None:
+            self._on_field_editor_changed()
+        return True
+
+    def editor_active(self) -> bool:
+        return self._text_editor is not None or self._field_editor is not None
 
     def _on_text_editor_changed(self) -> None:
         if self._edit is None or self._text_editor is None or self._text_editor_id is None:
@@ -1492,6 +1664,8 @@ class _CanvasWidget(QWidget):
             if et == QEvent.Type.KeyPress:
                 key = event.key()
                 mods = event.modifiers()
+                if self._handle_editor_undo_redo_keys(key, mods):
+                    return True
                 if key == Qt.Key.Key_Escape or (
                     key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and mods & Qt.KeyboardModifier.ControlModifier
                 ):
@@ -1507,6 +1681,8 @@ class _CanvasWidget(QWidget):
             if et == QEvent.Type.KeyPress:
                 key = event.key()
                 mods = event.modifiers()
+                if self._handle_editor_undo_redo_keys(key, mods):
+                    return True
                 multiline = not getattr(obj, "single_line", False)
                 if key == Qt.Key.Key_Tab and not (mods & Qt.KeyboardModifier.ControlModifier):
                     self.tab_to_next_field(reverse=bool(mods & Qt.KeyboardModifier.ShiftModifier))
@@ -1524,6 +1700,18 @@ class _CanvasWidget(QWidget):
                     return True
         return super().eventFilter(obj, event)
 
+    def _handle_editor_undo_redo_keys(self, key: int, mods) -> bool:
+        """Route Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z to the open editor's document stack."""
+        ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
+        shift = bool(mods & Qt.KeyboardModifier.ShiftModifier)
+        if not ctrl:
+            return False
+        if key == Qt.Key.Key_Z and not shift:
+            return self.try_editor_undo()
+        if key == Qt.Key.Key_Y or (key == Qt.Key.Key_Z and shift):
+            return self.try_editor_redo()
+        return False
+
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if self._edit is None or event.button() != Qt.MouseButton.LeftButton:
             return super().mousePressEvent(event)
@@ -1537,8 +1725,13 @@ class _CanvasWidget(QWidget):
         page_index, pdf_pt = mapped
         if self._region_pick is not None:
             self._region_page = page_index
-            self._region_origin = self._clamp_to_page(page_index, pdf_pt)
-            self._region_current = self._region_origin
+            pt = self._clamp_to_page(page_index, pdf_pt)
+            self._region_origin = pt
+            self._region_current = pt
+            self._region_stroke = [pt]
+            self._region_stroke_aborted = False
+            # Freeze appearance for this stroke so a mid-stroke colour change does not recolour it.
+            self._stroke_locked_color = QColor(self._region_stroke_color)
             self.update()
             return
         self._press_pos = event.position().toPoint()
@@ -1719,7 +1912,14 @@ class _CanvasWidget(QWidget):
 
         if self._region_pick is not None:
             if self._region_origin is not None:
-                self._region_current = self._clamp_to_page(self._region_page, pdf_pt)
+                pt = self._clamp_to_page(self._region_page, pdf_pt)
+                self._region_current = pt
+                if self._region_pick[2] == "stroke":
+                    if not self._region_stroke or (
+                        abs(pt.x - self._region_stroke[-1].x) > 0.4
+                        or abs(pt.y - self._region_stroke[-1].y) > 0.4
+                    ):
+                        self._region_stroke.append(pt)
                 self.update()
             return
 
@@ -1808,6 +2008,14 @@ class _CanvasWidget(QWidget):
         if self._edit is None or event.button() != Qt.MouseButton.LeftButton:
             return super().mouseReleaseEvent(event)
         if self._region_pick is not None:
+            if self._region_stroke_aborted:
+                self._region_stroke_aborted = False
+                self._region_origin = None
+                self._region_current = None
+                self._region_stroke = []
+                self._last_region_stroke = []
+                self.update()
+                return
             self._finish_region_pick()
             return
         if self._mode == "drag_create" and self._create_origin and self._create_current:
@@ -1942,28 +2150,59 @@ class _CanvasWidget(QWidget):
         _prompt, callback, kind = pick
         rect = Rect.from_points(origin, current)
         was_click = rect.w < 3 and rect.h < 3
-        if kind == "point":
+        if kind in ("point", "erase"):
             rect = Rect(origin.x, origin.y, 0, 0)
             was_click = True
+        if kind == "stroke":
+            stroke = list(self._region_stroke) if self._region_stroke else [origin, current]
+            self._last_region_stroke = stroke
+            if len(stroke) >= 2:
+                xs = [p.x for p in stroke]
+                ys = [p.y for p in stroke]
+                rect = Rect(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
+                was_click = rect.w < 2 and rect.h < 2 and len(stroke) < 3
+            else:
+                was_click = True
+        else:
+            self._last_region_stroke = []
         page = self._region_page
         self._region_pick = None
         self._region_origin = None
         self._region_current = None
+        self._region_stroke = []
         self.setCursor(Qt.CursorShape.ArrowCursor)
         self.update()
         callback(page, rect, was_click)
 
     def event(self, event) -> bool:  # noqa: D401
-        """Let in-place typing win over window shortcuts (Delete, Home, letters…)."""
+        """Let in-place typing win over window shortcuts (Delete, Home, letters, Ctrl+Z…)."""
         if event.type() == QEvent.Type.ShortcutOverride and self._edit is not None:
-            typing = bool(self._edit.editing_object_id or self._edit.editing_field_id)
+            typing = bool(
+                self._text_editor is not None
+                or self._field_editor is not None
+                or self._edit.editing_object_id
+                or self._edit.editing_field_id
+            )
             key = event.key()
             mods = event.modifiers()
             if self._region_pick is not None and key == Qt.Key.Key_Escape:
                 event.accept()
                 return True
             if typing:
-                plain = not (mods & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier))
+                ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
+                alt = bool(mods & Qt.KeyboardModifier.AltModifier)
+                # Keep clipboard / undo / redo / select-all inside the editor, not the window stack
+                if ctrl and not alt and key in (
+                    Qt.Key.Key_Z,
+                    Qt.Key.Key_Y,
+                    Qt.Key.Key_V,
+                    Qt.Key.Key_C,
+                    Qt.Key.Key_X,
+                    Qt.Key.Key_A,
+                ):
+                    event.accept()
+                    return True
+                plain = not (ctrl or alt)
                 editing_keys = {
                     Qt.Key.Key_Delete,
                     Qt.Key.Key_Backspace,
@@ -1985,22 +2224,27 @@ class _CanvasWidget(QWidget):
         if not self._drag_perf:
             return
         try:
-            from pathlib import Path
+            from app.paths import INSTALLED_READ_ONLY, TEST_LOGS
+            from core import app_env
 
-            root = Path(__file__).resolve().parents[1]
-            from app.paths import TEST_LOGS
-
+            # Developer diagnostics only: an installed copy records nothing unless asked to
+            if INSTALLED_READ_ONLY and app_env.get("PERF_LOG") != "1":
+                return
             out = TEST_LOGS
-            _ = root
             out.mkdir(parents=True, exist_ok=True)
             avg = sum(self._drag_perf) / len(self._drag_perf)
             peak = max(self._drag_perf)
             line = f"{kind} n={len(self._drag_perf)} avg_ms={avg:.2f} peak_ms={peak:.2f}\n"
-            with (out / "textbox_interaction_perf.log").open("a", encoding="utf-8") as fh:
+            log = out / "textbox_interaction_perf.log"
+            if log.exists() and log.stat().st_size > 256_000:  # bounded: keep the newer half
+                data = log.read_bytes()
+                log.write_bytes(data[len(data) // 2:].split(b"\n", 1)[-1])
+            with log.open("a", encoding="utf-8") as fh:
                 fh.write(line)
         except Exception:  # noqa: BLE001
             pass
-        self._drag_perf.clear()
+        finally:
+            self._drag_perf.clear()
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if self._edit is None:
@@ -2055,22 +2299,31 @@ class _CanvasWidget(QWidget):
         if mod & Qt.KeyboardModifier.ControlModifier:
             if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
                 # Ctrl+Enter commits current text/field and returns to Select
-                if self._edit.editing_object_id:
+                if self._text_editor is not None:
+                    self.close_text_editor(commit=True)
+                elif self._edit.editing_object_id:
                     oid = self._edit.editing_object_id
                     box = self._edit.get(oid)
                     if box is not None:
-                        self._edit.commit_text_edit(oid, self._text_before, box.text)
+                        before = self._text_editor_before or self._text_before
+                        self._edit.commit_text_edit(oid, before, box.text)
                     self._edit.editing_object_id = None
-                if self._edit.editing_field_id:
+                if self._field_editor is not None:
+                    self.close_field_editor(commit=True)
+                elif self._edit.editing_field_id:
                     self._edit.commit_field_edit()
                 self.set_tool(EditTool.SELECT)
                 self._mode = "idle"
                 self.setCursor(Qt.CursorShape.ArrowCursor)
                 return
-            if key == Qt.Key.Key_Z:
+            if key == Qt.Key.Key_Z and not (mod & Qt.KeyboardModifier.ShiftModifier):
+                if self.try_editor_undo():
+                    return
                 self._edit.undo()
                 return
-            if key == Qt.Key.Key_Y:
+            if key == Qt.Key.Key_Y or (key == Qt.Key.Key_Z and (mod & Qt.KeyboardModifier.ShiftModifier)):
+                if self.try_editor_redo():
+                    return
                 self._edit.redo()
                 return
             if key == Qt.Key.Key_C:
@@ -2107,9 +2360,20 @@ class _CanvasWidget(QWidget):
                 if self.open_field_editor(field):
                     return
         if key == Qt.Key.Key_Escape and self._region_pick is not None:
+            if self.abort_active_region_stroke():
+                return
             self.cancel_region_pick()
             return
         if key == Qt.Key.Key_Escape:
+            if self._text_editor is not None:
+                self.close_text_editor(commit=True)
+                self.set_tool(EditTool.SELECT)
+                self.requestStatus.emit("Select mode")
+                return
+            if self._field_editor is not None:
+                self.close_field_editor(commit=True)
+                self.set_tool(EditTool.SELECT)
+                return
             if self._edit.editing_field_id:
                 self._edit.commit_field_edit()
                 self._mode = "idle"
@@ -2119,7 +2383,8 @@ class _CanvasWidget(QWidget):
                 oid = self._edit.editing_object_id
                 box = self._edit.get(oid)
                 if box is not None:
-                    self._edit.commit_text_edit(oid, self._text_before, box.text)
+                    before = self._text_editor_before or self._text_before
+                    self._edit.commit_text_edit(oid, before, box.text)
                 self._edit.editing_object_id = None
                 self._mode = "idle"
                 self.set_tool(EditTool.SELECT)
@@ -2262,12 +2527,15 @@ class _CanvasWidget(QWidget):
         super().keyPressEvent(event)
 
     def focusOutEvent(self, event) -> None:  # noqa: N802
-        if self._edit and self._edit.editing_object_id:
+        # Widget editors commit via their own FocusOut filter; avoid double-commit with a stale before.
+        if self._text_editor is None and self._edit and self._edit.editing_object_id:
             oid = self._edit.editing_object_id
             box = self._edit.get(oid)
             if box is not None:
                 self._live_interaction = False
-                self._edit.commit_text_edit(oid, self._text_before, box.text)
+                before = self._text_editor_before or self._text_before
+                self._edit.commit_text_edit(oid, before, box.text)
+                self._edit.editing_object_id = None
         if self._edit and self._edit.editing_field_id and self._field_editor is None:
             self._live_interaction = False
             self._edit.commit_field_edit()
@@ -2282,6 +2550,7 @@ class PdfCanvas(QScrollArea):
     selectionChanged = Signal()
     editModelChanged = Signal()
     requestStatus = Signal(str)
+    regionPickCancelled = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -2294,6 +2563,7 @@ class PdfCanvas(QScrollArea):
         self._canvas.selectionChanged.connect(self.selectionChanged.emit)
         self._canvas.editModelChanged.connect(self.editModelChanged.emit)
         self._canvas.requestStatus.connect(self.requestStatus.emit)
+        self._canvas.regionPickCancelled.connect(self.regionPickCancelled.emit)
         self._canvas.fieldValueEdited.connect(self.fieldValueEdited.emit)
         self._canvas.fieldEditorFormatChanged.connect(self.fieldEditorFormatChanged.emit)
         self.verticalScrollBar().valueChanged.connect(self._on_scroll)
@@ -2324,15 +2594,40 @@ class PdfCanvas(QScrollArea):
         self._canvas.close_field_editor(commit=commit)
         self._canvas.close_text_editor(commit=commit)
 
-    def begin_region_pick(self, prompt: str, callback, *, kind: str = "rect") -> None:
-        self._canvas.begin_region_pick(prompt, callback, kind=kind)
+    def begin_region_pick(self, prompt: str, callback, *, kind: str = "rect", stroke_color=None) -> None:
+        self._canvas.begin_region_pick(prompt, callback, kind=kind, stroke_color=stroke_color)
 
     def cancel_region_pick(self, *, announce: bool = True) -> None:
         self._canvas.cancel_region_pick(announce=announce)
 
+    def take_region_stroke(self) -> list:
+        return self._canvas.take_region_stroke()
+
+    def take_stroke_locked_color(self):
+        return self._canvas.take_stroke_locked_color()
+
+    def set_region_stroke_color(self, color) -> None:
+        self._canvas.set_region_stroke_color(color)
+
+    def abort_active_region_stroke(self) -> bool:
+        return self._canvas.abort_active_region_stroke()
+
+    def try_editor_undo(self) -> bool:
+        return self._canvas.try_editor_undo()
+
+    def try_editor_redo(self) -> bool:
+        return self._canvas.try_editor_redo()
+
+    def editor_active(self) -> bool:
+        return self._canvas.editor_active()
+
     @property
     def region_pick_active(self) -> bool:
         return self._canvas.region_pick_active
+
+    @property
+    def region_stroke_in_progress(self) -> bool:
+        return self._canvas.region_stroke_in_progress
 
     def go_to_first(self) -> None:
         self.go_to_page(0)

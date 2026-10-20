@@ -45,7 +45,8 @@ def test_text_box_saves_japanese_bold_underline_and_alignment(tmp_path):
         assert "Bold 東京 ＡＢ１２" in text and "second line" in text  # never "?" for Japanese
         assert "Italic Times" in text
         fonts = {f[3] for f in page.get_fonts(full=True)}
-        assert any("Times-Italic" in f or "TimesItalic" in f for f in fonts), fonts
+        # Times New Roman Italic is now embedded when installed (core/editing/system_fonts.py); the built-in face remains the fallback
+        assert any("Times-Italic" in f or "TimesItalic" in f or "TimesNewRoman" in f.replace(" ", "") for f in fonts), fonts
         assert page.get_drawings(), "underline missing"
         line = next(b for b in page.get_text("dict")["blocks"] if "Bold" in str(b))
         cx = (line["bbox"][0] + line["bbox"][2]) / 2

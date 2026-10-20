@@ -2,9 +2,47 @@
 
 All notable changes to Monograph PDF. Versions follow `VERSION` (see `docs/RELEASE_AND_VERSIONING.md`).
 
-## [0.2.0] — Unreleased
+## [0.2.2] — 2026-10-21
 
-First public release of Monograph PDF, in preparation. It has not been released yet.
+First public release of Monograph PDF. Version 0.2.1 was a release candidate that was never published; its changes are included here.
+
+### Added
+
+- Bookmark editing in the Navigation panel: add (**Insert ▸ Bookmark for This Page…**, Ctrl+B), rename (F2), point at the current page, move up/down and delete (with the bookmarks under it); undoable and saved with the document. The Bookmarks tab is always available.
+- **Protect ▸ Remove Hidden Information…**: shows what a document carries besides its visible pages — properties and XMP metadata, attached files, scripts and automatic actions, page thumbnails, private application data, comments, form fields, links, bookmarks and invisible (OCR) text — and saves a copy without the kinds you choose. The copy is re-checked and the result reported; the open document is not changed; protected files must be unlocked first.
+- Bates numbers in **Insert ▸ Header, Footer & Page Numbers…** (`{bates}`: prefix, first number, digits, suffix).
+- Print: odd or even pages only, reverse order, and printing the document without its comments (form fields still print).
+- **Protect with Password**: offline strength rating while typing, and a warning when the permissions password is the same as the open password.
+- **Edit ▸ Copy Page as Picture** (Ctrl+Alt+C).
+- Icons for every menu command (new ones drawn for this release) and a menu/toolbar inventory check (`scripts/audit/ui_control_inventory.py`).
+
+- Continuous Highlight tool (click toolbar to toggle on/off; Esc cancels an unfinished stroke, Esc again exits): pen over text marks characters; over blank/image/table/scan saves a free-area highlight; mixed strokes undo as one. Colour menu changes only future strokes. Works on rotated pages and CropBox.
+- Eraser tool (toolbar / **Insert ▸ Eraser**, `Shift+E`): click a highlight or ink annotation to remove it; stays active for consecutive removals; undo/redo restores colour and geometry. Does not erase original page content.
+- Template PDFs (`tests/fixtures/templates`) and `scripts/check_pdfs.py` for Downloads-folder PDF checks from temporary copies.
+- Page design: header and footer in six positions (left/center/right) with `{page}`, `{total}` and `{date}`, number style and place, first page number, date style, text size and color, margins; text or picture watermark with position and in-front/behind placement; **Insert ▸ Background…** (color and/or picture); live preview and remembered settings in each dialog.
+- Marks added by Monograph PDF are tagged (optional-content layer + private key) so **Replace** and **Insert ▸ Remove Header, Footer, Watermark or Background…** affect only them.
+- **Protect ▸ Mark Whole Pages for Redaction…**; after applying text redactions, the saved file is checked for the same text in comments, form values, bookmarks, properties and attachments, with an option to remove it there too.
+
+### Fixed
+
+- Menus: 20 groups of items shared the same Alt-letter (for example Insert ▸ Highlight Text and Header, Footer & Page Numbers, or Protect ▸ Apply Redactions and Remove Metadata), so the letter did not reach the second item. Every item in a menu now has its own letter.
+- 25 menu commands had no icon (Background, Remove page design, Align right/top/bottom, Find next/previous, table row/column commands and others).
+- File pickers for Insert PDF Pages, Replace Page, images, signatures, Merge and watermark/background pictures opened in the program's working folder; they now open in the document's folder, and Merge / Images to PDF suggest saving next to the source files.
+- Redaction: form fields, annotations and links overlapping a redaction mark were kept — a form field showing the redacted text stayed visible and stored in the file. They are now removed with the mark.
+- Watermark, header/footer and page numbers were placed in unrotated page coordinates: on pages turned 90°/180°/270° they ran sideways or upside down, sat on the wrong edge, or fell off the page. They are now drawn upright on the page as displayed.
+- Form-field appearance: a failure while drawing a custom appearance could leave a temporary extra page in the saved PDF; the temporary page is now always removed.
+- Merge / Combine dropped every bookmark of the combined files. Bookmarks are now carried over and point to the right pages; bookmarks to pages left out are skipped. Combining password-protected files now says that the result is not protected.
+- Images to PDF copied each JPEG byte for byte, including its EXIF block (GPS position, camera, date). Photo metadata is now left out; the picture data stays unchanged and the orientation is kept as page rotation.
+- Setup for one user did not find an earlier unregistered installation of that user in a custom folder when Monograph PDF was also installed for all users; it now does, and upgrades it in place.
+- Installed copies no longer write a drag-timing log on every object move, keep at most 20 startup-timing files, and no longer use a doubled `logs\logs` folder.
+- Text/form editors: Ctrl+Z / Ctrl+Y undo typing and paste while open; leaving still records one document undo step.
+- Highlight Text: pen + toolbar color; underline/strikethrough undoable; only touched characters; empty space marks nothing.
+- Page rotation layout/coords for text, search, forms, overlays; undoable; signed docs ask first.
+- PDF to PowerPoint: PDF page size for slides; **Layout-preserving** and **Editable text** modes.
+- Generic fonts no longer resolve to Windows “Sans Serif Collection” (clipped text boxes).
+- Added images keep aspect ratio; save-over wait ~4.5 s; rotate re-analyses one page; Excel tables detect outlined cells and write numbers as numbers.
+- Build no longer packs OpenSSL from PATH; font subset embedding when license allows; font list shows current face correctly.
+- Docs: no unmeasured fidelity claims; OCR / Excel / PowerPoint limits in the User Guide.
 
 ### Features
 
@@ -44,7 +82,7 @@ First public release of Monograph PDF, in preparation. It has not been released 
 
 Versions before 0.2.0 were internal development builds and were not public releases. Their entries are kept below as the development record; they describe the product under its earlier internal name, and nothing in them is a published release.
 
-### Internal compatibility notes for 0.2.0
+### Internal compatibility notes for 0.2.x
 
 These describe technical behaviour kept so that a machine that still has an earlier **internal** development build continues to work cleanly. They are not user-facing migration instructions, and they do not describe a prior public product.
 

@@ -34,6 +34,35 @@ def _hint(text: str, name: str = "DialogHint") -> QLabel:
     return lab
 
 
+def _strength_label() -> QLabel:
+    lab = QLabel("")
+    lab.setObjectName("PasswordStrength")
+    lab.setWordWrap(True)
+    lab.hide()
+    return lab
+
+
+def _show_strength(label: QLabel, password: str) -> None:
+    from core.security.password_strength import rate_password
+
+    s = rate_password(password)
+    if not s.label:
+        label.hide()
+        return
+    try:
+        from ui.theme import current_palette
+
+        pal = current_palette()
+        color = (pal.danger, pal.danger, pal.warning, pal.success, pal.success)[s.score]
+    except Exception:  # noqa: BLE001
+        color = "#5f6b7a"
+    bars = "\u25a0" * (s.score + 1) + "\u25a1" * (4 - s.score)
+    label.setText(f"<span style='color:{color}'>{bars}&nbsp; {s.label}</span>"
+                  + (f"<br><span>{s.hint}</span>" if s.hint else ""))
+    label.setAccessibleDescription(f"Password strength: {s.label}. {s.hint}".strip())
+    label.show()
+
+
 class PasswordProtectDialog(QDialog):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -55,6 +84,8 @@ class PasswordProtectDialog(QDialog):
         self.user_pw_confirm.setEchoMode(QLineEdit.EchoMode.Password)
         self.user_pw_confirm.setPlaceholderText("Repeat password")
         f1.addRow("Password:", self.user_pw)
+        self.user_strength = _strength_label()
+        f1.addRow("", self.user_strength)
         f1.addRow("Confirm:", self.user_pw_confirm)
         root.addWidget(open_box)
 
@@ -66,6 +97,8 @@ class PasswordProtectDialog(QDialog):
         self.owner_pw.setEchoMode(QLineEdit.EchoMode.Password)
         self.owner_pw.setPlaceholderText("Needed later to change these permissions")
         f2.addRow("Permissions password:", self.owner_pw)
+        self.owner_strength = _strength_label()
+        f2.addRow("", self.owner_strength)
         perm_layout.addLayout(f2)
         self.perm_print = QCheckBox("Allow printing")
         self.perm_print.setChecked(True)
@@ -119,6 +152,8 @@ class PasswordProtectDialog(QDialog):
         root.addWidget(buttons)
         for w in (self.user_pw, self.user_pw_confirm, self.owner_pw):
             w.textChanged.connect(self._validate)
+        self.user_pw.textChanged.connect(lambda t: _show_strength(self.user_strength, t))
+        self.owner_pw.textChanged.connect(lambda t: _show_strength(self.owner_strength, t))
         self._validate()
 
     def _toggle_echo(self, on: bool) -> None:
@@ -137,8 +172,16 @@ class PasswordProtectDialog(QDialog):
         problem = self._problem()
         self._ok.setEnabled(not problem)
         mismatch = bool(self.user_pw_confirm.text()) and self.user_pw.text() != self.user_pw_confirm.text()
-        self._error.setText("The open passwords do not match." if mismatch else "")
-        self._error.setVisible(mismatch)
+        same = bool(self.user_pw.text()) and self.user_pw.text() == self.owner_pw.text()
+        if mismatch:
+            text = "The open passwords do not match."
+        elif same:
+            text = ("The permissions password is the same as the open password, so anyone who can open "
+                    "the file can also lift the restrictions. Use a different one.")
+        else:
+            text = ""
+        self._error.setText(text)
+        self._error.setVisible(bool(text))
 
     def _validate_accept(self) -> None:
         if not self._problem():
@@ -189,6 +232,78 @@ class RemoveProtectionDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+
+class RemoveHiddenInfoDialog(QDialog):
+    """Lists what the document carries besides its visible pages; the user picks what to remove."""
+
+    ROWS = (
+        ("metadata", "Document properties and XMP metadata", "Title, author, creator tool, dates and XML metadata"),
+        ("attachments", "Attached files", "Embedded files and file-attachment comments"),
+        ("javascript", "Scripts and automatic actions", "JavaScript and actions that run when the file is opened"),
+        ("thumbnails", "Embedded page thumbnails", "Small preview images stored inside the file"),
+        ("private_data", "Private application data", "Data other programs saved for their own use"),
+        ("comments", "Comments and markup", "Notes, highlights, shapes and stamps"),
+        ("form_fields", "Form fields", "Fields and the values typed into them"),
+        ("links", "Links", "Web links and jumps to other pages"),
+        ("bookmarks", "Bookmarks", "The document outline"),
+        ("hidden_text", "Invisible text", "Text that is present but not shown — usually recognised (OCR) text, "
+                                          "which makes scanned pages searchable"),
+    )
+
+    def __init__(self, info, parent=None) -> None:
+        super().__init__(parent)
+        from core.security.sanitize import SanitizeOptions
+
+        self.setWindowTitle("Remove Hidden Information")
+        self.setMinimumWidth(520)
+        defaults = SanitizeOptions()
+        root = QVBoxLayout(self)
+        root.setSpacing(10)
+        root.addWidget(_title("Remove hidden information"))
+        root.addWidget(_hint(
+            "Choose what to remove. The result is saved as a new PDF; this document is not changed."
+        ))
+        box = QGroupBox("Found in this document")
+        lay = QVBoxLayout(box)
+        lay.setSpacing(4)
+        self._checks: dict[str, QCheckBox] = {}
+        found_any = False
+        for key, label, tip in self.ROWS:
+            if key == "metadata":
+                n = int(info.metadata_fields) + (1 if info.xmp_metadata else 0)
+            elif key == "hidden_text":
+                n = int(info.hidden_text_pages)
+            else:
+                n = int(getattr(info, key))
+            suffix = {"hidden_text": "page", "metadata": "item"}.get(key, "")
+            count = "none" if not n else (f"{n} {suffix}{'s' if n != 1 else ''}" if suffix else str(n))
+            cb = QCheckBox(f"{label}  ({count})")
+            cb.setObjectName(f"Hidden_{key}")
+            cb.setToolTip(tip)
+            cb.setEnabled(n > 0)
+            cb.setChecked(n > 0 and bool(getattr(defaults, key)))
+            found_any |= n > 0
+            lay.addWidget(cb)
+            self._checks[key] = cb
+        root.addWidget(box)
+        if info.redaction_marks:
+            root.addWidget(_hint(
+                f"{info.redaction_marks} redaction mark(s) are waiting to be applied. They are not applied here — "
+                "use Protect ▸ Apply Redactions to remove the marked content.", "DialogError"))
+        if not found_any:
+            root.addWidget(_hint("Nothing hidden was found. You can still save a cleaned copy."))
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self._ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        self._ok.setText("Remove && Save As…")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        root.addWidget(buttons)
+
+    def options(self):
+        from core.security.sanitize import SanitizeOptions
+
+        return SanitizeOptions(**{k: cb.isEnabled() and cb.isChecked() for k, cb in self._checks.items()})
 
 
 class InfoTextDialog(QDialog):
