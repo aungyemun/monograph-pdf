@@ -182,3 +182,37 @@ def test_unreleased_changelog_only_with_allow_unreleased(tmp_path):
     assert code == 1 and "no dated entry" in out
     code, out = run(release, "--allow-unreleased")
     assert code == 0, out
+
+
+# ---- check_release.py superseded: earlier versions' files leave installer\ only if archived ----
+import check_release as cr  # noqa: E402
+
+
+def _superseded_layout(tmp_path):
+    inst, arch, dest = tmp_path / "installer", tmp_path / "releases", tmp_path / "superseded"
+    inst.mkdir()
+    for name, data in (("MonographPDF_9.8.6_Setup.exe", b"old setup"), ("MonographPDF_9.8.6_Source.zip", b"old src"),
+                       (f"MonographPDF_{V}_Setup.exe", b"new setup"), ("MonographPDF.iss", b"script")):
+        (inst / name).write_bytes(data)
+    return inst, arch, dest
+
+
+def test_archived_earlier_release_files_are_moved_not_deleted(tmp_path):
+    inst, arch, dest = _superseded_layout(tmp_path)
+    (arch / "MonographPDF_9.8.6").mkdir(parents=True)
+    (arch / "MonographPDF_9.8.6" / "MonographPDF_9.8.6_Setup.exe").write_bytes(b"old setup")
+    (arch / "MonographPDF_9.8.6" / "MonographPDF_9.8.6_Source.zip").write_bytes(b"old src")
+    assert cr.superseded(inst, V, arch, dest) == 0
+    assert sorted(p.name for p in inst.iterdir()) == ["MonographPDF.iss", f"MonographPDF_{V}_Setup.exe"]
+    assert (dest / "9.8.6" / "MonographPDF_9.8.6_Setup.exe").read_bytes() == b"old setup"
+
+
+@pytest.mark.parametrize("archived", [None, b"different bytes"])
+def test_unarchived_or_different_earlier_files_stop_the_build(tmp_path, archived):
+    inst, arch, dest = _superseded_layout(tmp_path)
+    if archived is not None:
+        (arch / "MonographPDF_9.8.6").mkdir(parents=True)
+        (arch / "MonographPDF_9.8.6" / "MonographPDF_9.8.6_Setup.exe").write_bytes(archived)
+        (arch / "MonographPDF_9.8.6" / "MonographPDF_9.8.6_Source.zip").write_bytes(b"old src")
+    assert cr.superseded(inst, V, arch, dest) == 1
+    assert (inst / "MonographPDF_9.8.6_Setup.exe").is_file() and not dest.exists()  # nothing moved

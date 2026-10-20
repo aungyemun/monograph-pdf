@@ -41,6 +41,10 @@ New-Item -ItemType Directory -Force -Path $BuildInst | Out-Null
 # release must first be kept, byte for byte, under releases\<Product>_<version>\release\.
 & $Py (Join-Path $Root "scripts\packaging\check_release.py") guard-frozen (Join-Path $Root "installer\release") $Version (Join-Path $Root "releases")
 if ($LASTEXITCODE -ne 0) { throw "installer\release holds a frozen release that is not archived - see above." }
+# Release files of earlier versions left in installer\ would mix with this release set (and fail the
+# release-set check): they are moved to build\superseded\<version>\ if an identical copy is archived.
+& $Py (Join-Path $Root "scripts\packaging\check_release.py") superseded (Join-Path $Root "installer") $Version (Join-Path $Root "releases") (Join-Path $Root "build\superseded")
+if ($LASTEXITCODE -ne 0) { throw "installer holds release files of an earlier version that are not archived - see above." }
 
 # ---- 1. Tests ----
 $TestResult = "skipped"

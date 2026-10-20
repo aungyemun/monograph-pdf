@@ -23,6 +23,7 @@ release are always deliberate maintainer steps.
 | # | Item | How |
 |---|---|---|
 | 2.1 | `installer\build_release.bat` completes | automated: tests (JUnit counts), exe, smoke test, Setup, Source.zip, Installer.zip, contents check, release-set check |
+| 2.1a | Release files of the previous version left in `installer\` are moved to `build\superseded\<version>\`, only when an identical copy is archived under `releases\` (step 6.5); otherwise the build stops | automated (`check_release.py superseded`) |
 | 2.2 | Record the test counts printed in `installer\build_release_summary.txt` (`P passed, F failed, S skipped`) | manual: copy into the notes |
 | 2.3 | Skipped tests: note why (private PDFs, Office, …) | manual: `pytest -rs` output |
 

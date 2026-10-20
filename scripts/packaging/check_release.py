@@ -4,6 +4,7 @@
     python scripts/packaging/check_release.py check   <install-layout folder> [--release <release folder>] [--json <out>]
     python scripts/packaging/check_release.py check-source <MonographPDF_x.y.z_Source.zip> <install-layout folder>
     python scripts/packaging/check_release.py guard-frozen <installer\\release> <version> <releases folder>
+    python scripts/packaging/check_release.py superseded <installer> <version> <releases folder> <dest>
 
 prune  removes bundled parts Monograph PDF never uses (network/TLS plugins, Qt Quick/QML and the
        virtual keyboard, Qt's own PDF plugin, FFmpeg video I/O, software OpenGL, Python's SSL
@@ -19,6 +20,8 @@ check-source  the source archive (make_source_archive.py) matches the release: e
        archives are present with their SHA-256, Monograph PDF's source is complete and has no
        development files, secrets or private paths, and every release file whose license requires
        corresponding source (REQUIRES_SOURCE) is covered.
+superseded  release files of other versions in installer\\ are moved to build\\superseded\\<v>\\ when an
+       identical copy is archived under releases\\MonographPDF_<v>\\ (otherwise the build stops).
 guard-frozen  installer\\release is about to be rebuilt: if it holds another version's release (for
        example the frozen internal archive PDFEditor_0.1.5), an identical copy must exist under releases\\.
 
@@ -372,9 +375,49 @@ def guard_frozen(release: Path, version: str, archive_root: Path) -> int:
     return 1
 
 
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for block in iter(lambda: fh.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def superseded(installer: Path, version: str, archive_root: Path, dest: Path) -> int:
+    """Release files of *other* versions left in ``installer`` (MonographPDF_<v>_Setup.exe /
+    _Installer.zip / _Source.zip) are moved to ``dest/<v>/`` - only if a byte-identical copy is kept
+    under ``archive_root/MonographPDF_<v>/``. Otherwise nothing is moved and the build stops, so an
+    unarchived release is never lost and the new release set never mixes versions. Nothing is deleted."""
+    pattern = re.compile(r"^MonographPDF_(\d+\.\d+\.\d+)_(Setup\.exe|Installer\.zip|Source\.zip)$")
+    others = sorted(p for p in installer.glob("MonographPDF_*") if p.is_file()
+                    and (m := pattern.match(p.name)) and m.group(1) != version)
+    missing = []
+    for f in others:
+        kept = archive_root / f"MonographPDF_{pattern.match(f.name).group(1)}" / f.name
+        if not kept.is_file() or _sha256(kept) != _sha256(f):
+            missing.append(f"{f.name} (no identical copy at {kept})")
+    if missing:
+        print("Release files of an earlier version are in the installer folder but not archived:\n  "
+              + "\n  ".join(missing) + f"\nCopy them unchanged to {archive_root / 'MonographPDF_<version>'} first.",
+              file=sys.stderr)
+        return 1
+    for f in others:
+        target = dest / pattern.match(f.name).group(1) / f.name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            target = target.with_name(f"{target.stem}.{int(f.stat().st_mtime)}{target.suffix}")
+        shutil.move(str(f), str(target))
+        print(f"moved archived earlier release file {f.name} -> {target}")
+    if not others:
+        print("installer folder: no release files of other versions")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     if len(argv) >= 4 and argv[0] == "guard-frozen":
         return guard_frozen(Path(argv[1]), argv[2], Path(argv[3]))
+    if len(argv) >= 5 and argv[0] == "superseded":
+        return superseded(Path(argv[1]), argv[2], Path(argv[3]), Path(argv[4]))
     if len(argv) >= 3 and argv[0] == "check-source":
         return check_source(Path(argv[1]), Path(argv[2]))
     if len(argv) >= 2 and argv[0] == "prune":
