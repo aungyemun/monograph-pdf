@@ -138,6 +138,7 @@ class LeftRail(QTabWidget):
         self.setTabToolTip(self._attach_tab, "Embedded file attachments when present")
 
         self._document: PdfDocument | None = None
+        self.currentChanged.connect(lambda _i: self._apply_tab_mode(compact=self.width() < 150))
         self._apply_tab_mode(compact=False)
 
     def refresh_icons(self) -> None:
@@ -151,20 +152,35 @@ class LeftRail(QTabWidget):
         super().resizeEvent(event)
         self._apply_tab_mode(compact=self.width() < 150)
 
+    TAB_LABELS = ("Pages", "Bookmarks", "Search", "Files")
+
     def _apply_tab_mode(self, *, compact: bool) -> None:
-        if compact == self._compact and self.count() > 0:
-            # Still refresh labels if first call skipped
-            pass
+        """Tab labels that fit the panel: every label when there is room; otherwise only the
+        current tab keeps its label and the others show their icon (each tab has a tooltip);
+        icons only when the panel is very narrow. Tabs never hide behind scroll arrows when
+        icons alone fit."""
         self._compact = compact
-        labels = {
-            self._pages_tab: ("" if compact else "Pages"),
-            self._bookmarks_tab: ("" if compact else "Bookmarks"),
-            self._search_tab: ("" if compact else "Search"),
-            self._attach_tab: ("" if compact else "Files"),
-        }
-        for idx, text in labels.items():
-            if 0 <= idx < self.count():
-                self.setTabText(idx, text)
+        tabs = (self._pages_tab, self._bookmarks_tab, self._search_tab, self._attach_tab)
+        if getattr(self, "_relabelling", False) or not all(0 <= t < self.count() for t in tabs):
+            return
+        self._relabelling = True
+        try:
+            current = self.currentIndex()
+
+            def label(show) -> None:
+                for idx, text in zip(tabs, self.TAB_LABELS):
+                    want = text if show(idx) else ""
+                    if self.tabText(idx) != want:
+                        self.setTabText(idx, want)
+
+            if compact:
+                label(lambda _i: False)
+                return
+            label(lambda _i: True)
+            if self.tabBar().sizeHint().width() > self.width():
+                label(lambda i: i == current)
+        finally:
+            self._relabelling = False
 
     def clear_document(self) -> None:
         self._document = None
@@ -177,12 +193,14 @@ class LeftRail(QTabWidget):
         self.setTabVisible(self._bookmarks_tab, False)
         self._sync_bookmark_buttons()
         self.setTabVisible(self._attach_tab, False)
+        self._apply_tab_mode(compact=self.width() < 150)
 
     def set_document(self, document: PdfDocument) -> None:
         self._document = document
         self.thumbs.set_document(document)
         self._load_bookmarks(document)
         self._load_attachments(document)
+        self._apply_tab_mode(compact=self.width() < 150)
 
     def set_current_page(self, index: int) -> None:
         self.thumbs.set_current_page(index)

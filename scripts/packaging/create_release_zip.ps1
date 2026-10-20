@@ -71,8 +71,9 @@ $sums += "{0}  {1}" -f (Get-FileHash $SourceZip -Algorithm SHA256).Hash, (Split-
 
 if (Test-Path $DestinationZip) { Remove-Item -Force $DestinationZip }
 # The installer package ZIP: Setup.exe and documents; the source archive is published beside it (same release folder)
-$items = Get-ChildItem $ReleaseDir | Where-Object { $_.Name -notlike "*_Source.zip" } | ForEach-Object { $_.FullName }
-Compress-Archive -Path $items -DestinationPath $DestinationZip -CompressionLevel Optimal
+# (portable '/' entry names; Windows PowerShell's Compress-Archive would write '\')
+& $Py (Join-Path $Root "scripts\packaging\zip_folder.py") $ReleaseDir $DestinationZip --exclude "*_Source.zip"
+if ($LASTEXITCODE -ne 0) { throw "Writing $DestinationZip failed" }
 $size = (Get-Item $DestinationZip).Length / 1MB
 Write-Host ("Wrote {0} ({1:N1} MB)" -f $DestinationZip, $size)
 Write-Host "Release folder: $ReleaseDir"

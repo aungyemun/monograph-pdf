@@ -80,6 +80,54 @@ def _is_js(doc: fitz.Document, xref: int, key: str) -> bool:
     return kind == "name" and value == "/JavaScript"
 
 
+def _inline_js_action(doc: fitz.Document, xref: int) -> bool:
+    """True when the object's own /A action (written inline) is JavaScript, or chains to JavaScript
+    through /Next. A JavaScript action stored as its own object is found by the object scan."""
+    return _is_js(doc, xref, "A/S") or _is_js(doc, xref, "A/Next/S")
+
+
+def _outline_items(doc: fitz.Document) -> list[int]:
+    """Every bookmark (outline item) object, depth first; safe against loops in damaged files."""
+    def ref(xref: int, key: str) -> int:
+        kind, value = doc.xref_get_key(xref, key)
+        return int(value.split()[0]) if kind == "xref" else 0
+
+    items: list[int] = []
+    seen: set[int] = set()
+    root = ref(doc.pdf_catalog(), "Outlines")
+    stack = [ref(root, "First")] if root else []
+    while stack:
+        xref = stack.pop()
+        if not xref or xref in seen or len(seen) > 100_000:
+            continue
+        seen.add(xref)
+        items.append(xref)
+        stack.append(ref(xref, "Next"))
+        stack.append(ref(xref, "First"))
+    return items
+
+
+def _open_action_runs_something(doc: fitz.Document) -> bool:
+    """True when the document's open action does more than show a page: JavaScript, launching a
+    program, opening a web address, submitting a form, … A plain destination ("open at page N",
+    an array or /GoTo) is not hidden information and is kept."""
+    cat = doc.pdf_catalog()
+    kind, value = doc.xref_get_key(cat, "OpenAction")
+    if kind == "null":
+        return False
+    if kind == "array":
+        return False
+    if kind == "xref":
+        try:
+            target = doc.xref_object(int(value.split()[0])).strip()
+        except Exception:  # noqa: BLE001
+            return True
+        if target.startswith("["):
+            return False
+    s_kind, s_value = doc.xref_get_key(cat, "OpenAction/S")
+    return not (s_kind == "name" and s_value == "/GoTo")
+
+
 def _js_objects(doc: fitz.Document) -> int:
     n = 0
     for xref in range(1, doc.xref_length()):
@@ -91,13 +139,23 @@ def _js_objects(doc: fitz.Document) -> int:
     cat = doc.pdf_catalog()
     if doc.xref_get_key(cat, "Names/JavaScript")[0] != "null":
         n += 1
-    # actions written inline in annotations / fields (not their own object)
+    if _open_action_runs_something(doc):
+        indirect_js = doc.xref_get_key(cat, "OpenAction")[0] == "xref" and _is_js(doc, cat, "OpenAction/S")
+        if not indirect_js:  # a JavaScript action stored as its own object is counted above
+            n += 1
+    if doc.xref_get_key(cat, "AA")[0] != "null":
+        n += 1
+    # actions written inline in pages, annotations and fields (not their own object)
     for page in doc:
+        if doc.xref_get_key(page.xref, "AA")[0] != "null":
+            n += 1
         for annot in list(page.annots()) + list(page.widgets() or []):
-            if _is_js(doc, annot.xref, "A/S"):
+            if _inline_js_action(doc, annot.xref):
                 n += 1
             if doc.xref_get_key(annot.xref, "AA")[0] != "null":
                 n += 1
+    # bookmarks that run JavaScript when clicked
+    n += sum(1 for item in _outline_items(doc) if _inline_js_action(doc, item))
     return n
 
 
@@ -203,7 +261,7 @@ def _strip_inline_js(doc: fitz.Document) -> None:
     cat = doc.pdf_catalog()
     if doc.xref_get_key(cat, "Names/JavaScript")[0] != "null":
         doc.xref_set_key(cat, "Names/JavaScript", "null")
-    if _is_js(doc, cat, "OpenAction/S"):
+    if _open_action_runs_something(doc):
         doc.xref_set_key(cat, "OpenAction", "null")
     if doc.xref_get_key(cat, "AA")[0] != "null":
         doc.xref_set_key(cat, "AA", "null")
@@ -211,10 +269,13 @@ def _strip_inline_js(doc: fitz.Document) -> None:
         if doc.xref_get_key(page.xref, "AA")[0] != "null":
             doc.xref_set_key(page.xref, "AA", "null")
         for annot in list(page.annots()) + list(page.widgets() or []):
-            if _is_js(doc, annot.xref, "A/S"):
+            if _inline_js_action(doc, annot.xref):
                 doc.xref_set_key(annot.xref, "A", "null")
             if doc.xref_get_key(annot.xref, "AA")[0] != "null":
                 doc.xref_set_key(annot.xref, "AA", "null")
+    for item in _outline_items(doc):  # the bookmark stays; only its script goes
+        if _inline_js_action(doc, item):
+            doc.xref_set_key(item, "A", "null")
 
 
 def remove_hidden(

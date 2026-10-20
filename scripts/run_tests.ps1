@@ -14,5 +14,9 @@ New-Item -ItemType Directory -Force -Path (Split-Path $Junit), $LogDir | Out-Nul
 $Log = Join-Path $LogDir ("pytest-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
 
 # Match pytest.ini testpaths: unit + integration + ui
+# Windows PowerShell 5.1 turns redirected stderr lines of a native program into errors; with "Stop"
+# the first one (for example Python's faulthandler reporting a handled COM exception) would end this
+# script and kill pytest mid-run. The result comes from pytest's exit code instead.
+$ErrorActionPreference = "Continue"
 & $Py -m pytest tests/unit tests/integration tests/ui -q --junitxml=$Junit 2>&1 | Tee-Object -FilePath $Log
 exit $LASTEXITCODE

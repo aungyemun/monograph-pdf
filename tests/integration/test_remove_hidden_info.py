@@ -153,3 +153,200 @@ def test_protected_files_are_refused(tmp_path, user_pw):
         remove_hidden(doc, tmp_path / "out.pdf")
     doc.close()
     assert not (tmp_path / "out.pdf").exists()
+
+
+# ------------------------------------------------------------------ audit 0.2.3: actions, history, leftovers
+
+
+def _plain(path, pages=2):
+    d = fitz.open()
+    for i in range(pages):
+        d.new_page().insert_text((72, 72), f"Page {i + 1} body")
+    d.save(path)
+    d.close()
+    return path
+
+
+@pytest.mark.parametrize("action", [
+    "<</S/URI/URI(https://TRACKER66.example/open)>>",
+    "<</S/Launch/F(TRACKER66.exe)>>",
+    "<</S/SubmitForm/F<</FS/URL/F(https://TRACKER66.example/submit)>>>>",
+    "<</S/JavaScript/JS(app.launchURL('https://TRACKER66.example'))>>",
+])
+def test_open_actions_of_any_kind_are_found_and_removed(tmp_path, action):
+    src = _plain(tmp_path / "in.pdf")
+    d = fitz.open(src)
+    d.xref_set_key(d.pdf_catalog(), "OpenAction", action)
+    d.saveIncr()
+    d.close()
+    doc = open_document(src)
+    assert scan_hidden(doc).javascript >= 1
+    report = remove_hidden(doc, tmp_path / "out.pdf")
+    doc.close()
+    assert report.after.javascript == 0
+    assert b"TRACKER66" not in _all_bytes(tmp_path / "out.pdf")
+
+
+def test_open_at_page_destination_is_not_hidden_information(tmp_path):
+    src = _plain(tmp_path / "in.pdf")
+    d = fitz.open(src)
+    d.xref_set_key(d.pdf_catalog(), "OpenAction", f"[{d[1].xref} 0 R /Fit]")
+    d.saveIncr()
+    d.close()
+    doc = open_document(src)
+    assert scan_hidden(doc).javascript == 0
+    remove_hidden(doc, tmp_path / "out.pdf")
+    doc.close()
+    out = fitz.open(tmp_path / "out.pdf")
+    assert out.xref_get_key(out.pdf_catalog(), "OpenAction")[0] == "array"  # kept
+    out.close()
+
+
+def test_document_and_page_automatic_actions_are_counted_and_removed(tmp_path):
+    src = _plain(tmp_path / "in.pdf")
+    d = fitz.open(src)
+    d.xref_set_key(d.pdf_catalog(), "AA", "<</WC<</S/URI/URI(https://AACAT77.example)>>>>")
+    d.xref_set_key(d[0].xref, "AA", "<</O<</S/Launch/F(AAPAGE77.exe)>>>>")
+    d.saveIncr()
+    d.close()
+    doc = open_document(src)
+    assert scan_hidden(doc).javascript == 2
+    remove_hidden(doc, tmp_path / "out.pdf")
+    doc.close()
+    data = _all_bytes(tmp_path / "out.pdf")
+    assert b"AACAT77" not in data and b"AAPAGE77" not in data
+
+
+def test_earlier_revisions_and_unreferenced_objects_do_not_survive(tmp_path):
+    """Values replaced by an incremental save stay in the file's history; the cleaned copy is a
+    fresh, fully rewritten file without that history or orphaned objects."""
+    src = _plain(tmp_path / "in.pdf")
+    d = fitz.open(src)
+    d.set_metadata({"author": "placeholder"})  # creates the Info dictionary
+    info = int(d.xref_get_key(-1, "Info")[1].split()[0])
+    d.xref_set_key(info, "Author", "(OLDAUTHOR55)")  # literal string: visible in the raw file
+    d.saveIncr()
+    d.close()  # a second session appends a new revision (in one session MuPDF rewrites the last one)
+    d = fitz.open(src)
+    d.xref_set_key(info, "Author", "(NEWAUTHOR55)")
+    orphan = d.get_new_xref()
+    d.update_object(orphan, "<</Secret(ORPHAN55)>>")
+    d.saveIncr()
+    d.close()
+    assert b"OLDAUTHOR55" in src.read_bytes() and b"ORPHAN55" in src.read_bytes()
+    doc = open_document(src)
+    remove_hidden(doc, tmp_path / "kept.pdf", SanitizeOptions(metadata=False))
+    remove_hidden(doc, tmp_path / "clean.pdf")
+    doc.close()
+    kept = _all_bytes(tmp_path / "kept.pdf")
+    assert b"NEWAUTHOR55" in kept  # current properties kept when not chosen
+    assert b"OLDAUTHOR55" not in kept and b"ORPHAN55" not in kept  # history and leftovers gone anyway
+    clean = _all_bytes(tmp_path / "clean.pdf")
+    assert b"NEWAUTHOR55" not in clean and b"OLDAUTHOR55" not in clean
+
+
+def test_page_thumbnails_are_counted_and_removed(tmp_path):
+    src = _plain(tmp_path / "in.pdf")
+    d = fitz.open(src)
+    thumb = d.get_new_xref()
+    d.update_object(thumb, "<</Type/XObject/Subtype/Image/Width 1/Height 1/ColorSpace/DeviceGray/BitsPerComponent 8>>")
+    d.update_stream(thumb, b"THUMB88")
+    d.xref_set_key(d[0].xref, "Thumb", f"{thumb} 0 R")
+    d.saveIncr()
+    d.close()
+    doc = open_document(src)
+    assert scan_hidden(doc).thumbnails == 1
+    report = remove_hidden(doc, tmp_path / "out.pdf")
+    doc.close()
+    assert report.after.thumbnails == 0
+    assert b"THUMB88" not in _all_bytes(tmp_path / "out.pdf")
+
+
+def test_cleaned_copy_is_a_valid_pdf_and_the_report_matches_it(tmp_path):
+    doc = open_document(_make(tmp_path / "in.pdf"))
+    report = remove_hidden(doc, tmp_path / "out.pdf", SanitizeOptions.everything())
+    doc.close()
+    out = fitz.open(tmp_path / "out.pdf")
+    try:
+        assert not out.is_repaired and out.page_count == 2
+        for page in out:
+            page.get_pixmap(dpi=30)
+        independent = scan_hidden(out)
+    finally:
+        out.close()
+    assert independent == report.after  # the reported result is a scan of the written file
+
+
+def test_bookmark_scripts_are_counted_and_removed_but_bookmarks_kept(tmp_path):
+    """JavaScript written inline in a bookmark's action (or chained through /Next) is not its own
+    object, so the object scan alone missed it; the bookmarks themselves are kept by default."""
+    src = _plain(tmp_path / "in.pdf")
+    d = fitz.open(src)
+    d.set_toc([[1, "Intro", 1], [2, "Detail", 2], [1, "Web", 1]])
+    items = []
+    x = int(d.xref_get_key(int(d.xref_get_key(d.pdf_catalog(), "Outlines")[1].split()[0]), "First")[1].split()[0])
+    while x:  # Intro, Web (top level); Detail is the child of Intro
+        items.append(x)
+        k, v = d.xref_get_key(x, "Next")
+        x = int(v.split()[0]) if k == "xref" else 0
+    child = int(d.xref_get_key(items[0], "First")[1].split()[0])
+    d.xref_set_key(child, "A", "<</S/JavaScript/JS(app.alert('BMJS91'))>>")
+    d.xref_set_key(items[0], "A", f"<</S/GoTo/D[{d[0].xref} 0 R/Fit]/Next<</S/JavaScript/JS(app.alert('BMNEXT92'))>>>>")
+    d.xref_set_key(items[1], "A", "<</S/URI/URI(https://example.org/manual)>>")  # a web-link bookmark
+    d.saveIncr()
+    d.close()
+    doc = open_document(src)
+    assert scan_hidden(doc).javascript == 2
+    report = remove_hidden(doc, tmp_path / "out.pdf")
+    doc.close()
+    assert report.after.javascript == 0
+    data = _all_bytes(tmp_path / "out.pdf")
+    assert b"BMJS91" not in data and b"BMNEXT92" not in data
+    out = fitz.open(tmp_path / "out.pdf")
+    assert [t[1] for t in out.get_toc()] == ["Intro", "Detail", "Web"]  # bookmarks not chosen: kept
+    assert b"https://example.org/manual" in data  # web-link bookmark kept
+    out.close()
+
+
+def test_page_and_image_xmp_metadata_are_removed_with_document_properties(tmp_path):
+    src = _plain(tmp_path / "in.pdf", pages=1)
+    d = fitz.open(src)
+    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 4, 4), 0)
+    d[0].insert_image(fitz.Rect(100, 100, 140, 140), pixmap=pix)
+    d.saveIncr()
+    d.close()
+    d = fitz.open(src)
+    img = d[0].get_images()[0][0]
+    for owner, token in ((d[0].xref, b"PAGEXMP93"), (img, b"IMGXMP94")):
+        m = d.get_new_xref()
+        d.update_object(m, "<</Type/Metadata/Subtype/XML>>")
+        d.update_stream(m, b"<x:xmpmeta>" + token + b"</x:xmpmeta>")
+        d.xref_set_key(owner, "Metadata", f"{m} 0 R")
+    d.saveIncr()
+    d.close()
+    doc = open_document(src)
+    remove_hidden(doc, tmp_path / "kept.pdf", SanitizeOptions(metadata=False))
+    remove_hidden(doc, tmp_path / "out.pdf")
+    doc.close()
+    kept = _all_bytes(tmp_path / "kept.pdf")
+    assert b"PAGEXMP93" in kept and b"IMGXMP94" in kept  # not chosen: kept
+    data = _all_bytes(tmp_path / "out.pdf")
+    assert b"PAGEXMP93" not in data and b"IMGXMP94" not in data
+    assert fitz.open(tmp_path / "out.pdf")[0].get_images()  # the picture itself stays
+
+
+def test_xfa_form_data_goes_with_form_fields_only(tmp_path):
+    src = _plain(tmp_path / "in.pdf", pages=1)
+    d = fitz.open(src)
+    xfa = d.get_new_xref()
+    d.update_object(xfa, "<<>>")
+    d.update_stream(xfa, b"<xdp:xdp><xfa:datasets><name>XFADATA95</name></xfa:datasets></xdp:xdp>")
+    d.xref_set_key(d.pdf_catalog(), "AcroForm", f"<</Fields[]/XFA {xfa} 0 R>>")
+    d.saveIncr()
+    d.close()
+    doc = open_document(src)
+    remove_hidden(doc, tmp_path / "default.pdf")
+    remove_hidden(doc, tmp_path / "fields.pdf", SanitizeOptions(form_fields=True))
+    doc.close()
+    assert b"XFADATA95" in _all_bytes(tmp_path / "default.pdf")  # forms not chosen: kept
+    assert b"XFADATA95" not in _all_bytes(tmp_path / "fields.pdf")

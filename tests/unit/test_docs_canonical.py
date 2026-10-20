@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -16,6 +17,8 @@ CANONICAL = {
     "RELEASE_AND_VERSIONING.md",
     "SECURITY_AND_PRIVACY.md",
     "TESTING.md",
+    "RELEASE_CHECKLIST.md",
+    "CODE_SIGNING.md",
 }
 
 STALE_FRAGMENTS = (
@@ -32,10 +35,12 @@ STALE_FRAGMENTS = (
 )
 
 
-def test_docs_markdown_count_is_eight():
-    files = sorted(p.name for p in DOCS.rglob("*.md"))
-    assert len(files) == 8
-    assert set(files) == CANONICAL
+def test_docs_markdown_is_the_canonical_set():
+    """Only the canonical documents, plus one release-notes file per version in docs/releases."""
+    files = sorted(p.relative_to(DOCS).as_posix() for p in DOCS.rglob("*.md"))
+    notes = [f for f in files if f.startswith("releases/")]
+    assert all(re.fullmatch(r"releases/v\d+\.\d+\.\d+\.md", f) for f in notes), notes
+    assert set(files) - set(notes) == CANONICAL
 
 
 def test_directory_structure_doc_removed():

@@ -364,6 +364,9 @@ QTabBar { background: $surface; }
 QTabBar::tab { background: transparent; color: $text_muted; padding: 8px 10px; margin: 0; border: none; border-bottom: 2px solid transparent; min-width: 24px; }
 QTabBar::tab:selected { color: $accent_text; border-bottom: 2px solid $accent; font-weight: 600; }
 QTabBar::tab:hover:!selected { color: $text; background: $hover; }
+QTabBar QToolButton { background: $surface; border: none; color: $text; }
+QTabBar QToolButton:hover { background: $hover; }
+QTabBar QToolButton:disabled { color: $text_faint; }
 
 QScrollArea { background: $canvas; border: none; }
 QScrollArea#InspectorPanel { background: $surface; border: none; border-left: 1px solid $border; }

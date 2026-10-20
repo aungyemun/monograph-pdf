@@ -1,4 +1,4 @@
-# Dependency inventory (Monograph PDF 0.2.2)
+# Dependency inventory (Monograph PDF 0.2.3)
 
 Every third-party component that is shipped with, or used to build or test, Monograph PDF. The release build enforces the shipped part: `scripts\packaging\check_release.py` fails when a program file (`.exe`, `.dll`, `.pyd`) does not belong to a component listed in its `RELEASE_COMPONENTS` table, or when that component is missing from `THIRD_PARTY_NOTICES.md`. Python packages are pinned in `requirements.txt`; the Tesseract build is recorded in `engines\ocr\MANIFEST.json`.
 
@@ -30,7 +30,9 @@ Status: **Runtime** = shipped in Setup.exe; **Build** = used only to produce the
 | Inno Setup | 6.7.1 | `Setup.exe`, `unins000.exe` | jrsoftware.org | Inno Setup License | Runtime (uninstaller) / Build | Jordan Russell, Martijn Laan | — |
 | .NET Framework C# compiler | 4.x (part of Windows) | Builds `uninstall.exe` | Microsoft | Windows component | Build | Microsoft | `uninstall.exe` needs no extra runtime |
 | pyinstaller-hooks-contrib, altgraph, pefile, pywin32-ctypes | 2026.8, 0.17.5, 2023.2.7, 0.2.3 | PyInstaller dependencies; `pefile` also checks DLL imports after pruning | PyPI | GPL-2.0 / Apache-2.0, MIT, MIT, BSD-3-Clause | Build | respective authors | — |
-| pytest, pytest-qt, pluggy, iniconfig | 8.3.4, 4.4.0, 1.6.0, 2.3.1 | Tests | PyPI | MIT | Test | respective authors | — |
+| pytest, pytest-qt, pluggy, iniconfig | 8.3.4, 4.4.0, 1.7.0, 2.3.1 | Tests | PyPI | MIT | Test | respective authors | — |
+| pytest-timeout | 2.4.0 | Per-test time limit in CI (`requirements-ci.txt`) | PyPI | MIT | Test (CI only) | pytest-timeout authors | Not installed in release builds |
+| Tesseract OCR (Chocolatey package `tesseract`) | 5.4.0.20240606 | OCR engine for CI tests only | community.chocolatey.org (UB Mannheim installer) | Apache-2.0 | Test (CI only) | Google LLC and contributors | Used only if every file is SHA-256 identical to the shipped engine (`scripts/ci/ocr_engine_pins.json`); never shipped from CI |
 | Microsoft Office / LibreOffice | — | Office → PDF, optional Word reflow | Microsoft / The Document Foundation | Vendor licenses | External | — | Macros forced off (Office `AutomationSecurity = 3`; LibreOffice profile with macros disabled); only installed copies in their own folders are started |
 
 Not used: qpdf (listed in earlier inventories; never shipped — the empty `engines\qpdf` folder is a placeholder).

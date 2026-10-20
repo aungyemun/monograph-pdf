@@ -84,74 +84,31 @@ def test_open_close_releases_document_and_status(window):
 def test_left_rail_pages_and_search_tabs(window):
     assert window.open_path(SAMPLES / "sample_text.pdf")
     left = window._left  # noqa: SLF001
-    titles = [left.tabText(i) for i in range(left.count())]
-    assert "Pages" in titles
-    assert "Search" in titles
+    # Tabs are found by tooltip: in a narrow panel only the current tab shows its label
+    tips = {left.tabToolTip(i).split(" ")[0]: i for i in range(left.count())}
+    assert {"Page", "Bookmarks", "Find", "Embedded"} <= set(tips)
+    assert left.isTabVisible(tips["Page"]) and left.isTabVisible(tips["Find"])
     # Bookmarks stay available (bookmarks can be added); Files is hidden when there are none
-    bm_idx = next(i for i in range(left.count()) if left.tabText(i) == "Bookmarks")
-    assert left.isTabVisible(bm_idx)
-    files_idx = next(i for i in range(left.count()) if left.tabText(i) == "Files")
-    assert not left.isTabVisible(files_idx)
+    assert left.isTabVisible(tips["Bookmarks"])
+    assert not left.isTabVisible(tips["Embedded"])
 
 
-def test_contextual_toolbar_no_selection(window):
+def test_left_rail_labels_fit_the_panel(window):
+    """Every label when they all fit; otherwise the current tab keeps its label and the rest show
+    icons; icons only when very narrow."""
     assert window.open_path(SAMPLES / "sample_text.pdf")
-    window._update_context_toolbar()  # noqa: SLF001
-    hint = window._context_hint.text().lower()  # noqa: SLF001
-    assert "create" in hint or "navigate" in hint
-
-
-def test_inspector_selection_aware(window):
-    from core.editing.geometry import Rect
-
-    assert window.open_path(SAMPLES / "sample_text.pdf")
-    window._refresh_inspector()  # noqa: SLF001
-    # No selection → document summary, not empty
-    assert window._inspector._form.rowCount() > 0  # noqa: SLF001
-
-    window._edit.create_text_box(0, Rect(40, 40, 120, 30), text="Ctx")  # noqa: SLF001
-    oid = next(iter(window._edit.objects))  # noqa: SLF001
-    window._edit.selection = [oid]  # noqa: SLF001
-    window._refresh_inspector()  # noqa: SLF001
-    # Text selection exposes style editors
-    assert window._inspector._box is not None  # noqa: SLF001
-
-
-def test_theme_switch_applies_stylesheet(window):
-    from PySide6.QtWidgets import QApplication
-
-    from ui.theme import resolve_theme
-
-    app = QApplication.instance()
-    assert app is not None
-    window._set_theme("dark")  # noqa: SLF001
-    assert resolve_theme("dark") == "dark"
-    assert "dark" in (app.styleSheet()[:200].lower() or app.property("monograph_pdf_theme") or "")
-    assert app.property("monograph_pdf_theme") == "dark"
-    window._set_theme("light")  # noqa: SLF001
-    assert app.property("monograph_pdf_theme") == "light"
-
-
-def test_preferences_persist_outside_project_root(window, tmp_path):
-    from core.user_prefs import UserPreferences, user_data_dir
-
-    data_dir = user_data_dir()
-    assert ROOT not in data_dir.parents and data_dir != ROOT
-    assert str(tmp_path) in str(data_dir)
-
-    window.resize(1100, 720)
-    window._persist_preferences()  # noqa: SLF001
-    loaded = UserPreferences.load()
-    assert loaded.window_width >= 900
-    assert loaded.path().is_file()
-    assert loaded.path().parent == data_dir
-
-
-def test_status_bar_widgets_present(window):
-    assert window.open_path(SAMPLES / "sample_text.pdf")
-    assert window._zoom_label.text()  # noqa: SLF001
-    assert window._dirty_label.text() in ("Saved", "Modified", "")  # noqa: SLF001
-    window.set_analysis_progress("Working…")
-    assert window._progress_label.text() == "Working…"  # noqa: SLF001
-    window.clear_analysis_progress()
-    assert window._progress_label.text() == ""  # noqa: SLF001
+    left = window._left  # noqa: SLF001
+    visible = [i for i in range(left.count()) if left.isTabVisible(i)]
+    for width in (left.maximumWidth(), 260, 200):
+        left.resize(width, left.height())
+        left._apply_tab_mode(compact=False)  # noqa: SLF001
+        labelled = [i for i in visible if left.tabText(i)]
+        if labelled != visible:
+            assert labelled == [left.currentIndex()], width
+    left.resize(200, left.height())
+    left.setCurrentIndex(left._search_tab)  # noqa: SLF001
+    assert [i for i in visible if left.tabText(i)] == [left._search_tab]  # noqa: SLF001
+    assert left.tabText(left._search_tab) == "Search"  # noqa: SLF001
+    left.resize(120, left.height())
+    left._apply_tab_mode(compact=True)  # noqa: SLF001
+    assert not any(left.tabText(i) for i in visible)

@@ -49,9 +49,16 @@ if (-not $SkipTests) {
     $env:QT_QPA_PLATFORM = "offscreen"
     $env:MONOGRAPH_PDF_HEADLESS = "1"
     # Match pytest.ini: unit + integration + ui (strengthen, do not skip suites)
-    & $Py -m pytest -q -p no:cacheprovider -o addopts="" tests\unit tests\integration tests\ui
+    $Junit = Join-Path $Root "build\installer\pytest_release.xml"
+    New-Item -ItemType Directory -Force (Split-Path $Junit) | Out-Null
+    & $Py -m pytest -q -p no:cacheprovider -o addopts="" --junitxml=$Junit tests\unit tests\integration tests\ui
     if ($LASTEXITCODE -ne 0) { throw "Tests failed - release not built." }
-    $TestResult = "passed"
+    # Exact counts for the summary and the release notes (validate_release_notes.py --tests P,F,S)
+    $suite = ([xml](Get-Content $Junit -Raw)).testsuites.testsuite
+    $failedCount = [int]$suite.failures + [int]$suite.errors
+    $skippedCount = [int]$suite.skipped
+    $passedCount = [int]$suite.tests - $failedCount - $skippedCount
+    $TestResult = "$passedCount passed, $failedCount failed, $skippedCount skipped (--tests $passedCount,$failedCount,$skippedCount)"
     Remove-Item Env:QT_QPA_PLATFORM, Env:MONOGRAPH_PDF_HEADLESS -ErrorAction SilentlyContinue
 }
 
@@ -164,6 +171,12 @@ foreach ($scanned in $Payload, (Join-Path $Root "installer\release")) {
     if ($scanCode -ne 0) { throw "Branding scan of $scanned failed (exit $scanCode) - see $scanJson" }
 }
 
+# Every release file together: names, SHA256SUMS, portable ZIP names, notices, versions, privacy, OCR.
+# Release notes are checked with --notes before publishing (docs/RELEASE_CHECKLIST.md).
+Step "Verifying the release set"
+& $Py (Join-Path $Root "scripts\packaging\verify_release.py") --dir (Join-Path $Root "installer") --version $Version --layout $Payload --allow-unreleased
+if ($LASTEXITCODE -ne 0) { throw "Release set verification failed - see above." }
+
 # ---- 6. Summary ----
 Step "Writing build_release_summary.txt"
 function Describe($path) {
@@ -188,6 +201,7 @@ Uninstaller    : uninstall.exe $((Get-Item $UninstallExe).VersionInfo.FileVersio
 Contents check : passed (build\installer\release_inventory.json)
 Source archive : passed (every AGPL / GPL / LGPL component covered)
 Branding scan  : passed (no stale PDF Editor branding in the application or release folder)
+Release set    : passed (scripts\packaging\verify_release.py; release notes are checked separately before publishing)
 Code signing   : not signed (no code-signing certificate is used for this build)
 
 Application bundle

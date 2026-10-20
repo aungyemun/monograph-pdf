@@ -17,11 +17,16 @@ Root `VERSION` only. Read via `core.versioning` / `app.read_version`. Do not dup
 
 ## Package a release
 
+Follow [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) step by step. In short:
+
 1. Update `CHANGELOG.md` for the version in `VERSION`.
-2. `installer\build_release.bat` → tests, exe, smoke, Setup, Source.zip, Installer.zip ([BUILD_AND_RUNTIME.md](BUILD_AND_RUNTIME.md#release-build-installer)).
+2. `installer\build_release.bat` → tests (JUnit counts), exe, smoke, Setup, Source.zip, Installer.zip, contents check, release-set check (`scripts\packaging\verify_release.py`) ([BUILD_AND_RUNTIME.md](BUILD_AND_RUNTIME.md#release-build)).
 3. `scripts\test_installer.ps1` ([TESTING.md](TESTING.md#installer-and-uninstaller-test)).
-4. Publish `installer\release\` with Setup + Source.zip + `SHA256SUMS.txt` together.
-5. End-user docs in the release ZIP: README, INSTALLATION, LICENSE, notices, SECURITY, CITATION, CHANGELOG, USER_GUIDE, `licenses\`. Developer docs stay in the repo/source archive only.
+4. Write the release notes in `docs/releases/vX.Y.Z.md` and check them together with the files: `verify_release.py --dir installer --notes docs\releases\vX.Y.Z.md --tests P,F,S` must print `RESULT: PASS`.
+5. Publish Setup, Installer.zip and Source.zip with exactly that notes file as the release text, then re-check what was published.
+6. End-user docs in the release ZIP: README, INSTALLATION, LICENSE, notices, SECURITY, CITATION, CHANGELOG, USER_GUIDE, `licenses\`. Developer docs stay in the repo/source archive only.
+
+Releases are not code-signed ([CODE_SIGNING.md](CODE_SIGNING.md)).
 
 ## Freeze rules
 
@@ -31,4 +36,4 @@ Root `VERSION` only. Read via `core.versioning` / `app.read_version`. Do not dup
 
 ## Related
 
-[BUILD_AND_RUNTIME.md](BUILD_AND_RUNTIME.md) · [TESTING.md](TESTING.md)
+[BUILD_AND_RUNTIME.md](BUILD_AND_RUNTIME.md) · [TESTING.md](TESTING.md) · [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) · [CODE_SIGNING.md](CODE_SIGNING.md)

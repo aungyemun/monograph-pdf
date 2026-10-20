@@ -115,7 +115,7 @@ def test_password_protect_and_remove_requires_password():
     reopen = open_document(OUT / "sec_unlocked.pdf")
     try:
         assert reopen.page_count >= 1
-        assert reopen.metadata().encrypted is False or True  # copy may report historically
+        assert reopen.metadata().encrypted is False  # protection really removed (was a no-op `or True`)
     finally:
         reopen.close()
 

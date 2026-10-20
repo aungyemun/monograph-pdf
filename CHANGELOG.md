@@ -2,6 +2,30 @@
 
 All notable changes to Monograph PDF. Versions follow `VERSION` (see `docs/RELEASE_AND_VERSIONING.md`).
 
+## [0.2.3] — 2026-10-21
+
+Release reliability, security verification, automated testing on GitHub Actions and refreshed documentation; no new features.
+
+### Added
+
+- Release-note validation (`scripts/packaging/validate_release_notes.py`): fails on unresolved template values, missing or wrong SHA-256 values, missing test or installer results, other-version names, broken links, inconsistent dates and broken Markdown.
+- Release-set verification (`scripts/packaging/verify_release.py`), run by every release build: artifact names, `SHA256SUMS.txt`, ZIP entry names, required notices, version consistency inside the release's own source, privacy scan of both ZIPs, OCR components; with `--notes`, the release notes.
+- Release notes kept in the repository (`docs/releases/`), release checklist (`docs/RELEASE_CHECKLIST.md`), code-signing plan (`docs/CODE_SIGNING.md`) and a Windows CI workflow.
+- Release builds record exact test counts (passed / failed / skipped) in `build_release_summary.txt`.
+- Test categories (portable, Windows, GUI, external application, OCR, private fixture, security, golden) with a per-category PASS / FAIL / NOT VERIFIED summary after every run; skipped tests are never counted as passed.
+- Windows CI (`.github/workflows/windows-ci.yml`) on every push and pull request: pinned dependencies, release-note validation, unit / integration / UI tests offscreen, and OCR tests with an engine used only when every file is SHA-256 identical to the one the release ships (`scripts/ci/stage_ocr_engine.py`).
+- Byte-level tests for password protection (nothing readable without the password, chosen cipher, no earlier revisions) and further Remove Hidden Information tests (incremental-save history, page and image XMP, XFA, thumbnails).
+- README rewritten for the public repository; new screenshots of page thumbnails, header and footer, password protection and Remove Hidden Information.
+
+### Fixed
+
+- The first published 0.2.2 release notes showed template placeholders instead of the checksums and results; the notes were not checked before publishing. Corrected notes: `docs/releases/v0.2.2.md`.
+- `MonographPDF_x.y.z_Installer.zip` was written with `\` in entry names (Windows PowerShell's `Compress-Archive`), which other unzip tools turn into odd file names; it is now written with standard `/` names, in a fixed order.
+- Remove Hidden Information missed some actions: an open action that opens a web address, launches a program or submits a form (only JavaScript open actions were removed), document and page automatic actions (`AA`) were not counted, and JavaScript in bookmarks was neither counted nor removed. All are now counted and removed with scripts; plain "open at page" actions, bookmarks and web-link bookmarks are kept.
+- Tests on a fresh checkout: the generated sample PDFs are created before test collection (one test module read them at import time).
+- `scripts/run_tests.ps1` stopped the whole test run when a test wrote anything to standard error (Windows PowerShell treats it as an error); the result now comes from pytest's exit code.
+- Navigation panel: tabs no longer hide behind scroll arrows at normal widths (the current tab keeps its label, the others show icons); the scroll buttons were drawn as white boxes in the dark theme.
+
 ## [0.2.2] — 2026-10-21
 
 First public release of Monograph PDF. Version 0.2.1 was a release candidate that was never published; its changes are included here.

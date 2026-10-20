@@ -21,6 +21,51 @@ powershell -ExecutionPolicy Bypass -File scripts/run_tests.ps1
 
 `pytest.ini`: `pythonpath = .`, `qt_api = pyside6`.
 
+The small sample PDFs in `tests/samples/` are generated, not stored in git: the test session creates
+them (`tests/fixtures/make_samples.py`) when they are missing, so a fresh checkout runs as is.
+
+## Test categories
+
+Every test is marked with one or more categories (rules in `tests/conftest.py`), and each run ends
+with a per-category table. Select with `-m`, for example `-m "not private_fixture"` or `-m gui`.
+
+| Category | Meaning |
+|---|---|
+| `portable` | Needs nothing beyond the Python requirements |
+| `windows` | Needs Windows behaviour (installed fonts, file locking, registry, Windows paths) |
+| `gui` | Creates Qt windows (runs offscreen in CI) |
+| `external_app` | Needs Microsoft Office or LibreOffice installed |
+| `ocr` | Needs the vendored OCR engine and language data (`engines/ocr`, `models/tessdata`) |
+| `private_fixture` | Needs maintainer-local PDFs that are not in the repository |
+| `security` | Security, privacy and release-integrity regression tests |
+| `golden` | Golden documents and template PDFs compared with their manifests |
+
+Status per category: **PASS** (at least one test ran and none failed), **FAIL** (a test failed) or
+**NOT VERIFIED** (every test of the category was skipped, for example no private PDFs or no Office on
+that machine). Skipped tests are never reported as passed. Set `MONOGRAPH_TEST_CATEGORY_REPORT` to a
+file path to also get the table as Markdown.
+
+## Continuous integration
+
+`.github/workflows/windows-ci.yml` runs on pull requests, pushes to `main` and on demand, on a GitHub
+Windows runner with Python 3.11.9:
+
+1. install `requirements-ci.txt` (the pinned `requirements.txt` plus `pytest-timeout`) and `pip check`;
+2. install Tesseract 5.4.0.20240606 (approved Chocolatey package) and stage it with
+   `scripts/ci/stage_ocr_engine.py` only if every file, and the downloaded `eng` / `jpn` / `osd`
+   language data, is SHA-256 identical to what the release ships (`scripts/ci/ocr_engine_pins.json`);
+   otherwise the OCR tests skip and show as NOT VERIFIED;
+3. validate every `docs/releases/v*.md` with `scripts/packaging/validate_release_notes.py`;
+4. `pytest tests/unit tests/integration tests/ui` offscreen, with a 900-second per-test timeout;
+5. publish the per-category table in the run summary and keep only the JUnit XML and that table
+   (14 days).
+
+The workflow has read-only repository permissions, uses no secrets, does not build or publish
+releases, and never uploads documents. Tests needing private PDFs or Microsoft Office
+skip on the runner and show as **NOT VERIFIED**; run them locally before a release
+([RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)). CI therefore runs fewer tests than a maintainer's
+machine: modules for private PDFs are not in the repository at all, and Office-dependent tests skip.
+
 ## Coverage focus
 
 * Viewer, text edit / undo, forms, tables, layout, OCR
@@ -33,8 +78,9 @@ powershell -ExecutionPolicy Bypass -File scripts/run_tests.ps1
 * Redaction beyond page content: fields/comments/links under marks, whole pages, residue report and removal, checked in raw bytes (`tests/integration/test_redaction_residue.py`, `tests/ui/test_redaction_ui.py`)
 * Merge outlines and protected inputs; Images to PDF without photo metadata (`test_merge_outline_and_protection.py`, `test_images_to_pdf_privacy.py`)
 * Menus and toolbars: one Alt-letter per menu item, no duplicate shortcuts, icon + tooltip on every command, toolbar commands present in menus (`tests/ui/test_menu_toolbar_inventory.py`); full JSON inventory of every menu item, toolbar control and shortcut: `scripts\audit\ui_control_inventory.py out.json`
-* Bookmarks (add / rename / move / retarget / delete, undo, save, web-link bookmarks kept), Remove Hidden Information (checked in every decompressed object of the output), Bates numbers, print odd/even/reverse/without comments, password strength (`test_bookmark_ops.py`, `test_remove_hidden_info.py`, `test_bates_and_print_options.py`, `test_password_strength.py`, `tests/ui/test_acrobat_style_tools_ui.py`)
+* Bookmarks (add / rename / move / retarget / delete, undo, save, web-link bookmarks kept), Remove Hidden Information (checked in every decompressed object of the output, including open/automatic actions, bookmark scripts, page and image XMP, XFA, incremental-save history and unreferenced objects), Bates numbers, print odd/even/reverse/without comments, password strength (`test_bookmark_ops.py`, `test_remove_hidden_info.py`, `test_bates_and_print_options.py`, `test_password_strength.py`, `tests/ui/test_acrobat_style_tools_ui.py`)
 * Installer: `scripts\test_installer.ps1`
+* Release tooling: release-note validation, release-set verification, portable Installer ZIP names (`test_release_notes_validation.py`, `test_verify_release.py`), test categories (`test_test_categories.py`)
 * Audit tools (`scripts\audit\`): installed-copy file/registry audit, isolated run of an installed copy (modules, sockets, profile writes), generated inputs and an independent verifier for real-GUI sessions, timing of page design / redaction / merge / Images to PDF
 * Maintainer-local real-PDF scripts (gitignored) when present
 

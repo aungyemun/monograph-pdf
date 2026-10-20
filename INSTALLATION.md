@@ -24,8 +24,8 @@ Setup copies the app, OCR data, docs, and `uninstall.exe`; registers file types 
 ### Silent (admins)
 
 ```bat
-MonographPDF_0.2.2_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-MonographPDF_0.2.2_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="D:\Apps\Monograph PDF" /MIGRATEINSTALL
+MonographPDF_0.2.3_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+MonographPDF_0.2.3_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="D:\Apps\Monograph PDF" /MIGRATEINSTALL
 ```
 
 Same path = in-place upgrade. Different `/DIR` without `/MIGRATEINSTALL` keeps the registered location. Stops if `MonographPDF.exe` is running.

@@ -29,11 +29,17 @@ How Monograph PDF protects documents and the PC. Reporting: [SECURITY.md](../SEC
 
 **Protect ▸ Remove Hidden Information…** (`core/security/sanitize.py`) scans the document and writes a cleaned copy:
 
-* Removable: document properties and XMP metadata, embedded files and file-attachment comments (deleted by name; their contents are never read), JavaScript (document-level, open actions, field and page actions), embedded page thumbnails, private application data (`PieceInfo`), comments, form fields, links, bookmarks and invisible text.
+* Removable: document properties (all Info entries, including custom ones) and XMP metadata of the document, its pages and its images; embedded files and file-attachment comments (deleted by name; their contents are never read); scripts and automatic actions — document JavaScript, an open action that does more than show a page (JavaScript, web address, program launch, form submission), document and page automatic actions (`AA`), JavaScript in comments, fields and bookmarks (the bookmark itself stays); embedded page thumbnails; private application data (`PieceInfo`); comments, form fields (including XFA form data), links, bookmarks and invisible text.
 * Defaults remove what a reader never needs (metadata, attachments, scripts, thumbnails, private data); comments, fields, links, bookmarks and invisible text are removed only when chosen.
 * Invisible text is removed glyph by glyph and the page's visible text is compared before and after; if it would change, the invisible text is kept and the report says so.
 * The copy is re-scanned and the before/after counts are shown. Pending redaction marks are reported, never applied here. Password-protected files are refused, because the copy would have to be written unencrypted.
-* Not covered: information that is part of the visible page (text, pictures), content outside the visible page area, and incremental-save history in files that are not rewritten — the copy is always written as a new, fully rewritten file.
+* The copy is always a new, fully rewritten file: earlier revisions kept by incremental saves and unreferenced objects of the original are not carried over (checked in tests by searching every object and decompressed stream of the output).
+* Not covered — review these yourself before sharing:
+  * anything that is part of the page content: visible text and pictures, content outside the visible (cropped) page area, and content in **layers that are turned off** (optional content), which is neither reported nor removed;
+  * text inside pictures, and data hidden inside picture or font data;
+  * accessibility structure, including alternate text of figures (kept on purpose), and rarely used catalog data such as web-capture information (`SpiderInfo`);
+  * the contents of attachments when attachments are kept (they are never opened);
+  * links and web-link bookmarks when those are kept: they are visible, user-triggered navigation, not hidden actions.
 
 ## Passwords
 
