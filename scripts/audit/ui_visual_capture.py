@@ -49,6 +49,12 @@ def main(argv: list[str]) -> int:
         for _ in range(n):
             app.processEvents()
 
+    def open_doc(w, path) -> None:
+        if w._edit is not None:  # noqa: SLF001 — the capture's own edits are throw-away: no "Save changes?" prompt
+            w._edit.dirty = False  # noqa: SLF001
+        w.open_path(path)
+        pump(40)
+
     def shot(widget: QWidget, name: str) -> None:
         pump()
         pm = widget.grab()
@@ -72,8 +78,7 @@ def main(argv: list[str]) -> int:
             docs[name] = work / f"{name}.pdf"
             shutil.copy(TEMPLATES / f"{name}.pdf", docs[name])
 
-        w.open_path(docs["lab_protocol_figures_tables"])
-        pump(40)
+        open_doc(w, docs["lab_protocol_figures_tables"])
         shot(w, f"{theme}-document")
         shot(w._main_bar, f"{theme}-main-toolbar")  # noqa: SLF001
         shot(w._left, f"{theme}-left-panel")  # noqa: SLF001
@@ -108,11 +113,9 @@ def main(argv: list[str]) -> int:
             w._left.setCurrentIndex(i)  # noqa: SLF001
             shot(w._left, f"{theme}-left-tab{i}")  # noqa: SLF001
 
-        w.open_path(docs["review_comment_threads"])
-        pump(40)
+        open_doc(w, docs["review_comment_threads"])
         shot(w, f"{theme}-comments-doc")
-        w.open_path(docs["application_form_acroform"])
-        pump(40)
+        open_doc(w, docs["application_form_acroform"])
         fields = list(w._edit.fields.values())  # noqa: SLF001
         if fields:
             w._edit.field_selection = [fields[0].object_id]  # noqa: SLF001
@@ -121,6 +124,8 @@ def main(argv: list[str]) -> int:
         w.resize(1100, 720)
         pump(20)
         shot(w, f"{theme}-narrow-window")
+        if w._edit is not None:  # noqa: SLF001
+            w._edit.dirty = False  # noqa: SLF001
         w.close_document(save_session=False)
         w.close()
         pump()
