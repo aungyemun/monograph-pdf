@@ -83,6 +83,11 @@ class UserPreferences:
     update_auto_check: bool = False
     update_interval_hours: int = 24
     update_channel: str = "stable"  # stable | prerelease
+    # OCR languages used by every OCR command ("eng+jpn" = English and Japanese; optional languages
+    # once installed, OCR > OCR Languages)
+    ocr_languages: str = "eng+jpn"
+    note_color: str = "#fbbf24"
+    squiggly_color: str = "#dc2626"
 
     def path(self) -> Path:
         return user_data_dir() / "preferences.json"

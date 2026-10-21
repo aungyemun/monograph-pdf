@@ -33,6 +33,7 @@ class RawOcrToken:
     height: int
     line_num: int = 0
     block_num: int = 0
+    par_num: int = 0
 
 
 class OcrEngine:
@@ -52,28 +53,30 @@ class OcrEngine:
     def available_languages(self) -> list[str]:
         return [k for k, ok in language_files_present().items() if ok]
 
-    def _env(self) -> dict:
+    def _env(self, tessdata: Path | None = None) -> dict:
         env = os.environ.copy()
         # Tesseract opens files with the Windows ANSI code page: a folder name outside that code page
         # (Japanese on an English system, accented letters on a Japanese one, ...) cannot be opened.
         # So no absolute path is handed to it: it runs in the folder that holds tessdata, finds its
         # language data by the relative name, reads the image from stdin and writes to stdout.
-        env["TESSDATA_PREFIX"] = self.tessdata.name
+        env["TESSDATA_PREFIX"] = (tessdata or self.tessdata).name
         # Avoid accidental network/proxy lookups (fully offline)
         for key in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
             env.pop(key, None)
         return env
 
-    def _tesseract(self, args: list[str], image_path: Path, timeout: int) -> subprocess.CompletedProcess:
+    def _tesseract(self, args: list[str], image_path: Path, timeout: int,
+                   tessdata: Path | None = None) -> subprocess.CompletedProcess:
         data = Path(image_path).read_bytes()  # Python opens Unicode paths itself
+        folder = tessdata or self.tessdata
         return subprocess.run(
             [str(self.exe), "stdin", "stdout", *args],
             input=data,
             capture_output=True,
-            env=self._env(),
+            env=self._env(folder),
             timeout=timeout,
             check=False,
-            cwd=str(self.tessdata.parent),
+            cwd=str(folder.parent),
             creationflags=_NO_WINDOW,
         )
 
@@ -85,12 +88,14 @@ class OcrEngine:
         psm: int = 3,
         oem: int = 1,
         extra_args: list[str] | None = None,
+        tessdata: Path | None = None,
     ) -> list[RawOcrToken]:
-        """OCR an image file; returns word-level tokens with confidence."""
+        """OCR an image file; returns word-level tokens with confidence. ``tessdata``: another language
+        folder (optional languages, core/ocr/language_packs.py)."""
         args = ["-l", lang, "--psm", str(psm), "--oem", str(oem), "-c", "tessedit_create_tsv=1",
                 *(extra_args or []), "tsv"]
         try:
-            proc = self._tesseract(args, image_path, 180)
+            proc = self._tesseract(args, image_path, 180, tessdata)
         except FileNotFoundError as exc:
             raise OcrUnavailableError(str(exc)) from exc
         except subprocess.TimeoutExpired as exc:
@@ -170,6 +175,7 @@ def _parse_tsv(text: str) -> list[RawOcrToken]:
                 height=int(float(parts[idx["height"]])),
                 line_num=int(float(parts[idx.get("line_num", idx["level"])])) if "line_num" in idx else 0,
                 block_num=int(float(parts[idx["block_num"]])) if "block_num" in idx else 0,
+                par_num=int(float(parts[idx["par_num"]])) if "par_num" in idx else 0,
             )
         )
     return tokens

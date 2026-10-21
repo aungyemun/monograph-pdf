@@ -332,6 +332,18 @@ class MainWindow(QMainWindow):
         self.act_ocr_pages.triggered.connect(lambda: self._run_ocr(scope="page"))
         self.act_ocr_region = QAction("OCR Page as &Region Pass", self)
         self.act_ocr_region.triggered.connect(lambda: self._run_ocr(scope="region"))
+        self.act_ocr_area = QAction("Recognize Text in &Area…", self)
+        self.act_ocr_area.setToolTip("Drag a rectangle on a scanned page and read its text (offline OCR)")
+        self.act_ocr_area.triggered.connect(self._ocr_area)
+        self.act_ocr_extract = QAction("E&xtract Text (OCR)…", self)
+        self.act_ocr_extract.setToolTip("Recognize the text of pages and show it to correct, copy or save")
+        self.act_ocr_extract.triggered.connect(self._ocr_extract)
+        self.act_ocr_languages = QAction("OCR &Languages…", self)
+        self.act_ocr_languages.setToolTip("Choose OCR languages; install optional languages from verified files")
+        self.act_ocr_languages.triggered.connect(self._ocr_languages)
+        self.act_scan_to_word = QAction("Scanned PDF to &Word (OCR)…", self)
+        self.act_scan_to_word.setToolTip("Recognize the text of scanned pages and save it as an editable Word document")
+        self.act_scan_to_word.triggered.connect(self._scan_to_word)
 
         # Pages / organize
         self.act_insert_blank = QAction("Insert &Blank Page", self)
@@ -1053,8 +1065,12 @@ class MainWindow(QMainWindow):
         for name, act in (
             ("image", self.act_pdf_to_images),
             ("image", self.act_extract_images),
-            ("ocr", self.act_searchable),
+            ("searchable", self.act_searchable),
             ("ocr", self.act_ocr_pages),
+            ("area_ocr", self.act_ocr_area),
+            ("text_extract", self.act_ocr_extract),
+            ("language", self.act_ocr_languages),
+            ("pages_to_doc", self.act_scan_to_word),
             ("export", self.act_flatten_export),
             ("copy", self.act_meta_copy),
             ("convert", self.act_pdf_to_pptx),
@@ -1338,8 +1354,14 @@ class MainWindow(QMainWindow):
         ocr.addAction(self.act_make_editable)
         ocr.addAction(self.act_searchable)
         ocr.addSeparator()
+        ocr.addAction(self.act_ocr_area)
+        ocr.addAction(self.act_ocr_extract)
+        ocr.addAction(self.act_scan_to_word)
+        ocr.addSeparator()
         ocr.addAction(self.act_ocr_document)
         ocr.addAction(self.act_ocr_pages)
+        ocr.addSeparator()
+        ocr.addAction(self.act_ocr_languages)
 
         # ---------------------------------------------------------------- Protect
         protect = mb.addMenu("&Protect")
@@ -2295,9 +2317,137 @@ class MainWindow(QMainWindow):
                 hint="The text-recognition engine is missing from this installation. Run Setup again to restore it.",
             )
             return
-        self._run_ocr(scope="needed", pages=analysis.pages_needing_ocr)
+        self._run_ocr(scope="needed", pages=analysis.pages_needing_ocr, review_overlays=True)
 
-    def _run_ocr(self, scope: str = "document", pages: list[int] | None = None) -> None:
+    # --- OCR text: area, pages, Word; languages ----------------------------------------------------
+
+    def _ocr_languages_pref(self) -> str:
+        from core.ocr.language_packs import available_languages
+
+        have = available_languages()
+        langs = [c for c in (getattr(self._prefs, "ocr_languages", "") or "eng+jpn").split("+") if c in have]
+        return "+".join(langs) or "eng+jpn"
+
+    def _ocr_ready_or_report(self) -> bool:
+        from core.ocr.paths import ocr_ready
+
+        ok, detail = ocr_ready()
+        if not ok:
+            self.report_error("OCR unavailable", detail,
+                              hint="The text-recognition engine is missing from this installation. Run Setup again to restore it.")
+        return ok
+
+    def _ocr_collect(self, opts):
+        """Run OCR without writing a file; returns the result, or None if cancelled or failed."""
+        from ui.ocr_dialogs import OcrProgressDialog, OcrWorker
+
+        worker = OcrWorker(self._document, opts, None, self)
+        dlg = OcrProgressDialog(self)
+        dlg.start(worker)
+        ok = dlg.exec() == dlg.DialogCode.Accepted and dlg.result is not None
+        worker.wait(10000)
+        return dlg.result if ok else None
+
+    def _show_ocr_text(self, result, title: str, languages: str) -> None:
+        from ui.ocr_dialogs import OcrTextDialog
+
+        stem = self._document.path.stem if self._document is not None else "recognized"
+        OcrTextDialog(result, title=title, languages=languages, start_dir=self._doc_dir(),
+                      doc_title=f"{stem} (OCR)", parent=self).exec()
+
+    def _ocr_area(self) -> None:
+        if self._document is None or not self._ocr_ready_or_report():
+            return
+        from core.ocr.pipeline import OcrOptions
+
+        languages = self._ocr_languages_pref()
+
+        def apply(page: int, rect) -> None:
+            if rect.w < 4 or rect.h < 4:
+                self.statusBar().showMessage("Area OCR: drag a rectangle around the text", 5000)
+                return
+            opts = OcrOptions(languages=languages, pages=[page], region=rect, make_searchable=False,
+                              skip_native_text=False, apply_orientation=False, dpi=300)
+            result = self._ocr_collect(opts)
+            if result is not None:
+                skipped = [p for p in result.pages if p.skipped]
+                if skipped:
+                    self.statusBar().showMessage(f"Area OCR: {skipped[0].skip_reason}", 6000)
+                    return
+                self._show_ocr_text(result, "Recognized Text — Area", languages)
+
+        self._pick_on_page("Area OCR: drag a rectangle around the text to read", apply, default_size=(0.0, 0.0))
+
+    def _ocr_extract(self) -> None:
+        if self._document is None or not self._ocr_ready_or_report():
+            return
+        from core.ocr.pipeline import OcrOptions
+        from ui.ocr_dialogs import OcrScopeDialog
+
+        dlg = OcrScopeDialog(page_count=self._document.page_count, current_page=self._canvas.focus_page,
+                             selected=self._left.selected_page_indices(), languages=self._ocr_languages_pref(),
+                             parent=self)
+        if dlg.exec() != dlg.DialogCode.Accepted:
+            return
+        languages = dlg.languages.value()
+        opts = OcrOptions(languages=languages, pages=dlg.pages(), make_searchable=False,
+                          skip_native_text=dlg.skip_text.isChecked())
+        result = self._ocr_collect(opts)
+        if result is None:
+            return
+        if not any(p.words for p in result.pages):
+            skipped = sum(1 for p in result.pages if p.skipped)
+            QMessageBox.information(self, "Extract Text (OCR)",
+                                    f"No text was recognized." + (f" {skipped} page(s) were skipped because they already contain text." if skipped else ""))
+            return
+        self._show_ocr_text(result, "Recognized Text", languages)
+
+    def _scan_to_word(self) -> None:
+        if self._document is None or not self._ocr_ready_or_report():
+            return
+        from core.ocr.pipeline import OcrOptions
+        from core.ocr.text_export import write_docx
+        from ui.convert_dialogs import choose_save
+        from ui.ocr_dialogs import OcrScopeDialog
+
+        dlg = OcrScopeDialog(page_count=self._document.page_count, current_page=self._canvas.focus_page,
+                             selected=self._left.selected_page_indices(), languages=self._ocr_languages_pref(),
+                             title="Scanned PDF to Word", parent=self)
+        dlg.r_all.setChecked(True)
+        dlg.skip_text.setChecked(False)
+        if dlg.exec() != dlg.DialogCode.Accepted:
+            return
+        dest = choose_save(self, "Save as Word Document", self._suggest("ocr", "docx"), "Word document (*.docx)")
+        if not dest:
+            return
+        result = self._ocr_collect(OcrOptions(languages=dlg.languages.value(), pages=dlg.pages(), make_searchable=False,
+                                              skip_native_text=dlg.skip_text.isChecked()))
+        if result is None:
+            return
+        pages = [p for p in result.pages if p.words]
+        if not pages:
+            QMessageBox.information(self, "Scanned PDF to Word", "No text was recognized; no document was written.")
+            return
+        try:
+            write_docx(pages, Path(dest), title=self._document.path.stem)
+        except Exception as exc:  # noqa: BLE001
+            self.report_error("Scanned PDF to Word", f"The document could not be written: {exc}")
+            return
+        low = sum(1 for p in pages for w in p.words if w.low_confidence)
+        self.statusBar().showMessage(
+            f"Wrote {Path(dest).name} — {len(pages)} page(s); check {low} low-confidence word(s)" if low
+            else f"Wrote {Path(dest).name} — {len(pages)} page(s)", 8000)
+
+    def _ocr_languages(self) -> None:
+        from ui.ocr_dialogs import OcrLanguagesDialog
+
+        dlg = OcrLanguagesDialog(self._ocr_languages_pref(), self)
+        if dlg.exec() == dlg.DialogCode.Accepted:
+            self._prefs.ocr_languages = dlg.value()
+            self._persist_preferences()
+            self.statusBar().showMessage(f"OCR languages: {dlg.value().replace('+', ', ')}", 5000)
+
+    def _run_ocr(self, scope: str = "document", pages: list[int] | None = None, *, review_overlays: bool = False) -> None:
         if self._document is None:
             return
         from core.editing.geometry import Rect
@@ -2323,7 +2473,7 @@ class MainWindow(QMainWindow):
         if not dest:
             return
 
-        opts = OcrOptions(languages="eng+jpn", make_searchable=True, skip_native_text=True)
+        opts = OcrOptions(languages=self._ocr_languages_pref(), make_searchable=True, skip_native_text=True)
         if scope == "page":
             opts.pages = [self._canvas.focus_page]
             opts.skip_native_text = False
@@ -2353,8 +2503,9 @@ class MainWindow(QMainWindow):
                 f"OCR saved to {Path(dest).name} — {low} low-confidence word(s)",
                 7000,
             )
-            # Expose recognized text/boxes; amber overlays mark low-confidence for review
-            if self._edit is not None:
+            # Make PDF Editable: the recognized words become editable text boxes on the open document
+            # (amber = low confidence, to review). Plain OCR commands only write the searchable copy.
+            if self._edit is not None and review_overlays:
                 from core.editing.text_box import TextBox
                 from core.editing.text_style import TextStyle
 
@@ -3342,6 +3493,9 @@ class MainWindow(QMainWindow):
             self.act_ocr_document,
             self.act_ocr_pages,
             self.act_ocr_region,
+            self.act_ocr_area,
+            self.act_ocr_extract,
+            self.act_scan_to_word,
             self.act_insert_blank,
             self.act_insert_pdf,
             self.act_delete_pages,

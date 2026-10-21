@@ -1,0 +1,98 @@
+{
+ "schema": 1,
+ "comment": "Optional OCR languages. Never downloaded by Monograph PDF: the user downloads a file from the URL and installs it with OCR > OCR Languages > Install from File; it is accepted only if its size and SHA-256 match. Source: tesseract-ocr/tessdata_fast, release tag 4.1.0 (the same release as the bundled eng, jpn and osd files). License: Apache-2.0.",
+ "source": {
+  "repository": "https://github.com/tesseract-ocr/tessdata_fast",
+  "tag": "4.1.0",
+  "license": "Apache-2.0",
+  "license_url": "https://github.com/tesseract-ocr/tessdata_fast/blob/4.1.0/LICENSE"
+ },
+ "engine_compatibility": "Tesseract 5.x LSTM models (tessdata_fast 4.1.0 are integer LSTM models read by Tesseract 4 and 5)",
+ "bundled": [
+  "eng",
+  "jpn",
+  "osd"
+ ],
+ "packs": [
+  {
+   "code": "jpn_vert",
+   "name": "Japanese (vertical)",
+   "file": "jpn_vert.traineddata",
+   "size": 3037480,
+   "sha256": "bf1e2640954691797e2dc14f38533e601b59ee37958698ae0f0b81dc6f09c71b",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/jpn_vert.traineddata"
+  },
+  {
+   "code": "chi_sim",
+   "name": "Chinese (Simplified)",
+   "file": "chi_sim.traineddata",
+   "size": 2469156,
+   "sha256": "a5fcb6f0db1e1d6d8522f39db4e848f05984669172e584e8d76b6b3141e1f730",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/chi_sim.traineddata"
+  },
+  {
+   "code": "chi_sim_vert",
+   "name": "Chinese (Simplified, vertical)",
+   "file": "chi_sim_vert.traineddata",
+   "size": 1927902,
+   "sha256": "20590de84725bab69cde93bd6e8ed360a13cc5421a7e7364ddeb93e9af53d6da",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/chi_sim_vert.traineddata"
+  },
+  {
+   "code": "chi_tra",
+   "name": "Chinese (Traditional)",
+   "file": "chi_tra.traineddata",
+   "size": 2366642,
+   "sha256": "529c5b5797d64b126065cd55f2bb4c7fd7b15790798091b1ff259941a829330b",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/chi_tra.traineddata"
+  },
+  {
+   "code": "chi_tra_vert",
+   "name": "Chinese (Traditional, vertical)",
+   "file": "chi_tra_vert.traineddata",
+   "size": 1824756,
+   "sha256": "1df02a4b210e5c217b783819538b63e9dfe6904e2b5e53b62664f1b9f7a989d0",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/chi_tra_vert.traineddata"
+  },
+  {
+   "code": "kor",
+   "name": "Korean",
+   "file": "kor.traineddata",
+   "size": 1677415,
+   "sha256": "6b85e11d9bbf07863b97b3523b1b112844c43e713df8b66418a081fd1060b3b2",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/kor.traineddata"
+  },
+  {
+   "code": "kor_vert",
+   "name": "Korean (vertical)",
+   "file": "kor_vert.traineddata",
+   "size": 1113715,
+   "sha256": "c28f19dee36927baba5215fb793a3c00fff3ef2cfbcaa100122401d8f4374869",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/kor_vert.traineddata"
+  },
+  {
+   "code": "deu",
+   "name": "German",
+   "file": "deu.traineddata",
+   "size": 1525436,
+   "sha256": "19d219bbb6672c869d20a9636c6816a81eb9a71796cb93ebe0cb1530e2cdb22d",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/deu.traineddata"
+  },
+  {
+   "code": "fra",
+   "name": "French",
+   "file": "fra.traineddata",
+   "size": 1130365,
+   "sha256": "ced037562e8c80c13122dece28dd477d399af80911a28791a66a63ac1e3445ca",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/fra.traineddata"
+  },
+  {
+   "code": "spa",
+   "name": "Spanish",
+   "file": "spa.traineddata",
+   "size": 2294433,
+   "sha256": "6f2e04d02774a18f01bed44b1111f2cd7f3ba7ac9dc4373cd3f898a40ea6b464",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/spa.traineddata"
+  }
+ ]
+}
