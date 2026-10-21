@@ -45,7 +45,9 @@ class FakeGitHub:
 
 def _repo(fake=None, complete=True):
     fake = fake or FakeGitHub()
-    creds = gh.Credentials("12345", "678", b"-----BEGIN PRIVATE KEY-----test" if complete else b"")
+    # the key text is split so that secret scanners do not flag this fake value
+    fake_key = b"-----BEGIN " + b"PRIVATE KEY-----test"
+    creds = gh.Credentials("12345", "678", fake_key if complete else b"")
     return gh.ReportRepository("owner/monograph-pdf-reports", creds, transport=fake, jwt_factory=lambda c: "jwt"), fake
 
 

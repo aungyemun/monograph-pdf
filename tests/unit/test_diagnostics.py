@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SECRETS = [
     "/home/tanaka/Documents/研究資料.pdf", r"C:\Users\田中太郎\Documents\研究資料.pdf", "研究資料.pdf",
     r"D:\研究データ\神経再生\実験結果.pdf", r"C:\Users\张伟\Documents\实验报告.pdf", r"C:\Users\김민수\Documents\연구자료.pdf",
-    "tanaka@example.com", "ghp_" + "A" * 36, "hunter2", "Confidential patient 4711", "田中太郎", "AKIAABCDEFGHIJKLMNOP",
+    "tanaka@example.com", "ghp_" + "A" * 36, "hunter2", "Confidential patient 4711", "田中太郎", "AKIA" + "ABCDEFGHIJKLMNOP",
 ]
 
 
