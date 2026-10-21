@@ -483,6 +483,8 @@ def main(argv: list[str] | None = None) -> int:
         # signed manifest, but the server serves different bytes
         Routes.files[f"/download/v{a.new}/{new_setup.name}"] = good[:-1] + bytes([good[-1] ^ 1])
         res = manager.check(cfg, "stable", a.old, UpdateState())
+        if not check("signed manifest accepted by the test configuration", res.release is not None, res.message):
+            raise SystemExit("cannot continue without a verified manifest")
         try:
             manager.download_and_verify(cfg, res.release, install_target.detect(APP_FOLDER / "MonographPDF.exe"),
                                         threading.Event())

@@ -107,7 +107,8 @@ def make(a) -> int:
         "expires": format_time(now + timedelta(days=a.expires_days)),
         "sequence": a.sequence,
         "release_notes": notes_text(a.notes) if a.notes else "",
-        "release_page": f"https://github.com/{repo}/releases/tag/{tag}",
+        "release_page": (f"{a.download_base.rstrip('/')}/tag/{tag}" if a.download_base
+                         else f"https://github.com/{repo}/releases/tag/{tag}"),
         "installed_size": a.installed_size,
         "artifacts": [{
             "kind": "inno-setup", "os": "windows", "arch": "x64", "name": setup.name,
