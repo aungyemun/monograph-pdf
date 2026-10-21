@@ -1,12 +1,13 @@
 # Contributing
 
-Thank you for your interest in Monograph PDF. It is maintained by one person, so please keep
-contributions focused.
+Thank you for your interest in contributing to Monograph PDF. The project is independently
+maintained, so focused changes with clear explanations and relevant tests are appreciated.
 
 ## Reporting problems and suggesting features
 
 * Use the [issue templates](https://github.com/aungyemun/monograph-pdf/issues/new/choose) for bugs
-  and feature requests.
+  and feature requests. For a bug, give the version, the exact steps to reproduce it, and what you
+  expected to happen.
 * **Never attach confidential or personal documents.** Create a small sample file instead, and remove
   personal folder names from logs and screenshots.
 * Report security vulnerabilities privately, as described in the [Security policy](SECURITY.md).
@@ -35,5 +36,7 @@ contributions focused.
 
 ## License of contributions
 
-By submitting a contribution you agree that it is licensed under the
-[GNU Affero General Public License, version 3 or later](LICENSE), the license of Monograph PDF.
+By submitting a contribution, you confirm that you have the right to contribute the material and
+agree to license your contribution under the
+[GNU Affero General Public License, version 3 or later](LICENSE) (AGPL-3.0-or-later), the license of
+Monograph PDF.

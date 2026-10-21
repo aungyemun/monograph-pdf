@@ -47,7 +47,7 @@ SOURCE_TOP = [
     "app", "core", "engines", "ui", "resources", "installer", "scripts", "tests", "docs", "licenses",
     "third_party", "reports", "VERSION", "requirements.txt", "requirements-ci.txt", "pytest.ini", ".gitignore",
     "README.md", "LICENSE", "LICENSE.md", "CHANGELOG.md", "THIRD_PARTY_NOTICES.md", "SECURITY.md", "INSTALLATION.md",
-    "CITATION.cff",
+    "CONTRIBUTING.md", "CITATION.cff",
 ]
 # Never included (relative paths / name patterns)
 EXCLUDE_PARTS = {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".git", "env", ".venv"}

@@ -4,11 +4,13 @@
 
 [![Windows CI](https://github.com/aungyemun/monograph-pdf/actions/workflows/windows-ci.yml/badge.svg)](https://github.com/aungyemun/monograph-pdf/actions/workflows/windows-ci.yml)
 
-**A private, offline PDF editor for Windows 10 and 11.** Current release: **0.2.3**.
+**A free, open-source PDF editor for Windows 10 and 11, designed for privacy and fully offline
+operation.** Current release: **0.2.3**.
 
-Monograph PDF lets you view, edit, annotate, organize, convert and protect PDF documents entirely
-on your own computer. It needs no account and no internet connection, and it never uploads your
-files. Opening a PDF never changes it — your changes are written only when you save.
+Monograph PDF lets you view, edit, annotate, organize, convert and protect PDF documents on your own
+computer. It needs no account or internet connection and has no function that uploads your files.
+Opening a PDF does not change the file: your edits are written only when you save, and exports and
+conversions are written to new files.
 
 <p align="center">
   <img src="docs/images/monograph-pdf-ui.png" alt="Monograph PDF with a document open: bookmarks on the left, the page in the middle and document properties on the right" width="100%">
@@ -19,13 +21,13 @@ files. Opening a PDF never changes it — your changes are written only when you
 | | |
 | :--- | :--- |
 | **View** | Search, zoom, page thumbnails, editable bookmarks, attachments, printing with preview |
-| **Edit** | Change text; add text boxes, pictures, shapes and comments; highlight, underline and erase — all with undo |
+| **Edit** | Edit text; add text boxes, pictures, shapes and comments; highlight, underline or strike through text, and remove these marks with the Eraser — with Undo / Redo |
 | **Forms** | Fill in forms, design new fields and flatten finished forms |
 | **Organize** | Merge, split, insert, delete, rotate, crop and reorder pages; change page size |
 | **Page design** | Headers, footers, page numbers, Bates numbers, watermarks and backgrounds |
 | **Convert** | PDF to Word, Excel, PowerPoint and images; images to PDF; Office files to PDF with Microsoft Office or LibreOffice |
 | **OCR** | Offline text recognition for English and Japanese; make scans searchable or editable |
-| **Protect** | AES-256 passwords and permissions, true redaction, removal of hidden information, visual signatures |
+| **Protect** | AES-256 passwords and permissions, redaction that removes the marked content, removal of hidden information, visual signatures |
 
 Complete list: [Features](docs/FEATURES.md) · How to use each tool: [User Guide](docs/USER_GUIDE.md) (also **F1** in the app)
 
@@ -36,7 +38,7 @@ Complete list: [Features](docs/FEATURES.md) · How to use each tool: [User Guide
   <img src="docs/images/monograph-pdf-forms.png" alt="A form being filled in, with its fillable fields highlighted" width="49%">
 </p>
 <p align="center">
-  <img src="docs/images/monograph-pdf-start-dark.png" alt="Start page in the dark theme with recent files and common tools" width="49%">
+  <img src="docs/images/monograph-pdf-start-dark.png" alt="Start page in the dark theme with the Open PDF button and common tools" width="49%">
   <img src="docs/images/monograph-pdf-viewer-dark.png" alt="A document open in the dark theme" width="49%">
 </p>
 
@@ -49,59 +51,82 @@ Information — are in [Features](docs/FEATURES.md#screenshots).
 | :--- | :--- |
 | Windows 10 and 11, 64-bit | Supported |
 | macOS | Planned |
-| Android | Planned for a later stage |
+| Android | Under consideration |
 | iOS | Not planned |
+
+Only Windows builds are available.
 
 ## Download and installation
 
-1. Download `MonographPDF_0.2.3_Setup.exe` from the
-   [latest release](https://github.com/aungyemun/monograph-pdf/releases/latest).
-2. Optionally confirm the download is intact: in PowerShell, run
-   `Get-FileHash .\MonographPDF_0.2.3_Setup.exe` and compare the result with the SHA-256 value on
-   the release page.
-3. Run Setup and choose to install for all users or only for yourself. Windows SmartScreen may show
-   a warning because the installer is not code-signed; select **More info ▸ Run anyway** to continue.
+1. Download `MonographPDF_0.2.3_Setup.exe` from the official
+   [latest release](https://github.com/aungyemun/monograph-pdf/releases/latest) page only.
+2. Check its SHA-256 checksum in PowerShell and compare it with the value in the release notes:
 
-Each release also provides `MonographPDF_<version>_Installer.zip` (Setup together with the
-documentation, licenses and `SHA256SUMS.txt`) and `MonographPDF_<version>_Source.zip` (the complete
-corresponding source code). System requirements, silent installation, upgrading and uninstalling are
-described in [Installation](INSTALLATION.md).
+   ```powershell
+   Get-FileHash .\MonographPDF_0.2.3_Setup.exe -Algorithm SHA256
+   ```
+
+3. Run Setup and choose to install for all users or only for yourself.
+
+> **Unsigned installer.** Monograph PDF is currently distributed without a code-signing certificate,
+> so Windows SmartScreen may display a warning. Continue (**More info ▸ Run anyway**) only if the
+> file came from the official release page and its checksum matches.
+
+Each release also provides `MonographPDF_<version>_Installer.zip` (Setup with the documentation,
+licenses and `SHA256SUMS.txt`) and `MonographPDF_<version>_Source.zip` (the corresponding source of
+Monograph PDF and of the bundled AGPL, GPL and LGPL components). The **Source code** archives that
+GitHub adds to every release contain only the repository at the release tag. System requirements,
+silent installation, upgrading and uninstalling are described in [Installation](INSTALLATION.md).
 
 ## Privacy and offline operation
 
-* Monograph PDF never connects to the internet: there is no telemetry, advertising, online OCR or
-  downloading at run time. The networking components (including TLS) are removed from the release
-  build.
-* Your documents are processed only on your computer. Settings and working files are kept in
-  `%APPDATA%\Monograph PDF` and `%LOCALAPPDATA%\Monograph PDF`.
-* Office conversion uses the Office suite installed on your computer, with macros switched off.
+* Monograph PDF is designed to operate entirely offline. It requires no account or cloud service and
+  has no telemetry, advertising, online OCR, document upload or run-time downloads.
+* Qt's network and TLS modules and Python's SSL module are removed from the release build, and the
+  built-in self-check fails if a network connection is attempted while it runs.
+* Documents are processed locally. Settings and working files are kept in `%APPDATA%\Monograph PDF`
+  and `%LOCALAPPDATA%\Monograph PDF`.
+* Converting Office files uses the Microsoft Office or LibreOffice installed on your computer, with
+  macros switched off. Those applications run independently and follow their own settings, including
+  any network access.
 
 Details and limits: [Security and Privacy](docs/SECURITY_AND_PRIVACY.md) · Reporting a
 vulnerability: [Security policy](SECURITY.md)
 
 ## Building from source
 
-You need Windows 10 or 11 (64-bit) and Python 3.11; building the installer also needs Inno Setup 6.
+You need Windows 10 or 11 (64-bit) and Python 3.11. Building the installer also needs Inno Setup 6
+and the OCR engine with its language data, which are not stored in the repository.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\setup_env.ps1    # create .\env with the pinned packages
-powershell -ExecutionPolicy Bypass -File scripts\dev_launch.ps1   # run the app from source
-installer\build_release.bat                                       # tests, executable, Setup and archives
+# Create the development environment (.\env) with the pinned packages
+powershell -ExecutionPolicy Bypass -File scripts\setup_env.ps1
+
+# Run the application from source
+powershell -ExecutionPolicy Bypass -File scripts\dev_launch.ps1
+
+# Build and validate a release: tests, executable, Setup and archives
+installer\build_release.bat
 ```
 
-The OCR engine and language data are not stored in the repository. See
-[Build and Runtime](docs/BUILD_AND_RUNTIME.md) and [Release and Versioning](docs/RELEASE_AND_VERSIONING.md).
+Details: [Build and Runtime](docs/BUILD_AND_RUNTIME.md) ·
+[Release and Versioning](docs/RELEASE_AND_VERSIONING.md)
 
 ## Testing
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\run_tests.ps1   # unit, integration and UI tests
-.\env\Scripts\python.exe -m pytest -m security                   # run one category only
+# Unit, integration and UI tests
+powershell -ExecutionPolicy Bypass -File scripts\run_tests.ps1
+
+# One category only, for example the security tests
+.\env\Scripts\python.exe -m pytest -m security
 ```
 
 Each run ends with a summary per test category: **PASS**, **FAIL**, or **NOT VERIFIED** when every
-test in that category was skipped (for example, when Microsoft Office is not installed). The same
-tests run automatically on GitHub Actions for every change. Details: [Testing](docs/TESTING.md).
+test in that category was skipped. Automated unit, integration, security and supported UI tests run
+through GitHub Actions for every change. Environment-dependent tests are skipped when their required
+applications, fonts or reference documents are unavailable; they are reported as skipped, never as
+passed. Details: [Testing](docs/TESTING.md).
 
 ## Known limitations
 
@@ -127,7 +152,7 @@ Monograph PDF is built with PyMuPDF/MuPDF (AGPL-3.0), Qt for Python (LGPL-3.0), 
 Tesseract OCR (Apache-2.0), the Noto fonts (OFL-1.1) and other open-source components. Their
 licenses, versions and source locations are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 and [licenses/DEPENDENCY_INVENTORY.md](licenses/DEPENDENCY_INVENTORY.md). Each release's Source.zip
-contains the corresponding source code of these components.
+contains the corresponding source code of the bundled AGPL, GPL and LGPL components.
 
 ## Citation and acknowledgments
 

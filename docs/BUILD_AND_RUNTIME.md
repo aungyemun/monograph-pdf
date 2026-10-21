@@ -4,8 +4,9 @@
 
 * Windows 10 or 11, 64-bit
 * Python **3.11** for the development environment in `.\env` (the source is also compatible with 3.12)
-* Inno Setup 6 (in `tools\inno\` or installed system-wide) and the .NET Framework 4 C# compiler
-  (`csc`, part of Windows) to build the installer and `uninstall.exe`
+* Inno Setup 6 (in `tools\inno\` or installed system-wide; releases are built with 6.7.1) and the
+  .NET Framework 4 C# compiler (`csc`, part of Windows) to build the installer and `uninstall.exe`
+* For a release build: the OCR engine and language data (see below)
 
 End users need none of these: Python, Qt and Tesseract are bundled with the application.
 
@@ -35,6 +36,21 @@ The output is `dist\MonographPDF\` (a PyInstaller one-folder build), copied to `
 and `_internal\` in the project root. The version comes from `VERSION`. The build then runs
 `check_release.py prune`, which removes components the application never uses (networking and TLS
 modules, unused Qt plugins and similar) and checks that nothing still depends on them.
+
+## OCR engine and language data
+
+The OCR engine (`engines\ocr\`) and the `eng`, `jpn` and `osd` language data (`models\tessdata\`) are
+not stored in the repository. The release build stops if they are missing. Releases ship Tesseract
+5.4.0.20240606 and `tessdata_fast` data; every file is pinned by SHA-256 in
+`scripts/ci/ocr_engine_pins.json`. To put a matching copy in place from an installed Tesseract of that
+version (the language data is downloaded from `tessdata_fast` at this step):
+
+```powershell
+.\env\Scripts\python.exe scripts\ci\stage_ocr_engine.py --from "C:\Program Files\Tesseract-OCR"
+```
+
+Nothing is staged unless every file matches the pinned hashes. The OCR tests are skipped when the
+engine is absent.
 
 ## Release build
 

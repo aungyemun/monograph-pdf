@@ -15,7 +15,8 @@ for this project, and no build step signs anything. This applies to:
 Consequences for users:
 
 * Windows SmartScreen may show "Windows protected your PC" for a new release until it has built up
-  a reputation. **More info ▸ Run anyway** continues.
+  a reputation. Users should continue (**More info ▸ Run anyway**) only after downloading Setup from
+  the official release page and checking its SHA-256 checksum.
 * Integrity is checked with SHA-256 instead: compare the downloaded file with the value in the
   release notes and in `SHA256SUMS.txt` ([INSTALLATION.md](../INSTALLATION.md)).
 

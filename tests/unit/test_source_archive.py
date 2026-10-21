@@ -122,6 +122,21 @@ def test_source_selection_leaves_out_development_and_personal_files():
     assert problems == []
 
 
+def test_source_selection_ships_the_repository_documents():
+    """The top-level documents, and every local file README.md links to, are in the source archive."""
+    files = {p.as_posix() for p in msa.product_files()}
+    required = {"README.md", "LICENSE", "LICENSE.md", "CONTRIBUTING.md", "SECURITY.md", "INSTALLATION.md",
+                "CHANGELOG.md", "THIRD_PARTY_NOTICES.md", "CITATION.cff", "VERSION", "requirements.txt",
+                "requirements-ci.txt", "pytest.ini"}
+    assert required <= files, sorted(required - files)
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    targets = re.findall(r"\]\(([^)#\s]+)(?:#[^)]*)?\)|src=\"([^\"]+)\"", readme)
+    local = {t for pair in targets for t in pair if t and "://" not in t and not t.startswith("mailto:")}
+    assert local, "README.md links to no local files"
+    missing = sorted(t for t in local if (ROOT / t).is_file() and t not in files)
+    assert missing == [], missing
+
+
 def _small_manifest(tmp_path: Path) -> tuple[Path, Path]:
     """The real manifest with each third-party archive replaced by a small stand-in file."""
     cache = tmp_path / "cache"

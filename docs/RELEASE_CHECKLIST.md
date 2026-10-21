@@ -50,7 +50,7 @@ The build accepts an `Unreleased` CHANGELOG entry (`--allow-unreleased`); publis
 
 | # | Item | How |
 |---|---|---|
-| 5.1 | Write `docs/releases/vX.Y.Z.md`: Download (three files + SHA-256), Verification for this release (test counts, installer result, what was **NOT VERIFIED**), Known limitations (including "not code-signed") | manual |
+| 5.1 | Write `docs/releases/vX.Y.Z.md` with the sections in [Release-notes structure](#release-notes-structure) | manual |
 | 5.2 | Validate notes and release files together | automated, must print `RESULT: PASS`: |
 
 ```powershell
@@ -61,6 +61,27 @@ The build accepts an `Unreleased` CHANGELOG entry (`--allow-unreleased`); publis
 This fails on unresolved template values (`__X__`, `{{ }}`, `TODO`, …), checksums that do not match
 the files, other versions' file names, missing test or installer results, broken links, a missing or
 `Unreleased` CHANGELOG date, backslash ZIP entry names, missing notices and private paths.
+
+### Release-notes structure
+
+Use these sections, in this order, and leave out any that would be empty. Keep sentences short.
+
+1. **Summary** — one or two sentences: the kind of release (for example, a maintenance release
+   focused on security and reliability) and whether it adds user-facing features. State
+   compatibility with the previous version only as far as it was tested.
+2. **Download** — the three files with their SHA-256 values and the PowerShell command
+   `Get-FileHash .\MonographPDF_X.Y.Z_Setup.exe -Algorithm SHA256`. Unsigned-installer wording:
+   "Monograph PDF is currently distributed without a code-signing certificate, so Windows
+   SmartScreen may display a warning. Download the installer only from this release page and verify
+   its SHA-256 checksum before deciding whether to continue."
+3. **Security updates**, 4. **Defects corrected**, 5. **Improvements** — what changed, precisely.
+6. **Compatibility** — Windows versions; upgrade path and how it was tested.
+7. **Verification** — exact test counts, each with the build or CI run it comes from; installer
+   test result; anything **NOT VERIFIED** (for example physical printing).
+8. **Known limitations** — including "not code-signed".
+9. **Source** — `MonographPDF_X.Y.Z_Source.zip` is the corresponding source of Monograph PDF and of
+   the bundled AGPL, GPL and LGPL components. The **Source code** archives GitHub adds to the release
+   contain only the repository at the tag, without the third-party sources.
 
 ## 6. Publish (maintainer)
 

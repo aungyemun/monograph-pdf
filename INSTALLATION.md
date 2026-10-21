@@ -15,12 +15,18 @@ Python, Qt and the OCR engine — is included, and no internet connection is req
 
 ## Installing
 
-1. Download `MonographPDF_<version>_Setup.exe` from the
-   [latest release](https://github.com/aungyemun/monograph-pdf/releases/latest).
-2. Optionally check the download: in PowerShell, `Get-FileHash .\MonographPDF_<version>_Setup.exe`
-   must show the SHA-256 value from the release page or `SHA256SUMS.txt`.
-3. Run Setup. The installer is not code-signed, so Windows SmartScreen may warn; after checking the
-   checksum, select **More info ▸ Run anyway**.
+1. Download `MonographPDF_<version>_Setup.exe` from the official
+   [latest release](https://github.com/aungyemun/monograph-pdf/releases/latest) page only.
+2. Check the download in PowerShell. The result must equal the SHA-256 value in the release notes
+   (also listed in `SHA256SUMS.txt` inside `MonographPDF_<version>_Installer.zip`):
+
+   ```powershell
+   Get-FileHash .\MonographPDF_<version>_Setup.exe -Algorithm SHA256
+   ```
+
+3. Run Setup. Monograph PDF is currently distributed without a code-signing certificate, so Windows
+   SmartScreen may display a warning. Continue (**More info ▸ Run anyway**) only if the file came
+   from the official release page and its checksum matches.
 4. Choose where to install:
    * **For all users** — `C:\Program Files\Monograph PDF` (needs administrator rights)
    * **Only for me** — `%LOCALAPPDATA%\Programs\Monograph PDF`

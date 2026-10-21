@@ -26,14 +26,18 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
 
 ## Editing and comments
 
-- Edits are kept as overlays with full **Undo** / **Redo** (`Ctrl+Z` / `Ctrl+Y`), including undo
+- Edits are kept as overlays with **Undo** / **Redo** (`Ctrl+Z` / `Ctrl+Y`), including undo
   while typing or pasting inside a text box. Overlays are written into the PDF on **Save**, and
-  unsaved work is kept in a recovery session.
+  unsaved work is kept in a recovery session (not for password-protected PDFs).
+- Existing text can be replaced in place (undoable).
+- Commands that write a new file (page design, Remove Hidden Information, Protect & Save As,
+  conversions) leave the open document unchanged; applying redactions cannot be undone.
 - Text boxes (`T`), shapes, pictures; copy and paste of styles.
 - Highlight pen that stays on for several strokes, with a color switch; text highlights follow the
   characters, free-area strokes mark pictures, tables and blank areas. **Esc** cancels an unfinished
-  stroke. Underline, strikethrough, sticky notes, callouts and stamps. The Eraser removes markup;
-  creating and erasing markup can be undone.
+  stroke. Underline, strikethrough, sticky notes, callouts and stamps. The Eraser removes highlight,
+  underline, strikethrough and ink annotations; it never removes original page content. Creating
+  and erasing markup can be undone.
 - **Edit ▸ Copy Page as Picture** (`Ctrl+Alt+C`) copies the page as shown at 150 dpi.
 
 ## Forms, tables and layout
@@ -73,7 +77,8 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
   earlier revisions, then scanned again. Password-protected files must be unlocked first. Limits are
   listed in [Security and Privacy](SECURITY_AND_PRIVACY.md#hidden-information)
   (`core/security/sanitize.py`).
-- True redaction by area, by text search or by whole page. Form fields, annotations and links under
+- Redaction by area, by text search or by whole page, which removes the marked content rather than
+  covering it. Form fields, annotations and links under
   a mark are removed with it, and other places where the marked text still occurs (comments, form
   values, bookmarks, document properties, attachments) are listed and can be removed.
 - Visual signatures (typed, drawn or from a picture); certificate-based signatures are not supported.
@@ -98,8 +103,8 @@ Captured from the application with synthetic sample documents (`scripts/make_rea
 <img src="images/monograph-pdf-page-thumbnails.png" alt="Navigation panel showing page thumbnails beside the open document" width="100%">
 
 <p>
-  <img src="images/monograph-pdf-header-footer.png" alt="Header, footer and page numbers dialog with a live preview of the page" width="58%">
-  <img src="images/monograph-pdf-password-protect.png" alt="Encrypt with a password dialog: open password, permissions and AES-256 encryption" width="34%">
+  <img src="images/monograph-pdf-header-footer.png" alt="Header, footer and page numbers dialog with a live preview of the page" width="56%">
+  <img src="images/monograph-pdf-password-protect.png" alt="Encrypt with a password dialog: open password, permissions and AES-256 encryption" width="36%">
 </p>
 
 <img src="images/monograph-pdf-remove-hidden.png" alt="Remove hidden information dialog listing what was found in the document" width="50%">

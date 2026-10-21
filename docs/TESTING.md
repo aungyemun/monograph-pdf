@@ -61,10 +61,15 @@ Windows runner with Python 3.11.9:
    (14 days).
 
 The workflow has read-only repository permissions, uses no secrets, does not build or publish
-releases, and never uploads documents. Tests needing private PDFs or Microsoft Office
-skip on the runner and show as **NOT VERIFIED**; run them locally before a release
-([RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)). CI therefore runs fewer tests than a maintainer's
-machine: modules for private PDFs are not in the repository at all, and Office-dependent tests skip.
+releases, and never uploads documents.
+
+CI runs the automated tests its environment supports, not every test. Tests that need Microsoft
+Office, Japanese system fonts that the runner does not have, or the maintainer's private reference
+PDFs are skipped there (a category whose tests were all skipped shows as **NOT VERIFIED**); run them
+locally before a release ([RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)). Modules for private PDFs are
+not in the repository at all. The installer test (`scripts\test_installer.ps1`) and physical printing
+are not part of CI. Test figures quoted in release notes always name the build or CI run they come
+from.
 
 ## Coverage focus
 

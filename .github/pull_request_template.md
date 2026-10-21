@@ -13,4 +13,4 @@
 - [ ] Documentation is updated where needed
 - [ ] No network access, telemetry or new data collection is added
 - [ ] No personal documents, private paths or credentials are included
-- [ ] I agree that my contribution is licensed under AGPL-3.0-or-later
+- [ ] I have the right to contribute this material and agree to license it under AGPL-3.0-or-later

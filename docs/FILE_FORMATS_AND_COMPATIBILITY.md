@@ -14,7 +14,7 @@
 | :--- | :--- |
 | Windows 10 and 11, 64-bit | Supported |
 | macOS | Planned |
-| Android | Planned for a later stage |
+| Android | Under consideration |
 | iOS | Not planned |
 
 ## Engines

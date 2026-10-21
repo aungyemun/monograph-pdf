@@ -35,18 +35,21 @@ Fixes are described in the [changelog](CHANGELOG.md) of the release that contain
 
 ## Security design
 
-Monograph PDF makes no network connections, does not upload documents and collects no usage data.
+Monograph PDF is designed to operate entirely offline. Its own code uses no networking modules
+(checked by tests); it has no telemetry, update check or document upload.
 
 | Area | How it is protected |
 | :--- | :--- |
 | **Installation** | Setup is not code-signed; check the SHA-256 checksum against `SHA256SUMS.txt` or the release page before running it. |
-| **Opening documents** | PDFs are read with MuPDF. Opening a file never writes to it. PDF JavaScript, actions and links are never run or followed automatically. |
-| **Encryption** | AES-256 (AES-128 optional). Permission settings are honored by PDF readers but are not a cryptographic protection. |
-| **Redaction** | Applying a redaction removes the content underneath; it does not just cover it. |
-| **Hidden information** | **Protect ▸ Remove Hidden Information** writes a cleaned copy; its limits are documented in [Security and Privacy](docs/SECURITY_AND_PRIVACY.md#hidden-information). |
-| **Working files** | Stored in `%LOCALAPPDATA%\Monograph PDF`. No recovery copy is kept for password-protected PDFs. |
-| **Network** | Qt's network and TLS modules and Python's SSL module are removed from the release build; the built-in self-check fails if anything tries to connect. |
-| **External programs** | Started only by their full system path. Office conversions run with macros disabled. |
+| **Opening documents** | PDFs are read with MuPDF. Opening a file does not write to it. PDF JavaScript is not executed, and actions and links are never run or followed automatically. |
+| **Encryption** | AES-256 (AES-128 optional). Passwords are kept in memory only. |
+| **Permission restrictions** | Printing, copying and editing permissions are respected by compliant PDF readers but are not a cryptographic protection: anyone who can open the file can bypass them with other software. |
+| **Redaction** | Applied redactions remove the marked page content (text, image pixels, vector graphics) and overlapping form fields, comments and links, rather than placing a visible overlay. Text inside pictures is not detected. Verification and limitations: [Security and Privacy](docs/SECURITY_AND_PRIVACY.md#redaction). |
+| **Hidden information** | **Protect ▸ Remove Hidden Information** writes a cleaned copy and removes only the categories it lists; content that is part of the pages (including layers that are turned off) is kept. Limits: [Security and Privacy](docs/SECURITY_AND_PRIVACY.md#hidden-information). |
+| **Working files** | Settings and the recent-files list in `%APPDATA%\Monograph PDF`; cache, logs and recovery sessions in `%LOCALAPPDATA%\Monograph PDF`. No recovery copy is kept for password-protected PDFs. |
+| **Offline operation** | Qt's network and TLS modules and Python's SSL module are removed from the release build; the built-in self-check (also run by Setup) fails if a network connection is attempted while it runs. |
+| **Office conversion** | Uses the locally installed Microsoft Office (macros force-disabled) or LibreOffice (a temporary profile with macros disabled). These applications run independently and follow their own settings, including network access. |
+| **External programs** | Started only by their full system or installation path, never found through the current folder. |
 
 More detail: [Security and Privacy](docs/SECURITY_AND_PRIVACY.md) · Security audit of the 0.2 line:
 [SECURITY_AUDIT_0.2.0.md](reports/audit/SECURITY_AUDIT_0.2.0.md)

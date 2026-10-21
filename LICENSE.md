@@ -16,18 +16,20 @@ The full license text is reproduced below and, unchanged, in the file [`LICENSE`
 
 This summary is for convenience only; the license text below is what applies.
 
-* You may use Monograph PDF for any purpose, including commercial and professional work, free of
-  charge.
-* You may copy and share the installer.
-* If you distribute Monograph PDF, modified or not, you must make the complete corresponding source
-  code available to the recipients under the same license.
-* If you modify Monograph PDF and let other people use the modified version over a network, the
-  license (section 13) requires you to offer them its source code as well.
-* There is no warranty (sections 15 and 16).
+* You may use, copy and share Monograph PDF for any purpose, including commercial and professional
+  work, free of charge.
+* When distributing Monograph PDF, modified or not, you must comply with the applicable source-code
+  availability, licensing and notice requirements of the GNU AGPL and of the licenses of the bundled
+  components.
+* Section 13 of the AGPL contains additional source-code availability requirements for modified
+  versions that support interaction with users over a network.
+* Monograph PDF is provided without any warranty (sections 15 and 16).
 * The corresponding source of every release is published next to the installer as
   `MonographPDF_<version>_Source.zip`. It contains the application, build scripts, installer,
   documentation and tests, and the corresponding source of the bundled AGPL, GPL and LGPL
-  components. For questions about the source archive, contact **aungyemun25@gmail.com**.
+  components. The **Source code** archives that GitHub adds to each release contain only the
+  repository at the release tag. For questions about the source archive, contact
+  **aungyemun25@gmail.com**.
 
 ## Licensing rationale (AGPL-3.0-or-later)
 
