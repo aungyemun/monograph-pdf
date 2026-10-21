@@ -131,6 +131,10 @@ verified; normal PDF work stays offline.
   instead of clipping; the Compress PDF window fits the screen (settings beside the preview) and its
   preview shows the whole page; the Stamps window no longer cuts off "Make a white background
   transparent"; the font-size box on the context toolbar stays readable when the bar is crowded.
+- The window could freeze in Fit Width or Fit Page on a document with both portrait and landscape
+  pages (for example after rotating or inserting a page): the zoom was re-measured on whichever page
+  was centred, which moved the pages and changed the centred page, endlessly. The fit is now measured
+  on the page you last went to.
 - Compress PDF: choosing Lossless, Balanced, Smallest or Target size now also updates the profile
   list, so the two never disagree.
 

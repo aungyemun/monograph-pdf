@@ -164,6 +164,7 @@ class _CanvasWidget(QWidget):
 
         self._tiles: OrderedDict[tuple, QPixmap] = OrderedDict()
         self._focus_page = 0
+        self._fit_ref_page: int | None = None  # page Fit Width / Fit Page is measured on (see apply_zoom_for_viewport)
         self._retain_radius = 3
         self._highlights: list[tuple[int, object]] = []
         self._render_timer = QTimer(self)
@@ -230,6 +231,7 @@ class _CanvasWidget(QWidget):
         self._layouts = []
         self._highlights = []
         self._focus_page = 0
+        self._fit_ref_page = None
         self._mode = "idle"
         self._live_interaction = False
         self._hover_field_id = None
@@ -457,7 +459,12 @@ class _CanvasWidget(QWidget):
 
     def set_zoom_mode(self, mode: ZoomMode, viewport_size: QSize) -> None:
         self._zoom_mode = mode
+        self._fit_ref_page = self._focus_page
         self.apply_zoom_for_viewport(viewport_size)
+
+    def set_fit_reference(self, index: int) -> None:
+        """The page a later Fit Width / Fit Page refit (window or panel resize) is measured on."""
+        self._fit_ref_page = index
 
     def set_manual_zoom(self, zoom: float, viewport_size: QSize) -> None:
         self._zoom_mode = ZoomMode.MANUAL
@@ -472,7 +479,12 @@ class _CanvasWidget(QWidget):
     def apply_zoom_for_viewport(self, viewport_size: QSize) -> None:
         if not self._pages or viewport_size.width() <= 0:
             return
-        page = self._pages[min(self._focus_page, len(self._pages) - 1)]
+        # Measured on a fixed reference page, not on whichever page is centred now: in a document with
+        # portrait and landscape pages the refit moves the pages, a different page becomes centred, and
+        # fitting to that one refits again — the view used to flip between two zooms forever.
+        if self._fit_ref_page is None or not 0 <= self._fit_ref_page < len(self._pages):
+            self._fit_ref_page = min(self._focus_page, len(self._pages) - 1)
+        page = self._pages[self._fit_ref_page]
         avail_w = max(50, viewport_size.width() - 2 * self._side_pad)
         avail_h = max(50, viewport_size.height() - 2 * self._page_gap)
         page_w = page.display_width_pt * _PT_TO_CSS
@@ -2893,6 +2905,7 @@ class PdfCanvas(QScrollArea):
         y = self._canvas.page_top(index)
         self.verticalScrollBar().setValue(y)
         self._canvas._focus_page = index  # noqa: SLF001
+        self._canvas.set_fit_reference(index)
         self.pageChanged.emit(index)
         # Schedule render for the visible region but keep explicit navigation target.
         # notify_viewport() derives focus from scroll center and can clobber go_to_page

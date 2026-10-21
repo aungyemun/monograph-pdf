@@ -128,3 +128,32 @@ def test_dialogs_do_not_shadow_qdialog_result():
                  for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
                  if re.search(r"\bself\.result\s*=", line)]
     assert not offenders, offenders
+
+
+def test_fit_width_does_not_flip_between_portrait_and_landscape_pages(window, tmp_path, qtbot):
+    """Fit Width is measured on a fixed reference page. Measuring it on whichever page happened to be
+    centred made a document with portrait and landscape pages refit forever (the app froze)."""
+    import fitz
+
+    from ui.pdf_canvas import ZoomMode
+
+    src = tmp_path / "mixed.pdf"
+    with fitz.open() as d:
+        d.new_page(width=595, height=842)
+        d.new_page(width=842, height=595)
+        d.new_page(width=595, height=842)
+        d.save(src)
+    assert window.open_path(src)
+    view = window._canvas  # noqa: SLF001
+    inner = view._canvas  # noqa: SLF001
+    inner.set_zoom_mode(ZoomMode.FIT_WIDTH, view._fit_size())  # noqa: SLF001
+    z0 = inner.zoom
+    inner._focus_page = 1  # noqa: SLF001 — scrolling centred the landscape page
+    seen = []
+    inner.zoomChanged.connect(seen.append)
+    for _ in range(5):
+        inner.apply_zoom_for_viewport(view._fit_size())  # noqa: SLF001 — resizes
+    assert all(abs(z - z0) < 1e-9 for z in seen)
+    view.go_to_page(1)  # explicit navigation: later refits use that page
+    inner.apply_zoom_for_viewport(view._fit_size())  # noqa: SLF001
+    assert inner.zoom < z0
