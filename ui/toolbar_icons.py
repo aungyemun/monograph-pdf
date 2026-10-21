@@ -1542,11 +1542,13 @@ def _searchable(p, c):
 
 @icon("batch")
 def _batch(p, c):
-    # three stacked pages and an arrow
-    for dx in (0, 2.5, 5):
-        p.drawRect(QRectF(2.5 + dx, 2.5 + dx, 8, 10))
-    p.drawLine(QPointF(12.5, 15.5), QPointF(17.5, 15.5))
-    _poly(p, [(15.3, 13.3), (17.5, 15.5), (15.3, 17.7)], close=False)
+    # a stack of pages (back pages show only their edges) and an arrow
+    _poly(p, [(2.5, 11), (2.5, 2.5), (9.5, 2.5)], close=False)
+    _poly(p, [(5, 13.5), (5, 5), (12, 5)], close=False)
+    p.drawRect(QRectF(7.5, 7.5, 7, 9))
+    p.drawLine(QPointF(9.5, 11), QPointF(12.5, 11))
+    p.drawLine(QPointF(9.5, 13.5), QPointF(12.5, 13.5))
+    _poly(p, [(16, 9.5), (18, 12), (16, 14.5)], close=False)
 
 
 @icon("comments_panel")
