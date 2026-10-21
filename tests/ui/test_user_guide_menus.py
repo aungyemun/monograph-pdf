@@ -15,7 +15,7 @@ pytest.importorskip("PySide6")
 
 GUIDE = Path(__file__).resolve().parents[2] / "docs" / "USER_GUIDE.md"
 # Paths whose last part is not a menu item: About dialog tab
-NOT_MENU_LEAF = {("help", "about monograph pdf", "office integration")}
+NOT_MENU_LEAF = {("help", "about monograph pdf", "office integration"), ("file", "settings", "updates")}  # dialog tabs
 
 
 def _norm(text: str) -> str:
