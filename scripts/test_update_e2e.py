@@ -63,7 +63,14 @@ APP_FOLDER = E2E / "ソフトウェア" / "Monograph PDF"
 UNINST = r"Software\Microsoft\Windows\CurrentVersion\Uninstall" + "\\" + update_config.INNO_APP_ID + "_is1"
 APPDATA = Path(os.environ["APPDATA"]) / "Monograph PDF"
 LOCALDATA = Path(os.environ["LOCALAPPDATA"]) / "Monograph PDF"
-DESKTOP_LNK = Path(os.environ["USERPROFILE"]) / "Desktop" / "Monograph PDF.lnk"
+def _desktop() -> Path:
+    # the real Desktop folder (it may be redirected, e.g. to OneDrive)
+    out = subprocess.run(["powershell", "-NoProfile", "-Command", "[Environment]::GetFolderPath('Desktop')"],
+                         capture_output=True, text=True, encoding="utf-8").stdout.strip()
+    return Path(out) if out else Path(os.environ["USERPROFILE"]) / "Desktop"
+
+
+DESKTOP_LNK = _desktop() / "Monograph PDF.lnk"
 START_GROUP = Path(os.environ["APPDATA"]) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Monograph PDF"
 
 CHECKS: list[dict] = []
@@ -456,6 +463,7 @@ def main(argv: list[str] | None = None) -> int:
         reg = hkcu_registration()
         check("old version installed per user", rc == 0 and reg and reg["DisplayVersion"] == a.old, f"exit {rc}, {reg}")
         tasks_before = reg and reg["Inno Setup: Selected Tasks"]
+        check("desktop shortcut created by the first installation", DESKTOP_LNK.exists(), str(DESKTOP_LNK))
         check("non-default choices recorded", tasks_before is not None and "desktopicon" in tasks_before
               and "assocother" not in tasks_before, str(tasks_before))
 
@@ -531,7 +539,8 @@ def main(argv: list[str] | None = None) -> int:
             check("update helper installed", (APP_FOLDER / staging.HELPER_NAME).is_file())
             kept = json.loads((APPDATA / "preferences.json").read_text(encoding="utf-8"))
             check("settings kept", all(kept.get(k) == v for k, v in prefs.items()), json.dumps({k: kept.get(k) for k in prefs}))
-            check("recent files kept", str(sample) in (APPDATA / "recent_files.json").read_text(encoding="utf-8"))
+            recent = json.loads((APPDATA / "recent_files.json").read_text(encoding="utf-8"))
+            check("recent files kept", str(sample) in recent, json.dumps(recent, ensure_ascii=False))
             sd = result["_sd"]
             check("installer and hand-off removed after success",
                   not sd.installer.exists() and not (sd.path / "handoff.json").exists() and not (sd.path / "setup.log").exists())
