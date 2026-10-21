@@ -37,7 +37,11 @@ archives), `runtime/` (working files during development), `build/` and `dist/` (
 * `docs/`: `USER_GUIDE`, `FEATURES`, `FILE_FORMATS_AND_COMPATIBILITY`, `ARCHITECTURE`,
   `BUILD_AND_RUNTIME`, `RELEASE_AND_VERSIONING`, `RELEASE_CHECKLIST`, `CODE_SIGNING`,
   `SECURITY_AND_PRIVACY`, `TESTING`, `SECURE_UPDATES`, `AUTOMATIC_UPGRADE_AND_CLEANUP`,
-  `ERROR_REPORTING`, `INTERNATIONAL_WINDOWS_COMPATIBILITY`; screenshots in `docs/images/`; release notes in
+  `ERROR_REPORTING`, `INTERNATIONAL_WINDOWS_COMPATIBILITY`, `PDF_TO_OFFICE_CONVERSION`,
+  `OFFICE_TO_PDF_CONVERSION`, `CONVERSION_FIDELITY`, `PDF_COMPRESSION`, `SAVE_AS_AND_EXPORT`,
+  `PDF_RENDERING_AND_PAGE_SIZES`, `COLOR_AND_IMAGE_FIDELITY`, `PRINTING_AND_PRINT_PREVIEW`,
+  `PDF_SAVE_AND_EXPORT_FIDELITY`, `PERFORMANCE_AND_RENDERING`, `WINDOWS_RUNTIME_DEPENDENCIES`,
+  `PREREQUISITE_MANAGEMENT`, `INSTALLER_PACKAGE_CONTENTS`, `CLEAN_WINDOWS_INSTALLATION`; screenshots in `docs/images/`; release notes in
   `docs/releases/`
 
 ## Installed layout
@@ -68,6 +72,19 @@ Nothing is written to the installation folder `{app}` during normal use.
 6. Redaction (`core/redaction/ops.py`) removes the page content under each mark, together with form
    fields, annotations and links that overlap it, and then reports where the marked text still
    occurs elsewhere in the file.
+7. Annotations (notes, markup, stamps) are real PDF annotations on the open document; their undo
+   records the annotation objects (`core/annotations/store.py`). Page operations are undone from
+   bounded whole-document snapshots (`core/organize/page_snapshot.py`).
+8. Exports, conversions, compression and printing read the document *as shown*: when something is
+   unsaved, a temporary baked copy (`core/printing/ops.py: prepare_current_source`); the source file
+   is never touched. Conversions and compression first ask Save / Save As / Cancel.
+9. Compression (`core/convert/compress.py`) works in memory on the PDF bytes, measures each
+   candidate, and writes the chosen one atomically after validating it. Office files get the PDF's
+   properties (`core/convert/office_metadata.py`). Batch conversion (`core/convert/batch.py`) runs
+   the same converters one file at a time on a worker thread.
+10. OCR (`core/ocr/pipeline.py`) renders pages in display space, so rotated and upside-down scans
+    get a correctly placed text layer; recognised text can be exported (`core/ocr/text_export.py`);
+    optional language packs are verified against pinned hashes (`core/ocr/language_packs.py`).
 
 ## Updates and problem reports (0.3.0, in development)
 

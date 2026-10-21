@@ -8,7 +8,9 @@
   .NET Framework 4 C# compiler (`csc`, part of Windows) to build the installer and `uninstall.exe`
 * For a release build: the OCR engine and language data (see below)
 
-End users need none of these: Python, Qt and Tesseract are bundled with the application.
+End users need none of these: Python, Qt, Tesseract and the Visual C++ runtime are bundled with the
+application. See [Windows Runtime Dependencies](WINDOWS_RUNTIME_DEPENDENCIES.md),
+[Prerequisite Management](PREREQUISITE_MANAGEMENT.md) and [Installer Package Contents](INSTALLER_PACKAGE_CONTENTS.md).
 
 ## Setting up and running from source
 

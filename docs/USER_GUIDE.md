@@ -101,6 +101,9 @@ The OCR engine and English / Japanese language data ship with the app. Nothing i
 - **OCR ▸ Make PDF Editable…** (summary before conversion)
 - **OCR ▸ OCR Whole Document…**, **OCR ▸ OCR Current Page…**, **OCR ▸ Make Searchable PDF…**
 - Low-certainty words are marked in amber; Cancel stops after the current page
+- **OCR ▸ Recognize Text in Area…** (drag a rectangle) and **OCR ▸ Extract Text (OCR)…**: the recognised text can be corrected, copied, or saved as a text file or Word document; **OCR ▸ Scanned PDF to Word (OCR)…**
+- Rotated and upside-down scans are handled; running OCR again never adds a second text layer
+- **OCR ▸ OCR Languages…** — choose languages; optional languages (Chinese, Korean, vertical Japanese, German, French, Spanish) are installed only from a file you supply that matches the pinned SHA-256
 
 ## Organize pages
 
@@ -121,6 +124,9 @@ All conversions run on your computer.
 - **Convert ▸ Images to PDF…** — one page per picture at its own size; photos keep their orientation. Photo details stored in JPEG files (location, camera, date) are not copied into the PDF.
 - **Convert ▸ PDF to Word…** (Keep layout / Microsoft Word / Text only)
 - **Convert ▸ PDF Tables to Excel…** · **Convert ▸ PDF to PowerPoint…** · **Convert ▸ PDF to Images…** · **Convert ▸ PDF to Text…** · **Convert ▸ Extract Images…**
+- PowerPoint slides and Word sections keep each page's size and orientation. When the pages differ in size, **PDF to PowerPoint** lets you choose: largest page (true size or fitted), first page's size, a chosen slide size, or one presentation per page size. Document properties (title, author, subject, keywords, dates) come from the PDF. See [PDF to Office](PDF_TO_OFFICE_CONVERSION.md)
+- **Convert ▸ Batch Convert…** — many files at once to Word, Excel, PowerPoint, text, images, searchable PDF or Word via OCR (or Office files and images to PDF), with a status for each file and Cancel
+- With unsaved changes, a conversion first asks **Save**, **Save As…** or **Cancel**
 - **Convert ▸ Conversion Quality Guide…**
 - Scanned pages: run OCR first. Protected files: enter the password first; unlock only if you want an unprotected copy (**Protect ▸ Unlock PDF (Remove Password)…**)
 
@@ -139,7 +145,8 @@ All conversions run on your computer.
 - While you type a password, a strength rating suggests how hard it is to guess (worked out on your computer; nothing is sent or stored). Use a permissions password that differs from the open password — otherwise anyone who can open the file can also lift the restrictions.
 - **Protect ▸ Unlock PDF (Remove Password)…** · **Protect ▸ View Permissions…**
 - **Protect ▸ Remove Hidden Information…** — lists what the document carries besides its visible pages (document properties and XMP metadata, attached files, scripts and automatic actions, page thumbnails, private application data, comments, form fields, links, bookmarks, invisible text) and saves a new PDF without the kinds you tick. Comments, fields, links, bookmarks and invisible text are kept unless you choose them; invisible text is usually recognised (OCR) text, and removing it stops scanned pages being searchable. Invisible text lying over visible text is kept so the page never changes. Password-protected files must be unlocked first. Marked redactions are not applied here. Anything that is part of the pages themselves is not removed — including text inside pictures and content on layers that are turned off — so check the result before sharing it.
-- Markup under Insert (Comments & markup): **Insert ▸ Highlight Text** (pen + color; click again to leave the tool), **Insert ▸ Eraser** (click a highlight or ink mark to remove it), **Insert ▸ Underline Text**, **Insert ▸ Strikethrough Text**, **Insert ▸ Sticky Note Comment…**, **Insert ▸ Callout…**, **Insert ▸ Stamp…** — creation and erase are undoable
+- Markup under Insert (Comments & markup): **Insert ▸ Highlight Text** (pen + color; click again to leave the tool), **Insert ▸ Eraser** (click a highlight or ink mark to remove it), **Insert ▸ Underline Text**, **Insert ▸ Strikethrough Text**, **Insert ▸ Squiggly Underline**, **Insert ▸ Sticky Note Comment…**, **Insert ▸ Callout…**, **Insert ▸ Stamp…** (standard stamps, your own text or picture stamps, rotation and opacity) — every change is undoable
+- **View ▸ Comments Panel** lists the notes and markup; select one to go to it, edit its text, or delete it
 - Highlight: stays on for many strokes; change the color menu for the next stroke only; Esc cancels an unfinished stroke (keeps mode); Esc again (or click Highlight) returns to Select. Free-area strokes mark blank pages, pictures and tables; text strokes mark only the characters the pen touches. Completed marks stay when you add text boxes, shapes, images or fill forms (opaque overlays may cover them on screen without deleting them).
 - **Protect ▸ Mark Area for Redaction**, **Protect ▸ Mark Text for Redaction…** (every page is searched) or **Protect ▸ Mark Whole Pages for Redaction…**, then **Protect ▸ Apply Redactions…** — truly removes the content (cannot be undone after Apply). Form fields, comments and links that overlap a mark are removed with it. Whole-page marks also remove content hidden outside the visible page area; the pages themselves stay.
 - After applying text marks, Monograph PDF looks for the same text elsewhere in the saved file — comments, form values, bookmarks, document properties and attachments — and lists where it is still found. Choose **Remove These Too** to replace it with “[redacted]” (attachments with the text in their name or description are deleted), or **Keep Them**. Monograph PDF never opens or reads attachments, so their contents are not checked: any attachments are listed for you to review.
@@ -151,6 +158,9 @@ All conversions run on your computer.
 
 - Pages: all, current, selected or a range — then **Odd pages** / **Even pages** (by page number, for two-sided printing by hand) and **Reverse order**
 - **Comments:** **Document and comments**, or **Document only** (notes, highlights, shapes and stamps left out; form fields still print)
+- **Scaling:** fit, actual size, shrink oversized pages or a custom percentage; **Pages per sheet:** 1, 2, 4, 6 or 9
+- **Color:** Color, Grayscale, or Black and white (only black and white dots)
+- **Save as PDF…** writes the chosen pages as a PDF (text stays text) without a printer. See [Printing](PRINTING_AND_PRINT_PREVIEW.md)
 
 ## Updates
 
