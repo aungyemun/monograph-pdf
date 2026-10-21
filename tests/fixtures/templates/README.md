@@ -23,6 +23,11 @@ Regenerate: `env\Scripts\python.exe tests\fixtures\templates\make_templates.py`
 | `transparency_overlap`, `image_heavy`, `fonts_specimen`, `newsletter_two_column` | rendering, images, fonts, text flow |
 | `long_document_200_pages` | performance, memory, rotation speed |
 | `empty_page`, `cropbox_offset` | edge cases and geometry |
+| `slide_deck_mixed_aspect` | PDF to PowerPoint page-size groups (16:9 deck with one 4:3 slide), thumbnails, print scaling |
+| `lab_protocol_figures_tables` | numbered protocol, reagent table, micrograph figure, landscape results table (Word/Excel export, highlighting, mixed orientation) |
+| `photo_album_compression` | Compress PDF and target sizes on large photo-like JPEGs |
+| `poster_a1_large_format` | very large page: zoom, tiles, printing to A4/A3, compression |
+| `review_comment_threads` | Comments panel: several authors, a reply thread, every text-markup type, sticky note, free text |
 | `password_protected_aes256` | password prompt (password in `manifest.json`) |
 | `permissions_restricted` | owner-restricted copy/edit |
 | `damaged_truncated` | error handling: must be refused or repaired, never crash |

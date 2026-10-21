@@ -51,6 +51,11 @@ def test_template_matches_manifest(name):
             assert sum(1 for p in d for w in p.widgets() if w.field_type == fitz.PDF_WIDGET_TYPE_SIGNATURE) == ex["signature_fields"]
         if "cropbox" in ex:
             assert list(d[0].cropbox) == ex["cropbox"]
+        if "page_sizes" in ex:
+            assert [[round(v, 1) for v in (pg.rect.width, pg.rect.height)] for pg in d] == \
+                [[round(v, 1) for v in sz] for sz in ex["page_sizes"]]
+        if "annotations_min" in ex:
+            assert sum(len(list(pg.annots())) for pg in d) >= ex["annotations_min"]
         if "toc" in ex:
             assert len(d.get_toc()) == ex["toc"]
         for p in d:

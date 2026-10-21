@@ -731,6 +731,226 @@ def t_two_column_text():
     return d, {"pages": 1, "text": ["Newsletter"]}
 
 
+# ------------------------------------------------------------------------------------------------ v0.3.0 templates
+SLIDE169 = (960.0, 540.0)
+SLIDE43 = (720.0, 540.0)
+A1 = (1683.78, 2383.94)
+
+
+def _jpeg(w, h, *, seed=1, quality=90) -> bytes:
+    """A photo-like JPEG (smooth gradients, soft blobs and grain) that compresses like a real photograph."""
+    import io
+
+    rnd = random.Random(seed)
+    r = Image.linear_gradient("L").resize((w, h))
+    g = Image.radial_gradient("L").resize((w, h)).rotate(30 + seed * 17)
+    b = Image.linear_gradient("L").rotate(90).resize((w, h))
+    img = Image.merge("RGB", (r, g, b))
+    d = ImageDraw.Draw(img)
+    for _ in range(40):
+        x0, y0 = rnd.randint(0, w), rnd.randint(0, h)
+        rad = rnd.randint(w // 40, w // 8)
+        d.ellipse((x0 - rad, y0 - rad, x0 + rad, y0 + rad),
+                  fill=(rnd.randint(30, 230), rnd.randint(30, 230), rnd.randint(30, 230)))
+    img = img.filter(ImageFilter.GaussianBlur(max(2, w // 300)))
+    random.seed(seed)
+    noise = Image.effect_noise((w, h), 18).convert("RGB")
+    img = Image.blend(img, noise, 0.12)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=quality, subsampling=0)
+    return buf.getvalue()
+
+
+def _micrograph(w, h, *, seed=1, channel=(40, 220, 90)) -> bytes:
+    """Synthetic fluorescence micrograph: dark field with blurred nuclei in one colour, plus a scale bar."""
+    import io
+
+    rnd = random.Random(seed)
+    img = Image.new("RGB", (w, h), (4, 6, 8))
+    d = ImageDraw.Draw(img)
+    for _ in range(70):
+        x, y = rnd.randint(0, w), rnd.randint(0, h)
+        rad = rnd.randint(6, 16)
+        k = rnd.uniform(0.4, 1.0)
+        d.ellipse((x - rad, y - rad * 0.8, x + rad, y + rad * 0.8), fill=tuple(int(c * k) for c in channel))
+    img = img.filter(ImageFilter.GaussianBlur(2.2))
+    d = ImageDraw.Draw(img)
+    d.rectangle((w - 70, h - 16, w - 20, h - 12), fill=(235, 235, 235))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def t_slides():
+    d = _doc()
+    total = 5
+    p = d.new_page(width=SLIDE169[0], height=SLIDE169[1])
+    p.draw_rect(p.rect, color=None, fill=NAVY)
+    p.draw_rect(fitz.Rect(0, 380, SLIDE169[0], 388), color=None, fill=TEAL)
+    p.insert_text((70, 250), "Quarterly Research Review", fontsize=44, fontname="hebo", color=(1, 1, 1))
+    p.insert_text((72, 300), "Programme update · Q3 2026 · fictional data for testing", fontsize=18, fontname="helv",
+                  color=(0.82, 0.88, 0.95))
+    p.insert_text((72, 440), "Monograph Lab (fictional)", fontsize=14, fontname="helv", color=(0.82, 0.88, 0.95))
+    p = d.new_page(width=SLIDE169[0], height=SLIDE169[1])
+    band(p, "Highlights", "What changed this quarter", height=80)
+    bullets = ["Three cohorts completed on schedule", "Imaging pipeline moved to 4K tiles",
+               "Median turnaround down from 9 to 6 days", "Two protocols revised after review"]
+    for i, b in enumerate(bullets):
+        p.draw_circle(fitz.Point(66, 150 + i * 56), 5, color=None, fill=TEAL)
+        p.insert_text((84, 157 + i * 56), b, fontsize=22, fontname="helv", color=BLACK)
+    p.insert_image(fitz.Rect(600, 120, 900, 420), stream=_jpeg(600, 600, seed=4, quality=85))
+    footer(p, 2, total, "Quarterly Research Review · fictional")
+    p = d.new_page(width=SLIDE169[0], height=SLIDE169[1])
+    band(p, "Throughput", "Samples processed per month", height=80)
+    bar_chart(p, fitz.Rect(60, 110, 520, 470), ["Apr", "May", "Jun", "Jul", "Aug", "Sep"], [42, 55, 51, 63, 70, 77],
+              title="Samples")
+    line_chart(p, fitz.Rect(540, 110, 900, 470), [[0.2, 0.35, 0.3, 0.5, 0.62, 0.7], [0.1, 0.2, 0.28, 0.33, 0.4, 0.52]],
+               title="Yield")
+    footer(p, 3, total, "Quarterly Research Review · fictional")
+    p = d.new_page(width=SLIDE43[0], height=SLIDE43[1])
+    band(p, "Budget (4:3 slide)", "A different page size in the same deck", height=80)
+    table(p, 50, 120, [220, 130, 130, 130], [["Line", "Plan", "Actual", "Variance"], ["Consumables", "42,000", "39,850", "-2,150"],
+          ["Sequencing", "65,000", "68,400", "3,400"], ["Imaging", "18,500", "18,100", "-400"], ["Travel", "6,000", "4,250", "-1,750"]],
+          align=["l", "r", "r", "r"], row_h=34, size=13, negative_red=True)
+    footer(p, 4, total, "Quarterly Research Review · fictional")
+    p = d.new_page(width=SLIDE169[0], height=SLIDE169[1])
+    p.draw_rect(p.rect, color=None, fill=TEAL)
+    p.insert_text((70, 280), "Questions?", fontsize=54, fontname="hebo", color=(1, 1, 1))
+    p.insert_text((72, 330), "slides.example.org (fictional)", fontsize=18, fontname="helv", color=(0.9, 0.97, 0.96))
+    return d, {"pages": 5, "text": ["Quarterly Research Review", "Budget (4:3 slide)", "Questions?"],
+               "page_sizes": [list(SLIDE169)] * 3 + [list(SLIDE43), list(SLIDE169)]}
+
+
+def t_lab_protocol():
+    d = _doc()
+    total = 3
+    p = d.new_page(width=A4[0], height=A4[1])
+    band(p, "SOP-IMG-014  Immunofluorescence staining", "Fictional laboratory protocol · version 3.2 · for software testing")
+    y = heading(p, 110, "1  Purpose and scope")
+    _fit_box(p, fitz.Rect(40, y, 555, y + 52), "Standard procedure for immunofluorescence staining of fixed brain sections "
+             "(fictional). Applies to cryosections of 20-40 um thickness. Keep slides protected from light after step 6.", size=10)
+    y = heading(p, y + 70, "2  Reagents")
+    y = table(p, 40, y, [170, 120, 110, 115], [["Reagent", "Supplier (fictional)", "Catalogue no.", "Working dilution"],
+              ["Anti-Iba1 (rabbit)", "Example Bio", "EB-0019", "1:500"], ["Anti-GFAP (chicken)", "Sample Reagents", "SR-4410", "1:1000"],
+              ["Goat anti-rabbit AF488", "Example Bio", "EB-7731", "1:800"], ["DAPI", "Sample Reagents", "SR-0002", "1 ug/mL"],
+              ["Normal goat serum", "Example Bio", "EB-1200", "5 % (v/v)"]], row_h=22, size=9)
+    y = heading(p, y + 30, "3  Procedure")
+    steps = ["Wash sections 3 x 5 min in PBS (pH 7.4) at room temperature.", "Permeabilise in 0.3 % Triton X-100 in PBS for 15 min.",
+             "Block in 5 % normal goat serum for 1 h at 20-25 C.", "Incubate with primary antibodies overnight at 4 C.",
+             "Wash 3 x 10 min in PBS.", "Incubate with secondary antibodies for 2 h, protected from light.",
+             "Counterstain with DAPI for 10 min; wash 2 x 5 min.", "Mount with anti-fade medium; store at 4 C in the dark."]
+    for i, st in enumerate(steps, 1):
+        p.insert_text((48, y + 4), f"{i}.", fontsize=10, fontname="hebo", color=TEAL)
+        _fit_box(p, fitz.Rect(66, y - 7, 555, y + 18), st, size=10)
+        y += 24
+    p.draw_rect(fitz.Rect(40, y + 10, 555, y + 60), color=ORANGE, fill=(1, 0.96, 0.9), width=1)
+    _fit_box(p, fitz.Rect(52, y + 18, 545, y + 56), "CAUTION  Paraformaldehyde is toxic. Work in a fume hood and wear gloves. "
+             "This warning is part of a fictional test document.", size=9.5, font="hebo", color=(0.55, 0.25, 0.0))
+    footer(p, 1, total, "SOP-IMG-014 · fictional")
+    p = d.new_page(width=A4[0], height=A4[1])
+    y = heading(p, 60, "4  Representative images")
+    chans = [(40, 220, 90), (230, 60, 60), (60, 120, 240), (220, 200, 40)]
+    labels = ["A  Iba1 (green)", "B  GFAP (red)", "C  DAPI (blue)", "D  Merge"]
+    for i in range(4):
+        x = 40 + (i % 2) * 262
+        yy = y + (i // 2) * 250
+        p.insert_image(fitz.Rect(x, yy, x + 250, yy + 210), stream=_micrograph(500, 420, seed=10 + i, channel=chans[i]))
+        p.insert_text((x, yy + 228), labels[i], fontsize=9.5, fontname="hebo", color=NAVY)
+    _fit_box(p, fitz.Rect(40, y + 510, 555, y + 580), "Figure 1. Fictional confocal images of mouse hippocampus (CA1), 20x objective. "
+             "Scale bar 50 um. Images are synthetic and generated for software testing only.", size=9, font="heit", color=GREY)
+    footer(p, 2, total, "SOP-IMG-014 · fictional")
+    p = d.new_page(width=A4L[0], height=A4L[1])
+    band(p, "5  Differential expression (example)", "Aged vs young microglia · fictional values · FDR < 0.05")
+    rows = [["Gene", "log2 fold change", "baseMean", "p-value", "padj", "Direction"]]
+    genes = [("Apoe", 2.41, 5120.4, 1.2e-12), ("Cst7", 3.05, 812.7, 4.5e-10), ("Lgals3", 1.88, 1490.2, 2.1e-8),
+             ("Itgax", 2.67, 233.9, 7.7e-8), ("P2ry12", -1.42, 9830.1, 3.3e-7), ("Tmem119", -1.15, 7210.6, 1.9e-6),
+             ("Cx3cr1", -0.92, 6650.0, 8.4e-5), ("Spp1", 2.12, 418.3, 2.6e-4)]
+    for g, fc, bm, pv in genes:
+        rows.append([g, f"{fc:+.2f}", f"{bm:,.1f}", f"{pv:.1e}", f"{min(1.0, pv * 40):.1e}", "up" if fc > 0 else "down"])
+    table(p, 40, 110, [120, 130, 120, 120, 120, 110], rows, align=["l", "r", "r", "r", "r", "c"], row_h=24, size=10)
+    bar_chart(p, fitz.Rect(40, 360, 780, 545), [r[0] for r in rows[1:]], [abs(float(r[1])) * 10 for r in rows[1:]],
+              title="|log2 FC| x 10")
+    footer(p, 3, total, "SOP-IMG-014 · fictional")
+    return d, {"pages": 3, "text": ["SOP-IMG-014", "Representative images", "Differential expression"], "images": 4}
+
+
+def t_photo_album():
+    d = _doc()
+    for i in range(3):
+        p = d.new_page(width=A4L[0], height=A4L[1])
+        p.insert_image(fitz.Rect(30, 30, A4L[0] - 30, A4L[1] - 80), stream=_jpeg(1800, 1150, seed=21 + i, quality=93))
+        p.insert_text((30, A4L[1] - 50), f"Field site {i + 1} - synthetic photograph for compression tests", fontsize=12,
+                      fontname="helv", color=BLACK)
+        footer(p, i + 1, 3, "Photo album · fictional")
+    return d, {"pages": 3, "text": ["Field site 1"], "images": 3}
+
+
+def t_poster_a1():
+    d = _doc()
+    p = d.new_page(width=A1[0], height=A1[1])
+    w = A1[0]
+    p.draw_rect(fitz.Rect(0, 0, w, 260), color=None, fill=NAVY)
+    p.draw_rect(fitz.Rect(0, 260, w, 272), color=None, fill=TEAL)
+    p.insert_text((80, 140), "Microglial ageing signatures in a fictional cohort", fontsize=64, fontname="hebo", color=(1, 1, 1))
+    p.insert_text((82, 210), "A. Example, B. Sample  ·  Example Institute, Sample University (fictional)", fontsize=30,
+                  fontname="helv", color=(0.82, 0.88, 0.95))
+    colw = (w - 80 * 2 - 60 * 2) / 3
+    titles = ["Background", "Methods", "Results", "Conclusions"]
+    for c in range(3):
+        x = 80 + c * (colw + 60)
+        y = 340
+        for blk in range(3):
+            p.insert_text((x, y), titles[(c + blk) % 4], fontsize=36, fontname="hebo", color=NAVY)
+            p.draw_line((x, y + 10), (x + 160, y + 10), color=TEAL, width=4)
+            _fit_box(p, fitz.Rect(x, y + 30, x + colw, y + 300), LOREM + " " + LOREM2, size=20)
+            if blk == 1:
+                p.insert_image(fitz.Rect(x, y + 320, x + colw, y + 640), stream=_micrograph(800, 520, seed=30 + c))
+                y += 340
+            y += 360
+    bar_chart(p, fitz.Rect(80, 1900, w - 80, 2250), ["W1", "W2", "W3", "W4", "W5", "W6", "W7", "W8"],
+              [3, 5, 4, 7, 9, 8, 11, 12], title="Weekly counts")
+    p.insert_text((80, 2320), "Poster A1 (594 x 841 mm) · fictional content for large-page rendering, printing and compression tests",
+                  fontsize=18, fontname="helv", color=GREY)
+    return d, {"pages": 1, "size": list(A1), "text": ["Microglial ageing signatures"]}
+
+
+def t_review_threads():
+    d = _doc()
+    p = d.new_page(width=A4[0], height=A4[1])
+    band(p, "Manuscript draft - internal review", "Comment threads, replies, sticky notes and markup (fictional)")
+    y = heading(p, 110, "Abstract")
+    _fit_box(p, fitz.Rect(40, y, 555, y + 120), LOREM + " " + LOREM2, size=10.5)
+    y = heading(p, y + 140, "Introduction")
+    _fit_box(p, fitz.Rect(40, y, 555, y + 120), LOREM2 + " " + LOREM, size=10.5)
+
+    def mark(kind, needle, author, content):
+        hits = p.search_for(needle)
+        if not hits:
+            raise RuntimeError(f"review template: {needle!r} not on the page")
+        a = getattr(p, f"add_{kind}_annot")(hits[0])
+        a.set_info(title=author, content=content)
+        a.update()
+        return a, hits[0]
+
+    h, r = mark("highlight", "Selecting, highlighting", "Reviewer A", "Please define these operations earlier.")
+    reply = p.add_text_annot(fitz.Point(560, r.y0), "Agreed - moved to section 1.")
+    reply.set_info(title="Author")
+    reply.set_irt_xref(h.xref)
+    reply.update()
+    mark("underline", "hyphenated-compound", "Reviewer B", "Hyphenation style per journal guide?")
+    mark("strikeout", "neutral filler", "Reviewer A", "Delete.")
+    mark("squiggly", "sample@example.org", "Reviewer A", "Use an institutional address.")
+    note = p.add_text_annot(fitz.Point(500, 120), "Overall: minor revision. Check figure numbering.")
+    note.set_info(title="Editor")
+    note.update()
+    ft = p.add_freetext_annot(fitz.Rect(330, 700, 555, 760), "Figure 2 is missing a scale bar.", fontsize=10,
+                              text_color=(0.6, 0.1, 0.1), fill_color=(1, 0.97, 0.85))
+    ft.set_info(title="Reviewer B")
+    ft.update()
+    footer(p, 1, 1, "Review copy · fictional")
+    return d, {"pages": 1, "text": ["Manuscript draft"], "annotations_min": 7}
+
+
 BUILDERS = [
     # (file, builder, title, test types, purpose)
     ("invoice_a4", t_invoice, "Invoice (A4)", ["tables", "Excel export", "text editing", "print"], "A typical business invoice: ruled item table with right-aligned amounts, totals block, footer."),
@@ -754,6 +974,11 @@ BUILDERS = [
     ("long_document_200_pages", t_long, "200-page document", ["performance", "memory", "navigation", "rotation speed"], "200 pages with a 20-entry bookmark outline."),
     ("empty_page", t_empty, "Empty page", ["edge cases", "blank page handling"], "One page without content."),
     ("cropbox_offset", t_cropbox, "CropBox inside MediaBox", ["geometry", "CropBox offsets", "coordinates"], "Visible area is smaller than the MediaBox and does not start at the origin."),
+    ("slide_deck_mixed_aspect", t_slides, "Slide deck (16:9 with one 4:3 slide)", ["PDF to PowerPoint", "page-size groups", "print scaling", "thumbnails"], "Title, bullet, chart, table and closing slides; one slide has a different page size."),
+    ("lab_protocol_figures_tables", t_lab_protocol, "Laboratory protocol (figures, tables, landscape page)", ["Word conversion", "Excel export", "image export", "highlighting", "mixed orientation"], "Numbered SOP with a reagent table, a 2x2 micrograph figure and a landscape results table."),
+    ("photo_album_compression", t_photo_album, "Photo album (large JPEG photos)", ["Compress PDF", "target size", "image quality", "memory"], "Three landscape pages, each a high-resolution photo-like JPEG."),
+    ("poster_a1_large_format", t_poster_a1, "Conference poster (A1)", ["large pages", "zoom and tiles", "print to A4/A3", "compression"], "One A1 page with columns of text, micrographs and a chart."),
+    ("review_comment_threads", t_review_threads, "Review copy with comment threads", ["Comments panel", "replies", "markup types", "sticky notes"], "Highlight with a reply, underline, strikeout, squiggly, sticky note and free-text comment by several authors."),
 ]
 
 

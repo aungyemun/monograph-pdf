@@ -2813,6 +2813,7 @@ class PdfCanvas(QScrollArea):
     def set_document(self, document: PdfDocument) -> None:
         self._canvas.set_document(document)
         self._canvas.apply_zoom_for_viewport(self._fit_size())
+        self._center_fit_page()
         self._on_scroll()
 
     def set_edit_model(self, edit: EditableDocument | None) -> None:
@@ -2906,6 +2907,7 @@ class PdfCanvas(QScrollArea):
         self.verticalScrollBar().setValue(y)
         self._canvas._focus_page = index  # noqa: SLF001
         self._canvas.set_fit_reference(index)
+        self._center_fit_page()
         self.pageChanged.emit(index)
         # Schedule render for the visible region but keep explicit navigation target.
         # notify_viewport() derives focus from scroll center and can clobber go_to_page
@@ -2921,6 +2923,21 @@ class PdfCanvas(QScrollArea):
 
     def set_zoom_mode(self, mode: ZoomMode) -> None:
         self._canvas.set_zoom_mode(mode, self._fit_size())
+        self._center_fit_page()
+
+    def _center_fit_page(self) -> None:
+        """Fit Width / Fit Page: centre the page the fit was measured on. In a document whose pages differ in
+        width the canvas is as wide as the widest page; without this the fitted page sat off-centre and was
+        cut off at the right edge, with a horizontal scroll bar."""
+        inner = self._canvas
+        if inner.zoom_mode not in (ZoomMode.FIT_WIDTH, ZoomMode.FIT_PAGE):
+            return
+        ref = inner._fit_ref_page  # noqa: SLF001
+        if ref is None or not 0 <= ref < len(inner._layouts):  # noqa: SLF001
+            return
+        rect = inner._layouts[ref]  # noqa: SLF001
+        bar = self.horizontalScrollBar()
+        bar.setValue(max(bar.minimum(), min(bar.maximum(), rect.center().x() - self.viewport().width() // 2)))
 
     def set_manual_zoom(self, zoom: float) -> None:
         self._canvas.set_manual_zoom(zoom, self.viewport().size())
@@ -2944,6 +2961,7 @@ class PdfCanvas(QScrollArea):
         super().resizeEvent(event)
         if self._canvas.zoom_mode in (ZoomMode.FIT_WIDTH, ZoomMode.FIT_PAGE):
             self._canvas.apply_zoom_for_viewport(self._fit_size())
+            self._center_fit_page()
         self._on_scroll()
 
     def _fit_size(self) -> QSize:

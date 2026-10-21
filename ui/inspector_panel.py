@@ -201,7 +201,7 @@ class InspectorPanel(QScrollArea):
         self._root = QWidget()
         self._root.setObjectName("InspectorRoot")
         self._layout = QVBoxLayout(self._root)
-        self._layout.setContentsMargins(14, 4, 6, 14)
+        self._layout.setContentsMargins(14, 4, 14, 14)  # right: clear of the overlay scroll bar
         # Close button in the panel's corner: hide the panel (F8 / View ▸ Properties Panel brings it back)
         from PySide6.QtWidgets import QHBoxLayout, QToolButton
 
@@ -688,6 +688,9 @@ class InspectorPanel(QScrollArea):
             sp.setRange(minimum, 10000)
             sp.setDecimals(1)
             sp.setPrefix(prefix)
+            # Two boxes share one row in a narrow panel: no step arrows, so the number is never cut off
+            # (mouse wheel, arrow keys and typing still change it)
+            sp.setButtonSymbols(QDoubleSpinBox.ButtonSymbols.NoButtons)
             sp.setValue(value)
             sp.setToolTip({"X ": "Left edge (pt)", "Y ": "Top edge (pt)", "W ": "Width (pt)", "H ": "Height (pt)"}[prefix])
             sp.valueChanged.connect(self._apply_geometry)

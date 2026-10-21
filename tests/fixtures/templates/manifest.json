@@ -442,6 +442,125 @@
     ]
    }
   },
+  "slide_deck_mixed_aspect": {
+   "file": "pdf/slide_deck_mixed_aspect.pdf",
+   "title": "Slide deck (16:9 with one 4:3 slide)",
+   "test_types": [
+    "PDF to PowerPoint",
+    "page-size groups",
+    "print scaling",
+    "thumbnails"
+   ],
+   "purpose": "Title, bullet, chart, table and closing slides; one slide has a different page size.",
+   "expect": {
+    "pages": 5,
+    "text": [
+     "Quarterly Research Review",
+     "Budget (4:3 slide)",
+     "Questions?"
+    ],
+    "page_sizes": [
+     [
+      960.0,
+      540.0
+     ],
+     [
+      960.0,
+      540.0
+     ],
+     [
+      960.0,
+      540.0
+     ],
+     [
+      720.0,
+      540.0
+     ],
+     [
+      960.0,
+      540.0
+     ]
+    ]
+   }
+  },
+  "lab_protocol_figures_tables": {
+   "file": "pdf/lab_protocol_figures_tables.pdf",
+   "title": "Laboratory protocol (figures, tables, landscape page)",
+   "test_types": [
+    "Word conversion",
+    "Excel export",
+    "image export",
+    "highlighting",
+    "mixed orientation"
+   ],
+   "purpose": "Numbered SOP with a reagent table, a 2x2 micrograph figure and a landscape results table.",
+   "expect": {
+    "pages": 3,
+    "text": [
+     "SOP-IMG-014",
+     "Representative images",
+     "Differential expression"
+    ],
+    "images": 4
+   }
+  },
+  "photo_album_compression": {
+   "file": "pdf/photo_album_compression.pdf",
+   "title": "Photo album (large JPEG photos)",
+   "test_types": [
+    "Compress PDF",
+    "target size",
+    "image quality",
+    "memory"
+   ],
+   "purpose": "Three landscape pages, each a high-resolution photo-like JPEG.",
+   "expect": {
+    "pages": 3,
+    "text": [
+     "Field site 1"
+    ],
+    "images": 3
+   }
+  },
+  "poster_a1_large_format": {
+   "file": "pdf/poster_a1_large_format.pdf",
+   "title": "Conference poster (A1)",
+   "test_types": [
+    "large pages",
+    "zoom and tiles",
+    "print to A4/A3",
+    "compression"
+   ],
+   "purpose": "One A1 page with columns of text, micrographs and a chart.",
+   "expect": {
+    "pages": 1,
+    "size": [
+     1683.78,
+     2383.94
+    ],
+    "text": [
+     "Microglial ageing signatures"
+    ]
+   }
+  },
+  "review_comment_threads": {
+   "file": "pdf/review_comment_threads.pdf",
+   "title": "Review copy with comment threads",
+   "test_types": [
+    "Comments panel",
+    "replies",
+    "markup types",
+    "sticky notes"
+   ],
+   "purpose": "Highlight with a reply, underline, strikeout, squiggly, sticky note and free-text comment by several authors.",
+   "expect": {
+    "pages": 1,
+    "text": [
+     "Manuscript draft"
+    ],
+    "annotations_min": 7
+   }
+  },
   "password_protected_aes256": {
    "file": "pdf/password_protected_aes256.pdf",
    "title": "Password-protected invoice (AES-256)",
