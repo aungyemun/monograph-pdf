@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest a new feature or an improvement.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Monograph PDF works fully offline, so features that need an internet connection or a
+        cloud service are not planned. Please check the
+        [planned features](https://github.com/aungyemun/monograph-pdf/blob/main/docs/FEATURES.md#planned)
+        and existing issues first.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the task or problem, not only the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Suggested solution
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Workarounds or alternatives you have tried
+    validations:
+      required: false

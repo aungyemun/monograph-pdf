@@ -2,15 +2,26 @@
 
 ## Supported versions
 
+Only the latest release receives security fixes. Fixes are published as a new release, so the
+answer to a security problem in an older version is to upgrade.
+
 | Version | Supported |
 | :--- | :--- |
-| 0.2.x (current release: 0.2.3) | Yes — security fixes are made in the latest 0.2 release |
-| Earlier versions | No |
+| 0.2.3 (latest release) | Yes |
+| 0.2.0 – 0.2.2 | No — please upgrade to the latest release |
+| 0.1.x and earlier internal builds | No |
 
 ## Reporting a vulnerability
 
-Please report security problems **privately** by email to **aungyemun25@gmail.com** — do not open
-a public GitHub issue.
+Please report security problems **privately** — do not open a public GitHub issue.
+
+* **Preferred:** GitHub private vulnerability reporting —
+  [Report a vulnerability](https://github.com/aungyemun/monograph-pdf/security/advisories/new)
+  (Security tab ▸ **Report a vulnerability**; requires a GitHub account).
+* **Alternative:** email **aungyemun25@gmail.com**.
+
+Monograph PDF is maintained by one person; reports are handled as quickly as possible, but no fixed
+response time can be promised.
 
 Include, where possible:
 

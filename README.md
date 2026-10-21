@@ -140,11 +140,13 @@ developers of the open-source projects listed in the third-party notices.
 
 ## Contributing and reporting issues
 
-* **Bugs and suggestions:** open a [GitHub issue](https://github.com/aungyemun/monograph-pdf/issues)
+* **Bugs and suggestions:** open a [GitHub issue](https://github.com/aungyemun/monograph-pdf/issues/new/choose)
   with the steps to reproduce the problem. Please do not attach confidential documents.
-* **Security vulnerabilities:** report them privately as described in the [Security policy](SECURITY.md),
-  not in a public issue.
-* **Code changes:** for anything larger than a small fix, please open an issue first so the change
-  can be discussed before a pull request.
+* **Security vulnerabilities:** report them privately through
+  [GitHub private vulnerability reporting](https://github.com/aungyemun/monograph-pdf/security/advisories/new)
+  or as described in the [Security policy](SECURITY.md), not in a public issue.
+* **Code changes:** see [CONTRIBUTING.md](CONTRIBUTING.md). For anything larger than a small fix,
+  please open an issue first so the change can be discussed before a pull request.
 
-What changed in each version: [CHANGELOG.md](CHANGELOG.md).
+What changed in each version: [CHANGELOG.md](CHANGELOG.md) ·
+[Release notes and downloads](https://github.com/aungyemun/monograph-pdf/releases).

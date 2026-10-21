@@ -1,0 +1,65 @@
+name: Bug report
+description: Something in Monograph PDF does not work as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a problem. **Security vulnerabilities must not be reported here** —
+        use the [security policy](https://github.com/aungyemun/monograph-pdf/security/policy) instead.
+
+        Please do not attach confidential or personal documents. If a file is needed to show the
+        problem, create a small sample that contains no private information.
+  - type: input
+    id: version
+    attributes:
+      label: Monograph PDF version
+      description: Shown in Help ▸ About Monograph PDF.
+      placeholder: "0.2.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: windows
+    attributes:
+      label: Windows version
+      options:
+        - Windows 11 (64-bit)
+        - Windows 10 (64-bit)
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How is it installed?
+      options:
+        - Setup, for all users
+        - Setup, only for me
+        - Running from source
+    validations:
+      required: false
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a PDF with …
+        2. Select …
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Additional details
+      description: >-
+        Error messages, screenshots or log excerpts. Remove personal folder names and document
+        contents first.
+    validations:
+      required: false

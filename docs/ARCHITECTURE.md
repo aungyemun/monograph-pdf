@@ -29,7 +29,8 @@ archives), `runtime/` (working files during development), `build/` and `dist/` (
 ## Documentation
 
 * Repository root: `README.md`, `INSTALLATION.md`, `LICENSE`, `LICENSE.md`,
-  `THIRD_PARTY_NOTICES.md`, `SECURITY.md`, `CHANGELOG.md`, `CITATION.cff`
+  `THIRD_PARTY_NOTICES.md`, `SECURITY.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `CITATION.cff`
+* `.github/`: the Windows CI workflow, issue templates and the pull-request template
 * `docs/`: `USER_GUIDE`, `FEATURES`, `FILE_FORMATS_AND_COMPATIBILITY`, `ARCHITECTURE`,
   `BUILD_AND_RUNTIME`, `RELEASE_AND_VERSIONING`, `RELEASE_CHECKLIST`, `CODE_SIGNING`,
   `SECURITY_AND_PRIVACY`, `TESTING`; screenshots in `docs/images/`; release notes in

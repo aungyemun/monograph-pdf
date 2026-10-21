@@ -21,6 +21,9 @@ This summary is for convenience only; the license text below is what applies.
 * You may copy and share the installer.
 * If you distribute Monograph PDF, modified or not, you must make the complete corresponding source
   code available to the recipients under the same license.
+* If you modify Monograph PDF and let other people use the modified version over a network, the
+  license (section 13) requires you to offer them its source code as well.
+* There is no warranty (sections 15 and 16).
 * The corresponding source of every release is published next to the installer as
   `MonographPDF_<version>_Source.zip`. It contains the application, build scripts, installer,
   documentation and tests, and the corresponding source of the bundled AGPL, GPL and LGPL
