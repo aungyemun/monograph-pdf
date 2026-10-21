@@ -41,6 +41,13 @@ verified; normal PDF work stays offline.
   verification), `scripts/test_update_e2e.py` (Windows end-to-end upgrade test with synthetic keys
   and a local HTTPS mock server).
 
+### Fixed
+
+- OCR failed when the temporary folder, the document's folder or the installation folder contained
+  characters outside the Windows ANSI code page (for example a Japanese user name on an English
+  Windows): Tesseract now receives no file path — the image goes through standard input, the result
+  comes back on standard output and the language data is found by relative name.
+
 ### Changed
 
 - The release build keeps Python's own `ssl` module (HTTPS for update checks and approved reports);

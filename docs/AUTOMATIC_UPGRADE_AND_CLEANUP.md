@@ -165,7 +165,7 @@ new version reads `result-<id>.json`, shows the outcome once and deletes it.
 
 * Automated (any platform): `tests/unit/test_update_install.py`, `test_update_staging.py`,
   `test_update_ui.py`, `test_international.py`.
-* Windows end-to-end: `scripts/test_update_e2e.ps1` builds two test versions of the current source
+* Windows end-to-end: `scripts/test_update_e2e.py` builds two test versions of the current source
   with a synthetic update key and a local HTTPS mock release server, installs the first per-user into
   a Unicode folder, runs the complete flow through the real helper and Setup, and checks the result
   (see [TESTING.md](TESTING.md)). It never touches an existing installation, the user's settings or
