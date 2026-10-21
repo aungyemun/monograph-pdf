@@ -89,8 +89,9 @@ upgrades and are covered by `scripts/test_installer.ps1`:
   survives. These trees belong to the application entirely (a file put inside `_internal` by hand is
   removed with it).
 * `installed_files.txt` (written at build time by `scripts/packaging/write_installed_manifest.py`)
-  lists every owned path of the previous version; paths it lists that the new version no longer
-  ships are removed (`CleanFromManifestFile`). Paths are validated (relative, no `..`, no drive),
+  lists every owned path of the previous version; Setup removes each of them before copying the new
+  files (`CleanTargetBeforeCopy`), so an owned file the new version no longer ships does not survive
+  (checked by the end-to-end test). Paths are validated (relative, no `..`, no drive),
   never outside the installation folder, never through a junction or link, never the folder itself.
 * Anything not owned — category B — is never deleted; the installation folder is never deleted
   recursively.
@@ -153,8 +154,8 @@ new version reads `result-<id>.json`, shows the outcome once and deletes it.
   declined, the previous version is still installed; the helper says so and starts it again.
 * If Setup fails while copying (exit 4–6) or the result cannot be verified, the helper does not
   claim success, keeps the verified installer and Setup's log, and tells the user to run Setup
-  again. **There is no automatic rollback:** Inno Setup undoes the files it wrote during a failed
-  run, but files it removed at the start of an upgrade (`[InstallDelete]`) are not restored. The
+  again. **There is no automatic rollback:** files Setup removed at the start of an upgrade
+  (`[InstallDelete]` and the previous owned-file list) are not restored if it fails later. The
   supported recovery is running Setup again (the kept installer, or a fresh download from the
   release page) — an in-place reinstall keeps settings and documents.
 * The helper never retries Setup on its own and never restarts the application more than once.
