@@ -36,7 +36,10 @@ def test_batch_dialog_converts_and_reports_each_file(qtbot, tmp_path):
     dlg.format.setCurrentIndex(dlg.format.findData("txt"))
     assert dlg.start_btn.isEnabled() and not dlg.cancel_btn.isEnabled()
     dlg.start()
-    qtbot.waitUntil(lambda: not dlg._running(), timeout=30000)  # noqa: SLF001
+    # the worker thread can end before its queued status signals reach the dialog: wait for both
+    qtbot.waitUntil(lambda: not dlg._running() and dlg.close_btn.isEnabled()  # noqa: SLF001
+                    and all(dlg.table.item(r, 1).text() not in ("Waiting", "Converting…") for r in range(2)),
+                    timeout=30000)
     assert [dlg.table.item(r, 1).text() for r in range(2)] == ["Done", "Done"]
     assert "2 done, 0 failed" in dlg.counts.text()
     assert sorted(p.name for p in (tmp_path / "Converted").iterdir()) == ["a.txt", "b.txt"]

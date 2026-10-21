@@ -180,7 +180,9 @@ def fake_failing_setup(version: str) -> Path:
     """A tiny program named like Setup that changes nothing and exits with Inno Setup's code 4."""
     cs = E2E / "failing_setup.cs"
     cs.write_text("static class P { static int Main() { return 4; } }", encoding="utf-8")
-    exe = E2E / "out" / f"MonographPDF_{version}_Setup.exe"
+    # kept apart from the real test builds in out/ (it has no version resource by design)
+    (E2E / "fake").mkdir(parents=True, exist_ok=True)
+    exe = E2E / "fake" / f"MonographPDF_{version}_Setup.exe"
     if run([str(csc()), "/nologo", "/target:winexe", f"/out:{exe}", str(cs)]) != 0:
         raise SystemExit("csc failing setup failed")
     return exe

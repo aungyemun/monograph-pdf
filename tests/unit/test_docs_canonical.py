@@ -35,6 +35,12 @@ CANONICAL = {
     "CONVERSION_FIDELITY.md",
     "PDF_COMPRESSION.md",
     "SAVE_AS_AND_EXPORT.md",
+    # rendering, colour, printing, save fidelity, performance
+    "PDF_RENDERING_AND_PAGE_SIZES.md",
+    "COLOR_AND_IMAGE_FIDELITY.md",
+    "PRINTING_AND_PRINT_PREVIEW.md",
+    "PDF_SAVE_AND_EXPORT_FIDELITY.md",
+    "PERFORMANCE_AND_RENDERING.md",
 }
 
 STALE_FRAGMENTS = (

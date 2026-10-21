@@ -243,6 +243,8 @@ def test_docx_to_pdf_to_docx(tmp_path):
     finally:
         pdf.close()
     secs = Document(back.as_posix()).sections
-    assert [(round(s.page_width.pt), round(s.page_height.pt)) for s in secs] == sizes
+    # Word stores section sizes in twips (1/20 pt): allow the rounding of one point
+    got = [(s.page_width.pt, s.page_height.pt) for s in secs]
+    assert len(got) == len(sizes) and all(abs(w - ew) <= 1 and abs(h - eh) <= 1 for (w, h), (ew, eh) in zip(got, sizes))
     props = Document(back.as_posix()).core_properties
     assert props.title == "Report title" and props.author == "Writer"
