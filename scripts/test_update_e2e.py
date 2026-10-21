@@ -280,6 +280,11 @@ def processes_in(folder: Path) -> list[int]:
     return [i["ProcessId"] for i in items if i.get("ExecutablePath") and install_target.norm(Path(i["ExecutablePath"]).parent) == key]
 
 
+def uninstaller_running() -> bool:
+    out = subprocess.run(["tasklist", "/FO", "CSV", "/NH"], capture_output=True, text=True).stdout.lower()
+    return '"_iu' in out or '"unins000.exe"' in out
+
+
 def file_version(exe: Path) -> str:
     ps = f"(Get-Item -LiteralPath '{exe}').VersionInfo.ProductVersion"
     return subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True,
@@ -452,7 +457,7 @@ def main(argv: list[str] | None = None) -> int:
     if backup.exists():
         raise SystemExit(f"{backup} exists from an interrupted run: restore it first")
     saved = backup_user_state(backup)
-    before = {"appdata": tree_digest(APPDATA)}
+    before = {"appdata": tree_digest(APPDATA), "localdata": tree_digest(LOCALDATA)}
     installed = False
     had_default_user = (Path(os.environ["LOCALAPPDATA"]) / "Programs" / "Monograph PDF" / "MonographPDF.exe").exists()
     try:
@@ -578,14 +583,25 @@ def main(argv: list[str] | None = None) -> int:
             print("== uninstall and restore", flush=True)
             unins = APP_FOLDER / "uninstall.exe"
             if unins.exists():
-                rc = run([str(unins), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/REMOVEUSERDATA"], timeout=600)
-                wait_for(lambda: hkcu_registration() is None, 120, 2)
-                check("test installation uninstalled", hkcu_registration() is None, f"exit {rc}")
+                ulog = E2E / "uninstall.log"
+                ulog.unlink(missing_ok=True)
+                rc = run([str(unins), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/REMOVEUSERDATA",
+                          f"/LOG={ulog}"], timeout=600)
+                # uninstall.exe returns before Inno Setup's second phase (a copy in %TEMP%) has removed
+                # this user's data; restoring earlier would be undone by it. Wait for its log to close.
+                done = wait_for(lambda: ulog.is_file() and "Log closed." in ulog.read_text(encoding="utf-8", errors="replace"),
+                                300, 0.5)
+                wait_for(lambda: not uninstaller_running(), 120, 0.5)
+                check("test installation uninstalled", hkcu_registration() is None and done, f"exit {rc}")
                 check("user file left in place by the uninstaller", (APP_FOLDER / "my notes.txt").exists())
             shutil.rmtree(APP_FOLDER.parent, ignore_errors=True)
         restore_user_state(backup, saved)
-        check("user settings restored exactly", tree_digest(APPDATA) == before["appdata"])
-        shutil.rmtree(backup, ignore_errors=True)
+        time.sleep(15)  # nothing may remove the restored folders afterwards
+        restored = tree_digest(APPDATA) == before["appdata"] and tree_digest(LOCALDATA) == before["localdata"]
+        if check("user settings and working files restored exactly (and still there 15 s later)", restored):
+            shutil.rmtree(backup, ignore_errors=True)
+        else:
+            print(f"  the backup is kept at {backup}; restore it before running the test again")
         shutil.rmtree(keys, ignore_errors=True)
         report = E2E / "update_e2e_report.json"
         report.write_text(json.dumps(CHECKS, indent=1, ensure_ascii=False), encoding="utf-8")

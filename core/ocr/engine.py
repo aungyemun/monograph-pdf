@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import subprocess
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -53,6 +52,31 @@ class OcrEngine:
     def available_languages(self) -> list[str]:
         return [k for k, ok in language_files_present().items() if ok]
 
+    def _env(self) -> dict:
+        env = os.environ.copy()
+        # Tesseract opens files with the Windows ANSI code page: a folder name outside that code page
+        # (Japanese on an English system, accented letters on a Japanese one, ...) cannot be opened.
+        # So no absolute path is handed to it: it runs in the folder that holds tessdata, finds its
+        # language data by the relative name, reads the image from stdin and writes to stdout.
+        env["TESSDATA_PREFIX"] = self.tessdata.name
+        # Avoid accidental network/proxy lookups (fully offline)
+        for key in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
+            env.pop(key, None)
+        return env
+
+    def _run(self, args: list[str], image_path: Path, timeout: int) -> subprocess.CompletedProcess:
+        data = Path(image_path).read_bytes()  # Python opens Unicode paths itself
+        return subprocess.run(
+            [str(self.exe), "stdin", "stdout", *args],
+            input=data,
+            capture_output=True,
+            env=self._env(),
+            timeout=timeout,
+            check=False,
+            cwd=str(self.tessdata.parent),
+            creationflags=_NO_WINDOW,
+        )
+
     def run_tsv(
         self,
         image_path: Path,
@@ -63,107 +87,48 @@ class OcrEngine:
         extra_args: list[str] | None = None,
     ) -> list[RawOcrToken]:
         """OCR an image file; returns word-level tokens with confidence."""
-        env = os.environ.copy()
-        # Tesseract expects TESSDATA_PREFIX to be the folder that *contains* tessdata/
-        # or the folder of *.traineddata — we ship files directly in models/tessdata.
-        env["TESSDATA_PREFIX"] = str(self.tessdata.resolve())
-        # Avoid accidental network/proxy lookups (fully offline)
-        env.pop("http_proxy", None)
-        env.pop("https_proxy", None)
-        env.pop("HTTP_PROXY", None)
-        env.pop("HTTPS_PROXY", None)
-        env.pop("ALL_PROXY", None)
-
-        with tempfile.TemporaryDirectory(prefix="monographpdf_ocr_") as tmp:
-            out_base = Path(tmp) / "out"
-            cmd = [
-                str(self.exe),
-                str(image_path),
-                str(out_base),
-                "-l",
-                lang,
-                "--psm",
-                str(psm),
-                "--oem",
-                str(oem),
-                "-c",
-                "tessedit_create_tsv=1",
-                "tsv",
-            ]
-            if extra_args:
-                cmd[1:1] = []  # keep simple; append after
-                cmd.extend(extra_args)
-            try:
-                proc = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    env=env,
-                    timeout=180,
-                    check=False,
-                    cwd=str(self.tessdata.parent),
-                    creationflags=_NO_WINDOW,
-                )
-            except FileNotFoundError as exc:
-                raise OcrUnavailableError(str(exc)) from exc
-            except subprocess.TimeoutExpired as exc:
-                raise OcrUnavailableError("OCR timed out") from exc
-
-            tsv_path = Path(str(out_base) + ".tsv")
-            if not tsv_path.is_file():
-                err = (proc.stderr or proc.stdout or "no TSV output").strip()
-                raise OcrUnavailableError(f"Tesseract failed: {err[:400]}")
-            return _parse_tsv(tsv_path.read_text(encoding="utf-8", errors="replace"))
+        args = ["-l", lang, "--psm", str(psm), "--oem", str(oem), "-c", "tessedit_create_tsv=1",
+                *(extra_args or []), "tsv"]
+        try:
+            proc = self._run(args, image_path, 180)
+        except FileNotFoundError as exc:
+            raise OcrUnavailableError(str(exc)) from exc
+        except subprocess.TimeoutExpired as exc:
+            raise OcrUnavailableError("OCR timed out") from exc
+        out = proc.stdout.decode("utf-8", errors="replace")
+        if proc.returncode != 0 or not out.startswith("level"):
+            err = (proc.stderr.decode("utf-8", errors="replace") or out or "no TSV output").strip()
+            raise OcrUnavailableError(f"Tesseract failed: {err[:400]}")
+        return _parse_tsv(out)
 
     def detect_orientation(self, image_path: Path) -> dict[str, float | int | str]:
         """Use OSD when osd.traineddata is present; else return upright defaults."""
         if not (self.tessdata / "osd.traineddata").is_file():
             return {"rotate": 0, "orientation_confidence": 0.0, "script": "Unknown"}
-        env = os.environ.copy()
-        env["TESSDATA_PREFIX"] = str(self.tessdata.resolve())
-        with tempfile.TemporaryDirectory(prefix="monographpdf_osd_") as tmp:
-            out_base = Path(tmp) / "osd"
-            cmd = [
-                str(self.exe),
-                str(image_path),
-                str(out_base),
-                "--psm",
-                "0",
-                "-l",
-                "osd",
-            ]
-            try:
-                proc = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    env=env,
-                    timeout=60,
-                    check=False,
-                    creationflags=_NO_WINDOW,
-                )
-            except (OSError, subprocess.TimeoutExpired):
-                return {"rotate": 0, "orientation_confidence": 0.0, "script": "Unknown"}
-            # OSD writes to stdout typically
-            text = (proc.stdout or "") + "\n" + (out_base.with_suffix(".osd").read_text(encoding="utf-8", errors="replace") if out_base.with_suffix(".osd").is_file() else "")
-            rotate = 0
-            conf = 0.0
-            script = "Unknown"
-            for line in text.splitlines():
-                low = line.lower()
-                if "rotate:" in low:
-                    try:
-                        rotate = int(line.split(":")[-1].strip())
-                    except ValueError:
-                        pass
-                if "orientation confidence" in low:
-                    try:
-                        conf = float(line.split(":")[-1].strip())
-                    except ValueError:
-                        pass
-                if "script:" in low and "confidence" not in low:
-                    script = line.split(":")[-1].strip() or script
-            return {"rotate": rotate, "orientation_confidence": conf, "script": script}
+        try:
+            proc = self._run(["--psm", "0", "-l", "osd"], image_path, 60)
+        except (OSError, subprocess.TimeoutExpired):
+            return {"rotate": 0, "orientation_confidence": 0.0, "script": "Unknown"}
+        # OSD results are printed to stdout (and some builds print them to stderr)
+        text = proc.stdout.decode("utf-8", errors="replace") + "\n" + proc.stderr.decode("utf-8", errors="replace")
+        rotate = 0
+        conf = 0.0
+        script = "Unknown"
+        for line in text.splitlines():
+            low = line.lower()
+            if "rotate:" in low:
+                try:
+                    rotate = int(line.split(":")[-1].strip())
+                except ValueError:
+                    pass
+            if "orientation confidence" in low:
+                try:
+                    conf = float(line.split(":")[-1].strip())
+                except ValueError:
+                    pass
+            if "script:" in low and "confidence" not in low:
+                script = line.split(":")[-1].strip() or script
+        return {"rotate": rotate, "orientation_confidence": conf, "script": script}
 
 
 def _parse_tsv(text: str) -> list[RawOcrToken]:
