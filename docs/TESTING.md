@@ -78,7 +78,8 @@ from.
 * Security, redaction, annotations, print
 * Highlighting: pen toggle, Esc during a stroke, color switching, the eraser, and marks kept across other edits (`tests/ui/test_highlight_round7.py`, `test_highlight_continuous.py`)
 * Docs / menus: User Guide menu paths match the app (`test_user_guide_menus.py`)
-* Menu audit (`test_menu_audit_fixes.py`); deep harness `scripts\deep_ui_audit.py` (manual)
+* Menu audit (`test_menu_audit_fixes.py`); deep harness `scripts\deep_ui_audit.py <out_dir> [step filter]` (manual: triggers every menu command and dialog, flags cut-off labels, buttons, number boxes and options and dialogs too big for 1366 × 768; printing steps need `QT_QPA_PLATFORM=windows` on Windows)
+* Small screens and display scaling: `tests/ui/test_small_screen_layout.py` (status bar, responsive toolbar, Navigation panel tabs, Fit Width with mixed page sizes, dialog fit); visual review with `scripts\audit\ui_visual_capture.py <out_dir>` — Qt-made captures of the window, toolbars, panels, menus and context toolbars in light and dark (set `QT_SCALE_FACTOR` to emulate 125 % / 150 % / 200 %)
 * Page design: header/footer slots, watermark and background placement on 0/90/180/270° and cropped pages (measured on renders), replace/remove, shared fonts/pictures (`tests/integration/test_page_marks.py`, `tests/ui/test_page_marks_ui.py`)
 * Redaction beyond page content: fields/comments/links under marks, whole pages, residue report and removal, checked in raw bytes (`tests/integration/test_redaction_residue.py`, `tests/ui/test_redaction_ui.py`)
 * Merge outlines and protected inputs; Images to PDF without photo metadata (`test_merge_outline_and_protection.py`, `test_images_to_pdf_privacy.py`)
