@@ -362,6 +362,7 @@ QTabWidget::pane { border: none; background: $surface; }
 QTabWidget#LeftRail { background: $surface; }
 QTabBar { background: $surface; }
 QTabBar::tab { background: transparent; color: $text_muted; padding: 8px 3px; margin: 0; border: none; border-bottom: 2px solid transparent; min-width: 24px; }
+QTabBar::tab:first { margin-left: 4px; }
 QTabBar::tab:selected { color: $accent_text; border-bottom: 2px solid $accent; font-weight: 600; }
 QTabBar::tab:hover:!selected { color: $text; background: $hover; }
 QTabBar QToolButton { background: $surface; border: none; color: $text; }
@@ -430,6 +431,10 @@ QCheckBox::indicator:checked { background: $accent; border-color: $accent; image
 QCheckBox::indicator:indeterminate { background: $accent; border-color: $accent; image: url($asset_prefix:partial.png); }
 QCheckBox::indicator:disabled { background: $surface_alt; border-color: $border; }
 QCheckBox::indicator:checked:disabled { background: $text_faint; border-color: $text_faint; }
+QAbstractItemView::indicator { width: 16px; height: 16px; border: 1px solid $border_strong; border-radius: 4px; background: $surface; }
+QAbstractItemView::indicator:checked { background: $accent; border-color: $accent; image: url($asset_prefix:check.png); }
+QAbstractItemView::indicator:indeterminate { background: $accent; border-color: $accent; image: url($asset_prefix:partial.png); }
+QAbstractItemView::indicator:disabled { background: $surface_alt; border-color: $border; }
 QRadioButton::indicator { border: 1px solid $border_strong; border-radius: 8px; background: $surface; }
 QRadioButton::indicator:checked { background: $accent; border-color: $accent; image: url($asset_prefix:radio.png); }
 

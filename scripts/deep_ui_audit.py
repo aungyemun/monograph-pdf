@@ -388,6 +388,20 @@ def _clipped(dlg) -> list[str]:
             need = b.fontMetrics().horizontalAdvance(b.text().replace("&", "")) + (24 if isinstance(b, QCheckBox) else 12)
             if need > b.width() + 2:
                 issues.append(f"button cut: '{b.text()}' needs {need}px has {b.width()}px")
+    from PySide6.QtWidgets import QAbstractSpinBox, QRadioButton
+
+    for sp in dlg.findChildren(QAbstractSpinBox):
+        if sp.isVisible() and sp.isEnabled():
+            text = sp.text() if hasattr(sp, "text") else ""
+            arrows = 0 if sp.buttonSymbols() == QAbstractSpinBox.ButtonSymbols.NoButtons else 22
+            need = sp.fontMetrics().horizontalAdvance(text) + arrows + 14
+            if text and need > sp.width() + 2:
+                issues.append(f"number box cut: '{text}' needs {need}px has {sp.width()}px")
+    for rb in dlg.findChildren(QRadioButton):
+        if rb.isVisible() and rb.text().strip():
+            need = rb.sizeHint().width()  # the style's own measure: indicator, icon, spacing and text
+            if need > rb.width() + 2:
+                issues.append(f"option cut: '{rb.text()}' needs {need}px has {rb.width()}px")
     scr = QApplication.primaryScreen().availableGeometry()
     if dlg.width() > 1366 or dlg.height() > 740:
         issues.append(f"dialog {dlg.width()}x{dlg.height()} too big for a 1366x768 screen")

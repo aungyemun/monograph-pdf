@@ -395,8 +395,10 @@ class SignaturePadDialog(QDialog):
         root.addWidget(self.pad, 1)
         row = QHBoxLayout()
         undo = QPushButton("Undo Stroke")
+        undo.setAutoDefault(False)  # Place on Page is the main action; Enter never just undoes a stroke
         undo.clicked.connect(self.pad.undo_stroke)
         clear = QPushButton("Clear")
+        clear.setAutoDefault(False)
         clear.clicked.connect(self.pad.clear)
         row.addWidget(undo)
         row.addWidget(clear)

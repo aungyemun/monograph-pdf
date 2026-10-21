@@ -110,6 +110,8 @@ def main(argv: list[str]) -> int:
 
         # left panel tabs
         for i in range(w._left.count()):  # noqa: SLF001
+            if not w._left.isTabVisible(i):  # noqa: SLF001 — e.g. Files when there are no attachments
+                continue
             w._left.setCurrentIndex(i)  # noqa: SLF001
             shot(w._left, f"{theme}-left-tab{i}")  # noqa: SLF001
 

@@ -135,6 +135,7 @@ class CompressDialog(QDialog):
                           ("smallest", "quality_smallest"), ("target", "target_size")):
             b = QRadioButton(cz.MODE_LABELS[key])
             b.setIcon(make_icon(icon))
+            b.setMinimumWidth(b.sizeHint().width())  # never squeezed so the label is cut
             self.mode_group.addButton(b)
             self.mode_buttons[key] = b
             mrow.addWidget(b)
@@ -187,6 +188,8 @@ class CompressDialog(QDialog):
         self.page_spin.setRange(1, max(1, self.profile.pages))
         self.page_spin.setValue(self._preview_page + 1)
         self.page_spin.setPrefix("Page ")
+        digits = len(str(max(1, self.profile.pages)))
+        self.page_spin.setMinimumWidth(self.page_spin.fontMetrics().horizontalAdvance("Page " + "8" * digits) + 48)
         self.page_spin.setToolTip("Page to compare (the page with the most picture data is chosen first)")
         head = QLabel("Preview")
         head.setObjectName("DialogSection")

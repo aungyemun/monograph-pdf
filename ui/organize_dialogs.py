@@ -296,6 +296,15 @@ class SplitDialog(QDialog):
         self._every_n.setValue(2)
         form.addRow("Pages per file:", self._every_n)
         layout.addLayout(form)
+        layout.addStretch(1)  # extra height goes below the fields, not around the introduction
+
+        def sync_fields(*_args) -> None:
+            mode = self._mode.currentData()
+            self._ranges.setEnabled(mode in (SplitMode.RANGES, SplitMode.SELECTED))
+            self._every_n.setEnabled(mode == SplitMode.EVERY_N)
+
+        self._mode.currentIndexChanged.connect(sync_fields)
+        sync_fields()
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel

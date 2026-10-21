@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMenu,
+    QTabBar,
     QTabWidget,
     QToolButton,
     QVBoxLayout,
@@ -19,6 +20,22 @@ from PySide6.QtWidgets import (
 from core.document import PdfDocument
 from ui.thumbnail_panel import ThumbnailPanel
 from ui.toolbar_icons import icon_bookmarks, icon_pages, icon_search, make_icon, set_action_icon
+
+
+class _RailTabBar(QTabBar):
+    """Tabs without a label are only as wide as their icon plus a small margin (the style's default added
+    about 20 px per tab), so all five fit a narrow panel instead of sliding out of view."""
+
+    def _narrow(self, index: int, size: QSize) -> QSize:
+        if not self.tabText(index):
+            size.setWidth(min(size.width(), self.iconSize().width() + 16))
+        return size
+
+    def tabSizeHint(self, index: int) -> QSize:  # noqa: N802
+        return self._narrow(index, super().tabSizeHint(index))
+
+    def minimumTabSizeHint(self, index: int) -> QSize:  # noqa: N802
+        return self._narrow(index, super().minimumTabSizeHint(index))
 
 
 class LeftRail(QTabWidget):
@@ -35,10 +52,11 @@ class LeftRail(QTabWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        self.setTabBar(_RailTabBar())
         self.setObjectName("LeftRail")
         self.setDocumentMode(True)
         self.setMovable(False)
-        self.setMinimumWidth(72)
+        self.setMinimumWidth(170)  # the five tab icons always fit (narrower: drag the splitter to hide the panel)
         # Never hide tabs behind scroll arrows: a label that does not fit is shortened ("Bookm…")
         self.tabBar().setUsesScrollButtons(False)
         self.tabBar().setElideMode(Qt.TextElideMode.ElideRight)
@@ -190,6 +208,10 @@ class LeftRail(QTabWidget):
             label(lambda _i: True)
             if self.tabBar().sizeHint().width() > self.width():
                 label(lambda i: i == current)
+            if self.tabBar().sizeHint().width() > self.width():
+                # still too wide (a long label such as "Comments" in a narrow panel): Qt would slide the first
+                # tabs out of view and leave icon fragments at the edge, so show icons only
+                label(lambda _i: False)
         finally:
             self._relabelling = False
 
@@ -322,6 +344,8 @@ class LeftRail(QTabWidget):
             items = []
         if not items:
             self._attach_empty.show()
+            if self.currentIndex() == self._attach_tab:
+                self.setCurrentIndex(self._pages_tab)  # never leave a hidden tab selected
             self.setTabVisible(self._attach_tab, False)
             return
         self._attach_empty.hide()

@@ -135,6 +135,16 @@ verified; normal PDF work stays offline.
   pages (for example after rotating or inserting a page): the zoom was re-measured on whichever page
   was centred, which moved the pages and changed the centred page, endlessly. The fit is now measured
   on the page you last went to.
+- At 150 % display scaling and in narrow panels: the Navigation panel's tabs could slide out of view and
+  leave icon fragments at the panel's edge (labels now give way to icons; the panel is never narrower
+  than its five tab icons); a status message shown before the window appeared ran over "No document";
+  Fit Width / Fit Page centre the page in documents with wider pages instead of cutting it off at the
+  right; the Properties panel keeps clear of its scroll bar and position/size values are no longer
+  cut off; the Compress PDF page box and mode labels and the header/footer margin labels are no longer
+  squeezed; check boxes in lists (OCR languages) follow the theme; the highlight colour swatch is pale
+  while there is no document; "Opened … (1 page)" instead of "(1 pages)".
+- The Split PDF window enables only the fields the chosen split method uses; Draw a Signature no longer
+  makes Undo Stroke the Enter-key button.
 - Compress PDF: choosing Lossless, Balanced, Smallest or Target size now also updates the profile
   list, so the two never disagree.
 

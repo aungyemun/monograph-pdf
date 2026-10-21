@@ -422,9 +422,12 @@ class HeaderFooterDialog(_MarksDialog):
         self.form.addRow("Text:", frow)
         mrow = QHBoxLayout()
         self.margin_top, self.margin_bottom, self.margin_side = (self._margin(36), self._margin(22), self._margin(36))
-        for lab, w in (("Top", self.margin_top), ("Bottom", self.margin_bottom), ("Sides", self.margin_side)):
+        for i, (lab, w) in enumerate((("Top", self.margin_top), ("Bottom", self.margin_bottom), ("Sides", self.margin_side))):
+            if i:
+                mrow.addSpacing(12)  # keep each label with its own box ("36  Bottom", not "36Bottom")
             mrow.addWidget(QLabel(lab))
             mrow.addWidget(w)
+        mrow.addStretch(1)
         self.form.addRow("Margins:", mrow)
         self._watch(*self.slots.values(), self.page_numbers, self.number_format, self.number_place,
                     self.start_number, self.bates, self.bates_place, self.bates_prefix, self.bates_suffix,

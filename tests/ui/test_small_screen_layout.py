@@ -157,3 +157,34 @@ def test_fit_width_does_not_flip_between_portrait_and_landscape_pages(window, tm
     view.go_to_page(1)  # explicit navigation: later refits use that page
     inner.apply_zoom_for_viewport(view._fit_size())  # noqa: SLF001
     assert inner.zoom < z0
+
+
+def test_message_before_window_shown_does_not_overlap_left_labels(qtbot, tmp_path, monkeypatch):
+    from core import user_prefs
+    from ui.main_window import MainWindow, create_application
+
+    monkeypatch.setattr(user_prefs, "user_data_dir", lambda: tmp_path / "appdata")
+    create_application(["monograph-pdf-status-early"])
+    win = MainWindow()
+    qtbot.addWidget(win)
+    win.statusBar().showMessage("Theme: Light", 3000)  # e.g. a theme change while the window is still hidden
+    win.show()
+    bar = win._status  # noqa: SLF001
+    qtbot.waitExposed(win)
+    assert not bar.page_label.isVisible()
+    bar.clearMessage()
+    assert bar.page_label.isVisible()
+    win.close()
+
+
+def test_left_panel_tabs_never_slide_out_of_view(window):
+    """Every tab stays inside the tab bar at any panel width and with any tab selected (a tab pushed out
+    left icon fragments at the panel's edge)."""
+    left = window._left  # noqa: SLF001
+    left.show()
+    for width in (left.minimumWidth(), 200, 240, 300):
+        left.resize(width, 500)
+        for i in range(left.count()):
+            left.setCurrentIndex(i)
+            bar = left.tabBar()
+            assert bar.sizeHint().width() <= left.width(), (width, i)

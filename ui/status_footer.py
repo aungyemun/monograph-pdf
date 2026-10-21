@@ -100,7 +100,7 @@ class AppStatusBar(QStatusBar):
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
         self.copyright_label.show()
-        self._position_copyright()
+        self._relayout_for_width()
 
     def _fit_copyright_text(self, max_width: int) -> str:
         metrics = self.copyright_label.fontMetrics()
@@ -141,6 +141,9 @@ class AppStatusBar(QStatusBar):
         show_zoom = w >= 420
         busy = bool(self.currentMessage())  # Qt hides the left widgets while a message is shown
         self.doc_state_label.setVisible(show_doc and bool(self.doc_state_label.text()))
+        # Qt hides the left widgets for a message, but not if the message was shown before the window was
+        # (the text then ran over "No document"): keep them in step with the message ourselves.
+        self.page_label.setVisible(not busy)
         self.zoom_label.setVisible(not busy and show_zoom and bool(self.zoom_label.text()))
         if w < 560 and self.progress_label.text():
             metrics = self.progress_label.fontMetrics()

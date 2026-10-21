@@ -1232,6 +1232,7 @@ class MainWindow(QMainWindow):
         align.addAction(self.act_policy_preserve)
         align.addAction(self.act_policy_smart)
         modes = edit.addMenu("&Workspace Mode")
+        set_action_icon(modes.menuAction(), "edit_text")
         for act in (self.act_mode_edit, self.act_mode_forms, self.act_mode_layout, self.act_mode_tables):
             modes.addAction(act)
         image_menu = edit.addMenu("Selected I&mage")
@@ -1555,6 +1556,10 @@ class MainWindow(QMainWindow):
         labelled(self.act_annot_highlight)
         self._highlight_color_button = self._build_highlight_color_button()
         bar.addWidget(self._highlight_color_button)
+        # enabled together with the Highlight tool (no document: shown pale like the other disabled tools)
+        self.act_annot_highlight.changed.connect(
+            lambda: self._highlight_color_button.setEnabled(self.act_annot_highlight.isEnabled()))
+        self._highlight_color_button.setEnabled(self.act_annot_highlight.isEnabled())
         labelled(self.act_annot_eraser)
         bar.addAction(self.act_annot_comment)
 
@@ -1796,7 +1801,8 @@ class MainWindow(QMainWindow):
         self._autosave.start()
         self._doc_state_label.setText(document.name)
         self._status.set_ready("Ready")
-        msg = f"Opened {document.name} ({document.page_count} pages)"
+        n = document.page_count
+        msg = f"Opened {document.name} ({n} page{'' if n == 1 else 's'})"
         if has_fields:
             msg += " — click fields to fill (Forms Mode not required)"
         self.statusBar().showMessage(msg, 5000)
@@ -4943,8 +4949,14 @@ class MainWindow(QMainWindow):
         if btn is None:
             return
         hex_color = getattr(self._prefs, "highlight_color", "#ffff00") or "#ffff00"
+        from PySide6.QtGui import QColor
+
+        faded = QColor(hex_color)
+        faded.setAlpha(70)  # disabled (no document): a pale swatch like the other disabled tools
         btn.setStyleSheet(
             f"QToolButton {{ background: {hex_color}; border: 1px solid #666; border-radius: 3px; }}"
+            f"QToolButton:disabled {{ background: rgba({faded.red()}, {faded.green()}, {faded.blue()}, {faded.alpha()});"
+            f" border: 1px solid rgba(128, 128, 128, 90); }}"
             f"QToolButton::menu-indicator {{ image: none; width: 0; }}"
         )
         btn.setToolTip(f"Highlight color ({hex_color})")

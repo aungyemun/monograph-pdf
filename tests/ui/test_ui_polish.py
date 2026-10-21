@@ -72,6 +72,11 @@ def test_left_tabs_compact_when_narrow(window):
     left._apply_tab_mode(compact=True)  # noqa: SLF001
     assert left.tabText(left._pages_tab) == ""  # noqa: SLF001
     left._apply_tab_mode(compact=False)  # noqa: SLF001
+    # a label that would push the other tabs out of view is not shown (icons only, tooltips keep the names)
+    tabs = left.tabBar()
+    assert tabs.sizeHint().width() <= left.width()
+    left.resize(300, 400)
+    left._apply_tab_mode(compact=False)  # noqa: SLF001
     assert left.tabText(left._pages_tab) == "Pages"  # noqa: SLF001
 
 
