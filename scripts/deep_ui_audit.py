@@ -1719,10 +1719,17 @@ def combo_ocr_redact():
         note("needs the OCR engine (Windows)")
         return
     open_sample("ocr_english_scan.pdf")
-    act("OCR > OCR Whole Document")
-    act("File > Save")
-    t = flat(pdf_info(doc().path)["text"])
+    CUR.pop("saved_to", None)
+    act("OCR > OCR Whole Document")  # writes a searchable copy; the open document is not changed
+    out = saved(".pdf")
+    check("searchable copy written", out is not None and out.exists())
+    if not (out and out.exists()):
+        return
+    t = flat(pdf_info(out)["text"])
     check("OCR text saved", len(t) > 20, t[:80])
+    W.open_path(out)
+    pump(15)
+    check("searchable copy opens", doc() is not None and Path(doc().path) == out)
     word = next((w for w in re.findall(r"[A-Za-z]{5,}", pdf_info(doc().path)["text"])), None)
     if word:
         TEXT_QUEUE.append(word)

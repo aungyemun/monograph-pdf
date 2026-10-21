@@ -99,7 +99,7 @@ Opening a PDF never changes it. Edits are written only when you save.
 The OCR engine and English / Japanese language data ship with the app. Nothing is downloaded.
 
 - **OCR ▸ Make PDF Editable…** (summary before conversion)
-- **OCR ▸ OCR Whole Document…**, **OCR ▸ OCR Current Page…**, **OCR ▸ Make Searchable PDF…**
+- **OCR ▸ OCR Whole Document…**, **OCR ▸ OCR Current Page…**, **OCR ▸ Make Searchable PDF…** — each saves a searchable copy under a name you choose (the open document is not changed); open the copy to search or select its text
 - Low-certainty words are marked in amber; Cancel stops after the current page
 - **OCR ▸ Recognize Text in Area…** (drag a rectangle) and **OCR ▸ Extract Text (OCR)…**: the recognised text can be corrected, copied, or saved as a text file or Word document; **OCR ▸ Scanned PDF to Word (OCR)…**
 - Rotated and upside-down scans are handled; running OCR again never adds a second text layer
