@@ -35,8 +35,10 @@ Fixes are described in the [changelog](CHANGELOG.md) of the release that contain
 
 ## Security design
 
-Monograph PDF is designed to operate entirely offline. Its own code uses no networking modules
-(checked by tests); it has no telemetry, update check or document upload.
+Monograph PDF is designed to operate offline: it has no telemetry and never uploads documents.
+From 0.3.0 (in development) exactly two modules may use the network — the update checker and the
+problem-report sender — each only for a purpose the user controls (checked by tests); both are
+disabled until production signing and the reporting service are set up.
 
 | Area | How it is protected |
 | :--- | :--- |
@@ -47,7 +49,9 @@ Monograph PDF is designed to operate entirely offline. Its own code uses no netw
 | **Redaction** | Applied redactions remove the marked page content (text, image pixels, vector graphics) and overlapping form fields, comments and links, rather than placing a visible overlay. Text inside pictures is not detected. Verification and limitations: [Security and Privacy](docs/SECURITY_AND_PRIVACY.md#redaction). |
 | **Hidden information** | **Protect ▸ Remove Hidden Information** writes a cleaned copy and removes only the categories it lists; content that is part of the pages (including layers that are turned off) is kept. Limits: [Security and Privacy](docs/SECURITY_AND_PRIVACY.md#hidden-information). |
 | **Working files** | Settings and the recent-files list in `%APPDATA%\Monograph PDF`; cache, logs and recovery sessions in `%LOCALAPPDATA%\Monograph PDF`. No recovery copy is kept for password-protected PDFs. |
-| **Offline operation** | Qt's network and TLS modules and Python's SSL module are removed from the release build; the built-in self-check (also run by Setup) fails if a network connection is attempted while it runs. |
+| **Offline operation** | Qt's network and TLS modules are removed from the release build; Python's HTTPS support is used only by the update and problem-report code. The built-in self-check (also run by Setup) fails if a network connection is attempted while it runs. |
+| **Updates (0.3.0, disabled until production signing)** | Only Ed25519-signed release manifests verified against built-in keys are accepted; the installer must match the signed SHA-256 and size; downgrades, expired or replayed manifests and foreign hosts are refused; HTTPS with certificate verification; the installed copy is never replaced by the running program. [Secure updates](docs/SECURE_UPDATES.md) |
+| **Problem reports (0.3.0, sending disabled)** | Approved technical fields only, shown in full before sending; sent only after **Send to Developer**; the reporting gateway can only file issues in one private repository. [Error reporting](docs/ERROR_REPORTING.md) |
 | **Office conversion** | Uses the locally installed Microsoft Office (macros force-disabled) or LibreOffice (a temporary profile with macros disabled). These applications run independently and follow their own settings, including network access. |
 | **External programs** | Started only by their full system or installation path, never found through the current folder. |
 

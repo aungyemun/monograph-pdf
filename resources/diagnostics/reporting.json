@@ -1,0 +1,6 @@
+{
+  "schema": 1,
+  "enabled": false,
+  "endpoint": "",
+  "note": "Sending stays disabled until a reporting gateway is deployed and verified (docs/ERROR_REPORTING.md)."
+}

@@ -235,9 +235,20 @@ def _office_integration_html() -> str:
     return "".join(parts)
 
 
+def build_label() -> str:
+    """Architecture of this build, e.g. "Windows x64"."""
+    import platform
+
+    bits = "x64" if sys.maxsize > 2**32 else "x86"
+    if platform.machine().lower() in ("arm64", "aarch64"):
+        bits = "ARM64" if sys.maxsize > 2**32 else bits
+    return f"Windows {bits}" if sys.platform.startswith("win") else f"{platform.system()} {bits}"
+
+
 class AboutDialog(QDialog):
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, updates=None) -> None:
         super().__init__(parent)
+        self._updates = updates
         identity = get_product_identity()
         self.setWindowTitle(identity.about_title)
         self.setModal(True)
@@ -287,6 +298,16 @@ class AboutDialog(QDialog):
         tagline.setWordWrap(True)
         titles.addWidget(name)
         titles.addWidget(ver)
+        channel = "Stable"
+        status = "Not configured for this build"
+        if updates is not None:
+            prefs = getattr(parent, "_prefs", None)
+            channel = "Prerelease" if getattr(prefs, "update_channel", "stable") == "prerelease" else "Stable"
+            status = updates.status_text()
+        self._build_info = QLabel(f"Build: {build_label()}  ·  Release channel: {channel}  ·  Updates: {status}")
+        self._build_info.setObjectName("AboutBuildInfo")
+        self._build_info.setWordWrap(True)
+        titles.addWidget(self._build_info)
         titles.addWidget(tagline)
         titles.addStretch(1)
         header.addLayout(titles, 1)
@@ -318,7 +339,8 @@ class AboutDialog(QDialog):
         al.addWidget(
             _body_label(
                 "Everything runs on this computer: documents are never uploaded, no internet "
-                "connection is needed and no usage data is collected.",
+                "connection is needed and no usage data is collected. Monograph PDF goes online only "
+                "when you check for updates (or switch on automatic checks) or choose to send a problem report.",
                 object_name="AboutPrivacy",
             )
         )
@@ -365,10 +387,14 @@ class AboutDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         lic_btn = QPushButton("View License…")
         notices_btn = QPushButton("Third-Party Notices…")
+        updates_btn = QPushButton("Check for Updates…")
+        buttons.addButton(updates_btn, QDialogButtonBox.ButtonRole.ActionRole)
         buttons.addButton(lic_btn, QDialogButtonBox.ButtonRole.ActionRole)
         buttons.addButton(notices_btn, QDialogButtonBox.ButtonRole.ActionRole)
+        updates_btn.setEnabled(updates is not None)
+        updates_btn.clicked.connect(self._check_updates)
         # Enter closes the dialog; the document buttons open only when clicked
-        for extra in (lic_btn, notices_btn):
+        for extra in (updates_btn, lic_btn, notices_btn):
             extra.setAutoDefault(False)
             extra.setDefault(False)
         buttons.button(QDialogButtonBox.StandardButton.Close).setDefault(True)
@@ -377,6 +403,16 @@ class AboutDialog(QDialog):
         buttons.rejected.connect(self.reject)
         buttons.accepted.connect(self.accept)
         root.addWidget(buttons)
+
+    def _check_updates(self) -> None:
+        if self._updates is None:
+            return
+        self._updates.status_changed.connect(self._update_status)
+        self._updates.check(manual=True)
+
+    def _update_status(self, res) -> None:
+        text = self._build_info.text().rsplit("Updates:", 1)[0]
+        self._build_info.setText(f"{text}Updates: {res.status.label}")
 
     def _on_tab_changed(self, index: int) -> None:
         if self._tabs.tabText(index) != "Office Integration":

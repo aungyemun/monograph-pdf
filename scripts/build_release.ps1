@@ -140,6 +140,19 @@ if (-not $probe.WaitForExit(60000)) { $probe.Kill(); throw "uninstall.exe self-c
 if ($probe.ExitCode -ne 2) { throw "uninstall.exe self-check failed (exit $($probe.ExitCode), expected 2)." }
 Write-Host "  uninstall.exe $((Get-Item $UninstallExe).VersionInfo.FileVersion) ok"
 
+# ---- 3c. MonographPDFUpdater.exe (finishes a verified update after the application has closed) ----
+Step "Building MonographPDFUpdater.exe"
+$UpdaterInfo = Join-Path $BuildInst "updater_buildinfo.cs"
+[System.IO.File]::WriteAllText($UpdaterInfo, "namespace MonographPdfUpdater { internal static class BuildInfo { public const string Version = `"$NumericVersion`"; } }")
+$UpdaterExe = Join-Path $BuildInst "MonographPDFUpdater.exe"
+Remove-Item $UpdaterExe -Force -ErrorAction SilentlyContinue
+& $Csc /nologo /target:winexe /optimize+ "/out:$UpdaterExe" "/win32icon:$(Join-Path $Root 'resources\icons\windows\monograph_pdf.ico')" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll (Join-Path $Root "installer\update_helper.cs") $UpdaterInfo
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path $UpdaterExe)) { throw "csc failed to build MonographPDFUpdater.exe." }
+$probe = Start-Process -FilePath $UpdaterExe -ArgumentList "--self-check" -PassThru -WindowStyle Hidden
+if (-not $probe.WaitForExit(60000)) { $probe.Kill(); throw "MonographPDFUpdater.exe self-check did not finish." }
+if ($probe.ExitCode -ne 0) { throw "MonographPDFUpdater.exe self-check failed (exit $($probe.ExitCode))." }
+Write-Host "  MonographPDFUpdater.exe $((Get-Item $UpdaterExe).VersionInfo.FileVersion) ok"
+
 # ---- 4. Installer ----
 Step "Compiling Setup.exe with Inno Setup"
 # Licence page: UTF-8 with BOM so (c) and dashes display correctly
@@ -149,7 +162,7 @@ $LicenseText = Get-Content (Join-Path $Root "LICENSE.md") -Raw -Encoding UTF8
 $InstalledManifest = Join-Path $BuildInst "installed_files.txt"
 & $Py (Join-Path $Root "scripts\packaging\write_installed_manifest.py") --payload $Payload --out $InstalledManifest
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $InstalledManifest)) { throw "installed_files.txt manifest failed." }
-& $Iscc /Q "/DAppVersion=$Version" "/DPayloadDir=$Payload" "/DUninstallExe=$UninstallExe" "/DInstalledManifest=$InstalledManifest" (Join-Path $Root "installer\MonographPDF.iss")
+& $Iscc /Q "/DAppVersion=$Version" "/DPayloadDir=$Payload" "/DUninstallExe=$UninstallExe" "/DUpdaterExe=$UpdaterExe" "/DInstalledManifest=$InstalledManifest" (Join-Path $Root "installer\MonographPDF.iss")
 if ($LASTEXITCODE -ne 0) { throw "ISCC failed." }
 $Setup = Join-Path $Root "installer\MonographPDF_${Version}_Setup.exe"
 if (-not (Test-Path $Setup)) { throw "Missing $Setup" }

@@ -1,4 +1,4 @@
-# Dependency inventory (Monograph PDF 0.2.4)
+# Dependency inventory (Monograph PDF 0.3.0)
 
 Every third-party component that is shipped with, or used to build or test, Monograph PDF. The release build enforces the shipped part: `scripts\packaging\check_release.py` fails when a program file (`.exe`, `.dll`, `.pyd`) does not belong to a component listed in its `RELEASE_COMPONENTS` table, or when that component is missing from `THIRD_PARTY_NOTICES.md`. Python packages are pinned in `requirements.txt`; the Tesseract build is recorded in `engines\ocr\MANIFEST.json`.
 
@@ -6,8 +6,8 @@ Status: **Runtime** = shipped in Setup.exe; **Build** = used only to produce the
 
 | Component | Version | Purpose | Source / project | License | Status | Copyright / attribution | Security and update notes |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| Python | 3.11.9 | Language runtime | python.org | PSF-2.0 | Runtime | Python Software Foundation | SSL module and `libssl` removed from the build; no network use by the app |
-| OpenSSL libcrypto | 3.0.13 | `hashlib` | openssl.org | Apache-2.0 | Runtime | The OpenSSL Project | Comes with Python; only hashing is used |
+| Python | 3.11.9 | Language runtime | python.org | PSF-2.0 | Runtime | Python Software Foundation | `ssl` module kept for HTTPS update checks and approved problem reports only (`core/updates/net.py`, `core/diagnostics/client.py`) |
+| OpenSSL libcrypto, libssl | 3.0.13 | `hashlib`, `ssl` | openssl.org | Apache-2.0 | Runtime | The OpenSSL Project | Comes with Python; hashing, and TLS for update checks and approved problem reports |
 | libffi | 3.4 | `ctypes` | sourceware.org/libffi | MIT | Runtime | Anthony Green, Red Hat and others | — |
 | MSVC / UCRT runtime | 14.x / 10.0 | C/C++ runtime | Microsoft | VC++ Redistributable terms | Runtime | Microsoft Corporation | Shipped by Python, PySide6, NumPy wheels |
 | PySide6 / Shiboken6 / Qt | 6.8.1.1 | User interface, printing | qt.io | LGPL-3.0 | Runtime | The Qt Company | Qt Network, TLS / network-information / TUIO plugins, Qt Quick/QML, virtual keyboard and Qt PDF removed; source (PySide6 6.8.1.1, Qt 6.8.1) in the source archive |

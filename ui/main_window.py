@@ -41,6 +41,7 @@ from core.product_meta import PRODUCT_NAME
 from core.recent_files import RecentFiles
 from core.user_prefs import UserPreferences
 from ui.about_dialog import AboutDialog
+from core.diagnostics import EventId, diagnostics
 from ui.branding import apply_application_icon, load_app_icon
 from ui.inspector_panel import InspectorPanel
 from ui.left_rail import LeftRail
@@ -73,6 +74,9 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(900, 600)
         self.setAccessibleName("Monograph PDF main window")
         self._prefs = UserPreferences.load()
+        from ui.update_dialogs import UpdateController
+
+        self._updates = UpdateController(self)
         self.resize(self._prefs.window_width, self._prefs.window_height)
         if self._prefs.window_x is not None and self._prefs.window_y is not None:
             self.move(self._prefs.window_x, self._prefs.window_y)
@@ -604,6 +608,11 @@ class MainWindow(QMainWindow):
         self.act_find_next.triggered.connect(self._find_next)
         self.act_about = QAction("&About", self)
         self.act_about.triggered.connect(self._show_about)
+        self.act_check_updates = QAction("Check for &Updates…", self)
+        self.act_check_updates.triggered.connect(lambda: self._updates.check(manual=True))
+        self.act_settings = QAction("Se&ttings…", self)
+        self.act_settings.setShortcut(QKeySequence("Ctrl+,"))
+        self.act_settings.triggered.connect(self._show_settings)
 
         self.act_toggle_left = QAction("Toggle &Left Panel", self)
         self.act_toggle_left.setShortcut(QKeySequence("F9"))
@@ -1078,6 +1087,8 @@ class MainWindow(QMainWindow):
             ("redact_pages", self.act_redact_pages),
             ("count", self.act_redact_preview),
             ("about", self.act_about),
+            ("updates", self.act_check_updates),
+            ("settings", self.act_settings),
             ("rotate_cw", self.act_rotate_pages),
         ):
             set_action_icon(act, name)
@@ -1136,6 +1147,8 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(self.act_doc_props)
         file_menu.addAction(self.act_show_in_folder)
+        file_menu.addSeparator()
+        file_menu.addAction(self.act_settings)
         file_menu.addSeparator()
         file_menu.addAction(self.act_exit)
 
@@ -1349,6 +1362,7 @@ class MainWindow(QMainWindow):
         help_menu.addAction(self.act_shortcuts)
         help_menu.addSeparator()
         help_menu.addAction(self.act_default_app)
+        help_menu.addAction(self.act_check_updates)
         help_menu.addSeparator()
         help_menu.addAction(self.act_about)
         # Python-side references to every menu: QAction.menu() hands out wrappers that may
@@ -1611,6 +1625,7 @@ class MainWindow(QMainWindow):
         path = Path(path)
         if self._document is not None and not self._confirm_unsaved("opening another file"):
             return False
+        diagnostics.record(EventId.PDF_OPEN_STARTED)
         ext = path.suffix.lower()
         if ext != ".pdf" and path.is_file():
             converted = self._convert_for_viewing(path)
@@ -1664,9 +1679,10 @@ class MainWindow(QMainWindow):
             )
             return False
         except Exception as exc:  # noqa: BLE001
-            self.report_error(
+            self.report_unexpected(
                 "Cannot open PDF",
-                str(exc),
+                exc,
+                EventId.PDF_OPEN_FAILED,
                 hint="Confirm the file is readable and not in use by another program.",
             )
             return False
@@ -1901,6 +1917,7 @@ class MainWindow(QMainWindow):
             return
         # Explicit Save overwrites the opened path after baking overlays.
         # Original remains intact until this intentional action.
+        diagnostics.record(EventId.PDF_SAVE_STARTED)
         try:
             path = self._document.path
             password = self._open_password()
@@ -1921,9 +1938,10 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Saved", 4000)
             self._on_edit_changed()
         except Exception as exc:  # noqa: BLE001
-            self.report_error(
+            self.report_unexpected(
                 "Save failed",
-                str(exc),
+                exc,
+                EventId.PDF_SAVE_FAILED,
                 hint="Try Save As to a new path, or close other apps locking the file.",
             )
 
@@ -1942,6 +1960,7 @@ class MainWindow(QMainWindow):
         dest = Path(path)
         if dest.suffix.lower() != ".pdf":
             dest = dest.with_suffix(dest.suffix + ".pdf") if dest.suffix else dest.with_suffix(".pdf")
+        diagnostics.record(EventId.PDF_SAVE_STARTED)
         try:
             old_path = self._document.path
             password = self._open_password()
@@ -1950,9 +1969,10 @@ class MainWindow(QMainWindow):
             clear_session(old_path)
             self._report_font_notes()
         except Exception as exc:  # noqa: BLE001
-            self.report_error(
+            self.report_unexpected(
                 "Save As failed",
-                str(exc),
+                exc,
+                EventId.PDF_SAVE_FAILED,
                 hint="Pick a writable folder and ensure the filename ends with .pdf.",
             )
             return
@@ -1976,7 +1996,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:  # noqa: N802
         if self._canvas.region_pick_active:
             self._canvas.cancel_region_pick(announce=False)
-        if not self._confirm_unsaved("closing"):
+        if not getattr(self, "_closing_for_update", False) and not self._confirm_unsaved("closing"):
             event.ignore()
             return
         self._persist_preferences()
@@ -2020,6 +2040,36 @@ class MainWindow(QMainWindow):
             text = f"{text}\n\n{hint}"
         QMessageBox.warning(self, title, text)
         self.statusBar().showMessage(f"{title}: {detail.splitlines()[0] if detail else 'failed'}", 8000)
+
+    def report_unexpected(self, title: str, exc: BaseException, failure: EventId, *, hint: str | None = None) -> None:
+        """An operation failed. Expected, environmental problems (a locked or missing file, no
+        permission, a full disk) get the usual message; anything else also offers a private problem
+        report, which is sent only if the user clicks Send to Developer."""
+        diagnostics.record(failure)
+        if isinstance(exc, OSError) or self._is_headless_ui():
+            self.report_error(title, str(exc), hint=hint)
+            return
+        from core.diagnostics import report as reports
+        from ui.error_report_dialog import ErrorReportDialog
+
+        text = (str(exc).strip() or "An unexpected error occurred.") + (f"\n\n{hint}" if hint else "")
+        self.statusBar().showMessage(f"{title}: {text.splitlines()[0]}", 8000)
+        try:
+            report = reports.build(failure, exc)
+        except Exception:  # noqa: BLE001 — never hide the original problem
+            self.report_error(title, str(exc), hint=hint)
+            return
+        ErrorReportDialog(report, summary=f"<b>{title}</b><br>{text}", parent=self).exec()
+
+    def offer_report(self, report: dict, summary: str) -> bool:
+        """Show a report built elsewhere (unhandled exception, earlier crash). False when no window
+        can show it right now (it is then kept for the next start)."""
+        if self._is_headless_ui() or not self.isVisible():
+            return False
+        from ui.error_report_dialog import ErrorReportDialog
+
+        ErrorReportDialog(report, summary=summary, parent=self).exec()
+        return True
 
     def _autosave_session(self) -> None:
         if self._edit is None or self._document is None or not self._edit.dirty:
@@ -3912,7 +3962,7 @@ class MainWindow(QMainWindow):
                 )
             self.statusBar().showMessage(f"Exported {len(written)} image(s) to {Path(out).name}", 6000)
         except Exception as exc:  # noqa: BLE001
-            self.report_error("Export images failed", str(exc))
+            self.report_unexpected("Export images failed", exc, EventId.PDF_EXPORT_FAILED)
 
     def _extract_images(self) -> None:
         if self._document is None:
@@ -4027,7 +4077,8 @@ class MainWindow(QMainWindow):
                     lambda: pdf_to_docx(src, dest, pages=opts["pages"], engine=opts["engine"]),
                 )
         except Exception as exc:  # noqa: BLE001
-            self.report_error("PDF to Word failed", str(exc), hint="Try the “Text only” option, or OCR scanned pages first.")
+            self.report_unexpected("PDF to Word failed", exc, EventId.CONVERT_FAILED,
+                                   hint="Try the “Text only” option, or OCR scanned pages first.")
             return
         self.statusBar().showMessage(f"Saved {dest.name}", 6000)
         if opts["open_after"] and not self._is_headless_ui():
@@ -4103,7 +4154,7 @@ class MainWindow(QMainWindow):
                 lambda: office_to_pdf(source, dest),
             )
         except Exception as exc:  # noqa: BLE001
-            self.report_error("Conversion to PDF failed", str(exc))
+            self.report_unexpected("Conversion to PDF failed", exc, EventId.CONVERT_FAILED)
             return
         self.statusBar().showMessage(f"Saved {dest.name}", 6000)
         if self._is_headless_ui():
@@ -5126,6 +5177,7 @@ class MainWindow(QMainWindow):
         self._commit_field_editor()
         if self._document is None:
             return
+        diagnostics.record(EventId.PDF_PRINT_STARTED)
         from core.printing import ColorMode, effective_print_dpi, prepare_print_source
         from ui.print_dialog import PrintDialog, print_document_pages
 
@@ -5166,14 +5218,72 @@ class MainWindow(QMainWindow):
                 f"Sent {count} page(s) ({mode}) to {printer.printerName() or 'printer'}", 6000
             )
         except Exception as exc:  # noqa: BLE001
-            self.report_error("Print failed", str(exc))
+            self.report_unexpected("Print failed", exc, EventId.PDF_PRINT_FAILED)
         finally:
             if source is not None:
                 source.close()
             self.clear_analysis_progress()
 
     def _show_about(self) -> None:
-        AboutDialog(self).exec()
+        AboutDialog(self, updates=self._updates).exec()
+
+    def _show_settings(self) -> None:
+        from ui.settings_dialog import SettingsDialog
+
+        SettingsDialog(self._prefs, self._updates, self).exec()
+
+    def close_for_update(self) -> None:
+        """Unsaved changes were already saved or discarded; the update helper takes over now."""
+        self._closing_for_update = True
+        self.close()
+        app = QApplication.instance()
+        if app is not None:
+            app.quit()
+
+    def after_startup(self) -> None:
+        """Deferred start-up work: update results and staging cleanup, earlier problem reports,
+        the automatic update check (only when the user switched it on)."""
+        from core.updates import manager, staging
+
+        try:
+            staging.cleanup()
+        except OSError:
+            pass
+        for res in manager.read_results():
+            self._show_update_result(res)
+        from core.diagnostics import crash
+        from core.diagnostics import report as reports
+
+        pending = crash.take_pending()
+        if pending is not None:
+            self.offer_report(pending, "<b>Monograph PDF closed unexpectedly last time.</b>")
+        elif crash.previous_terminations():
+            try:
+                rep = reports.build(EventId.UNEXPECTED_TERMINATION, report_type="termination", events=[])
+                self.offer_report(rep, "<b>Monograph PDF did not close normally last time.</b>")
+            except Exception:  # noqa: BLE001
+                pass
+        self._updates.maybe_auto_check()
+
+    def _show_update_result(self, res: dict) -> None:
+        from core.updates import staging
+
+        status, version = res.get("status"), str(res.get("expected_version", ""))[:40]
+        try:
+            (staging.updates_root() / res["_file"]).unlink()
+        except OSError:
+            pass
+        if status == "installed":
+            self.statusBar().showMessage(f"Monograph PDF was updated to version {version}.", 10000)
+            if version and version != __import__("core.versioning", fromlist=["get_version"]).get_version():
+                QMessageBox.warning(self, "Update", f"The update to {version} finished, but this program reports a "
+                                                    "different version. Run Setup again from the release page.")
+        elif status == "installed_restart_required":
+            QMessageBox.information(self, "Update", f"Monograph PDF {version} was installed. Restart Windows to finish.")
+        elif status == "failed":
+            diagnostics.record(EventId.UPDATE_INSTALL_FAILED)
+            QMessageBox.warning(self, "Update", f"The update to Monograph PDF {version} was not installed "
+                                                f"({res.get('code', 'error')}). This version is unchanged.")
 
     # --- Unsaved-change guard ----------------------------------------------
 

@@ -1,7 +1,12 @@
 # Build canonical ./MonographPDF.exe via PyInstaller into project root.
 # Uses --onedir (exe + _internal/) for fast cold start — avoids onefile temp extraction.
 # Intermediates: ./build  Distributable also under ./dist/MonographPDF/
-# Usage: powershell -ExecutionPolicy Bypass -File scripts/build_exe.ps1
+# Usage: powershell -ExecutionPolicy Bypass -File scripts/build_exe.ps1 [-UpdateConfig <folder>]
+#   -UpdateConfig: TEST BUILDS ONLY. Replaces the bundled resources\update (update_config.json and an
+#   optional test CA) with the files in <folder>, for update tests against a local mock server with
+#   synthetic keys. Release builds (scripts\build_release.ps1) never pass it, and verify_release.py
+#   fails if the bundled configuration differs from the repository's.
+param([string]$UpdateConfig = "")
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -10,7 +15,7 @@ Set-Location $Root
 $Py = Join-Path $Root "env\Scripts\python.exe"
 
 # Controlled build PATH: PyInstaller's Qt hook copies OpenSSL DLLs it finds on PATH into the bundle. Drop every
-# PATH folder outside Windows and the project that holds one (typically Git for Windows' mingw64in) so the
+# PATH folder outside Windows and the project that holds one (typically Git for Windows' mingw64\bin) so the
 # build does not depend on what else is installed. check_release.py prune removes any that still slip in.
 $kept = @()
 foreach ($dir in ($env:PATH -split ';')) {
@@ -119,10 +124,18 @@ $OutInternal = Join-Path $OutDir "_internal"
 if (-not (Test-Path $OutExe)) { Write-Error "Missing $OutExe" }
 if (-not (Test-Path $OutInternal)) { Write-Error "Missing $OutInternal" }
 
-# Remove bundled parts Monograph PDF never uses (network/TLS plugins, Qt Quick/QML, Qt's PDF plugin,
-# FFmpeg video I/O, software OpenGL, Python's SSL module); fails if a remaining DLL still needs one.
+# Remove bundled parts Monograph PDF never uses (Qt's network/TLS plugins, Qt Quick/QML, Qt's PDF plugin,
+# FFmpeg video I/O, software OpenGL); fails if a remaining DLL still needs one. Python's ssl module stays
+# for update checks and approved problem reports.
 & $Py "$Root\scripts\packaging\check_release.py" prune $OutDir
 if ($LASTEXITCODE -ne 0) { Write-Error "Pruning the bundle failed (see above)." }
+if ($UpdateConfig) {
+    $Bundled = Join-Path $OutInternal "resources\update"
+    Write-Warning "TEST BUILD: replacing the bundled update configuration with $UpdateConfig"
+    Remove-Item -Recurse -Force $Bundled
+    New-Item -ItemType Directory -Force $Bundled | Out-Null
+    Copy-Item (Join-Path $UpdateConfig "*") $Bundled -Force
+}
 
 # Install at project root: MonographPDF.exe + _internal/ (onedir layout)
 if (Test-Path "$Root\_internal") {

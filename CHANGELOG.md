@@ -2,6 +2,55 @@
 
 All notable changes to Monograph PDF. Versions follow `VERSION` (see `docs/RELEASE_AND_VERSIONING.md`).
 
+## [0.3.0] — Unreleased
+
+Development milestone v0.3.0-dev (branch `feature/v0.3.0-secure-updates-diagnostics`): secure
+updates, automatic in-place upgrades, private error reporting and international Windows
+compatibility. It also contains the unreleased 0.2.4 maintenance work below. **Network features are
+disabled** in every build until production signing and the reporting gateway are set up and
+verified; normal PDF work stays offline.
+
+### Added
+
+- **Secure update checks** — **Help ▸ Check for Updates…**, **File ▸ Settings… ▸ Updates**
+  (automatic checks, off by default; interval; stable or prerelease channel; last successful check;
+  Check Now; status) and the update status in **About**. Update information is a release manifest
+  signed with Ed25519 and verified against keys built into the program; the download must match the
+  signed size and SHA-256. Identity, channel, architecture, downgrade, expiry and replay checks; HTTPS
+  with certificate verification and an allow-list of GitHub hosts, also for redirects. An unreachable
+  server or unverifiable information is never reported as "up to date" ([docs/SECURE_UPDATES.md](docs/SECURE_UPDATES.md)).
+- **Automatic in-place upgrade** — **Update Now** downloads and verifies the new Setup, lets you save
+  or discard open changes, closes Monograph PDF and hands over to `MonographPDFUpdater.exe`, which
+  waits for the program to exit, checks the installer again, runs the existing Setup silently for the
+  same folder and install mode (keeping shortcuts, file-type choices and settings), verifies the
+  installed version, deletes the downloaded installer and restarts the new version
+  ([docs/AUTOMATIC_UPGRADE_AND_CLEANUP.md](docs/AUTOMATIC_UPGRADE_AND_CLEANUP.md)). Only the
+  installation registered in Windows for the running copy is updated; ambiguous cases stop.
+- **Update staging cleanup** with ownership markers, bounded retention for failed attempts, a size
+  limit and no deletion outside the updater's own files.
+- **Private problem reports** — unexpected errors, unhandled exceptions, Qt critical errors and
+  unexpected termination produce a report of approved technical fields only (no documents, names,
+  paths, user names or typed text), shown in full with exactly two buttons, **Don't Send** and
+  **Send to Developer**; nothing is sent without that click. Sending is disabled until the reporting
+  gateway is deployed. Reference gateway in `services/report_gateway` (GitHub App limited to
+  issues in one private repository) ([docs/ERROR_REPORTING.md](docs/ERROR_REPORTING.md)).
+- **International Windows compatibility** tests and documentation: Japanese, Chinese, Korean, German
+  and French folder and file names, Unicode temporary and user folders, locale-independent versions
+  and metadata ([docs/INTERNATIONAL_WINDOWS_COMPATIBILITY.md](docs/INTERNATIONAL_WINDOWS_COMPATIBILITY.md)).
+- `scripts/packaging/update_manifest.py` (key generation outside the repository, manifest signing and
+  verification), `scripts/test_update_e2e.py` (Windows end-to-end upgrade test with synthetic keys
+  and a local HTTPS mock server).
+
+### Changed
+
+- The release build keeps Python's own `ssl` module (HTTPS for update checks and approved reports);
+  Qt's network and TLS modules are still removed. Exactly two modules may use the network
+  (`core/updates/net.py`, `core/diagnostics/client.py`), checked by the security tests.
+- Setup installs `MonographPDFUpdater.exe`; uninstalling removes the user's update and
+  problem-report folders.
+- `verify_release.py --layout` fails if the bundled update or reporting configuration differs from
+  the repository's.
+
 ## [0.2.4] — Unreleased
 
 Development version: release tooling, OCR reproducibility and source-archive maintenance. No change to the application so far.

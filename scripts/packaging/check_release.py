@@ -6,9 +6,9 @@
     python scripts/packaging/check_release.py guard-frozen <installer\\release> <version> <releases folder>
     python scripts/packaging/check_release.py superseded <installer> <version> <releases folder> <dest>
 
-prune  removes bundled parts Monograph PDF never uses (network/TLS plugins, Qt Quick/QML and the
-       virtual keyboard, Qt's own PDF plugin, FFmpeg video I/O, software OpenGL, Python's SSL
-       module) and then checks, from every remaining DLL's import table, that nothing still
+prune  removes bundled parts Monograph PDF never uses (Qt's network/TLS plugins, Qt Quick/QML and
+       the virtual keyboard, Qt's own PDF plugin, FFmpeg video I/O, software OpenGL; Python's own
+       ssl module stays for update checks and approved problem reports) and then checks, from every remaining DLL's import table, that nothing still
        needs a removed file. Fails the build otherwise.
 check  every program file (.exe .dll .pyd) in the layout must belong to a component listed in
        RELEASE_COMPONENTS below, and each component must be named in THIRD_PARTY_NOTICES.md;
@@ -59,8 +59,8 @@ PRUNE = [
     "_internal/PySide6/QtNetwork.pyd",
     "_internal/PySide6/opengl32sw.dll",
     "_internal/cv2/opencv_videoio_ffmpeg*.dll",
-    "_internal/_ssl.pyd",
-    "_internal/libssl-3.dll",
+    # Python's own _ssl.pyd and libssl-3.dll stay: update checks and approved problem reports use HTTPS
+    # (core/updates/net.py, core/diagnostics/client.py). Qt's network and TLS stack is still removed.
     # PyInstaller's Qt hook copies any OpenSSL 3 DLLs it finds on PATH next to QtNetwork (which is
     # removed above). On a machine with Git for Windows on PATH these are Git's MSYS2 builds.
     "_internal/libssl-3-x64.dll",
@@ -71,12 +71,13 @@ PRUNE = [
 RELEASE_COMPONENTS: dict[str, tuple[list[str], str]] = {
     "Monograph PDF launcher (PyInstaller bootloader)": (["MonographPDF.exe"], "PyInstaller"),
     "Monograph PDF uninstaller": (["uninstall.exe", "unins000.exe"], "Inno Setup"),
+    "Monograph PDF update helper": (["MonographPDFUpdater.exe"], "Monograph PDF"),
     "Python runtime": (
         ["_internal/python3.dll", "_internal/python311.dll", "_internal/_*.pyd", "_internal/select.pyd",
          "_internal/unicodedata.pyd", "_internal/pyexpat.pyd", "_internal/libffi-8.dll"],
         "Python",
     ),
-    "OpenSSL libcrypto (Python hashlib)": (["_internal/libcrypto-3.dll"], "OpenSSL"),
+    "OpenSSL (Python hashlib and ssl)": (["_internal/libcrypto-3.dll", "_internal/libssl-3.dll"], "OpenSSL"),
     "Microsoft Visual C++ / Universal C runtime": (
         ["_internal/VCRUNTIME140*.dll", "_internal/ucrtbase.dll", "_internal/api-ms-win-*.dll",
          "_internal/PySide6/VCRUNTIME140*.dll", "_internal/PySide6/MSVCP140*.dll",
@@ -235,7 +236,7 @@ def check(layout: Path, release: Path | None, json_out: Path | None) -> int:
 # and the source-archive components that must provide it (None: any component that covers the file).
 # Independent of third_party_sources.json, so a component left out of the source archive is found.
 REQUIRES_SOURCE: list[tuple[str, list[str], list[str] | None]] = [
-    ("Monograph PDF (AGPL-3.0-or-later)", ["MonographPDF.exe", "uninstall.exe"], ["monograph-pdf"]),
+    ("Monograph PDF (AGPL-3.0-or-later)", ["MonographPDF.exe", "uninstall.exe", "MonographPDFUpdater.exe"], ["monograph-pdf"]),
     ("pdf2docx inside MonographPDF.exe (GPL-3.0)", ["_internal/pdf2docx-*.dist-info/*"], ["pdf2docx"]),
     ("PyMuPDF / MuPDF (AGPL-3.0)", ["_internal/pymupdf/*"], ["pymupdf", "mupdf"]),
     ("Qt / PySide6 / Shiboken6 (LGPL-3.0)", ["_internal/PySide6/Qt6*.dll", "_internal/PySide6/plugins/*", "_internal/PySide6/*.pyd",

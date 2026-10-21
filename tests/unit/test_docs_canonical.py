@@ -19,6 +19,11 @@ CANONICAL = {
     "TESTING.md",
     "RELEASE_CHECKLIST.md",
     "CODE_SIGNING.md",
+    # 0.3.0: secure updates, automatic upgrade, error reporting, international compatibility
+    "SECURE_UPDATES.md",
+    "AUTOMATIC_UPGRADE_AND_CLEANUP.md",
+    "ERROR_REPORTING.md",
+    "INTERNATIONAL_WINDOWS_COMPATIBILITY.md",
 }
 
 STALE_FRAGMENTS = (

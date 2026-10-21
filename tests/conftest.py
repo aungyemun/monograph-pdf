@@ -10,6 +10,9 @@ import pytest
 # Working files (recovery drafts, temp conversions, caches) go to a throwaway folder, never the
 # project's own runtime folder. Set before any test imports app.paths.
 os.environ.setdefault("MONOGRAPH_PDF_RUNTIME_DIR", tempfile.mkdtemp(prefix="monographpdf-test-runtime-"))
+# Update staging/status and problem-report records likewise never touch the user's real folders
+os.environ.setdefault("MONOGRAPH_PDF_UPDATES_DIR", tempfile.mkdtemp(prefix="monographpdf-test-updates-"))
+os.environ.setdefault("MONOGRAPH_PDF_DIAGNOSTICS_DIR", tempfile.mkdtemp(prefix="monographpdf-test-diagnostics-"))
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -68,6 +71,11 @@ _MODULE_CATEGORIES = {
     "test_verify_release.py": {"security"}, "test_release_notes_validation.py": {"security"},
     "test_encryption_bytes.py": {"security"},
     "test_stage_ocr_engine.py": {"security"},
+    # Secure updates and private error reporting (0.3.0)
+    "test_update_crypto.py": {"security"}, "test_update_manifest.py": {"security"},
+    "test_update_net.py": {"security"}, "test_update_staging.py": {"security"},
+    "test_update_install.py": {"security"}, "test_diagnostics.py": {"security"},
+    "test_report_gateway.py": {"security"}, "test_update_ui.py": {"security", "gui"},
 }
 # Individual tests inside otherwise portable modules (matched against the test name)
 _NAME_CATEGORIES = [

@@ -1472,3 +1472,21 @@ def apply_toolbar_icons(actions: dict) -> None:
     for key, act in actions.items():
         if act is not None:
             set_action_icon(act, key)
+
+
+@icon("updates")
+def _updates(p, c):
+    # downward arrow into a tray: download and install a newer version
+    p.drawLine(QPointF(10, 2.5), QPointF(10, 12))
+    _poly(p, [(6.5, 8.5), (10, 12), (13.5, 8.5)], close=False)
+    _poly(p, [(3, 12.5), (3, 16.5), (17, 16.5), (17, 12.5)], close=False)
+
+
+@icon("settings")
+def _settings(p, c):
+    # three sliders
+    for y, knob in ((5, 7), (10, 13), (15, 9)):
+        p.drawLine(QPointF(3, y), QPointF(17, y))
+        p.setBrush(c)
+        p.drawEllipse(QRectF(knob - 1.8, y - 1.8, 3.6, 3.6))
+        p.setBrush(Qt.BrushStyle.NoBrush)

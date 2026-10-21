@@ -14,6 +14,8 @@ Checks, each reported as PASS / FAIL:
   privacy       no private paths or secrets in any text file of both ZIPs (check_release.py patterns);
                 none of the source-archive exclusions (personal-document tests, local QA material)
   ocr           (with --layout) the OCR engine and eng/jpn/osd language data are present
+  update-trust  (with --layout) the bundled update and reporting configuration is the repository's
+                own (a test build's synthetic keys, mock endpoints or test CA can never be released)
   --allow-unreleased  (build_release.ps1) a development build may carry an Unreleased CHANGELOG entry;
                 publishing always needs a dated entry and --notes
   notes         (with --notes) validate_release_notes.py, with checksums verified against the files and
@@ -95,6 +97,27 @@ def version_problems(version: str, root: Path) -> list[str]:
     if src.get("release") != version or src.get("archive") != f"MonographPDF_{version}_Source.zip":
         p.append("scripts/packaging/third_party_sources.json names another release")
     return p
+
+
+TRUST_FILES = ["resources/update/update_config.json", "resources/diagnostics/reporting.json"]
+
+
+def trust_problems(layout: Path, root: Path) -> list[str]:
+    """The update/reporting configuration inside the built app must equal the release's source."""
+    problems = []
+    bundled = layout / "_internal"
+    for rel in TRUST_FILES:
+        shipped, source = bundled / rel, root / rel
+        if not shipped.is_file():
+            problems.append(f"{rel} is missing from the application")
+        elif not source.is_file() or shipped.read_bytes() != source.read_bytes():
+            problems.append(f"{rel} differs from the repository's (test configuration in a release build?)")
+    for folder in ("resources/update", "resources/diagnostics"):
+        extra = sorted(p.name for p in (bundled / folder).glob("*") if (folder + "/" + p.name) not in TRUST_FILES) \
+            if (bundled / folder).is_dir() else []
+        if extra:
+            problems.append(f"unexpected files in {folder}: {', '.join(extra)}")
+    return problems
 
 
 def scan_zip(path: Path, *, source: bool) -> list[str]:
@@ -185,6 +208,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if a.layout is not None:
         rep.check("ocr", [f"missing {r}" for r in OCR_REQUIRED if not (a.layout / r).is_file()])
+        rep.check("update-trust", trust_problems(a.layout, release_root))
 
     if a.notes is not None:
         changelog = (release_root / "CHANGELOG.md").read_text(encoding="utf-8")

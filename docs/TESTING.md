@@ -95,6 +95,29 @@ from.
 
 Before a release, also install the previous published Setup and upgrade it with the new one (same test folder): settings, documents and unrelated files must be kept, and the self-check must pass.
 
+## Updates, problem reports and international tests
+
+* Update security (synthetic keys only): `test_update_crypto.py` (RFC 8032 vectors, OpenSSL
+  cross-check), `test_update_manifest.py` (signatures, keys, expiry, replay, channels, identity,
+  architecture, downgrade, unreachable sources), `test_update_net.py` (local HTTPS mock server with a
+  generated test CA: TLS, redirects, sizes, rate limits, timeouts, interrupted and cancelled downloads),
+  `test_update_staging.py` (cleanup rules, links, disk space, lock), `test_update_install.py`
+  (installation detection, hand-off record, Setup arguments, helper source checks), `test_update_ui.py`.
+* Problem reports: `test_diagnostics.py` (privacy filtering, schema, consent, offline sending,
+  crash and termination records), `test_report_gateway.py` (validation, limits, injection, GitHub
+  permission isolation; GitHub mocked).
+* International: `test_international.py` (Unicode folders and file names, temporary folders,
+  subprocess arguments, update staging, locale independence; OCR with Unicode paths when the engine
+  is installed). These are simulations on the test machine, not verification on localized Windows.
+* `cryptography` is needed only by some of these tests (test certificates, OpenSSL cross-check, the
+  gateway's token signing); they are skipped where it is not installed. CI installs it
+  (`requirements-ci.txt`); the application does not use it.
+* Windows end-to-end upgrade: `scripts\test_update_e2e.py --certs <test CA folder>` builds two test
+  versions of the current commit, installs the first per user into a Unicode folder, upgrades it
+  through the real helper and Setup, checks preserved choices, settings and files, failure paths and
+  cleanup, then uninstalls and restores the user's Monograph PDF folders
+  ([AUTOMATIC_UPGRADE_AND_CLEANUP.md](AUTOMATIC_UPGRADE_AND_CLEANUP.md#testing)).
+
 ## Security tests
 
 `tests/unit/test_security_hardening.py`, `tests/ui/test_security_ui.py` — safe paths, full-path process starts, no network, encryption preserved on Save As.

@@ -27,6 +27,11 @@ def main(argv: list[str] | None = None) -> int:
         from app.smoke_test import run_smoke_test
 
         return run_smoke_test(argv)
+    # The update helper restarts the new version with --update-finished <id>; the result itself is
+    # read from the update status folder, so the argument only has to be removed here.
+    if "--update-finished" in argv:
+        i = argv.index("--update-finished")
+        del argv[i : i + 2]
 
     from core.startup_timing import mark, reset, write_log
 
@@ -60,7 +65,20 @@ def main(argv: list[str] | None = None) -> int:
     migrate_at_startup()
     mark("legacy_migration")
 
+    # Problem reports: unhandled exceptions, Qt critical errors, unexpected termination (nothing is
+    # sent unless the user approves a report)
+    from core.diagnostics import EventId, crash, diagnostics
+
+    session = crash.SessionGuard()
+    diagnostics.record(EventId.APP_STARTED)
+    window_ref: list = []
+    crash.install_hooks(lambda rep: bool(window_ref) and window_ref[0].offer_report(
+        rep, "<b>Monograph PDF ran into an unexpected problem.</b><br>You can keep working; save your work if "
+             "anything behaves strangely."))
+
     app = create_application(argv)
+    crash.install_qt_message_handler()
+    app.aboutToQuit.connect(session.end)
     mark("qapplication")
     app.setApplicationName(PRODUCT_NAME)
     app.setOrganizationName(COPYRIGHT_OWNER)
@@ -99,7 +117,9 @@ def main(argv: list[str] | None = None) -> int:
 
     mark("main_window_import")
 
+    session.start()
     window = MainWindow()
+    window_ref.append(window)
     mark("mainwindow_ctor")
     window.show()
     splash.close()
@@ -137,6 +157,8 @@ def main(argv: list[str] | None = None) -> int:
         write_log(tag="startup")
 
     QTimer.singleShot(0, _deferred_warmup)
+    # Update results, staging cleanup, earlier problem reports, automatic update check (if enabled)
+    QTimer.singleShot(1500, window.after_startup)
     return int(app.exec())
 
 

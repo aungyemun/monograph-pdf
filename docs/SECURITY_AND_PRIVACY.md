@@ -4,8 +4,9 @@ How Monograph PDF protects your documents and your computer. To report a vulnera
 
 ## Offline by design
 
-* Monograph PDF is designed to operate entirely offline. Documents are processed locally; there is no account, cloud service, telemetry, online OCR, document upload or run-time download.
-* Monograph PDF's own code uses no networking modules (checked by `tests/unit/test_security_hardening.py`). Qt's network and TLS modules and Python's SSL module are removed from the release build, and the self-check fails if a network connection is attempted while it runs.
+* Monograph PDF is designed to operate offline. Documents are processed locally; there is no account, cloud service, telemetry, online OCR or document upload. Viewing, editing, saving, OCR, conversion and printing never use the network.
+* From 0.3.0 (in development) exactly two modules may use the network, each for one purpose the user controls: `core/updates/net.py` (update checks the user starts or switched on, and the download approved with **Update Now**; [SECURE_UPDATES.md](SECURE_UPDATES.md)) and `core/diagnostics/client.py` (one problem report, only after **Send to Developer**; [ERROR_REPORTING.md](ERROR_REPORTING.md)). Both are disabled in every build until production signing and the reporting gateway are set up. Automatic update checks are off by default. `tests/unit/test_security_hardening.py` fails if any other module uses networking code.
+* Qt's network and TLS modules are removed from the release build; Python's `ssl` module is kept for those two modules. The self-check fails if a network connection is attempted while it runs.
 * Optional Office conversion uses the Microsoft Office or LibreOffice installed on your computer; Monograph PDF does not upload the file. Those applications run independently and follow their own settings, including any network access.
 
 ## Untrusted input
@@ -55,6 +56,8 @@ The password strength rating in **Protect with Password** is computed locally (l
 | Settings | `%APPDATA%\Monograph PDF` | Optional |
 | Recent-files list | `%APPDATA%\Monograph PDF` | Always |
 | Cache, runtime files, recovery sessions, logs (including the Setup self-check report) | `%LOCALAPPDATA%\Monograph PDF` | Always |
+| Update status and update downloads waiting to be installed (`Updates`; removed after a successful update) | `%LOCALAPPDATA%\Monograph PDF\Updates` | Always |
+| Problem-report records (`Diagnostics`: a running-session marker, at most one pending crash report; expire after 14 days) | `%LOCALAPPDATA%\Monograph PDF\Diagnostics` | Always |
 | Your documents | Wherever you saved them | Never |
 
 Nothing is written into the install folder at runtime. No startup tasks, services, or extra registry beyond Setup’s registrations.

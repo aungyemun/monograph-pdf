@@ -184,7 +184,7 @@ try {
     Section "1. Install (Start menu, desktop, .pdf and Open with registrations)"
     $code = Install "startmenu,desktopicon,assocpdf,assocother" (Join-Path $Work "setup1.log")
     Check "Setup exit code 0" ($code -eq 0) "exit $code"
-    foreach ($f in "MonographPDF.exe", "uninstall.exe", "unins000.exe", "unins000.dat", "_internal\python311.dll",
+    foreach ($f in "MonographPDF.exe", "uninstall.exe", "MonographPDFUpdater.exe", "unins000.exe", "unins000.dat", "_internal\python311.dll",
                    "engines\ocr\tesseract.exe", "models\tessdata\eng.traineddata", "models\tessdata\jpn.traineddata",
                    "models\tessdata\osd.traineddata", "docs\USER_GUIDE.md", "README.md", "LICENSE.md",
                    "THIRD_PARTY_NOTICES.md", "SECURITY.md", "CHANGELOG.md", "licenses\LGPL-3.0.txt", "licenses\LGPL-2.1.txt",
@@ -319,6 +319,7 @@ try {
                 $payload = Join-Path $Root "dist\MonographPDF"
                 $buildInst = Join-Path $Root "build\installer"
                 $uninst = Join-Path $buildInst "uninstall.exe"
+                $updater = Join-Path $buildInst "MonographPDFUpdater.exe"
                 $manifest = Join-Path $buildInst "installed_files.txt"
                 $iscc = @(
                     (Join-Path $Root "tools\inno\ISCC.exe"),
@@ -327,13 +328,14 @@ try {
                 ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
                 if (-not (Test-Path $payload)) { Write-Error "dist\MonographPDF missing; cannot build upgrade-test Setup."; throw }
                 if (-not (Test-Path $uninst)) { Write-Error "build\installer\uninstall.exe missing; run a release build first."; throw }
+                if (-not (Test-Path $updater)) { Write-Error "build\installer\MonographPDFUpdater.exe missing; run a release build first."; throw }
                 if (-not $iscc) { Write-Error "Inno Setup ISCC.exe not found."; throw }
                 New-Item -ItemType Directory -Force -Path $buildInst | Out-Null
                 & $py (Join-Path $Root "scripts\packaging\write_installed_manifest.py") --payload $payload --out $manifest
                 if ($LASTEXITCODE -ne 0) { throw "write_installed_manifest failed" }
                 $lic = Get-Content (Join-Path $Root "LICENSE.md") -Raw -Encoding UTF8
                 [System.IO.File]::WriteAllText((Join-Path $buildInst "LICENSE.txt"), $lic, (New-Object System.Text.UTF8Encoding($true)))
-                & $iscc /Q "/DAppVersion=$NextVersion" "/DPayloadDir=$payload" "/DUninstallExe=$uninst" "/DInstalledManifest=$manifest" "/DOutputDirectory=$buildInst" (Join-Path $Root "installer\MonographPDF.iss")
+                & $iscc /Q "/DAppVersion=$NextVersion" "/DPayloadDir=$payload" "/DUninstallExe=$uninst" "/DUpdaterExe=$updater" "/DInstalledManifest=$manifest" "/DOutputDirectory=$buildInst" (Join-Path $Root "installer\MonographPDF.iss")
                 if ($LASTEXITCODE -ne 0) { throw "ISCC upgrade-test Setup failed" }
                 $built = Join-Path $buildInst "MonographPDF_$($NextVersion)_Setup.exe"
                 if (-not (Test-Path $built)) { throw "Missing $built" }

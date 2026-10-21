@@ -80,10 +80,16 @@ silent installation, upgrading and uninstalling are described in [Installation](
 
 ## Privacy and offline operation
 
-* Monograph PDF is designed to operate entirely offline. It requires no account or cloud service and
-  has no telemetry, advertising, online OCR, document upload or run-time downloads.
-* Qt's network and TLS modules and Python's SSL module are removed from the release build, and the
-  built-in self-check fails if a network connection is attempted while it runs.
+* Monograph PDF is designed to operate offline. It requires no account or cloud service and has no
+  telemetry, advertising, online OCR or document upload. Viewing, editing, saving, OCR, conversion and
+  printing never use the network.
+* Version 0.3.0 (in development, not yet released) adds secure update checks and private problem
+  reports. Both contact the network only when you ask (or after you switch on automatic update
+  checks), and both stay disabled until production signing and the reporting service are set up:
+  [Secure updates](docs/SECURE_UPDATES.md) · [Error reporting](docs/ERROR_REPORTING.md).
+* Qt's network and TLS modules are removed from the release build; only the update and problem-report
+  code uses Python's HTTPS support. The built-in self-check fails if a network connection is attempted
+  while it runs.
 * Documents are processed locally. Settings and working files are kept in `%APPDATA%\Monograph PDF`
   and `%LOCALAPPDATA%\Monograph PDF`.
 * Converting Office files uses the Microsoft Office or LibreOffice installed on your computer, with

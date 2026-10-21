@@ -280,12 +280,43 @@ def test_attachments_are_listed_never_extracted_or_opened():
 # ----------------------------------------------------------------- offline
 
 
-def test_application_code_has_no_network_code():
-    net = re.compile(r"^\s*(?:import|from)\s+(?:socket|urllib|http|requests|httpx|aiohttp|ftplib|smtplib|webbrowser|xmlrpc)\b|QtNetwork|QNetworkAccessManager|QWebEngine", re.M)
+# Since 0.3.0 exactly two modules may use the network, each for one user-controlled purpose:
+#   core/updates/net.py        update checks (user-initiated, or automatic only after the user turns
+#                              them on) and the download the user approved with Update Now;
+#   core/diagnostics/client.py one problem report, only after the user clicked Send to Developer.
+# Everything else — viewing, editing, saving, OCR, conversion, printing — stays offline.
+NETWORK_MODULES = {"core/updates/net.py", "core/diagnostics/client.py"}
+_NET = re.compile(r"^\s*(?:import|from)\s+(?:socket|ssl|urllib(?!\.parse\b)|http|requests|httpx|aiohttp|ftplib|smtplib|webbrowser|xmlrpc)\b"
+                  r"|QtNetwork|QNetworkAccessManager|QWebEngine", re.M)
+
+
+def test_application_code_has_no_network_code_outside_the_two_network_modules():
+    found = set()
     for path, text in _sources():
+        rel = path.relative_to(ROOT).as_posix()
         if path.name == "offline_guard.py":
             continue
-        assert not net.search(text), path
+        if _NET.search(text):
+            found.add(rel)
+    assert found == NETWORK_MODULES
+
+
+def test_network_modules_are_used_only_by_the_update_and_report_workflows():
+    imports = re.compile(r"^\s*(?:from\s+core\.updates\s+import\s+[^\n]*\bnet\b|from\s+core\.updates\.net\s+import|"
+                         r"import\s+core\.updates\.net|from\s+core\.diagnostics\s+import\s+[^\n]*\bclient\b|"
+                         r"from\s+core\.diagnostics\.client\s+import|import\s+core\.diagnostics\.client)", re.M)
+    users = {}
+    for path, text in _sources():
+        rel = path.relative_to(ROOT).as_posix()
+        if imports.search(text) and rel not in NETWORK_MODULES:
+            users.setdefault(rel, imports.findall(text))
+    assert set(users) <= {"core/updates/manager.py", "ui/error_report_dialog.py"}, users
+    # the PDF, OCR, conversion and printing code never imports the update or report packages
+    for path, text in _sources():
+        rel = path.relative_to(ROOT).as_posix()
+        if rel.startswith(("core/convert", "core/ocr", "core/printing", "core/editing", "core/forms", "engines/",
+                           "core/document.py", "core/organize", "core/security", "core/redaction")):
+            assert "core.updates" not in text and "core.diagnostics.client" not in text, rel
 
 
 def test_offline_guard_refuses_and_records():
@@ -446,13 +477,17 @@ def test_prune_removes_network_and_unused_parts(tmp_path):
     cr = _check_release()
     base = _layout(tmp_path)
     for rel in ("_internal/PySide6/plugins/tls/qschannelbackend.dll", "_internal/PySide6/Qt6Network.dll",
-                "_internal/cv2/opencv_videoio_ffmpeg4100_64.dll", "_internal/_ssl.pyd"):
+                "_internal/cv2/opencv_videoio_ffmpeg4100_64.dll", "_internal/_ssl.pyd", "_internal/libssl-3.dll",
+                "_internal/libssl-3-x64.dll", "_internal/libcrypto-3-x64.dll"):
         p = base / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(b"MZ")
     assert cr.prune(base) == 0
-    assert not (base / "_internal/PySide6/plugins/tls").exists()
-    assert not list(base.rglob("*ffmpeg*")) and not (base / "_internal/_ssl.pyd").exists()
+    # Qt's network/TLS stack and OpenSSL copies picked up from PATH are removed ...
+    assert not (base / "_internal/PySide6/plugins/tls").exists() and not (base / "_internal/PySide6/Qt6Network.dll").exists()
+    assert not list(base.rglob("*ffmpeg*")) and not list(base.rglob("*-x64.dll"))
+    # ... Python's own ssl module stays (0.3.0: HTTPS for update checks and approved problem reports)
+    assert (base / "_internal/_ssl.pyd").exists() and (base / "_internal/libssl-3.dll").exists()
     assert (base / "_internal/PySide6/Qt6Core.dll").exists()
 
 

@@ -3,6 +3,11 @@
 # time instead of blocking the job until GitHub's own limit.
 -r requirements.txt
 pytest-timeout==2.4.0
+# Test-only: test certificates for the local HTTPS update server, the OpenSSL cross-check of the
+# update-signature code and the reporting gateway's token signing. The application does not use it.
+cryptography==50.0.1
+cffi==2.1.1
+pycparser==3.11
 
 # Transitive dependencies pinned to the versions of the release environment and
 # licenses/DEPENDENCY_INVENTORY.md, so CI tests what the release is built with (otherwise pip picks

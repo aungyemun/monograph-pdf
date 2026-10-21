@@ -26,6 +26,8 @@ KNOWN = (
     "PERF_LOG",
     "DISABLE_OFFICE",
     "NO_LEGACY_MIGRATION",
+    "UPDATES_DIR",
+    "DIAGNOSTICS_DIR",
 )
 
 

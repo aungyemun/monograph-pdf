@@ -1,0 +1,4 @@
+# Reporting gateway only (never part of the Monograph PDF application)
+cryptography==50.0.1
+cffi==2.1.1
+pycparser==3.11

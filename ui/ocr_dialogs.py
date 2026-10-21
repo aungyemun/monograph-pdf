@@ -65,8 +65,10 @@ class OcrWorker(QThread):
         self._cancel = True
 
     def run(self) -> None:
+        from core.diagnostics import EventId, diagnostics
         from core.ocr.pipeline import OcrCancelled, run_ocr
 
+        diagnostics.record(EventId.OCR_STARTED)
         try:
             result = run_ocr(
                 self.document,
@@ -82,6 +84,11 @@ class OcrWorker(QThread):
         except OcrCancelled:
             self.cancelled.emit()
         except Exception as exc:  # noqa: BLE001
+            import subprocess
+
+            diagnostics.record(EventId.OCR_FAILED)
+            if isinstance(exc, (subprocess.SubprocessError, OSError)):
+                diagnostics.record(EventId.SUBPROCESS_FAILED)
             self.failed.emit(str(exc))
 
 

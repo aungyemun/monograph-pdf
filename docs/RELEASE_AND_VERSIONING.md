@@ -7,7 +7,8 @@ Root `VERSION` only. Read via `core.versioning` / `app.read_version`. Do not dup
 ## Scheme
 
 * Patch bumps after successful app/runtime/UI/resource/dependency fixes (`0.2.0` → `0.2.1` …; `0.0.99` → `0.1.0`).
-* Minor bumps are intentional milestones. Below 0.2.0 = internal only; **0.2.x** is the first public line.
+* Minor bumps are intentional milestones. Below 0.2.0 = internal only; **0.2.x** is the first public line;
+  **0.3.0** (in development) adds secure updates and private problem reports.
 * Failed builds/tests do not bump. Pure doc-only edits usually do not bump.
 
 ```powershell
@@ -24,6 +25,8 @@ Follow [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) step by step. In short:
 3. `scripts\test_installer.ps1` ([TESTING.md](TESTING.md#installer-and-uninstaller-test)).
 4. Write the release notes in `docs/releases/vX.Y.Z.md` and check them together with the files: `verify_release.py --dir installer --notes docs\releases\vX.Y.Z.md --tests P,F,S` must print `RESULT: PASS`.
 5. Publish Setup, Installer.zip and Source.zip with exactly that notes file as the release text, then re-check what was published.
+   Once updates are enabled for production ([SECURE_UPDATES.md](SECURE_UPDATES.md#production-setup)), also sign and attach
+   `MonographPDF_update_manifest.json` (`scripts\packaging\update_manifest.py make` / `verify`) — never before.
 6. End-user docs in the release ZIP: README, INSTALLATION, LICENSE, notices, SECURITY, CITATION, CHANGELOG, USER_GUIDE, `licenses\`. Developer docs stay in the repo/source archive only.
 
 Releases are not code-signed ([CODE_SIGNING.md](CODE_SIGNING.md)).

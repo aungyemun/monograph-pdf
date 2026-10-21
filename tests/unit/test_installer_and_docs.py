@@ -15,7 +15,7 @@ INSTALLED_DOCS = [GUIDE, ROOT / "README.md", ROOT / "LICENSE.md", ROOT / "THIRD_
 SECTIONS = [
     "Contents", "Getting started", "The Monograph PDF window", "Viewing", "Password-protected PDFs", "Saving",
     "Editing", "Forms, tables and layout", "OCR (text recognition)", "Organize pages", "Convert", "Page design",
-    "Protect, redact and sign", "Printing", "Keyboard shortcuts", "Current limitations", "Troubleshooting",
+    "Protect, redact and sign", "Printing", "Updates", "Problem reports", "Keyboard shortcuts", "Current limitations", "Troubleshooting",
     "Additional documentation",
 ]
 

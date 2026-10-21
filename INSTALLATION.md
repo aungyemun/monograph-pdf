@@ -40,6 +40,12 @@ select, and finishes with an offline self-check. Its report is saved as
 Run the Setup of the newer version. It replaces the program files of the existing installation in
 place; your settings and documents are kept.
 
+From version 0.3.0, once updates are enabled for the release, **Help ▸ Check for Updates…** can do
+this for you: **Update Now** downloads and verifies the new Setup, closes Monograph PDF (after you
+save or discard open changes), installs the update in the same folder with the same choices and
+restarts Monograph PDF. An all-users installation shows Windows' administrator prompt. Details:
+[Automatic upgrade](docs/AUTOMATIC_UPGRADE_AND_CLEANUP.md).
+
 ### Silent installation (administrators)
 
 ```bat

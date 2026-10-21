@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # Extra files Setup installs that are not inside dist\MonographPDF\
 EXTRA_INSTALL_FILES = [
     "uninstall.exe",
+    "MonographPDFUpdater.exe",
     "README.md",
     "LICENSE.md",
     "THIRD_PARTY_NOTICES.md",
@@ -41,6 +42,7 @@ LEGACY_OWNED_FILES = [
     "PDF_editor.exe",  # PDF Editor <= 0.1.5
     "MonographPDF.exe",
     "uninstall.exe",
+    "MonographPDFUpdater.exe",
     "README.md",
     "LICENSE.md",
     "THIRD_PARTY_NOTICES.md",

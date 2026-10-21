@@ -13,6 +13,8 @@ Tesseract installation.
 | `app/` | Start-up, file locations and the offline self-check (`--smoke-test`) |
 | `core/` | Document model, editing, forms, OCR, conversion, organizing, security and redaction |
 | `core/product_meta.py` | Product name, executable name, copyright, branding and license identifiers |
+| `core/updates/` | Secure updates: signed manifests (Ed25519), HTTPS access, staging and cleanup, installation detection, hand-off to the update helper |
+| `core/diagnostics/` | Problem reports: event identifiers, sanitized reports, crash and termination records, consent-only sender |
 | `engines/` | MuPDF backend, writing edits into the PDF ("baking"), OCR process handling |
 | `ui/` | Main window, page canvas, panels, dialogs and themes |
 | `resources/` | Icons, logo, styles and fallback fonts |
@@ -20,7 +22,8 @@ Tesseract installation.
 | `scripts/` | Environment setup, tests, build, packaging and release checks |
 | `tests/` | Unit, integration and UI tests with synthetic fixtures |
 | `docs/` | User and developer documentation, screenshots and release notes |
-| `installer/` | Inno Setup script and uninstaller source |
+| `installer/` | Inno Setup script, uninstaller and update-helper sources |
+| `services/report_gateway/` | Reference problem-report gateway (deployed separately; not part of the application) |
 | `licenses/`, `third_party/` | Dependency inventory and third-party license texts |
 
 Local, untracked folders: `env/` (Python environment), `packages/` (downloaded wheels and source
@@ -33,16 +36,19 @@ archives), `runtime/` (working files during development), `build/` and `dist/` (
 * `.github/`: the Windows CI workflow, issue templates and the pull-request template
 * `docs/`: `USER_GUIDE`, `FEATURES`, `FILE_FORMATS_AND_COMPATIBILITY`, `ARCHITECTURE`,
   `BUILD_AND_RUNTIME`, `RELEASE_AND_VERSIONING`, `RELEASE_CHECKLIST`, `CODE_SIGNING`,
-  `SECURITY_AND_PRIVACY`, `TESTING`; screenshots in `docs/images/`; release notes in
+  `SECURITY_AND_PRIVACY`, `TESTING`, `SECURE_UPDATES`, `AUTOMATIC_UPGRADE_AND_CLEANUP`,
+  `ERROR_REPORTING`, `INTERNATIONAL_WINDOWS_COMPATIBILITY`; screenshots in `docs/images/`; release notes in
   `docs/releases/`
 
 ## Installed layout
 
 ```text
 {app}\                                  MonographPDF.exe, _internal\, engines\ocr\, models\tessdata\,
-                                        docs\, licenses\, uninstall.exe
+                                        docs\, licenses\, uninstall.exe, MonographPDFUpdater.exe
 %APPDATA%\Monograph PDF\                settings and recent files
 %LOCALAPPDATA%\Monograph PDF\runtime\   cache, temporary files, logs and recovery sessions
+%LOCALAPPDATA%\Monograph PDF\Updates\   update status and downloads waiting to be installed
+%LOCALAPPDATA%\Monograph PDF\Diagnostics\  problem-report records (session marker, one pending report)
 ```
 
 Nothing is written to the installation folder `{app}` during normal use.
@@ -62,6 +68,18 @@ Nothing is written to the installation folder `{app}` during normal use.
 6. Redaction (`core/redaction/ops.py`) removes the page content under each mark, together with form
    fields, annotations and links that overlap it, and then reports where the marked text still
    occurs elsewhere in the file.
+
+## Updates and problem reports (0.3.0, in development)
+
+* `core/updates/manager.py` checks a signed manifest (`manifest.py`, `ed25519.py`) fetched over
+  HTTPS (`net.py`), downloads and verifies Setup into the staging folder (`staging.py`), picks the
+  registered installation (`install_target.py`) and starts `MonographPDFUpdater.exe` from the
+  staging folder; the application then exits and the helper runs Setup silently, verifies the
+  result, cleans up and restarts the new version. `ui/update_dialogs.py` and `ui/settings_dialog.py`
+  are the interface.
+* `core/diagnostics/` records predefined event identifiers in memory, builds allow-listed reports and
+  sends one only after the user approves it in `ui/error_report_dialog.py`.
+* Only `core/updates/net.py` and `core/diagnostics/client.py` contain networking code.
 
 ## Platform support
 

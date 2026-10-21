@@ -63,7 +63,8 @@ installer\build_release.bat
 ```
 
 The release build runs these steps in order: tests → executable → OCR engine copy → contents check
-and self-check → `uninstall.exe` → Setup → Source.zip → release folder, Installer.zip and summary →
+and self-check → `uninstall.exe` → `MonographPDFUpdater.exe` (the update helper, from
+`installer/update_helper.cs`) → Setup → Source.zip → release folder, Installer.zip and summary →
 release-set verification. The first build downloads the third-party source archives into
 `packages\sources\` (about 300 MB); later builds use that cache.
 
@@ -95,6 +96,13 @@ Publishing a release is a separate, manual step: see the [Release checklist](REL
 * Upgrades keep the same AppId, replace only the files Setup owns, and keep unknown files.
 * `uninstall.exe` runs Inno Setup's uninstaller, removes the application's working data and asks
   before removing settings.
+* `MonographPDFUpdater.exe` finishes an automatic update after the application has closed: it runs
+  this Setup silently for the existing folder and mode ([AUTOMATIC_UPGRADE_AND_CLEANUP.md](AUTOMATIC_UPGRADE_AND_CLEANUP.md)).
+* The bundled `resources/update/update_config.json` (trusted update keys, allowed hosts) and
+  `resources/diagnostics/reporting.json` (reporting endpoint) keep updates and report sending
+  disabled until production setup. `scripts\build_exe.ps1 -UpdateConfig <folder>` replaces the update
+  configuration **in test builds only** (synthetic keys, local mock server); `verify_release.py
+  --layout` fails if a release carries anything but the repository's files.
 * Earlier internal builds (installed as `PDF Editor` / `PDF_editor.exe`) are recognized so that
   they can be upgraded and their settings migrated; this is the only reason the old name appears.
 
@@ -110,6 +118,8 @@ Publishing a release is a separate, manual step: see the [Release checklist](REL
 | `MONOGRAPH_PDF_STARTUP_TIMING` | `0` turns off the start-up timing file (the 20 newest are kept) |
 | `MONOGRAPH_PDF_PERF_LOG` | `1` lets an installed copy write the text-box drag timing log (always on when running from source; at most 256 KB) |
 | `MONOGRAPH_PDF_NO_PAUSE` | Skip the final pause of `build_release.bat` |
+| `MONOGRAPH_PDF_UPDATES_DIR` | Folder for update status and staging (tests; the update helper only accepts the default `%LOCALAPPDATA%\Monograph PDF\Updates`) |
+| `MONOGRAPH_PDF_DIAGNOSTICS_DIR` | Folder for problem-report records (tests) |
 
 ## Related
 

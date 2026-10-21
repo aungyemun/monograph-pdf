@@ -1,11 +1,11 @@
 {
-  "release": "0.2.4",
-  "archive": "MonographPDF_0.2.4_Source.zip",
+  "release": "0.3.0",
+  "archive": "MonographPDF_0.3.0_Source.zip",
   "components": [
     {
       "id": "monograph-pdf",
       "name": "Monograph PDF",
-      "version": "0.2.4",
+      "version": "0.3.0",
       "license": "AGPL-3.0-or-later",
       "covers": [
         "MonographPDF.exe",

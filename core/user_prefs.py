@@ -78,6 +78,11 @@ class UserPreferences:
     recent_colors: list | None = None
     inspector_sections: dict | None = None
     page_mark_presets: dict | None = None  # last settings of Header/Footer, Watermark and Background
+    # Updates (Settings > Updates). Automatic checks are off until the user turns them on: Monograph
+    # PDF does not contact the network on its own unless asked to.
+    update_auto_check: bool = False
+    update_interval_hours: int = 24
+    update_channel: str = "stable"  # stable | prerelease
 
     def path(self) -> Path:
         return user_data_dir() / "preferences.json"

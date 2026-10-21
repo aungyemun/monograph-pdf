@@ -2,7 +2,7 @@
 
 Monograph PDF views, edits, organizes, converts, protects and signs PDF documents on your computer.
 
-**Privacy.** Monograph PDF itself makes no network connections, does not upload your documents, and does not collect usage data (telemetry). There is no advertising, online OCR or runtime download of code or models. Optional Word, Excel and PowerPoint conversion: Monograph PDF does not upload the document; conversion uses the locally installed Microsoft Office or LibreOffice application, which follows its own settings and remote-content behavior.
+**Privacy.** Monograph PDF does not upload your documents and does not collect usage data (telemetry); opening, editing, saving, OCR, conversion and printing never use the network. It connects only when you check for updates (or switch on automatic checks) and when you choose to send a problem report — see [Updates](#updates) and [Problem reports](#problem-reports). There is no advertising, online OCR or runtime download of code or models. Optional Word, Excel and PowerPoint conversion: Monograph PDF does not upload the document; conversion uses the locally installed Microsoft Office or LibreOffice application, which follows its own settings and remote-content behavior.
 
 ## Contents
 
@@ -19,6 +19,8 @@ Monograph PDF views, edits, organizes, converts, protects and signs PDF document
 - [Page design](#page-design)
 - [Protect, redact and sign](#protect-redact-and-sign)
 - [Printing](#printing)
+- [Updates](#updates)
+- [Problem reports](#problem-reports)
 - [Keyboard shortcuts](#keyboard-shortcuts)
 - [Current limitations](#current-limitations)
 - [Troubleshooting](#troubleshooting)
@@ -149,11 +151,33 @@ All conversions run on your computer.
 - Pages: all, current, selected or a range — then **Odd pages** / **Even pages** (by page number, for two-sided printing by hand) and **Reverse order**
 - **Comments:** **Document and comments**, or **Document only** (notes, highlights, shapes and stamps left out; form fields still print)
 
+## Updates
+
+**Help ▸ Check for Updates…** checks for a newer version; **File ▸ Settings… ▸ Updates** turns on
+automatic checks (off by default), sets how often (every day, every 3 days or every week) and the
+release channel (stable, or prereleases as well), and shows the last successful check and the status.
+In builds where updates are not yet enabled, the check says so instead of reporting "up to date".
+
+When an update is available you see the installed and available versions, the release date, the
+release notes and the download size. **Update Now** downloads the update, verifies it, asks you to
+save or discard unsaved changes, closes Monograph PDF, installs the update in the same place and
+restarts it; your settings, shortcuts and file-type choices are kept. **Remind Me Later** postpones
+it. An installation for all users shows Windows' administrator prompt.
+
+## Problem reports
+
+If something unexpected goes wrong, Monograph PDF can show a problem report — limited technical
+information such as the version, Windows version and language, the failing operation and where in
+Monograph PDF's code it failed. It never contains your documents, file names, folder paths, user name
+or typed text. The full report is shown before you decide: **Don't Send** discards it; **Send to
+Developer** sends exactly that report. Nothing is sent without your click. (Sending is not yet enabled
+in development builds; the dialog says so.)
+
 ## Keyboard shortcuts
 
 | Area | Keys |
 | :--- | :--- |
-| File | Ctrl+O · Ctrl+S · Ctrl+Shift+S · Ctrl+W · Ctrl+P · Ctrl+Q |
+| File | Ctrl+O · Ctrl+S · Ctrl+Shift+S · Ctrl+W · Ctrl+P · Ctrl+, (Settings) · Ctrl+Q |
 | Edit | Ctrl+Z · Ctrl+Y · Ctrl+X/C/V · Del · Ctrl+A · Ctrl+Alt+C (copy page as picture) |
 | Insert | Ctrl+B (bookmark for this page) |
 | View | Ctrl+1 / 2 / 0 · Ctrl+= / − · Ctrl+F · F8 · F9 · F11 · Ctrl+/ |
@@ -174,7 +198,8 @@ Full list: **Help ▸ Keyboard Shortcuts**.
 - App will not start: re-run Setup; check antivirus quarantine. You do **not** need to disable antivirus software or add exclusions.
 - SmartScreen “Windows protected your PC”: compare Setup with `SHA256SUMS.txt`, then **More info ▸ Run anyway** only for a trusted copy.
 - Office conversion missing: **Help ▸ About Monograph PDF ▸ Office Integration**
-- Working files: `%LOCALAPPDATA%\Monograph PDF\runtime`; settings: `%APPDATA%\Monograph PDF`
+- Working files: `%LOCALAPPDATA%\Monograph PDF\runtime`; settings: `%APPDATA%\Monograph PDF`; update downloads: `%LOCALAPPDATA%\Monograph PDF\Updates` (removed after a successful update)
+- An update could not be installed: the previous version stays installed; run the Setup of the new version from the release page
 - Setup ends with an offline self-check; report at `%LOCALAPPDATA%\Monograph PDF\logs\install_smoke_test.json`
 
 Opening a PDF never changes it. Your documents and usage data are never sent by Monograph PDF.

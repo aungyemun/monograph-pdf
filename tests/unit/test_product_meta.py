@@ -54,8 +54,10 @@ def test_legacy_identity_is_internal_compatibility_only():
     assert LEGACY_FINAL_VERSION == "0.1.5"
 
 
-def test_version_is_on_the_public_0_2_line():
-    assert re.fullmatch(r"0\.2\.\d+", get_version())
+def test_version_is_on_a_public_line():
+    # 0.2.x was the first public line; 0.3.0 is the next milestone (updates and error reporting)
+    major, minor, patch = (int(x) for x in re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", get_version()).groups())
+    assert (major, minor) >= (0, 2)
     assert get_version() == (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 

@@ -1,8 +1,8 @@
 # Monograph PDF — Third-Party Notices
 
-This document identifies the third-party software redistributed with Monograph PDF 0.2.4 (inside `MonographPDF.exe`, its `_internal` folder, `engines\ocr` and `models\tessdata`). Each component remains under its own license. The statements below do not amend those licenses.
+This document identifies the third-party software redistributed with Monograph PDF 0.3.0 (inside `MonographPDF.exe`, its `_internal` folder, `engines\ocr` and `models\tessdata`). Each component remains under its own license. The statements below do not amend those licenses.
 
-License texts: `LICENSE.md` (Monograph PDF: **AGPL-3.0-or-later**; PyMuPDF/MuPDF retain upstream **AGPL-3.0**) and, in the `licenses` folder of the installation, GPL-2.0, GPL-3.0, LGPL-2.1, LGPL-3.0, MPL-1.1 and the GCC Runtime Library Exception. Corresponding Monograph PDF release source, including application, build, installer, documentation and release tests, together with the corresponding source of every bundled AGPL, GPL and LGPL component, is published with each release as `MonographPDF_0.2.4_Source.zip` (see [Corresponding source](#corresponding-source)). Local personal-document validation utilities that contain private or machine-local paths are intentionally excluded from that archive.
+License texts: `LICENSE.md` (Monograph PDF: **AGPL-3.0-or-later**; PyMuPDF/MuPDF retain upstream **AGPL-3.0**) and, in the `licenses` folder of the installation, GPL-2.0, GPL-3.0, LGPL-2.1, LGPL-3.0, MPL-1.1 and the GCC Runtime Library Exception. Corresponding Monograph PDF release source, including application, build, installer, documentation and release tests, together with the corresponding source of every bundled AGPL, GPL and LGPL component, is published with each release as `MonographPDF_0.3.0_Source.zip` (see [Corresponding source](#corresponding-source)). Local personal-document validation utilities that contain private or machine-local paths are intentionally excluded from that archive.
 
 Each bundled component keeps its own license, listed below.
 
@@ -15,7 +15,7 @@ All **bundled** components listed below run locally. None of them is used by Mon
 | PyMuPDF / MuPDF (Artifex Software) | PyMuPDF 1.25.3 / MuPDF 1.25.4 | PDF rendering, editing, forms, encryption, and redaction | Bundled runtime | AGPL-3.0 |
 | Qt 6 / PySide6 / Shiboken6 (The Qt Company) | 6.8.1.1 (Qt 6.8.1) | Graphical user interface and printing | Bundled runtime | LGPL-3.0 |
 | Python | 3.11.9 | Bundled runtime | Bundled runtime | PSF License |
-| OpenSSL (libcrypto only) | 3.0.13 | Hash functions used by Python's `hashlib` | Bundled runtime | Apache-2.0 |
+| OpenSSL (libcrypto, libssl) | 3.0.13 | Hash functions (`hashlib`); HTTPS for update checks and approved problem reports (`ssl`) | Bundled runtime | Apache-2.0 |
 | libffi | 3.4 (`libffi-8.dll`) | Python `ctypes` support | Bundled runtime | MIT |
 | Microsoft Visual C++ and Universal C runtime | 14.x / 10.0 | C/C++ runtime libraries required by Python, Qt and NumPy | Bundled runtime (redistributable) | Microsoft Visual C++ Redistributable license |
 | pdf2docx | 0.5.8 | PDF-to-Word layout reconstruction | Bundled runtime | GPL-3.0 |
@@ -40,11 +40,11 @@ All **bundled** components listed below run locally. None of them is used by Mon
 
 ## Corresponding source
 
-Each release is published together with `MonographPDF_<version>_Source.zip` (for this release `MonographPDF_0.2.4_Source.zip`, listed in the release's `SHA256SUMS.txt`). It contains:
+Each release is published together with `MonographPDF_<version>_Source.zip` (for this release `MonographPDF_0.3.0_Source.zip`, listed in the release's `SHA256SUMS.txt`). It contains:
 
 | Component | Version | License | Release files | In the source archive |
 | :--- | :--- | :--- | :--- | :--- |
-| Monograph PDF | 0.2.4 | AGPL-3.0-or-later | `MonographPDF.exe` (application code), `uninstall.exe` | `monograph-pdf/` — corresponding release source (application, build, installer, documentation and release tests; personal-document validation utilities excluded) |
+| Monograph PDF | 0.3.0 | AGPL-3.0-or-later | `MonographPDF.exe` (application code), `uninstall.exe`, `MonographPDFUpdater.exe` | `monograph-pdf/` — corresponding release source (application, build, installer, documentation and release tests; personal-document validation utilities excluded) |
 | PyMuPDF | 1.25.3 | AGPL-3.0 | `_internal\pymupdf` | `third-party/pymupdf/pymupdf-1.25.3.tar.gz` (PyPI source distribution) |
 | MuPDF | 1.25.4 | AGPL-3.0 | `_internal\pymupdf\mupdfcpp64.dll`, `_mupdf.pyd` | `third-party/mupdf/mupdf-1.25.4-source.tar.gz` (the MuPDF release PyMuPDF 1.25.3 builds) |
 | pdf2docx | 0.5.8 | GPL-3.0 | inside `MonographPDF.exe` | `third-party/pdf2docx/pdf2docx-0.5.8.tar.gz` |
@@ -61,7 +61,7 @@ Monograph PDF uses PyMuPDF, the Python bindings for MuPDF, for PDF reading, rend
 
 - Copyright © Artifex Software, Inc.
 - License: GNU Affero General Public License v3.0 (also available under an Artifex commercial license)
-- Source: `MonographPDF_0.2.4_Source.zip` (`third-party/pymupdf`, `third-party/mupdf`); upstream https://github.com/pymupdf/PyMuPDF and https://mupdf.com
+- Source: `MonographPDF_0.3.0_Source.zip` (`third-party/pymupdf`, `third-party/mupdf`); upstream https://github.com/pymupdf/PyMuPDF and https://mupdf.com
 
 PyMuPDF / MuPDF are licensed upstream under AGPL-3.0. Monograph PDF is licensed separately under **AGPL-3.0-or-later** (see `LICENSE.md`). MuPDF includes third-party libraries (for example FreeType, HarfBuzz, libjpeg, OpenJPEG, jbig2dec, lcms2, zlib and Gumbo) under their own permissive or compatible licenses; see the MuPDF source distribution. Monograph PDF does not enable MuPDF's JavaScript support, so scripts inside PDF documents are never run.
 
@@ -71,13 +71,13 @@ The user interface is implemented with Qt 6 through PySide6 and Shiboken6.
 
 - Copyright © The Qt Company Ltd. and other contributors
 - License: GNU Lesser General Public License v3.0
-- Source: `MonographPDF_0.2.4_Source.zip` (`third-party/qt`); upstream https://code.qt.io/cgit/pyside/pyside-setup.git and https://download.qt.io
+- Source: `MonographPDF_0.3.0_Source.zip` (`third-party/qt`); upstream https://code.qt.io/cgit/pyside/pyside-setup.git and https://download.qt.io
 
 Qt libraries are shipped as separate dynamic libraries in the `_internal\PySide6` folder so that compatible builds may be substituted in accordance with the LGPL. Qt includes third-party code (for example FreeType, HarfBuzz, libjpeg, libpng, libwebp, libtiff and zlib) whose notices are part of the Qt distribution. The Monograph PDF build leaves out Qt Network, its TLS and network-information plugins, Qt Quick / QML, the virtual keyboard, the TUIO touch plugin and Qt PDF, none of which Monograph PDF uses.
 
 ## Python and its runtime libraries
 
-The Python 3.11.9 runtime is bundled by PyInstaller under the Python Software Foundation License: https://www.python.org/ — together with libffi (MIT, for `ctypes`) and the `libcrypto` library of OpenSSL 3.0.13 (Apache License 2.0, https://www.openssl.org/) used for hash functions. Python's SSL module and `libssl` are removed from the build. The Python standard library also contains networking modules; Monograph PDF's code does not use them, and its self-check refuses and reports any network connection attempt.
+The Python 3.11.9 runtime is bundled by PyInstaller under the Python Software Foundation License: https://www.python.org/ — together with libffi (MIT, for `ctypes`) and the `libcrypto` and `libssl` libraries of OpenSSL 3.0.13 (Apache License 2.0, https://www.openssl.org/), used for hash functions and, through Python's `ssl` module, for HTTPS. Monograph PDF uses the network only for update checks (when the user asks, or after switching on automatic checks), an approved update download and a problem report the user chose to send; viewing, editing, saving, OCR, conversion and printing stay offline, and the self-check refuses and reports any network connection attempt.
 
 ## Microsoft Visual C++ and Universal C runtime
 
@@ -89,7 +89,7 @@ PDF-to-Word conversion uses pdf2docx to reconstruct text, fonts, tables, images,
 
 - Copyright © the pdf2docx contributors (originally by dothinking; maintained by Artifex Software)
 - License: GNU General Public License v3.0 (compatible with AGPL-3.0 under section 13)
-- Source: `MonographPDF_0.2.4_Source.zip` (`third-party/pdf2docx`); upstream https://github.com/ArtifexSoftware/pdf2docx
+- Source: `MonographPDF_0.3.0_Source.zip` (`third-party/pdf2docx`); upstream https://github.com/ArtifexSoftware/pdf2docx
 
 ## OpenCV, NumPy, OpenBLAS, fontTools, python-fire, termcolor, and colorama
 
@@ -153,7 +153,7 @@ Tesseract runs as a separate process and is not linked into `MonographPDF.exe`. 
 | GCC runtime (`libgcc_s_seh`, `libstdc++`) | GPL-3.0-or-later with the GCC Runtime Library Exception |
 | MinGW-w64 winpthreads | MIT and BSD-3-Clause |
 
-These libraries are MSYS2 MinGW-w64 builds: each DLL is byte-identical to the DLL in the MSYS2 binary package of that version (for example `mingw-w64-x86_64-glib2-2.80.2-2`). The LGPL libraries are separate DLLs that may be replaced. The corresponding source of the GPL- and LGPL-licensed libraries — the MSYS2 source packages of exactly those binary packages, each containing the upstream release archive, the build script (PKGBUILD) and all patches — is included in `MonographPDF_0.2.4_Source.zip` (`third-party/ocr-engine/`).
+These libraries are MSYS2 MinGW-w64 builds: each DLL is byte-identical to the DLL in the MSYS2 binary package of that version (for example `mingw-w64-x86_64-glib2-2.80.2-2`). The LGPL libraries are separate DLLs that may be replaced. The corresponding source of the GPL- and LGPL-licensed libraries — the MSYS2 source packages of exactly those binary packages, each containing the upstream release archive, the build script (PKGBUILD) and all patches — is included in `MonographPDF_0.3.0_Source.zip` (`third-party/ocr-engine/`).
 
 ## Fonts
 

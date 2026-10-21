@@ -36,6 +36,11 @@
 #ifndef UninstallExe
   #define UninstallExe Root + "\build\installer\uninstall.exe"
 #endif
+; MonographPDFUpdater.exe: built by scripts\build_release.ps1 from installer\update_helper.cs. Monograph PDF
+; copies it to its update staging folder to finish an update after the application has closed.
+#ifndef UpdaterExe
+  #define UpdaterExe Root + "\build\installer\MonographPDFUpdater.exe"
+#endif
 
 [Setup]
 ; Same AppId as PDF Editor: Monograph PDF upgrades it instead of installing beside it
@@ -125,6 +130,7 @@ Type: filesandordirs; Name: "{app}\logs"
 Type: filesandordirs; Name: "{app}\runtime"
 Type: filesandordirs; Name: "{app}\packages"
 Type: files; Name: "{app}\{#AppExe}"
+Type: files; Name: "{app}\MonographPDFUpdater.exe"
 ; PDF Editor's program (in-place upgrade of PDF Editor <= 0.1.5)
 Type: files; Name: "{app}\{#LegacyExe}"
 Type: files; Name: "{app}\README.md"
@@ -141,6 +147,7 @@ Type: files; Name: "{group}\User Guide.lnk"
 [Files]
 Source: "{#PayloadDir}\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#UninstallExe}"; DestDir: "{app}"; DestName: "uninstall.exe"; Flags: ignoreversion
+Source: "{#UpdaterExe}"; DestDir: "{app}"; DestName: "MonographPDFUpdater.exe"; Flags: ignoreversion
 Source: "{#PayloadDir}\_internal\*"; DestDir: "{app}\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#Root}\engines\ocr\*"; DestDir: "{app}\engines\ocr"; Excludes: ".gitkeep"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#Root}\models\tessdata\*"; DestDir: "{app}\models\tessdata"; Excludes: ".gitkeep"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -468,6 +475,9 @@ begin
   RemoveFolder(ExpandConstant('{localappdata}\') + Folder + '\runtime');
   RemoveFolder(ExpandConstant('{localappdata}\') + Folder + '\Cache');
   RemoveFolder(ExpandConstant('{localappdata}\') + Folder + '\logs');
+  { Update downloads waiting in the staging folder, update status, problem-report records }
+  RemoveFolder(ExpandConstant('{localappdata}\') + Folder + '\Updates');
+  RemoveFolder(ExpandConstant('{localappdata}\') + Folder + '\Diagnostics');
   RemoveDir(ExpandConstant('{localappdata}\') + Folder);
 end;
 
@@ -881,6 +891,7 @@ begin
   RemoveOwnedRelUnder(Base, '{#AppExe}');
   RemoveOwnedRelUnder(Base, '{#LegacyExe}');
   RemoveOwnedRelUnder(Base, 'uninstall.exe');
+  RemoveOwnedRelUnder(Base, 'MonographPDFUpdater.exe');
   RemoveOwnedRelUnder(Base, 'README.md');
   RemoveOwnedRelUnder(Base, 'LICENSE.md');
   RemoveOwnedRelUnder(Base, 'THIRD_PARTY_NOTICES.md');
