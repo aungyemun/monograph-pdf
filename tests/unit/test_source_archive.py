@@ -122,6 +122,26 @@ def test_source_selection_leaves_out_development_and_personal_files():
     assert problems == []
 
 
+def _git(cwd: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True)
+
+
+def test_untracked_files_in_a_checkout_never_reach_the_archive(tmp_path):
+    """Only tracked files are source: an untracked file in a source folder (a private note, a local copy
+    such as engines/ocr/TESSERACT_NOTICE.txt made by setup_env.ps1) is left out. Without .git (an
+    unpacked source archive) every file in the source folders counts."""
+    root = tmp_path / "checkout"
+    for rel in ("README.md", "docs/USER_GUIDE.md", "docs/private-notes.md", "engines/ocr/TESSERACT_NOTICE.txt"):
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text("synthetic\n", encoding="utf-8")
+    unpacked = {p.as_posix() for p in msa.product_files(root)}
+    assert {"README.md", "docs/USER_GUIDE.md", "docs/private-notes.md", "engines/ocr/TESSERACT_NOTICE.txt"} <= unpacked
+    _git(root, "init", "-q")
+    _git(root, "add", "README.md", "docs/USER_GUIDE.md")
+    files = {p.as_posix() for p in msa.product_files(root)}
+    assert files == {"README.md", "docs/USER_GUIDE.md"}
+
+
 def test_source_selection_ships_the_repository_documents():
     """The top-level documents, and every local file README.md links to, are in the source archive."""
     files = {p.as_posix() for p in msa.product_files()}

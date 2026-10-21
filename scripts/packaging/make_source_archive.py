@@ -34,6 +34,7 @@ import argparse
 import fnmatch
 import hashlib
 import json
+import subprocess
 import sys
 import urllib.request
 import zipfile
@@ -103,9 +104,26 @@ def load_manifest(path: Path = MANIFEST) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def git_tracked(root: Path) -> set[str] | None:
+    """Files tracked by git when ``root`` is a git checkout (None for an unpacked source archive).
+
+    In a checkout only tracked files are source: an untracked file lying in a source folder (a local
+    copy, a private note, an editor backup) must never reach the published archive."""
+    if not (root / ".git").exists():
+        return None
+    try:
+        out = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"{root} is a git checkout but its tracked files cannot be listed: {exc}") from exc
+    if out.returncode != 0:
+        raise RuntimeError(f"git ls-files failed in {root}: {out.stderr.decode(errors='replace').strip()}")
+    return {p for p in out.stdout.decode("utf-8", "surrogateescape").split("\0") if p}
+
+
 def product_files(root: Path = ROOT) -> list[Path]:
-    """Monograph PDF's own source files, relative to ``root``."""
+    """Monograph PDF's own source files, relative to ``root`` (in a git checkout: tracked files only)."""
     out: list[Path] = []
+    tracked = git_tracked(root)
     for top in SOURCE_TOP:
         base = root / top
         items = [base] if base.is_file() else sorted(p for p in base.rglob("*") if p.is_file()) if base.is_dir() else []
@@ -118,6 +136,8 @@ def product_files(root: Path = ROOT) -> list[Path]:
             if any(fnmatch.fnmatch(posix, p) for p in EXCLUDE_PATHS):
                 continue
             if any(fnmatch.fnmatch(f.name, p) for p in EXCLUDE_NAMES):
+                continue
+            if tracked is not None and posix not in tracked:
                 continue
             out.append(rel)
     return out
