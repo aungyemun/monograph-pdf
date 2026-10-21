@@ -41,8 +41,85 @@ verified; normal PDF work stays offline.
   verification), `scripts/test_update_e2e.py` (Windows end-to-end upgrade test with synthetic keys
   and a local HTTPS mock server).
 
+### Added — PDF work (v0.3.0-dev)
+
+- **Editing**:
+  - Replaced text no longer overlaps the original: the original glyphs are removed and the
+    replacement keeps the span's font, size, colour, bold and italic.
+  - The Inspector edits a text box's opacity, letter spacing and rotation, and a shape's opacity,
+    rotation and dash style; all of these are saved as shown.
+  - Shapes and pictures can be copied, pasted, duplicated, brought forward or sent back.
+  - Inspector picture changes are undoable.
+  - Save can be repeated without drawing objects twice.
+- **Comments**:
+  - Squiggly underline and opacity for markup.
+  - A **Comments** panel (View ▸ Comments Panel) that lists, selects, edits, moves and deletes notes.
+  - Every annotation change can be undone.
+- **Stamps and signatures**:
+  - A stamp library: ten standard stamps, custom text and picture stamps, rotation and opacity.
+  - Stamps are real PDF stamp annotations.
+  - Drawn, typed and picture signatures placed as movable objects.
+- **Pages**: page operations (reorder, insert, delete, duplicate, replace, crop) are undoable, and the
+  thumbnail right-click menu has them.
+- **OCR**:
+  - **OCR ▸ Recognize Text in Area…**, with a text preview that can be corrected, copied and saved as .txt or .docx.
+  - **OCR ▸ Extract Text (OCR)…**.
+  - **OCR ▸ Scanned PDF to Word (OCR)…**.
+  - Optional language packs (Simplified and Traditional Chinese, Korean, vertical Japanese, German,
+    French, Spanish), installed only from a file you supply that matches the pinned size and SHA-256.
+    Nothing is downloaded.
+- **Batch conversion** (Convert ▸ Batch Convert…): many files to Word, Excel, PowerPoint, text,
+  images, searchable PDF, Word via OCR, or Office/images to PDF, with per-file status and Cancel.
+- **Printing**:
+  - True black-and-white (dithered) besides grayscale, custom scale, and 2/4/6/9 pages per sheet.
+  - **Save as PDF** from the print dialog.
+  - A multi-page preview.
+  - Progress, Cancel and clear printer errors.
+- **Viewing**:
+  - Very large pages (A0 posters, high zoom) are drawn as sharp tiles with bounded memory.
+  - Mixed page sizes are centred.
+- **PDF to PowerPoint**: mixed-size policies (true size, fitted, first page's size, chosen slide
+  size, one presentation per page size) and a picture quality choice.
+- **PDF to Word**: one section per page at that page's size and orientation (both engines).
+- **Document properties**: Word, PowerPoint and Excel files carry the PDF's title, author, subject,
+  keywords and dates; the library template values are removed.
+- **Unsaved changes**: a conversion or compression of a document with unsaved changes first asks
+  **Save**, **Save As…** or **Cancel**.
+- **Save a copy**: **File ▸ Save a Copy ▸ Whole Document (Keep Working on This One)…**.
+- **Compress PDF** (replaces Reduce File Size):
+  - Lossless, Balanced, Smallest file, or an exact maximum size (for example 956 KB or 1.99 MB;
+    1 KB = 1,000 bytes).
+  - A slider kept in step with the number, an estimate before and the measured size after.
+  - A side-by-side preview and profiles.
+  - Quality floors that keep text and scans readable.
+  - An honest "cannot be achieved" with the smallest acceptable result.
+  - See [docs/PDF_COMPRESSION.md](docs/PDF_COMPRESSION.md).
+- **Documentation**:
+  - [Converting PDF to Office](docs/PDF_TO_OFFICE_CONVERSION.md)
+  - [Converting Office to PDF](docs/OFFICE_TO_PDF_CONVERSION.md)
+  - [Conversion fidelity](docs/CONVERSION_FIDELITY.md)
+  - [Save As and export](docs/SAVE_AS_AND_EXPORT.md)
+  - [Rendering and page sizes](docs/PDF_RENDERING_AND_PAGE_SIZES.md)
+  - [Colour and image fidelity](docs/COLOR_AND_IMAGE_FIDELITY.md)
+  - [Printing and print preview](docs/PRINTING_AND_PRINT_PREVIEW.md)
+  - [Save and export fidelity](docs/PDF_SAVE_AND_EXPORT_FIDELITY.md)
+  - [Performance and rendering](docs/PERFORMANCE_AND_RENDERING.md)
+  - [Windows runtime dependencies](docs/WINDOWS_RUNTIME_DEPENDENCIES.md)
+  - [Prerequisite management](docs/PREREQUISITE_MANAGEMENT.md)
+  - [Installer package contents](docs/INSTALLER_PACKAGE_CONTENTS.md)
+  - [Clean Windows installation](docs/CLEAN_WINDOWS_INSTALLATION.md)
+
 ### Fixed
 
+- OCR on a rotated page or a scan stored upside down placed the text layer upside down or in the
+  wrong place; OCR read the file on disk instead of the document as shown (missing unsaved page
+  changes); running OCR twice added a second text layer.
+- Overwriting an existing file (Save As, Save a Copy, exports, Office to PDF) is now atomic: a failed
+  write leaves the existing file untouched and no partial file behind. Office to PDF used to delete an
+  existing PDF of the same name before converting.
+- The Visual C++ runtime DLLs are placed beside the program so MuPDF and Qt plug-ins never depend on
+  the order in which libraries happen to load; the program's PE timestamps are normalised to the
+  commit time (reproducible builds).
 - OCR failed when the temporary folder, the document's folder or the installation folder contained
   characters outside the Windows ANSI code page (for example a Japanese user name on an English
   Windows): Tesseract now receives no file path — the image goes through standard input, the result

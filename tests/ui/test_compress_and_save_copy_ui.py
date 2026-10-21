@@ -198,3 +198,18 @@ def test_powerpoint_dialog_offers_size_policies_for_mixed_pages(qtbot):
     assert mixed.options() == {"mode": "layout", "dpi": 200, "size_policy": "custom", "custom_size_pt": (960.0, 540.0)}
     mixed.size_policy.setCurrentIndex(keys.index("split"))
     assert "size_policy" not in mixed.options() and mixed.policy() == "split"
+
+
+def test_save_a_copy_menu_action_opens_the_file_dialog(window, tmp_path, monkeypatch):
+    """Regression (live GUI test): QAction.triggered passes checked=False, which reached save_copy_dialog
+    as the destination and raised TypeError."""
+    from PySide6.QtWidgets import QFileDialog
+
+    src = _open(window, tmp_path)
+    _edit(window)
+    dest = tmp_path / "menu copy.pdf"
+    seen = []
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        staticmethod(lambda *a, **k: (seen.append(1), (str(dest), ""))[1]))
+    window.act_save_copy.trigger()
+    assert seen and dest.exists() and window._document.path == src  # noqa: SLF001

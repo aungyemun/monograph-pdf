@@ -406,6 +406,7 @@ class CompressDialog(QDialog):
         self.cancel_btn.setText("Stop" if on else "Cancel")
         self.status.setText("Working…" if on else "")
         if not on:
+            self.ok_btn.setDefault(True)  # disabling moved the default to Cancel
             self._sync()
 
     def _on_progress(self, text: str, frac: float) -> None:

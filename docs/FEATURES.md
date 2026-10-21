@@ -39,6 +39,11 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
   underline, strikethrough and ink annotations; it never removes original page content. Creating
   and erasing markup can be undone.
 - **Edit ▸ Copy Page as Picture** (`Ctrl+Alt+C`) copies the page as shown at 150 dpi.
+- **Properties panel.** Text boxes have opacity, letter spacing and rotation; shapes have opacity, rotation and dash style. Objects can be copied, pasted, duplicated and layered.
+- **Squiggly underline.** Markup can be drawn as a squiggly underline, and markup opacity can be set.
+- **Comments panel.** **View ▸ Comments Panel** lists, selects, edits, moves and deletes notes.
+- **Undo for annotations.** Every annotation change can be undone.
+- **Stamp library.** Ten standard stamps, plus custom text and picture stamps, all real PDF stamp annotations.
 
 ## Forms, tables and layout
 
@@ -51,13 +56,20 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
 - Bundled Tesseract with English, Japanese and orientation data (`eng`, `jpn`, `osd`); nothing is
   downloaded.
 - Recognize a page or the whole document, add a searchable text layer, or make the text editable.
+- **Recognize Text in Area**, and **Extract Text** with a correctable preview: copy, or save as UTF-8 .txt or .docx.
+- **Scanned PDF to Word.**
+- **Rotated scans.** Rotated and upside-down scans are handled, and an existing text layer is never duplicated.
+- **Optional language packs.** Chinese, Korean, vertical Japanese, German, French and Spanish can be installed from a file you supply. The file must match the pinned SHA-256; nothing is downloaded.
 
 ## Organizing and converting
 
 - Insert, delete, rotate, crop, merge and split pages; change the page size.
 - PDF to Word, Excel and PowerPoint (best-effort); images to PDF and PDF to images; Office files to
   PDF through a locally installed Office suite.
-- File size reduction with several presets.
+- **Compress PDF.** Lossless, Balanced, Smallest file, or an exact maximum size in bytes, with an estimate, the measured size and a preview. See [PDF Compression](PDF_COMPRESSION.md).
+- **Batch conversion.** Converts many files to Word, Excel, PowerPoint, text, images, a searchable PDF, or Word via OCR.
+- **Page sizes in conversions.** PowerPoint and Word files keep each page's size and orientation, with policies for mixed sizes. Document properties come from the PDF. See [PDF to Office](PDF_TO_OFFICE_CONVERSION.md) and [Conversion Fidelity](CONVERSION_FIDELITY.md).
+- **Save a Copy ▸ Whole Document** keeps working on the open document. Overwriting files is atomic. See [Save As and Export](SAVE_AS_AND_EXPORT.md).
 - Page design: headers and footers in six positions with `{page}`, `{total}`, `{date}` and
   `{bates}`; page numbers; Bates numbers (prefix, first number, digits, suffix); text or picture
   watermarks in front of or behind the content; color or picture backgrounds. Each dialog has a
@@ -84,6 +96,9 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
 - Visual signatures (typed, drawn or from a picture); certificate-based signatures are not supported.
 - Printing with preview, including unsaved changes; odd or even pages, reverse order, and printing
   without comments.
+- **Colour modes.** Colour, grayscale or true black-and-white.
+- **Scaling.** Custom scale, and 2, 4, 6 or 9 pages per sheet.
+- **Save as PDF** from the print dialog, with progress and Cancel. See [Printing](PRINTING_AND_PRINT_PREVIEW.md).
 
 ## Installer
 

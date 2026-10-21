@@ -205,7 +205,7 @@ class MainWindow(QMainWindow):
         self.act_save_copy = QAction("&Whole Document (Keep Working on This One)…", self)
         self.act_save_copy.setStatusTip("Save the document as it is now to a separate file; the open "
                                         "document and its unsaved changes stay as they are")
-        self.act_save_copy.triggered.connect(self.save_copy_dialog)
+        self.act_save_copy.triggered.connect(lambda: self.save_copy_dialog())  # triggered passes "checked"
 
         self.act_close = QAction("&Close", self)
         self.act_close.setShortcut(QKeySequence.StandardKey.Close)
