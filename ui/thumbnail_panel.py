@@ -137,7 +137,7 @@ class ThumbnailPanel(QListWidget):
         super().__init__(parent)
         self.setObjectName("Thumbnails")
         self.setMinimumWidth(140)
-        self.setMaximumWidth(260)
+        # no maximum: a cap left an empty grey strip beside the thumbnails when the panel was widened
         self.setIconSize(QSize(120, 160))
         self.setSpacing(2)
         self.setMouseTracking(True)

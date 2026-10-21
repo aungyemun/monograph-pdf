@@ -203,3 +203,12 @@ def test_toolbar_overflow_button_has_visible_icon(window):
     window.resize(900, 700)
     ext = [b for b in window._main_bar.findChildren(QToolButton) if b.objectName() == "qt_toolbar_ext_button"]  # noqa: SLF001
     assert ext and not ext[0].icon().isNull()
+
+
+def test_thumbnails_fill_a_wide_navigation_panel(window, tmp_path, qtbot):
+    _open(window, tmp_path)
+    left = window._left  # noqa: SLF001
+    left.setCurrentIndex(left._pages_tab)  # noqa: SLF001
+    left.resize(340, 500)
+    qtbot.wait(50)
+    assert left.thumbs.width() >= left.width() - 4  # no empty strip beside the thumbnails
