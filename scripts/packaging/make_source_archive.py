@@ -8,7 +8,7 @@ The archive contains
     MonographPDF_<version>_Source/
       README_SOURCE.md        what is where, how to build, which binaries each source covers
       SOURCE_MANIFEST.json    every component: license, release files covered, source files, SHA-256
-      LICENSES/               AGPL-3.0-or-later (Monograph PDF LICENSE.md as AGPL-3.0.txt), GPL-2.0, GPL-3.0, LGPL-2.1, LGPL-3.0, MPL-1.1,
+      LICENSES/               AGPL-3.0 (the official text, from LICENSE), GPL-2.0, GPL-3.0, LGPL-2.1, LGPL-3.0, MPL-1.1,
                               GCC Runtime Library Exception
       monograph-pdf/          corresponding Monograph PDF release source (application, build, installer, documentation, release tests)
       third-party/            corresponding source of the bundled AGPL / GPL / LGPL components,
@@ -22,10 +22,18 @@ Monograph PDF itself never downloads anything) and every file is checked against
 ``--pin`` records the hash of archives that have none yet (Qt archives are first checked against
 Qt's published MD5 list). ``--offline`` fails instead of downloading.
 
-Monograph PDF's own files are selected from the project folder: caches, virtual environments, build
-output, installers, generated test files, files naming the developer's personal documents and
-anything matching the release check's secret / private-path rules are left out (the build fails if
-such content is found in a file that would be included).
+Monograph PDF's own files: in a git checkout, the files committed in ``HEAD`` with their committed
+bytes (untracked files, uncommitted edits and the checkout's line-ending conversion never reach the
+archive; uncommitted changes to selected files stop the build unless ``--allow-dirty``); in an unpacked
+source archive, the files on disk. Caches, virtual environments, build output, installers, generated
+test files, files naming the developer's personal documents and anything matching the release check's
+secret / private-path rules are left out (the build fails if such content is found in a file that would
+be included).
+
+The archive is deterministic: entries in a fixed order, every entry dated with the commit time (or
+``SOURCE_DATE_EPOCH``, else 1980-01-01), Unix rw-r--r-- attributes, Deflate level 9 for project files
+and stored third-party archives. The same commit and the same third-party archives give the same ZIP
+bytes with the same Python version (its zlib).
 """
 
 from __future__ import annotations
@@ -34,8 +42,11 @@ import argparse
 import fnmatch
 import hashlib
 import json
+import os
+import shutil
 import subprocess
 import sys
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -72,7 +83,7 @@ EXCLUDE_PATHS = [
 EXCLUDE_NAMES = ["*.pyc", "*.pyo", "*.log", ".env", ".env.*", "*.pem", "*.key", "*.pfx", "*.p12", "*.kdbx", "Thumbs.db", "desktop.ini"]
 TEXT_SUFFIXES = {".py", ".md", ".txt", ".json", ".ps1", ".bat", ".iss", ".cs", ".cff", ".ini", ".cfg", ".toml", ".xml", ".html", ".svg"}
 LICENSE_FILES = {
-    "AGPL-3.0.txt": "LICENSE.md",
+    "AGPL-3.0.txt": "LICENSE",
     "GPL-2.0.txt": "third_party/licenses/GPL-2.0.txt",
     "GPL-3.0.txt": "third_party/licenses/GPL-3.0.txt",
     "LGPL-2.1.txt": "third_party/licenses/LGPL-2.1.txt",
@@ -104,43 +115,98 @@ def load_manifest(path: Path = MANIFEST) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def git_tracked(root: Path) -> set[str] | None:
-    """Files tracked by git when ``root`` is a git checkout (None for an unpacked source archive).
+class ProjectSource:
+    """Monograph PDF's own files and their bytes.
 
-    In a checkout only tracked files are source: an untracked file lying in a source folder (a local
-    copy, a private note, an editor backup) must never reach the published archive."""
-    if not (root / ".git").exists():
-        return None
-    try:
-        out = subprocess.run(["git", "-C", str(root), "ls-files", "-z"], capture_output=True, timeout=120)
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise RuntimeError(f"{root} is a git checkout but its tracked files cannot be listed: {exc}") from exc
-    if out.returncode != 0:
-        raise RuntimeError(f"git ls-files failed in {root}: {out.stderr.decode(errors='replace').strip()}")
-    return {p for p in out.stdout.decode("utf-8", "surrogateescape").split("\0") if p}
+    In a git checkout the archive is made from the committed tree (``HEAD``): only committed files are
+    source, and their bytes are the git blobs, so the archive does not depend on the checkout's
+    line-ending settings (core.autocrlf), on untracked files lying in a source folder (a local copy, a
+    private note) or on uncommitted edits. Without ``.git`` (an unpacked source archive) the files on
+    disk are used as they are."""
+
+    def __init__(self, root: Path):
+        self.root = root
+        self.git = (root / ".git").exists()
+        self.commit: str | None = None
+        self.epoch: int | None = None
+        self._tree: dict[str, str] = {}
+        if self.git:
+            self.commit = self._git("rev-parse", "HEAD").decode().strip()
+            self.epoch = int(self._git("show", "-s", "--format=%ct", "HEAD").decode().strip())
+            for rec in self._git("ls-tree", "-r", "-z", "--full-tree", "HEAD").split(b"\0"):
+                if not rec:
+                    continue
+                meta, path = rec.split(b"\t", 1)
+                mode, kind, sha = meta.decode().split()
+                if kind == "blob" and mode in ("100644", "100755"):
+                    self._tree[path.decode("utf-8", "surrogateescape")] = sha
+
+    def _git(self, *args: str, data: bytes | None = None) -> bytes:
+        try:
+            out = subprocess.run(["git", "-C", str(self.root), *args], input=data, capture_output=True, timeout=300)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise RuntimeError(f"{self.root} is a git checkout but git {args[0]} failed: {exc}") from exc
+        if out.returncode != 0:
+            raise RuntimeError(f"git {' '.join(args[:2])} failed in {self.root}: {out.stderr.decode(errors='replace').strip()}")
+        return out.stdout
+
+    def candidates(self) -> list[str]:
+        if self.git:
+            return sorted(self._tree)
+        found = set()
+        for top in SOURCE_TOP:
+            base = self.root / top
+            items = [base] if base.is_file() else base.rglob("*") if base.is_dir() else []
+            found.update(p.relative_to(self.root).as_posix() for p in items if p.is_file())
+        return sorted(found)
+
+    def read(self, rel: str) -> bytes:
+        if self.git:
+            if rel not in self._tree:
+                raise FileNotFoundError(f"{rel} is not committed in {self.commit}")
+            return self._git("cat-file", "blob", self._tree[rel])
+        return (self.root / rel).read_bytes()
+
+    def read_many(self, rels: list[str]) -> dict[str, bytes]:
+        """Bytes of many files; one ``git cat-file --batch`` call in a checkout."""
+        if not self.git:
+            return {r: self.read(r) for r in rels}
+        missing = [r for r in rels if r not in self._tree]
+        if missing:
+            raise FileNotFoundError(f"not committed in {self.commit}: {', '.join(missing)}")
+        raw = self._git("cat-file", "--batch", data="".join(self._tree[r] + "\n" for r in rels).encode())
+        out, pos = {}, 0
+        for r in rels:
+            nl = raw.index(b"\n", pos)
+            sha, kind, size = raw[pos:nl].decode().split()
+            if sha != self._tree[r] or kind != "blob":
+                raise RuntimeError(f"unexpected git cat-file reply for {r}")
+            start = nl + 1
+            out[r] = raw[start:start + int(size)]
+            pos = start + int(size) + 1
+        return out
+
+    def uncommitted(self, rels: list[str]) -> list[str]:
+        """Selected files whose working copy differs from HEAD in content (line endings excepted)."""
+        if not self.git:
+            return []
+        changed = set(self._git("diff", "--name-only", "-z", "HEAD", "--").decode("utf-8", "surrogateescape").split("\0"))
+        return sorted(set(rels) & changed)
+
+
+def _selected(rel: str) -> bool:
+    if not any(rel == top or rel.startswith(top + "/") for top in SOURCE_TOP):
+        return False
+    if EXCLUDE_PARTS & set(rel.split("/")):
+        return False
+    if any(fnmatch.fnmatch(rel, p) for p in EXCLUDE_PATHS):
+        return False
+    return not any(fnmatch.fnmatch(rel.rsplit("/", 1)[-1], p) for p in EXCLUDE_NAMES)
 
 
 def product_files(root: Path = ROOT) -> list[Path]:
-    """Monograph PDF's own source files, relative to ``root`` (in a git checkout: tracked files only)."""
-    out: list[Path] = []
-    tracked = git_tracked(root)
-    for top in SOURCE_TOP:
-        base = root / top
-        items = [base] if base.is_file() else sorted(p for p in base.rglob("*") if p.is_file()) if base.is_dir() else []
-        for f in items:
-            rel = f.relative_to(root)
-            parts = rel.parts
-            posix = rel.as_posix()
-            if EXCLUDE_PARTS & set(parts):
-                continue
-            if any(fnmatch.fnmatch(posix, p) for p in EXCLUDE_PATHS):
-                continue
-            if any(fnmatch.fnmatch(f.name, p) for p in EXCLUDE_NAMES):
-                continue
-            if tracked is not None and posix not in tracked:
-                continue
-            out.append(rel)
-    return out
+    """Monograph PDF's own source files, relative to ``root``, sorted (in a git checkout: committed files)."""
+    return [Path(rel) for rel in ProjectSource(root).candidates() if _selected(rel)]
 
 
 def scan_text(rel: str, data: bytes) -> list[str]:
@@ -271,39 +337,73 @@ def _readme(manifest: dict, version: str) -> str:
         "",
         "The third-party archives build with their own instructions (PyMuPDF builds MuPDF from `mupdf-*-source.tar.gz`; Qt and PySide6 with CMake; the OCR libraries with the MSYS2 MINGW64 toolchain: unpack a `.src.tar.zst` and run `makepkg-mingw` in its folder).",
         "",
+        "Text files are stored exactly as committed in the repository (the repository keeps them with LF line endings); binary files are byte-identical.",
+        "",
         "Not included: build tools (Python, PyInstaller, Inno Setup, compilers), development caches, and local personal-document validation utilities that embed private or machine-local paths (development-only; not part of corresponding-source coverage).",
         "",
     ]
     return "\n".join(lines)
 
 
+# Deterministic ZIP entries: the same source gives the same archive bytes (same Python / zlib).
+ZIP_EPOCH_DEFAULT = 315532800  # 1980-01-01 00:00:00 UTC, the earliest ZIP date
+COMPRESS_LEVEL = 9
+
+
+def _zinfo(name: str, epoch: int, compress: int) -> zipfile.ZipInfo:
+    """Fixed metadata for every entry: timestamp, Unix creator, regular file rw-r--r--, method."""
+    t = time.gmtime(max(epoch, ZIP_EPOCH_DEFAULT))
+    # ZIP (DOS) time has a 2-second resolution: round down so the stored time is exactly this one
+    zi = zipfile.ZipInfo(name, date_time=(*t[:5], t.tm_sec - t.tm_sec % 2))
+    zi.create_system = 3
+    zi.create_version = 20
+    zi.extract_version = 20
+    zi.external_attr = 0o100644 << 16
+    zi.compress_type = compress
+    return zi
+
+
 def build(out: Path, cache: Path, *, offline: bool = False, pin: bool = False, root: Path = ROOT,
-          manifest_path: Path = MANIFEST) -> int:
+          manifest_path: Path = MANIFEST, allow_dirty: bool = False) -> int:
+    source = ProjectSource(root)
     manifest = load_manifest(manifest_path)
-    version = (root / "VERSION").read_text(encoding="utf-8").strip()
+    version = source.read("VERSION").decode("utf-8").strip()
     if manifest["release"] != version:
         print(f"third_party_sources.json is for {manifest['release']}, VERSION is {version}", file=sys.stderr)
         return 1
     problems = fetch_sources(manifest, cache, offline=offline, pin=pin)
     if pin:
         manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    files = product_files(root)
+    files = [p.as_posix() for p in product_files(root)]
+    license_srcs = sorted(set(LICENSE_FILES.values()))
+    dirty = source.uncommitted(files + license_srcs)
+    if dirty and not allow_dirty:
+        problems.append("uncommitted changes (the archive is made from the committed files; commit them or use "
+                        "--allow-dirty for a development build): " + ", ".join(dirty))
+    data = source.read_many(sorted(set(files) | set(license_srcs)))
     for rel in files:
-        if rel.suffix.lower() in TEXT_SUFFIXES:
-            problems += scan_text(rel.as_posix(), (root / rel).read_bytes())
+        if Path(rel).suffix.lower() in TEXT_SUFFIXES:
+            problems += scan_text(rel, data[rel])
     if problems:
         print("Source archive FAILED:\n  " + "\n  ".join(problems), file=sys.stderr)
         return 1
 
+    # Timestamp of every entry: the commit time in a checkout; otherwise SOURCE_DATE_EPOCH or 1980-01-01.
+    epoch = source.epoch if source.epoch is not None else int(os.environ.get("SOURCE_DATE_EPOCH", ZIP_EPOCH_DEFAULT))
     top = f"MonographPDF_{version}_Source"
     record = {"release": version, "archive": out.name, "components": [], "exempt": manifest["exempt"]}
+    if source.commit:
+        record["commit"] = source.commit
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_suffix(".zip.part")
-    with zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+    with zipfile.ZipFile(tmp, "w") as z:
+        def put(name: str, payload: bytes) -> None:
+            z.writestr(_zinfo(name, epoch, zipfile.ZIP_DEFLATED), payload, compresslevel=COMPRESS_LEVEL)
+
         for rel in files:
-            z.write(root / rel, f"{top}/monograph-pdf/{rel.as_posix()}")
-        for name, src in LICENSE_FILES.items():
-            z.write(root / src, f"{top}/LICENSES/{name}")
+            put(f"{top}/monograph-pdf/{rel}", data[rel])
+        for name in sorted(LICENSE_FILES):
+            put(f"{top}/LICENSES/{name}", data[LICENSE_FILES[name]])
         for comp in manifest["components"]:
             entry = {k: comp[k] for k in ("id", "name", "version", "license", "covers", "location") if k in comp}
             entry["files"] = []
@@ -312,7 +412,8 @@ def build(out: Path, cache: Path, *, offline: bool = False, pin: bool = False, r
             for f in comp["files"]:
                 arc = f"{top}/{comp['location']}{f['name']}"
                 # upstream archives are already compressed: store them as they are
-                z.write(cache / f["name"], arc, compress_type=zipfile.ZIP_STORED)
+                with open(cache / f["name"], "rb") as src, z.open(_zinfo(arc, epoch, zipfile.ZIP_STORED), "w") as dst:
+                    shutil.copyfileobj(src, dst, 1 << 20)
                 entry["files"].append({"name": f["name"], "path": arc[len(top) + 1:], "sha256": f["sha256"], "source": f["urls"][0]})
             for key in ("msys2", "binaries"):
                 if comp.get(key):
@@ -320,8 +421,8 @@ def build(out: Path, cache: Path, *, offline: bool = False, pin: bool = False, r
             if comp.get("notes"):
                 entry["notes"] = comp["notes"]
             record["components"].append(entry)
-        z.writestr(f"{top}/SOURCE_MANIFEST.json", json.dumps(record, indent=2, ensure_ascii=False) + "\n")
-        z.writestr(f"{top}/README_SOURCE.md", _readme(manifest, version))
+        put(f"{top}/SOURCE_MANIFEST.json", (json.dumps(record, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
+        put(f"{top}/README_SOURCE.md", _readme(manifest, version).encode("utf-8"))
     tmp.replace(out)
     size = out.stat().st_size
     print(f"Wrote {out} ({size / 1048576:.1f} MB, {len(files)} Monograph PDF files, "
@@ -336,10 +437,13 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--cache", type=Path, default=ROOT / "packages" / "sources")
     ap.add_argument("--offline", action="store_true")
     ap.add_argument("--pin", action="store_true")
+    ap.add_argument("--allow-dirty", action="store_true",
+                    help="development only: build although selected files have uncommitted changes "
+                         "(the archive still contains the committed versions)")
     a = ap.parse_args(argv)
     version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
     out = a.out or ROOT / "installer" / f"MonographPDF_{version}_Source.zip"
-    return build(out, a.cache, offline=a.offline, pin=a.pin)
+    return build(out, a.cache, offline=a.offline, pin=a.pin, allow_dirty=a.allow_dirty)
 
 
 if __name__ == "__main__":

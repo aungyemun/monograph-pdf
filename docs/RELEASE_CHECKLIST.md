@@ -12,7 +12,7 @@ release are always deliberate maintainer steps.
 
 | # | Item | How |
 |---|---|---|
-| 1.1 | Working tree clean except the intended changes; on `main` | manual: `git status` |
+| 1.1 | Everything committed; on `main` | manual: `git status`; the source archive is made from the committed files and the build stops on uncommitted changes to them |
 | 1.2 | `VERSION`, `CITATION.cff` `version`, `THIRD_PARTY_NOTICES.md`, `licenses/DEPENDENCY_INVENTORY.md` and `scripts/packaging/third_party_sources.json` name `X.Y.Z` | automated by `verify_release.py` (step 3); fix by hand |
 | 1.3 | `CHANGELOG.md` has `## [X.Y.Z] — Unreleased` describing every user-visible change | manual |
 | 1.4 | Third-party versions changed? Update `THIRD_PARTY_NOTICES.md`, `licenses/DEPENDENCY_INVENTORY.md` and `third_party_sources.json` together | manual (compare `pip freeze` with the inventory) |

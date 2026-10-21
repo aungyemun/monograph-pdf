@@ -7,9 +7,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
+import time
 import zipfile
 from pathlib import Path
 
@@ -126,10 +129,46 @@ def _git(cwd: Path, *args: str) -> None:
     subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True)
 
 
+GIT_ID = ("-c", "user.name=Test", "-c", "user.email=test@example.invalid")
+
+
+def _synthetic_repo(root: Path) -> tuple[Path, Path]:
+    """A tiny committed project with every file the archive needs (synthetic content only)."""
+    files = {
+        "VERSION": b"9.9.9\n",
+        "README.md": b"# Synthetic project\nline two\n",
+        "LICENSE": b"official license text\n",
+        "LICENSE.md": b"license summary\n",
+        "docs/USER_GUIDE.md": b"guide\n",
+        "tests/fixtures/sample.pdf": b"%PDF-1.7\r\n%\x00\xff binary with CRLF bytes\r\n%%EOF\r\n",
+    }
+    files.update({src: f"{name} text\n".encode() for name, src in msa.LICENSE_FILES.items() if src not in files})
+    for rel, data in files.items():
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_bytes(data)
+    _git(root, "init", "-q")
+    _git(root, "config", "core.autocrlf", "false")
+    _git(root, "add", "-A")
+    _git(root, *GIT_ID, "commit", "-q", "-m", "synthetic")
+    manifest = root.parent / f"{root.name}-manifest.json"
+    manifest.write_text(json.dumps({"release": "9.9.9", "archive": "x.zip", "exempt": [], "components": [
+        {"id": "monograph-pdf", "name": "Monograph PDF", "version": "9.9.9", "license": "AGPL-3.0-or-later",
+         "covers": [], "location": "monograph-pdf/", "files": []}]}), encoding="utf-8")
+    cache = root.parent / "cache"
+    cache.mkdir(exist_ok=True)
+    return manifest, cache
+
+
+def _entries(path: Path) -> dict[str, tuple[str, tuple, int, int, int]]:
+    with zipfile.ZipFile(path) as z:
+        return {i.filename: (hashlib.sha256(z.read(i)).hexdigest(), i.date_time, i.create_system, i.external_attr >> 16,
+                             i.compress_type) for i in z.infolist()}
+
+
 def test_untracked_files_in_a_checkout_never_reach_the_archive(tmp_path):
-    """Only tracked files are source: an untracked file in a source folder (a private note, a local copy
-    such as engines/ocr/TESSERACT_NOTICE.txt made by setup_env.ps1) is left out. Without .git (an
-    unpacked source archive) every file in the source folders counts."""
+    """Only committed files are source: an untracked or merely staged file in a source folder (a private
+    note, a local copy such as engines/ocr/TESSERACT_NOTICE.txt made by setup_env.ps1) is left out.
+    Without .git (an unpacked source archive) every file in the source folders counts."""
     root = tmp_path / "checkout"
     for rel in ("README.md", "docs/USER_GUIDE.md", "docs/private-notes.md", "engines/ocr/TESSERACT_NOTICE.txt"):
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -138,8 +177,73 @@ def test_untracked_files_in_a_checkout_never_reach_the_archive(tmp_path):
     assert {"README.md", "docs/USER_GUIDE.md", "docs/private-notes.md", "engines/ocr/TESSERACT_NOTICE.txt"} <= unpacked
     _git(root, "init", "-q")
     _git(root, "add", "README.md", "docs/USER_GUIDE.md")
+    _git(root, *GIT_ID, "commit", "-q", "-m", "synthetic")
+    _git(root, "add", "docs/private-notes.md")  # staged, never committed
     files = {p.as_posix() for p in msa.product_files(root)}
     assert files == {"README.md", "docs/USER_GUIDE.md"}
+
+
+def test_archive_bytes_do_not_depend_on_the_checkout_line_endings(tmp_path):
+    """Two clones of the same commit, one with core.autocrlf=true (CRLF working files) and one with
+    false, give byte-identical archives: text is taken from the committed blobs (LF), the binary
+    fixture keeps its CRLF bytes, and every entry has fixed metadata."""
+    origin = tmp_path / "origin"
+    manifest, cache = _synthetic_repo(origin)
+    outs = []
+    for crlf in ("true", "false"):
+        clone = tmp_path / f"clone-{crlf}"
+        subprocess.run(["git", "-c", f"core.autocrlf={crlf}", "clone", "-q", "-c", f"core.autocrlf={crlf}",
+                        str(origin), str(clone)], check=True, capture_output=True)
+        readme = (clone / "README.md").read_bytes()
+        assert (b"\r\n" in readme) == (crlf == "true")  # the working copies really differ
+        out = tmp_path / f"out-{crlf}" / "MonographPDF_9.9.9_Source.zip"
+        assert msa.build(out, cache, offline=True, root=clone, manifest_path=manifest) == 0  # clean: no --allow-dirty
+        outs.append(out)
+    assert msa.sha256_of(outs[0]) == msa.sha256_of(outs[1])
+    again = tmp_path / "again" / "MonographPDF_9.9.9_Source.zip"
+    assert msa.build(again, cache, offline=True, root=origin, manifest_path=manifest) == 0
+    assert msa.sha256_of(again) == msa.sha256_of(outs[0])
+    entries = _entries(outs[0])
+    names = list(entries)
+    top = "MonographPDF_9.9.9_Source/"
+    assert names[:names.index(top + "LICENSES/AGPL-3.0.txt")] == sorted(names[:names.index(top + "LICENSES/AGPL-3.0.txt")])
+    with zipfile.ZipFile(outs[0]) as z:
+        assert z.read(top + "monograph-pdf/README.md") == b"# Synthetic project\nline two\n"
+        assert z.read(top + "monograph-pdf/tests/fixtures/sample.pdf") == (origin / "tests/fixtures/sample.pdf").read_bytes()
+        assert z.read(top + "LICENSES/AGPL-3.0.txt") == b"official license text\n"  # the official text, unchanged
+        commit_time = int(subprocess.run(["git", "-C", str(origin), "show", "-s", "--format=%ct", "HEAD"],
+                                         capture_output=True, text=True, check=True).stdout)
+        assert json.loads(z.read(top + "SOURCE_MANIFEST.json"))["commit"]
+    t = time.gmtime(commit_time)
+    stamp = (*t[:5], t.tm_sec - t.tm_sec % 2)  # ZIP time: 2-second resolution
+    for name, (_, date_time, system, mode, method) in entries.items():
+        assert (date_time, system, mode) == (stamp, 3, 0o100644), name
+        assert method == zipfile.ZIP_DEFLATED, name
+
+
+def test_uncommitted_changes_stop_the_build_unless_allowed(tmp_path):
+    root = tmp_path / "checkout"
+    manifest, cache = _synthetic_repo(root)
+    (root / "README.md").write_bytes(b"# edited but not committed\n")
+    out = tmp_path / "MonographPDF_9.9.9_Source.zip"
+    assert msa.build(out, cache, offline=True, root=root, manifest_path=manifest) == 1
+    assert not out.exists()
+    assert msa.build(out, cache, offline=True, root=root, manifest_path=manifest, allow_dirty=True) == 0
+    with zipfile.ZipFile(out) as z:  # still the committed bytes
+        assert z.read("MonographPDF_9.9.9_Source/monograph-pdf/README.md") == b"# Synthetic project\nline two\n"
+
+
+def test_unpacked_source_builds_are_deterministic_too(tmp_path, monkeypatch):
+    """Without .git the files on disk are used; SOURCE_DATE_EPOCH (or 1980-01-01) dates every entry."""
+    root = tmp_path / "unpacked"
+    manifest, cache = _synthetic_repo(root)
+    shutil.rmtree(root / ".git", onerror=lambda f, p, e: (os.chmod(p, 0o700), f(p)))
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "1767225600")  # 2026-01-01
+    a, b = tmp_path / "a" / "x.zip", tmp_path / "b" / "x.zip"
+    assert msa.build(a, cache, offline=True, root=root, manifest_path=manifest) == 0
+    assert msa.build(b, cache, offline=True, root=root, manifest_path=manifest) == 0
+    assert msa.sha256_of(a) == msa.sha256_of(b)
+    assert {e[1] for e in _entries(a).values()} == {(2026, 1, 1, 0, 0, 0)}
 
 
 def test_source_selection_ships_the_repository_documents():
@@ -180,7 +284,7 @@ def test_built_source_archive_is_complete_portable_and_private(tmp_path):
     SHA-256 recorded in SOURCE_MANIFEST.json."""
     manifest_path, cache = _small_manifest(tmp_path)
     out = tmp_path / f"MonographPDF_{VERSION}_Source.zip"
-    assert msa.build(out, cache, offline=True, manifest_path=manifest_path) == 0
+    assert msa.build(out, cache, offline=True, manifest_path=manifest_path, allow_dirty=True) == 0
     top = f"MonographPDF_{VERSION}_Source/"
     with zipfile.ZipFile(out) as z:
         infos = z.infolist()
@@ -221,7 +325,7 @@ def test_built_source_archive_is_complete_portable_and_private(tmp_path):
 def test_source_archive_is_built_and_passes_the_release_check(tmp_path):
     manifest_path, cache = _small_manifest(tmp_path)
     out = tmp_path / f"MonographPDF_{VERSION}_Source.zip"
-    assert msa.build(out, cache, offline=True, manifest_path=manifest_path) == 0
+    assert msa.build(out, cache, offline=True, manifest_path=manifest_path, allow_dirty=True) == 0
     with zipfile.ZipFile(out) as z:
         names = z.namelist()
         top = f"MonographPDF_{VERSION}_Source/"
@@ -248,7 +352,7 @@ def test_source_archive_is_built_and_passes_the_release_check(tmp_path):
 def test_source_check_rejects_tampered_or_incomplete_archives(tmp_path, capsys):
     manifest_path, cache = _small_manifest(tmp_path)
     good = tmp_path / "good.zip"
-    assert msa.build(good, cache, offline=True, manifest_path=manifest_path) == 0
+    assert msa.build(good, cache, offline=True, manifest_path=manifest_path, allow_dirty=True) == 0
     layout = tmp_path / "layout"
     recorded = {rel for c in MANIFEST["components"] for rel in c.get("binaries", {})}
     for rel in COPYLEFT_RELEASE_FILES:
@@ -290,7 +394,7 @@ def test_source_check_rejects_tampered_or_incomplete_archives(tmp_path, capsys):
 def test_source_check_rejects_a_release_with_different_ocr_dlls(tmp_path):
     manifest_path, cache = _small_manifest(tmp_path)
     archive = tmp_path / "src.zip"
-    assert msa.build(archive, cache, offline=True, manifest_path=manifest_path) == 0
+    assert msa.build(archive, cache, offline=True, manifest_path=manifest_path, allow_dirty=True) == 0
     layout = tmp_path / "layout"
     for rel in COPYLEFT_RELEASE_FILES:
         (layout / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -310,7 +414,7 @@ def z_read(path: Path, name: str) -> bytes:
 
 def test_offline_build_without_cached_archives_fails(tmp_path):
     out = tmp_path / "x.zip"
-    assert msa.build(out, tmp_path / "empty-cache", offline=True) == 1
+    assert msa.build(out, tmp_path / "empty-cache", offline=True, allow_dirty=True) == 1
     assert not out.exists()
 
 

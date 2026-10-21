@@ -79,6 +79,13 @@ installer\
     CITATION.cff, CHANGELOG.md, docs\USER_GUIDE.md, licenses\, runtime\
 ```
 
+`MonographPDF_<version>_Source.zip` is made from the committed files (`HEAD`) with their committed
+bytes, never from untracked files or uncommitted edits; the build stops if selected files have
+uncommitted changes (`make_source_archive.py --allow-dirty` only for a development archive). The
+archive is reproducible: the same commit and the same cached third-party archives give the same ZIP
+bytes, whatever the checkout's line-ending setting (fixed order, dates from the commit time,
+attributes and compression; the same Python version is assumed for zlib).
+
 Publishing a release is a separate, manual step: see the [Release checklist](RELEASE_CHECKLIST.md).
 
 ### Installer and uninstaller design

@@ -49,8 +49,9 @@ if (-not $EnvInfo.StartsWith("3.11|") -and -not $AllowOtherPython) {
 }
 
 $Pip = $EnvPy
+# Upgrading pip is optional (it needs a network connection); the pinned requirements below are not.
 & $Pip -m pip install --upgrade pip
-if ($LASTEXITCODE -ne 0) { throw "Upgrading pip failed." }
+if ($LASTEXITCODE -ne 0) { Write-Warning "Could not upgrade pip (no network?); continuing with the installed pip." }
 New-Item -ItemType Directory -Force -Path "$Root\packages\wheels" | Out-Null
 # Prefer offline install from flat wheels when present; otherwise use network + pip HTTP cache.
 $WheelCount = @(Get-ChildItem "$Root\packages\wheels\*.whl" -ErrorAction SilentlyContinue).Count

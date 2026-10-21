@@ -49,8 +49,12 @@ def test_setup_env_uses_python_311_and_stops_on_failed_installs():
     assert code.index('"py", "-3.11"') < code.index('@("python")')
     assert '$ver -eq "3.11"' in code and "AllowOtherPython" in code
     assert "(or 3.12+)" not in text
-    # every install step checks the exit code (it used to report "Environment ready" after a failure)
-    for step in ("-m venv", "pip install --upgrade pip", "-r \"$Root\\requirements.txt\"\n", "pip check"):
+    # every mandatory step stops on failure (it used to report "Environment ready" after a failure) ...
+    for step in ("-m venv", "-r \"$Root\\requirements.txt\"\n", "pip check"):
         at = code.find(step)
         assert at != -1, step
-        assert "$LASTEXITCODE -ne 0" in code[at:at + 400], step
+        assert re.search(r"if \(\$LASTEXITCODE -ne 0\) \{ throw ", code[at:at + 400]), step
+    # ... while the optional pip upgrade only warns, so an offline setup from packages\wheels still works
+    at = code.find("pip install --upgrade pip")
+    nxt = code[at:].splitlines()[1]
+    assert "$LASTEXITCODE -ne 0" in nxt and "Write-Warning" in nxt and "throw" not in nxt

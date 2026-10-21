@@ -130,3 +130,34 @@ def test_release_build_verifies_the_ocr_engine_before_packaging():
     verify_at = text.find("stage_ocr_engine.py\") --verify")
     copy_at = text.find("foreach ($Side in @(\"engines\\ocr\", \"models\\tessdata\"))")
     assert verify_at != -1 and copy_at != -1 and verify_at < copy_at
+
+
+def _snapshot(*folders: Path) -> dict[str, bytes]:
+    return {f"{d.name}/{p.name}": p.read_bytes() for d in folders for p in sorted(d.iterdir())}
+
+
+@pytest.mark.parametrize("bad", ["newer_engine", "language_data"])
+def test_a_refused_engine_never_replaces_a_valid_one(env, bad):
+    """A valid engine already in place stays byte-identical when a later staging is refused (another
+    Tesseract version, or language data whose hash differs): nothing is copied before every file passed."""
+    installed, served = env
+    assert so.main(["--from", str(installed), "--require"]) == 0
+    before = _snapshot(so.ENGINE, so.TESSDATA)
+    if bad == "newer_engine":
+        (installed / "tesseract.exe").write_bytes(b"MZ tess 5.5")
+    else:
+        served["eng.traineddata"] = b"other model"
+    assert so.main(["--from", str(installed), "--require"]) == 1
+    assert _snapshot(so.ENGINE, so.TESSDATA) == before
+    assert so.main(["--verify"]) == 0
+
+
+def test_extra_files_in_the_installation_are_never_copied(env):
+    """Only pinned files are taken from the Tesseract installation; anything else there (another DLL,
+    an uninstaller, documentation) is ignored, so it cannot reach the release."""
+    installed, _ = env
+    (installed / "libunapproved.dll").write_bytes(b"MZ extra")
+    (installed / "unins000.exe").write_bytes(b"MZ uninstaller")
+    assert so.main(["--from", str(installed), "--require"]) == 0
+    assert sorted(p.name for p in so.ENGINE.iterdir()) == ["libtesseract-5.dll", "tesseract.exe"]
+    assert so.main(["--verify"]) == 0
