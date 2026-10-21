@@ -110,6 +110,36 @@ qInstallMessageHandler(_qt_handler)
 sys.excepthook = _excepthook
 
 
+def _native_windows() -> list:
+    """Visible Win32 top-level windows owned by this process (catches native dialogs Qt does not list)."""
+    if not sys.platform.startswith("win"):
+        return []
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    found = []
+    pid = os.getpid()
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def cb(hwnd, _l):
+        owner = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+        if owner.value == pid and user32.IsWindowVisible(hwnd):
+            title = ctypes.create_unicode_buffer(256)
+            cls = ctypes.create_unicode_buffer(256)
+            user32.GetWindowTextW(hwnd, title, 256)
+            user32.GetClassNameW(hwnd, cls, 256)
+            found.append(f"{cls.value}:{title.value}")
+        return True
+
+    try:
+        user32.EnumWindows(cb, 0)
+    except Exception as exc:  # noqa: BLE001
+        return [f"EnumWindows failed: {exc}"]
+    return found
+
+
 LAST_UI = [[]]  # visible top-level windows, refreshed on the GUI thread, reported if a step hangs
 
 
@@ -119,6 +149,7 @@ def _watchdog():
         if STEP_DEADLINE[0] and time.time() > STEP_DEADLINE[0]:
             log(f"!!! TIMEOUT in step {CUR.get('step')} — dumping stacks and exiting")
             log(f"    windows open at the last check: {LAST_UI[0]}")
+            log(f"    native windows of this process: {_native_windows()}")
             faulthandler.dump_traceback(file=LOG, all_threads=True)
             CUR.setdefault("exceptions", []).append("TIMEOUT (step hung)")
             RESULTS.append(dict(CUR))
