@@ -32,13 +32,19 @@ if (-not $Setup -or -not (Test-Path $Setup)) { Write-Error "Setup.exe not found.
 # virtualised %APPDATA% / %LOCALAPPDATA%: the backup below would read one view while the installer,
 # the uninstaller and the restore write another, and the user's real settings could be removed and not
 # restored. Refuse to run there.
-Add-Type -Namespace MonographTest -Name AppModel -MemberDefinition @'
-[DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-public static extern int GetCurrentPackageFullName(ref int length, System.Text.StringBuilder name);
-'@
-$pkgLen = 0
-$pkgRc = [MonographTest.AppModel]::GetCurrentPackageFullName([ref]$pkgLen, $null)
-if ($pkgRc -ne 15700 -and -not $AllowPackagedHost) {  # 15700 = APPMODEL_ERROR_NO_PACKAGE
+function Test-AppDataVirtualised {
+    # Write a probe file into %APPDATA% and look for it in any package's private copy of AppData
+    # (%LOCALAPPDATA%\Packages\<package>\LocalCache\Roaming). Package identity alone is not a reliable
+    # sign: processes started by a packaged app can be redirected without reporting a package.
+    $probe = "monograph-installer-test-probe-" + [guid]::NewGuid().ToString("N") + ".tmp"
+    $path = Join-Path $env:APPDATA $probe
+    try { Set-Content -LiteralPath $path -Value "probe" -ErrorAction Stop } catch { return $true }
+    $redirected = @(Get-ChildItem (Join-Path $env:LOCALAPPDATA "Packages") -Directory -ErrorAction SilentlyContinue |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "LocalCache\Roaming\$probe") }).Count -gt 0
+    Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+    return $redirected
+}
+if ((Test-AppDataVirtualised) -and -not $AllowPackagedHost) {
     Write-Error ("This PowerShell runs inside an app package, where AppData is virtualised; your settings " +
                  "could not be backed up and restored reliably. Run the test from a normal PowerShell window.")
     exit 94
