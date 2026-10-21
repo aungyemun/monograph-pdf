@@ -79,7 +79,7 @@ class ProgressDialog(QDialog):
         row.addWidget(self._cancel_btn)
         layout.addLayout(row)
         self._worker: OrganizeWorker | None = None
-        self.result = None
+        self.work_result = None
 
     def _on_cancel(self) -> None:
         if self._worker:
@@ -99,7 +99,7 @@ class ProgressDialog(QDialog):
         self._bar.setValue(int(100 * cur / max(total, 1)))
 
     def _on_ok(self, result) -> None:
-        self.result = result
+        self.work_result = result
         self.accept()
 
     def _on_fail(self, message: str) -> None:
@@ -107,7 +107,7 @@ class ProgressDialog(QDialog):
         self.reject()
 
     def _on_cancelled(self) -> None:
-        self.result = None
+        self.work_result = None
         self.reject()
 
 
@@ -264,8 +264,8 @@ class MergeDialog(QDialog):
         worker.set_task(task)
         dlg = ProgressDialog("Combining…", self)
         dlg.start(worker)
-        if dlg.exec() == dlg.DialogCode.Accepted and dlg.result:
-            self.output_path = Path(dlg.result)
+        if dlg.exec() == dlg.DialogCode.Accepted and dlg.work_result:
+            self.output_path = Path(dlg.work_result)
             self.accept()
 
 
@@ -341,8 +341,8 @@ class SplitDialog(QDialog):
         worker.set_task(task)
         dlg = ProgressDialog("Splitting…", self)
         dlg.start(worker)
-        if dlg.exec() == dlg.DialogCode.Accepted and dlg.result:
-            self.output_paths = list(dlg.result)
+        if dlg.exec() == dlg.DialogCode.Accepted and dlg.work_result:
+            self.output_paths = list(dlg.work_result)
             self.accept()
 
 

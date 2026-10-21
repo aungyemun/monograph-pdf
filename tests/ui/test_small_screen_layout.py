@@ -115,3 +115,16 @@ def test_stamp_dialog_checkbox_label_not_clipped(qtbot, tmp_path, monkeypatch):
 def test_font_size_box_stays_readable(window):
     combo = window._font_size  # noqa: SLF001
     assert combo.minimumWidth() >= combo.fontMetrics().horizontalAdvance("72 pt") + 30
+
+
+def test_dialogs_do_not_shadow_qdialog_result():
+    """A dialog attribute named ``result`` hides QDialog.result(); code (and Qt's own helpers) calling
+    dlg.result() then fails with "object is not callable"."""
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2] / "ui"
+    offenders = [f"{p.name}:{i}" for p in root.glob("*.py")
+                 for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
+                 if re.search(r"\bself\.result\s*=", line)]
+    assert not offenders, offenders

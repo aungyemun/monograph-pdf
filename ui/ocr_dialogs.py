@@ -111,7 +111,7 @@ class OcrProgressDialog(QDialog):
         row.addWidget(self._cancel_btn)
         layout.addLayout(row)
         self._worker: OcrWorker | None = None
-        self.result = None
+        self.ocr_result = None
 
     def _on_cancel(self) -> None:
         if self._worker:
@@ -131,7 +131,7 @@ class OcrProgressDialog(QDialog):
         self._bar.setValue(int(100 * cur / max(total, 1)))
 
     def _on_ok(self, result) -> None:
-        self.result = result
+        self.ocr_result = result
         self.accept()
 
     def _on_fail(self, message: str) -> None:
@@ -139,7 +139,7 @@ class OcrProgressDialog(QDialog):
         self.reject()
 
     def _on_cancelled(self) -> None:
-        self.result = None
+        self.ocr_result = None
         self.reject()
 
 
@@ -175,7 +175,7 @@ class OcrTextDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.resize(640, 520)
-        self.result = result
+        self.ocr_result = result
         self._start_dir = start_dir
         self._doc_title = doc_title
         self._metadata = metadata
@@ -253,7 +253,7 @@ class OcrTextDialog(QDialog):
         path = path or self._target("Save as Word Document", ".docx", "Word document (*.docx)")
         if not path:
             return ""
-        pages = [p for p in self.result.pages if p.words]
+        pages = [p for p in self.ocr_result.pages if p.words]
         try:
             write_docx(pages, Path(path), title=self._doc_title, edited_text=self.text.toPlainText(),
                        metadata=self._metadata)

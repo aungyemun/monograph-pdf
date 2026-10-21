@@ -2406,9 +2406,9 @@ class MainWindow(QMainWindow):
         worker = OcrWorker(self._document, opts, None, self)
         dlg = OcrProgressDialog(self)
         dlg.start(worker)
-        ok = dlg.exec() == dlg.DialogCode.Accepted and dlg.result is not None
+        ok = dlg.exec() == dlg.DialogCode.Accepted and dlg.ocr_result is not None
         worker.wait(10000)
-        return dlg.result if ok else None
+        return dlg.ocr_result if ok else None
 
     def _show_ocr_text(self, result, title: str, languages: str) -> None:
         from core.convert.office_metadata import document_metadata
@@ -2561,10 +2561,10 @@ class MainWindow(QMainWindow):
         )
         dlg = OcrProgressDialog(self)
         dlg.start(worker)
-        accepted = dlg.exec() == dlg.DialogCode.Accepted and dlg.result is not None
+        accepted = dlg.exec() == dlg.DialogCode.Accepted and dlg.ocr_result is not None
         self.clear_analysis_progress()
         if accepted:
-            result = dlg.result
+            result = dlg.ocr_result
             low = sum(1 for p in result.pages for w in p.words if w.low_confidence)
             self.statusBar().showMessage(
                 f"OCR saved to {Path(dest).name} — {low} low-confidence word(s)",

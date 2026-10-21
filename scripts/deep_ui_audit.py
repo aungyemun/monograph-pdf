@@ -43,6 +43,7 @@ for sub in ("files", "inputs", "shots"):
 os.environ["MONOGRAPH_PDF_USER_DATA_DIR"] = str(OUT / "userdata")
 os.environ["MONOGRAPH_PDF_RUNTIME_DIR"] = str(OUT / "runtime")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+CAN_PRINT = sys.platform.startswith("win") and os.environ["QT_QPA_PLATFORM"] != "offscreen"
 if sys.platform.startswith("win") and os.environ["QT_QPA_PLATFORM"] == "offscreen":
     os.environ.setdefault("QT_QPA_FONTDIR", os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts"))
 WINDOWS = sys.platform.startswith("win")
@@ -868,8 +869,9 @@ def file_copies():
 
 @step("06 File > Print (to PDF) with unsaved edits")
 def file_print():
-    if not WINDOWS:
-        note("printing needs a printer driver (Windows run)")
+    if not CAN_PRINT:
+        note("printing needs a printer driver: run on Windows with QT_QPA_PLATFORM=windows "
+             "(the print dialog lists no printers under the offscreen platform)")
         return
     open_sample("sample_text.pdf")
     from PySide6.QtGui import QPageLayout
@@ -1622,8 +1624,9 @@ def combo_save():
 
 @step("C2 combination: unsaved edits + page ops + print")
 def combo_print():
-    if not WINDOWS:
-        note("printing needs a printer driver (Windows run)")
+    if not CAN_PRINT:
+        note("printing needs a printer driver: run on Windows with QT_QPA_PLATFORM=windows "
+             "(the print dialog lists no printers under the offscreen platform)")
         return
     open_sample("sample_text.pdf")
     import ui.print_dialog as pd
