@@ -64,7 +64,7 @@ class OcrEngine:
             env.pop(key, None)
         return env
 
-    def _run(self, args: list[str], image_path: Path, timeout: int) -> subprocess.CompletedProcess:
+    def _tesseract(self, args: list[str], image_path: Path, timeout: int) -> subprocess.CompletedProcess:
         data = Path(image_path).read_bytes()  # Python opens Unicode paths itself
         return subprocess.run(
             [str(self.exe), "stdin", "stdout", *args],
@@ -90,7 +90,7 @@ class OcrEngine:
         args = ["-l", lang, "--psm", str(psm), "--oem", str(oem), "-c", "tessedit_create_tsv=1",
                 *(extra_args or []), "tsv"]
         try:
-            proc = self._run(args, image_path, 180)
+            proc = self._tesseract(args, image_path, 180)
         except FileNotFoundError as exc:
             raise OcrUnavailableError(str(exc)) from exc
         except subprocess.TimeoutExpired as exc:
@@ -106,7 +106,7 @@ class OcrEngine:
         if not (self.tessdata / "osd.traineddata").is_file():
             return {"rotate": 0, "orientation_confidence": 0.0, "script": "Unknown"}
         try:
-            proc = self._run(["--psm", "0", "-l", "osd"], image_path, 60)
+            proc = self._tesseract(["--psm", "0", "-l", "osd"], image_path, 60)
         except (OSError, subprocess.TimeoutExpired):
             return {"rotate": 0, "orientation_confidence": 0.0, "script": "Unknown"}
         # OSD results are printed to stdout (and some builds print them to stderr)
