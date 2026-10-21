@@ -240,6 +240,21 @@ class MuPdfBackend:
         pix = page.get_pixmap(matrix=matrix, alpha=alpha)
         return pix.tobytes("png")
 
+    def render_rgb(
+        self,
+        page_index: int,
+        *,
+        scale: float,
+        clip: tuple[float, float, float, float] | None = None,
+    ) -> tuple[bytes, int, int, int]:
+        """RGB samples of the page (or of ``clip``, display space in points) at ``scale`` pixels per
+        point: (samples, width, height, stride). No PNG encoding — used for the on-screen view."""
+        page = self._doc.load_page(page_index)
+        matrix = fitz.Matrix(scale, scale)
+        area = fitz.Rect(clip) & page.rect if clip is not None else None
+        pix = page.get_pixmap(matrix=matrix, alpha=False, clip=area, colorspace=fitz.csRGB)
+        return bytes(pix.samples), pix.width, pix.height, pix.stride
+
     def render_thumbnail_png(self, page_index: int, max_edge_px: int = 160) -> bytes:
         page = self._doc.load_page(page_index)
         rect = page.rect

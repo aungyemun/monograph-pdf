@@ -41,6 +41,11 @@ class ZoomMode(str, Enum):
 
 
 _PT_TO_CSS = 96.0 / 72.0
+# A page rendered larger than this many device pixels is shown as a low-resolution base plus sharp
+# tiles of the visible part (very large pages — A0 posters — or high zoom on a high-DPI screen).
+MAX_PAGE_PIXELS = 24_000_000
+TILE_PX = 1024
+MAX_TILES = 48
 
 
 def _theme_palette():
@@ -154,6 +159,10 @@ class _CanvasWidget(QWidget):
         self._side_pad = 16
         self._layouts: list[QRect] = []
         self._cache: RenderCache[RenderKey, QPixmap] = RenderCache(max_entries=20)
+        # Sharp tiles of very large renders: (page, zoom bucket, dpr bucket, tx, ty) -> QPixmap
+        from collections import OrderedDict
+
+        self._tiles: OrderedDict[tuple, QPixmap] = OrderedDict()
         self._focus_page = 0
         self._retain_radius = 3
         self._highlights: list[tuple[int, object]] = []
@@ -214,6 +223,7 @@ class _CanvasWidget(QWidget):
         if self._edit is not None:
             self._edit.remove_listener(self._on_edit_changed)
         self._cache.clear()
+        self._tiles.clear()
         self._document = None
         self._edit = None
         self._pages = []
@@ -454,6 +464,7 @@ class _CanvasWidget(QWidget):
         self._zoom = max(0.1, min(8.0, zoom))
         self._recompute_layout()
         self._cache.clear()
+        self._tiles.clear()
         self.zoomChanged.emit(self._zoom)
         self._schedule_render()
         _ = viewport_size
@@ -477,6 +488,7 @@ class _CanvasWidget(QWidget):
         self._zoom = max(0.1, min(8.0, z))
         self._recompute_layout()
         self._cache.clear()
+        self._tiles.clear()
         self.zoomChanged.emit(self._zoom)
         self._schedule_render()
 
@@ -502,12 +514,12 @@ class _CanvasWidget(QWidget):
             self.close_text_editor(commit=True)
         self._layouts = []
         y = self._page_gap
-        max_w = 0
-        for page in self._pages:
-            w = int(page.display_width_pt * _PT_TO_CSS * self._zoom)
-            h = int(page.display_height_pt * _PT_TO_CSS * self._zoom)
-            max_w = max(max_w, w)
-            self._layouts.append(QRect(self._side_pad, y, w, h))
+        sizes = [(int(p.display_width_pt * _PT_TO_CSS * self._zoom), int(p.display_height_pt * _PT_TO_CSS * self._zoom))
+                 for p in self._pages]
+        max_w = max((w for w, _h in sizes), default=0)
+        for w, h in sizes:
+            # each page at its own size and proportions; narrower pages of a mixed-size document centred
+            self._layouts.append(QRect(self._side_pad + (max_w - w) // 2, y, w, h))
             y += h + self._page_gap
         self.setMinimumSize(QSize(max_w + 2 * self._side_pad, y + self._page_gap))
         self.resize(self.minimumSize())
@@ -579,6 +591,17 @@ class _CanvasWidget(QWidget):
         sx, sy = self._scale(page_index)
         return QPoint(layout.left() + int(pt.x * sx), layout.top() + int(pt.y * sy))
 
+    def _render_scale(self, dpr: float) -> float:
+        return self._zoom * _PT_TO_CSS * max(0.5, dpr)
+
+    @staticmethod
+    def _to_pixmap(rgb: tuple[bytes, int, int, int], dpr: float) -> QPixmap:
+        samples, w, h, stride = rgb
+        image = QImage(samples, w, h, stride, QImage.Format.Format_RGB888).copy()
+        pix = QPixmap.fromImage(image)
+        pix.setDevicePixelRatio(dpr)
+        return pix
+
     def _render_visible(self) -> None:
         if self._document is None or self._document.is_closed or not self._layouts:
             return
@@ -589,20 +612,61 @@ class _CanvasWidget(QWidget):
         first = self.page_at_y(visible.top())
         last = self.page_at_y(visible.bottom())
         dpr = self._device_pixel_ratio()
+        scale = self._render_scale(dpr)
         for i in range(max(0, first - 1), min(len(self._layouts), last + 2)):
-            key = RenderKey.make(i, self._zoom, self._pages[i].rotation, dpr)
-            if self._cache.get(key) is not None:
-                continue
+            page = self._pages[i]
+            full_px = page.display_width_pt * scale * page.display_height_pt * scale
+            key = RenderKey.make(i, self._zoom, page.rotation, dpr)
             try:
-                png = self._document.render_pixmap_png(i, zoom=self._zoom * _PT_TO_CSS, dpr=dpr)
-                image = QImage.fromData(png, "PNG")
-                pix = QPixmap.fromImage(image)
-                pix.setDevicePixelRatio(dpr)
-                self._cache.put(key, pix)
+                if self._cache.get(key) is None:
+                    if full_px <= MAX_PAGE_PIXELS:
+                        self._cache.put(key, self._to_pixmap(self._document.render_rgb(i, scale=scale), dpr))
+                    else:
+                        # low-resolution base for the whole page (shown while tiles are missing)
+                        base = scale * (MAX_PAGE_PIXELS / 4 / full_px) ** 0.5
+                        pix = self._to_pixmap(self._document.render_rgb(i, scale=base), 1.0)
+                        self._cache.put(key, pix)
+                if full_px > MAX_PAGE_PIXELS and first <= i <= last:
+                    self._render_tiles(i, visible, scale, dpr)
             except Exception:  # noqa: BLE001
                 continue
         self._cache.retain_near_pages(self._focus_page, self._retain_radius, lambda k: k.page_index)
         self.update()
+
+    def _render_tiles(self, i: int, visible: QRect, scale: float, dpr: float) -> None:
+        """Render the visible part of page ``i`` as sharp device-pixel tiles."""
+        layout = self._layouts[i]
+        part = visible.intersected(layout)
+        if part.isEmpty():
+            return
+        x0 = int((part.left() - layout.left()) * dpr) // TILE_PX
+        x1 = int((part.right() - layout.left()) * dpr) // TILE_PX
+        y0 = int((part.top() - layout.top()) * dpr) // TILE_PX
+        y1 = int((part.bottom() - layout.top()) * dpr) // TILE_PX
+        zb, db = int(round(self._zoom * 100)), int(round(dpr * 100))
+        for ty in range(y0, y1 + 1):
+            for tx in range(x0, x1 + 1):
+                key = (i, zb, db, tx, ty)
+                if key in self._tiles:
+                    self._tiles.move_to_end(key)
+                    continue
+                clip = (tx * TILE_PX / scale, ty * TILE_PX / scale, (tx + 1) * TILE_PX / scale, (ty + 1) * TILE_PX / scale)
+                self._tiles[key] = self._to_pixmap(self._document.render_rgb(i, scale=scale, clip=clip), dpr)
+                while len(self._tiles) > MAX_TILES:
+                    self._tiles.popitem(last=False)
+
+    def _paint_tiles(self, painter: QPainter, i: int, dpr: float) -> None:
+        if not self._tiles:
+            return
+        layout = self._layouts[i]
+        zb, db = int(round(self._zoom * 100)), int(round(dpr * 100))
+        for (pi, z, d, tx, ty), pix in self._tiles.items():
+            if pi != i or z != zb or d != db:
+                continue
+            x = layout.left() + tx * TILE_PX / dpr
+            y = layout.top() + ty * TILE_PX / dpr
+            painter.drawPixmap(QRectF(x, y, pix.width() / dpr, pix.height() / dpr), pix,
+                               QRectF(0, 0, pix.width(), pix.height()))
 
     # --- painting --------------------------------------------------------
 
@@ -630,6 +694,7 @@ class _CanvasWidget(QWidget):
             pix = self._cache.get(key)
             if pix is not None:
                 painter.drawPixmap(rect, pix)
+            self._paint_tiles(painter, i, dpr)
             for page_index, pdf_rect in self._highlights:
                 if page_index != i:
                     continue

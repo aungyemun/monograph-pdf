@@ -15,13 +15,15 @@ from core.organize.page_ops import parse_page_ranges
 
 class ColorMode(str, Enum):
     COLOR = "color"
-    GRAYSCALE = "grayscale"
+    GRAYSCALE = "grayscale"  # shades of gray
+    MONOCHROME = "monochrome"  # black and white only (no gray): pictures are dithered
 
 
 class PageScaling(str, Enum):
     FIT = "fit"  # scale every page to the printable area
     ACTUAL = "actual"  # 100 %, centred (large pages are cropped)
     SHRINK = "shrink"  # 100 %, but shrink pages that are larger than the printable area
+    CUSTOM = "custom"  # a chosen percentage, centred (cropped if larger than the printable area)
 
 
 def place_page(
@@ -30,6 +32,7 @@ def place_page(
     area_w: float,
     area_h: float,
     scaling: PageScaling | str = PageScaling.FIT,
+    percent: float = 100.0,
 ) -> tuple[float, float, float, float]:
     """Where a page lands inside the printable area: (x, y, w, h), all in the same unit.
 
@@ -44,10 +47,55 @@ def place_page(
         k = fit
     elif mode == PageScaling.SHRINK:
         k = min(1.0, fit)
+    elif mode == PageScaling.CUSTOM:
+        k = max(0.05, min(4.0, float(percent) / 100.0))
     else:
         k = 1.0
     w, h = page_w * k, page_h * k
     return (area_w - w) / 2, (area_h - h) / 2, w, h
+
+
+PAGES_PER_SHEET = (1, 2, 4, 6, 9)
+
+
+def sheet_grid(n_up: int, area_w: float, area_h: float) -> tuple[int, int]:
+    """(columns, rows) for ``n_up`` pages on one sheet, the longer side of the area getting more."""
+    n_up = n_up if n_up in PAGES_PER_SHEET else 1
+    small, large = {1: (1, 1), 2: (1, 2), 4: (2, 2), 6: (2, 3), 9: (3, 3)}[n_up]
+    return (large, small) if area_w >= area_h else (small, large)
+
+
+def layout_sheet(page_sizes: list[tuple[float, float]], n_up: int, area_w: float, area_h: float,
+                 scaling: PageScaling | str = PageScaling.FIT, percent: float = 100.0,
+                 gap: float = 8.0) -> list[tuple[float, float, float, float]]:
+    """Placement (x, y, w, h) of each page of one sheet inside the printable area. One page per
+    sheet follows ``scaling``; several pages per sheet are each fitted into their cell, in reading
+    order (left to right, then down)."""
+    if n_up <= 1:
+        return [place_page(page_sizes[0][0], page_sizes[0][1], area_w, area_h, scaling, percent)] if page_sizes else []
+    cols, rows = sheet_grid(n_up, area_w, area_h)
+    cw = (area_w - gap * (cols - 1)) / cols
+    ch = (area_h - gap * (rows - 1)) / rows
+    out = []
+    for i, (pw, ph) in enumerate(page_sizes[: cols * rows]):
+        c, r = i % cols, i // cols
+        x, y, w, h = place_page(pw, ph, cw, ch, PageScaling.FIT)
+        out.append((c * (cw + gap) + x, r * (ch + gap) + y, w, h))
+    return out
+
+
+def group_sheets(pages: list[int], n_up: int) -> list[list[int]]:
+    n = max(1, n_up)
+    return [pages[i:i + n] for i in range(0, len(pages), n)]
+
+
+def sheet_landscape(page_sizes: list[tuple[float, float]], n_up: int) -> bool:
+    """Automatic paper orientation for a sheet: match the page for 1, 4 and 9 per sheet; turn the
+    paper the other way for 2 and 6 per sheet (two portrait pages fit side by side on landscape)."""
+    if not page_sizes:
+        return False
+    land = auto_landscape(*page_sizes[0])
+    return (not land) if n_up in (2, 6) else land
 
 
 def auto_landscape(page_w: float, page_h: float) -> bool:
@@ -223,9 +271,7 @@ def render_page_png_for_print(
     png = None if comments else _render_without_comments(document, page_index, zoom)
     if png is None:
         png = document.render_pixmap_png(page_index, zoom=zoom)
-    if color_mode != ColorMode.GRAYSCALE:
-        return png
-    return _png_to_grayscale(png)
+    return apply_color_mode(png, color_mode)
 
 
 def order_print_pages(pages: list[int], *, subset: str = "all", reverse: bool = False) -> list[int]:
@@ -238,13 +284,26 @@ def order_print_pages(pages: list[int], *, subset: str = "all", reverse: bool = 
 
 
 def _png_to_grayscale(png: bytes) -> bytes:
+    return apply_color_mode(png, ColorMode.GRAYSCALE)
+
+
+def apply_color_mode(png: bytes, mode: ColorMode | str) -> bytes:
+    """The rendered page for the chosen colour mode (the document itself is never changed).
+
+    Grayscale keeps shades of gray. Black and white uses only black and white pixels: Floyd–Steinberg
+    dithering keeps photographs, microscopy images and charts recognisable, while text and thin lines,
+    rendered at print resolution, stay solid."""
+    mode = ColorMode(mode)
+    if mode == ColorMode.COLOR:
+        return png
     import io
 
     from PIL import Image
 
     img = Image.open(io.BytesIO(png))
-    if img.mode != "L":
-        img = img.convert("L")
+    img = img.convert("L")
+    if mode == ColorMode.MONOCHROME:
+        img = img.convert("1", dither=Image.Dither.FLOYDSTEINBERG)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
@@ -264,9 +323,9 @@ def render_pages_for_print(
         dpi=options.dpi,
         name_prefix="print",
     )
-    if options.color_mode == ColorMode.GRAYSCALE:
+    if options.color_mode != ColorMode.COLOR:
         for path in paths:
-            path.write_bytes(_png_to_grayscale(path.read_bytes()))
+            path.write_bytes(apply_color_mode(path.read_bytes(), options.color_mode))
     return paths
 
 
@@ -284,3 +343,27 @@ def iter_print_page_images(
             dpi=dpi,
             color_mode=color_mode,
         )
+
+
+def save_pages_as_pdf(document: PdfDocument, pages: list[int], destination: Path, *, comments: bool = True) -> Path:
+    """Application "Save as PDF" from the print dialog: the chosen pages, in print order, copied as PDF
+    pages — text stays text and pictures keep their resolution (nothing is rasterised). Print-only
+    settings (paper, scaling, colour, pages per sheet) do not apply. Written atomically."""
+    import fitz
+
+    src = document._backend._doc  # noqa: SLF001
+    out = fitz.open()
+    try:
+        for index in pages:
+            out.insert_pdf(src, from_page=index, to_page=index, annots=True)
+            if not comments:
+                page = out[-1]
+                for annot in [a for a in page.annots() if _is_comment(a)]:
+                    page.delete_annot(annot)
+        destination = Path(destination)
+        tmp = destination.with_name(destination.name + ".part")
+        out.save(tmp.as_posix(), garbage=3, deflate=True)
+    finally:
+        out.close()
+    tmp.replace(destination)
+    return destination

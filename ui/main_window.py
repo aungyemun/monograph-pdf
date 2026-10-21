@@ -5654,23 +5654,54 @@ class MainWindow(QMainWindow):
             if dlg.exec() != dlg.DialogCode.Accepted:
                 return
             settings = dlg.settings()
+            if dlg.save_as_pdf:
+                self._print_save_as_pdf(source, settings)
+                return
             printer = dlg.printer()
             if printer is None or not settings.pages:
                 return
             dpi = effective_print_dpi(printer)
-            self.set_analysis_progress(f"Printing {len(settings.pages)} page(s)…")
-            QApplication.processEvents()
-            count = print_document_pages(
-                printer,
-                source.document,
-                settings.pages,
-                dpi=dpi,
-                color_mode=settings.color_mode,
-                scaling=settings.scaling,
-                orientation=settings.orientation,
-                comments=settings.comments,
-            )
-            mode = "black & white" if settings.color_mode == ColorMode.GRAYSCALE else "color"
+            from PySide6.QtWidgets import QProgressDialog
+
+            from ui.print_dialog import PrintCancelled, PrintJobError
+
+            progress = QProgressDialog("Printing…", "Cancel", 0, len(settings.pages), self)
+            progress.setWindowTitle("Print")
+            progress.setMinimumDuration(400)
+
+            def step(done: int, total: int) -> bool:
+                progress.setValue(done)
+                progress.setLabelText(f"Printing page {done + 1} of {total}…")
+                QApplication.processEvents()
+                return not progress.wasCanceled()
+
+            try:
+                count = print_document_pages(
+                    printer,
+                    source.document,
+                    settings.pages,
+                    dpi=dpi,
+                    color_mode=settings.color_mode,
+                    scaling=settings.scaling,
+                    orientation=settings.orientation,
+                    comments=settings.comments,
+                    percent=settings.percent,
+                    n_up=settings.n_up,
+                    progress=step,
+                )
+            except PrintCancelled as cancelled:
+                self.statusBar().showMessage(
+                    f"Printing cancelled after {cancelled.printed} page(s); the rest was not sent", 8000)
+                return
+            except PrintJobError as exc:
+                self.report_error("Print", str(exc),
+                                  hint="Check that the printer is switched on and connected, or choose another "
+                                       "printer. Your document and unsaved changes are kept.")
+                return
+            finally:
+                progress.close()
+            mode = {ColorMode.COLOR: "color", ColorMode.GRAYSCALE: "grayscale",
+                    ColorMode.MONOCHROME: "black and white"}[settings.color_mode]
             self.statusBar().showMessage(
                 f"Sent {count} page(s) ({mode}) to {printer.printerName() or 'printer'}", 6000
             )
@@ -5680,6 +5711,25 @@ class MainWindow(QMainWindow):
             if source is not None:
                 source.close()
             self.clear_analysis_progress()
+
+    def _print_save_as_pdf(self, source, settings) -> None:
+        """Print dialog ▸ Save as PDF: the chosen pages of the current document state as a PDF file."""
+        from core.printing import save_pages_as_pdf
+        from ui.convert_dialogs import choose_save
+
+        dest = choose_save(self, "Save as PDF", self._suggest("print", "pdf"), "PDF (*.pdf)")
+        if not dest:
+            return
+        if self._document is not None and Path(dest).resolve() == Path(self._document.path).resolve():
+            self.report_error("Save as PDF", "Choose a new file name — the open PDF cannot be replaced here.")
+            return
+        try:
+            save_pages_as_pdf(source.document, settings.pages, Path(dest), comments=settings.comments)
+        except OSError as exc:
+            self.report_error("Save as PDF", f"The file could not be written: {exc.strerror or exc}",
+                              hint="Choose another folder (the disk may be full or the folder read-only).")
+            return
+        self.statusBar().showMessage(f"Saved {len(settings.pages)} page(s) as {Path(dest).name}", 7000)
 
     def _show_about(self) -> None:
         AboutDialog(self, updates=self._updates).exec()
