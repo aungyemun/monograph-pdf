@@ -30,12 +30,12 @@ Fonts that are not installed are substituted by the office suite.
 
 ## Verified behaviour
 
-The following ran with LibreOffice 24.2 on Linux, in `tests/integration/test_office_round_trip.py`:
+The following ran in `tests/integration/test_office_round_trip.py` with LibreOffice 24.2 on Linux, and with Microsoft 365 (Word / PowerPoint 16.0.20430) on Windows 11:
 
 - PPTX (custom 7.5 × 10 in portrait slides with text, a filled shape, a picture, a chart and a table) → PDF. Each page was 540 × 720 pt. The text, picture, colour (within 30/255) and title were kept.
 - DOCX (an A4 portrait section with header, footer, coloured text, a table and a picture, then an A3 landscape section) → PDF. The page sizes were 595 × 842 and 1191 × 842 pt. The header, footer, table text, picture, title and author were present.
 
-Microsoft Office conversion is tested only on Windows machines that have Office installed (`tests/integration/test_office_to_pdf.py`). When Office is not present, those tests are reported as NOT VERIFIED rather than passed.
+With Word, section sizes come back within 1 pt (Word stores sizes in twips). On a machine with no office suite, these tests are reported as NOT VERIFIED rather than passed.
 
 ## Output
 

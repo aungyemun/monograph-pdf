@@ -13,3 +13,8 @@
 *.docx binary
 *.xlsx binary
 *.pptx binary
+
+# Trust configuration bundled into the program: checked out byte-for-byte as committed on every
+# platform, so the release check can compare the shipped file with the source archive exactly
+resources/update/*.json text eol=lf
+resources/diagnostics/*.json text eol=lf

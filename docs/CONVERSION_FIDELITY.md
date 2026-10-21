@@ -14,7 +14,7 @@ Conversions between PDF and Office formats can be lossy. This page describes wha
 
 ## Round trips (tests/integration/test_office_round_trip.py)
 
-All four round trips use LibreOffice 24.2 on Linux. On Windows they use whichever office suite is installed.
+All four round trips passed with LibreOffice 24.2 on Linux and with Microsoft 365 (Word / PowerPoint 16.0.20430) on Windows 11.
 
 | Round trip | Compared | Result |
 |---|---|---|
@@ -35,4 +35,4 @@ Unit tests (`tests/unit/test_office_metadata_and_pptx_sizes.py`) cover the follo
 - **Vertical Japanese text and complex scripts.** These are kept as pictures in layout mode. In editable mode, each line keeps its angle, but vertical layout is not reconstructed.
 - **Keep-layout DOCX.** Complex vector drawings, transparency groups and form fields become pictures or are dropped by the layout engine.
 - **Forms, annotations and digital signatures.** These have no Office equivalent. Annotations are visible in the page picture (layout PPTX) but cannot be edited.
-- **Opening in Microsoft Office.** This is verified only where Office is installed. A file is never called compatible on the basis of its extension.
+- **Opening in Microsoft Office.** This was verified with Microsoft 365 16.0.20430 on Windows 11 (the round trips above). Other Office versions have not been tested. A file is never called compatible on the basis of its extension.

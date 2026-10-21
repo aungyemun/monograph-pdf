@@ -77,7 +77,9 @@ Every converter writes to a temporary file in the destination folder and swaps i
 ## Verification
 
 - **Package structure.** The generated files are checked for valid packages: every part has a content type and every internal relationship target exists. See `tests/integration/test_office_round_trip.py`.
-- **Opening the files.** Each file was opened and converted back to PDF with LibreOffice 24.2 on Linux, and the page or slide sizes, orientation, text, a colour patch and the metadata were compared.
-- **Microsoft Office.** Opening the files in Microsoft Office is tested on Windows only where Office is installed. A file is not called Office-compatible just because of its extension.
+- **Opening the files.** Each file was opened and converted back to PDF, and the page or slide sizes, orientation, text, a colour patch and the metadata were compared. This was done in two places:
+  - with LibreOffice 24.2 on Linux;
+  - with Microsoft 365 (Word and PowerPoint 16.0.20430) on Windows 11.
+- **Other computers.** On other machines the test is skipped (reported as NOT VERIFIED) when no office suite is installed. A file is not called Office-compatible just because of its extension.
 
 See [CONVERSION_FIDELITY.md](CONVERSION_FIDELITY.md) for the fidelity matrix and [OFFICE_TO_PDF_CONVERSION.md](OFFICE_TO_PDF_CONVERSION.md) for the reverse direction.
