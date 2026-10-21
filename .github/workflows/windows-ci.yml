@@ -71,6 +71,16 @@ jobs:
           }
           if ($failed) { exit 1 }
 
+      # Software bill of materials (CycloneDX 1.5) from the pinned inventories; generated and checked on
+      # every run, kept with the test results. No release is built here.
+      - name: SBOM (CycloneDX)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force tests\outputs\junit | Out-Null
+          python scripts\packaging\make_sbom.py --out tests\outputs\junit\MonographPDF_SBOM.cdx.json
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          python scripts\packaging\make_sbom.py --check tests\outputs\junit\MonographPDF_SBOM.cdx.json
+
       - name: Tests
         shell: pwsh
         run: |
@@ -86,7 +96,7 @@ jobs:
           "Microsoft Office and the maintainer's private PDFs are not available on GitHub runners, and OCR runs only when the staged engine is identical to the shipped one: such tests are SKIPPED and a category whose tests were all skipped is reported NOT VERIFIED, never as passed." | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
           if (Test-Path $env:MONOGRAPH_TEST_CATEGORY_REPORT) { Get-Content $env:MONOGRAPH_TEST_CATEGORY_REPORT | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY }
 
-      - name: Upload test results (JUnit XML only)
+      - name: Upload test results (JUnit XML, category summary, SBOM)
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -94,5 +104,6 @@ jobs:
           path: |
             tests/outputs/junit/ci.xml
             tests/outputs/junit/categories.md
+            tests/outputs/junit/MonographPDF_SBOM.cdx.json
           retention-days: 14
           if-no-files-found: warn

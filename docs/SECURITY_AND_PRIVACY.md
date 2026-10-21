@@ -1,6 +1,6 @@
 # Security and privacy
 
-How Monograph PDF protects your documents and your computer. To report a vulnerability, see the [Security policy](../SECURITY.md). Security audit of the 0.2 line: [SECURITY_AUDIT_0.2.0.md](../reports/audit/SECURITY_AUDIT_0.2.0.md).
+How Monograph PDF protects your documents and your computer. Privacy policy: [PRIVACY_POLICY.md](PRIVACY_POLICY.md). To report a vulnerability, see the [Security policy](../SECURITY.md). Security audit of the 0.2 line: [SECURITY_AUDIT_0.2.0.md](../reports/audit/SECURITY_AUDIT_0.2.0.md).
 
 ## Offline by design
 

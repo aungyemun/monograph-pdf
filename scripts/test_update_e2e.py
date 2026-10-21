@@ -137,6 +137,10 @@ def export_source(version: str) -> Path:
 
 def build_version(version: str, config_dir: Path) -> Path:
     src = export_source(version)
+    head = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    os.environ["MONOGRAPH_PDF_BUILD_COMMIT"] = head  # the export has no .git folder
+    os.environ["SOURCE_DATE_EPOCH"] = subprocess.run(["git", "-C", str(ROOT), "log", "-1", "--format=%ct"],
+                                                     capture_output=True, text=True).stdout.strip()
     if run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(src / "scripts" / "build_exe.ps1"),
             "-UpdateConfig", str(config_dir)], cwd=src) != 0:
         raise SystemExit(f"build_exe failed for {version}")
@@ -145,9 +149,11 @@ def build_version(version: str, config_dir: Path) -> Path:
     bi.mkdir(parents=True, exist_ok=True)
     numeric = version.split("-")[0] + ".0"
     (bi / "uninstall_buildinfo.cs").write_text(
-        f'namespace MonographPdfUninstall {{ internal static class BuildInfo {{ public const string Version = "{numeric}"; }} }}')
+        f'namespace MonographPdfUninstall {{ internal static class BuildInfo {{ public const string Version = "{numeric}"; '
+        f'public const string ProductVersion = "{version}"; }} }}')
     (bi / "updater_buildinfo.cs").write_text(
-        f'namespace MonographPdfUpdater {{ internal static class BuildInfo {{ public const string Version = "{numeric}"; }} }}')
+        f'namespace MonographPdfUpdater {{ internal static class BuildInfo {{ public const string Version = "{numeric}"; '
+        f'public const string ProductVersion = "{version}"; }} }}')
     if run([str(csc()), "/nologo", "/target:winexe", "/optimize+", f"/out:{bi / 'uninstall.exe'}",
             "/reference:System.Windows.Forms.dll", str(src / "installer" / "uninstall_launcher.cs"),
             str(bi / "uninstall_buildinfo.cs")]) != 0:

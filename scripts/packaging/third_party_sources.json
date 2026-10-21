@@ -9,7 +9,8 @@
       "license": "AGPL-3.0-or-later",
       "covers": [
         "MonographPDF.exe",
-        "uninstall.exe"
+        "uninstall.exe",
+        "MonographPDFUpdater.exe"
       ],
       "location": "monograph-pdf/",
       "files": [],

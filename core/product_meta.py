@@ -102,6 +102,21 @@ def version_resource_strings(version: str | None = None) -> dict[str, str]:
     }
 
 
+def build_info() -> dict:
+    """Commit and state of the source this program was built from (``resources/build_info.json``,
+    written by scripts/build_exe.ps1). Empty when running from source."""
+    import json
+
+    try:
+        data = json.loads((_resources_dir() / "build_info.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    commit = str(data.get("commit", ""))
+    if not (len(commit) == 40 and all(c in "0123456789abcdef" for c in commit)):
+        commit = ""
+    return {"commit": commit, "dirty": bool(data.get("dirty")), "version": str(data.get("version", ""))}
+
+
 def icons_root() -> Path:
     return _resources_dir() / "icons"
 

@@ -39,7 +39,7 @@ using System.Windows.Forms;
 [assembly: AssemblyCopyright("\u00A9 2026\u2013Present Aung Ye Mun")]
 [assembly: AssemblyVersion(MonographPdfUninstall.BuildInfo.Version)]
 [assembly: AssemblyFileVersion(MonographPdfUninstall.BuildInfo.Version)]
-[assembly: AssemblyInformationalVersion(MonographPdfUninstall.BuildInfo.Version)]
+[assembly: AssemblyInformationalVersion(MonographPdfUninstall.BuildInfo.ProductVersion)]
 
 namespace MonographPdfUninstall
 {

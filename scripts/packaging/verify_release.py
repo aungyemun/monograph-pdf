@@ -14,6 +14,8 @@ Checks, each reported as PASS / FAIL:
   privacy       no private paths or secrets in any text file of both ZIPs (check_release.py patterns);
                 none of the source-archive exclusions (personal-document tests, local QA material)
   ocr           (with --layout) the OCR engine and eng/jpn/osd language data are present
+  provenance    (with --layout) the program's build_info.json names the same commit as the source
+                archive's SOURCE_MANIFEST.json, built without uncommitted changes, for this version
   update-trust  (with --layout) the bundled update and reporting configuration is the repository's
                 own (a test build's synthetic keys, mock endpoints or test CA can never be released)
   --allow-unreleased  (build_release.ps1) a development build may carry an Unreleased CHANGELOG entry;
@@ -120,6 +122,27 @@ def trust_problems(layout: Path, root: Path) -> list[str]:
     return problems
 
 
+def provenance_problems(layout: Path, source_manifest: dict, version: str) -> list[str]:
+    """The built program must name the commit the source archive was made from (no uncommitted changes)."""
+    path = layout / "_internal" / "resources" / "build_info.json"
+    try:
+        info = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ["resources/build_info.json is missing from the application"]
+    problems = []
+    commit = str(info.get("commit", ""))
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        problems.append(f"the application does not record its source commit ({commit or 'none'})")
+    elif commit != source_manifest.get("commit"):
+        problems.append(f"application commit {commit[:12]} differs from the source archive's "
+                        f"{str(source_manifest.get('commit'))[:12]}")
+    if info.get("dirty"):
+        problems.append("the application was built with uncommitted changes")
+    if info.get("version") != version:
+        problems.append(f"the application's build_info names version {info.get('version')!r}")
+    return problems
+
+
 def scan_zip(path: Path, *, source: bool) -> list[str]:
     problems = []
     with zipfile.ZipFile(path) as z:
@@ -209,6 +232,12 @@ def main(argv: list[str] | None = None) -> int:
     if a.layout is not None:
         rep.check("ocr", [f"missing {r}" for r in OCR_REQUIRED if not (a.layout / r).is_file()])
         rep.check("update-trust", trust_problems(a.layout, release_root))
+        with zipfile.ZipFile(src) as z:
+            try:
+                source_manifest = json.loads(z.read(f"MonographPDF_{v}_Source/SOURCE_MANIFEST.json"))
+            except (KeyError, ValueError):
+                source_manifest = {}
+        rep.check("provenance", provenance_problems(a.layout, source_manifest, v))
 
     if a.notes is not None:
         changelog = (release_root / "CHANGELOG.md").read_text(encoding="utf-8")

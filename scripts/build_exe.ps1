@@ -129,6 +129,32 @@ if (-not (Test-Path $OutInternal)) { Write-Error "Missing $OutInternal" }
 # for update checks and approved problem reports.
 & $Py "$Root\scripts\packaging\check_release.py" prune $OutDir
 if ($LASTEXITCODE -ne 0) { Write-Error "Pruning the bundle failed (see above)." }
+# Build provenance inside the program: the commit it was built from (shown in About; checked by
+# verify_release.py against the source archive). A build from an export without .git can pass the commit
+# in MONOGRAPH_PDF_BUILD_COMMIT.
+$Commit = $env:MONOGRAPH_PDF_BUILD_COMMIT
+$Dirty = $false
+if (-not $Commit) {
+    $Commit = (& git -C $Root rev-parse HEAD 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $Commit) { $Commit = "unknown" }
+    else { $Dirty = [bool](& git -C $Root status --porcelain --untracked-files=no 2>$null) }
+}
+$BuildInfoJson = @{ schema = 1; commit = "$Commit".Trim(); dirty = $Dirty; version = $Version } | ConvertTo-Json -Compress
+[System.IO.File]::WriteAllText((Join-Path $OutInternal "resources\build_info.json"), $BuildInfoJson, (New-Object System.Text.UTF8Encoding($false)))
+Write-Host "Build provenance: commit $Commit$(if ($Dirty) { ' (uncommitted changes!)' })"
+# Reproducible launcher: PyInstaller stamps the build time into MonographPDF.exe's PE headers; use the
+# commit time instead (SOURCE_DATE_EPOCH if set, for builds from an export without .git).
+$Epoch = $env:SOURCE_DATE_EPOCH
+if (-not $Epoch) {
+    $Epoch = (& git -C $Root log -1 --format=%ct 2>$null)
+    if ($LASTEXITCODE -ne 0) { $Epoch = $null }
+}
+if ($Epoch) {
+    & $Py "$Root\scripts\packaging\normalize_pe.py" --epoch "$Epoch".Trim() $OutExe
+    if ($LASTEXITCODE -ne 0) { Write-Error "Normalizing the launcher's time stamps failed." }
+} else {
+    Write-Warning "No commit time (no .git, no SOURCE_DATE_EPOCH): MonographPDF.exe keeps PyInstaller's build-time stamp."
+}
 if ($UpdateConfig) {
     $Bundled = Join-Path $OutInternal "resources\update"
     Write-Warning "TEST BUILD: replacing the bundled update configuration with $UpdateConfig"

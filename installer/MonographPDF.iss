@@ -109,7 +109,7 @@ UsePreviousTasks=yes
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
-WelcomeLabel2=This will install [name/ver] on your computer.%n%nMonograph PDF views, edits, organizes, converts, protects and signs PDF documents. It works completely offline — your files never leave this computer.%n%nMonograph PDF is the new name of PDF Editor. If PDF Editor is installed, Setup upgrades it and keeps your settings and documents.%n%nIt is recommended that you close PDF Editor and Monograph PDF before continuing.
+WelcomeLabel2=This will install [name/ver] on your computer.%n%nMonograph PDF views, edits, organizes, converts, protects and signs PDF documents. It works offline — your files never leave this computer. It connects to the internet only when you check for updates (or turn on automatic update checks) or choose to send a problem report; see the privacy policy (docs\PRIVACY_POLICY.md on the project page).%n%nMonograph PDF is the new name of PDF Editor. If PDF Editor is installed, Setup upgrades it and keeps your settings and documents.%n%nIt is recommended that you close PDF Editor and Monograph PDF before continuing.
 
 [Tasks]
 Name: "startmenu"; Description: "Create &Start Menu shortcuts"; GroupDescription: "Shortcuts:"

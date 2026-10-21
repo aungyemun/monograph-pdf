@@ -41,7 +41,10 @@ That is what a signature would add.
 
 ## If signing is adopted later
 
-This is a plan, not a commitment; nothing below is implemented.
+The process, roles and approval gate are defined in [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md);
+`scripts/signing/` implements the providers (`none` by default, `signtool`, `signpath`) and the
+approval gate, and `scripts/build_release.ps1 -SigningProvider … -Production` signs in the order
+below. No certificate exists, so nothing is signed. The original plan:
 
 1. **Obtain a certificate** from a provider that issues publicly trusted Windows code-signing
    certificates (an organisation-validated certificate on a hardware token or a cloud signing
@@ -50,7 +53,7 @@ This is a plan, not a commitment; nothing below is implemented.
 2. **Sign in this order** in `scripts/build_release.ps1`, because each later step packages the earlier
    file and signing changes a file's hash:
    1. `dist\MonographPDF\MonographPDF.exe` after PyInstaller;
-   2. `build\installer\uninstall.exe` after it is compiled;
+   2. `build\installer\uninstall.exe` and `MonographPDFUpdater.exe` after they are compiled;
    3. `Setup.exe` (Inno Setup's `SignTool` directive signs the installer and its uninstaller stub);
    4. only then compute `SHA256SUMS.txt`, build `Installer.zip` and run `verify_release.py`.
 3. **Timestamp** every signature (RFC 3161) so it stays valid after the certificate expires.

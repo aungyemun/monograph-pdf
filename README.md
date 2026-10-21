@@ -71,6 +71,8 @@ Only Windows builds are available.
 > **Unsigned installer.** Monograph PDF is currently distributed without a code-signing certificate,
 > so Windows SmartScreen may display a warning. Continue (**More info ▸ Run anyway**) only if the
 > file came from the official release page and its checksum matches.
+> [Code signing policy](docs/CODE_SIGNING_POLICY.md) · [Verifying a download](docs/OFFICIAL_DOWNLOAD_VERIFICATION.md) ·
+> [Privacy policy](docs/PRIVACY_POLICY.md)
 
 Each release also provides `MonographPDF_<version>_Installer.zip` (Setup with the documentation,
 licenses and `SHA256SUMS.txt`) and `MonographPDF_<version>_Source.zip` (the corresponding source of

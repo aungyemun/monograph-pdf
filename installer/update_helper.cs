@@ -41,7 +41,7 @@ using Microsoft.Win32;
 [assembly: System.Reflection.AssemblyCopyright("\u00A9 2026\u2013Present Aung Ye Mun")]
 [assembly: System.Reflection.AssemblyVersion(MonographPdfUpdater.BuildInfo.Version)]
 [assembly: System.Reflection.AssemblyFileVersion(MonographPdfUpdater.BuildInfo.Version)]
-[assembly: System.Reflection.AssemblyInformationalVersion(MonographPdfUpdater.BuildInfo.Version)]
+[assembly: System.Reflection.AssemblyInformationalVersion(MonographPdfUpdater.BuildInfo.ProductVersion)]
 
 internal static class UpdateHelper
 {

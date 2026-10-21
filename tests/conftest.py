@@ -76,6 +76,7 @@ _MODULE_CATEGORIES = {
     "test_update_net.py": {"security"}, "test_update_staging.py": {"security"},
     "test_update_install.py": {"security"}, "test_diagnostics.py": {"security"},
     "test_report_gateway.py": {"security"}, "test_update_ui.py": {"security", "gui"},
+    "test_code_signing_readiness.py": {"security"}, "test_windows_runtime_packaging.py": {"security"},
 }
 # Individual tests inside otherwise portable modules (matched against the test name)
 _NAME_CATEGORIES = [

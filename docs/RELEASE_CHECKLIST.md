@@ -84,6 +84,12 @@ Use these sections, in this order, and leave out any that would be empty. Keep s
    the bundled AGPL, GPL and LGPL components. The **Source code** archives GitHub adds to the release
    contain only the repository at the tag, without the third-party sources.
 
+## 5b. Provenance, SBOM and signing
+
+- [ ] `build\installer\MonographPDF_<version>_provenance.json` names the release commit (clean tree) and the SHA-256 of every output; `python scripts\packaging\provenance.py verify --record … --dir installer` passes ([RELEASE_PROVENANCE.md](RELEASE_PROVENANCE.md)).
+- [ ] `build\installer\MonographPDF_<version>_SBOM.cdx.json` is generated and `make_sbom.py --check` passes.
+- [ ] Signing status decided by the Signing Approver ([CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md)); an unsigned release says so in its notes. A signed release: approval recorded, `Get-AuthenticodeSignature` → `Valid` for every own binary.
+
 ## 6. Publish (maintainer)
 
 | # | Item | How |

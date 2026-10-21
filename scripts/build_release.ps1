@@ -5,10 +5,16 @@
 # A frozen earlier release in installer\release\ (for example PDF Editor 0.1.5) is never overwritten unless
 # an identical copy is kept under releases\ (see docs/RELEASE_AND_VERSIONING.md).
 # Usage: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build_release.ps1 [-SkipTests] [-SkipExe]
+#        [-SigningProvider none|signtool|signpath] [-Production]
+# Signing (docs/CODE_SIGNING_POLICY.md): the default provider "none" signs nothing (development and
+# unsigned builds). Any other provider needs -Production and the Signing Approver's approval record for
+# this version at this commit (scripts\signing\sign_release.py approve); otherwise the build stops.
 
 param(
     [switch]$SkipTests,
-    [switch]$SkipExe
+    [switch]$SkipExe,
+    [ValidateSet("none", "signtool", "signpath")][string]$SigningProvider = "none",
+    [switch]$Production
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,6 +51,20 @@ if ($LASTEXITCODE -ne 0) { throw "installer\release holds a frozen release that 
 # release-set check): they are moved to build\superseded\<version>\ if an identical copy is archived.
 & $Py (Join-Path $Root "scripts\packaging\check_release.py") superseded (Join-Path $Root "installer") $Version (Join-Path $Root "releases") (Join-Path $Root "build\superseded")
 if ($LASTEXITCODE -ne 0) { throw "installer holds release files of an earlier version that are not archived - see above." }
+
+# ---- 0b. Signing gate (before any work: a refused approval must not cost a build) ----
+$SignScript = Join-Path $Root "scripts\signing\sign_release.py"
+if ($SigningProvider -ne "none") {
+    if (-not $Production) { throw "Signing provider '$SigningProvider' is only used for an approved -Production release." }
+    & $Py $SignScript check-approval --version $Version
+    if ($LASTEXITCODE -ne 0) { throw "Production signing is not approved for $Version at this commit - see above." }
+}
+function Sign-Files([string[]]$Files) {
+    $extra = @()
+    if ($Production) { $extra += "--production" }
+    & $Py $SignScript sign --provider $SigningProvider --version $Version @extra @Files
+    if ($LASTEXITCODE -ne 0) { throw "Signing failed - see above." }
+}
 
 # ---- 1. Tests ----
 $TestResult = "skipped"
@@ -129,7 +149,8 @@ if (-not $Csc) { throw "The C# compiler of .NET Framework 4 (csc.exe, part of Wi
 $NumericVersion = ($Version -split "[^0-9.]")[0]
 while (($NumericVersion -split "\.").Count -lt 4) { $NumericVersion += ".0" }
 $BuildInfo = Join-Path $BuildInst "uninstall_buildinfo.cs"
-[System.IO.File]::WriteAllText($BuildInfo, "namespace MonographPdfUninstall { internal static class BuildInfo { public const string Version = `"$NumericVersion`"; } }")
+# Version: numeric file version (X.Y.Z.0); ProductVersion: the product version every signed binary carries (X.Y.Z)
+[System.IO.File]::WriteAllText($BuildInfo, "namespace MonographPdfUninstall { internal static class BuildInfo { public const string Version = `"$NumericVersion`"; public const string ProductVersion = `"$Version`"; } }")
 $UninstallExe = Join-Path $BuildInst "uninstall.exe"
 Remove-Item $UninstallExe -Force -ErrorAction SilentlyContinue
 & $Csc /nologo /target:winexe /optimize+ "/out:$UninstallExe" "/win32icon:$(Join-Path $Root 'resources\icons\windows\monograph_pdf.ico')" /reference:System.Windows.Forms.dll (Join-Path $Root "installer\uninstall_launcher.cs") $BuildInfo
@@ -143,7 +164,7 @@ Write-Host "  uninstall.exe $((Get-Item $UninstallExe).VersionInfo.FileVersion) 
 # ---- 3c. MonographPDFUpdater.exe (finishes a verified update after the application has closed) ----
 Step "Building MonographPDFUpdater.exe"
 $UpdaterInfo = Join-Path $BuildInst "updater_buildinfo.cs"
-[System.IO.File]::WriteAllText($UpdaterInfo, "namespace MonographPdfUpdater { internal static class BuildInfo { public const string Version = `"$NumericVersion`"; } }")
+[System.IO.File]::WriteAllText($UpdaterInfo, "namespace MonographPdfUpdater { internal static class BuildInfo { public const string Version = `"$NumericVersion`"; public const string ProductVersion = `"$Version`"; } }")
 $UpdaterExe = Join-Path $BuildInst "MonographPDFUpdater.exe"
 Remove-Item $UpdaterExe -Force -ErrorAction SilentlyContinue
 & $Csc /nologo /target:winexe /optimize+ "/out:$UpdaterExe" "/win32icon:$(Join-Path $Root 'resources\icons\windows\monograph_pdf.ico')" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll (Join-Path $Root "installer\update_helper.cs") $UpdaterInfo
@@ -152,6 +173,10 @@ $probe = Start-Process -FilePath $UpdaterExe -ArgumentList "--self-check" -PassT
 if (-not $probe.WaitForExit(60000)) { $probe.Kill(); throw "MonographPDFUpdater.exe self-check did not finish." }
 if ($probe.ExitCode -ne 0) { throw "MonographPDFUpdater.exe self-check failed (exit $($probe.ExitCode))." }
 Write-Host "  MonographPDFUpdater.exe $((Get-Item $UpdaterExe).VersionInfo.FileVersion) ok"
+
+# ---- 3d. Signing of Monograph PDF's own programs (before Setup packs them; "none" signs nothing) ----
+Step "Code signing ($SigningProvider)"
+Sign-Files @($AppExe, $UninstallExe, $UpdaterExe)
 
 # ---- 4. Installer ----
 Step "Compiling Setup.exe with Inno Setup"
@@ -166,6 +191,10 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path $InstalledManifest)) { throw "instal
 if ($LASTEXITCODE -ne 0) { throw "ISCC failed." }
 $Setup = Join-Path $Root "installer\MonographPDF_${Version}_Setup.exe"
 if (-not (Test-Path $Setup)) { throw "Missing $Setup" }
+Sign-Files @($Setup)
+# Product name and one product version in every own binary (required by code-signing providers)
+& $Py (Join-Path $Root "scripts\packaging\check_metadata.py") --version $Version $AppExe $UninstallExe $UpdaterExe $Setup
+if ($LASTEXITCODE -ne 0) { throw "Version metadata check failed - see above." }
 
 # ---- 4b. Source archive: complete corresponding source for this release ----
 Step "Building the source archive"
@@ -198,6 +227,16 @@ Step "Verifying the release set"
 & $Py (Join-Path $Root "scripts\packaging\verify_release.py") --dir (Join-Path $Root "installer") --version $Version --layout $Payload --allow-unreleased
 if ($LASTEXITCODE -ne 0) { throw "Release set verification failed - see above." }
 
+# ---- 5b. SBOM (CycloneDX) and build provenance (not release files; see docs/RELEASE_PROVENANCE.md) ----
+Step "Writing the SBOM and the build provenance record"
+$Sbom = Join-Path $BuildInst "MonographPDF_${Version}_SBOM.cdx.json"
+& $Py (Join-Path $Root "scripts\packaging\make_sbom.py") --out $Sbom --layout $Payload
+if ($LASTEXITCODE -ne 0) { throw "SBOM generation failed - see above." }
+$Provenance = Join-Path $BuildInst "MonographPDF_${Version}_provenance.json"
+& $Py (Join-Path $Root "scripts\packaging\provenance.py") write --out $Provenance --version $Version --signing $SigningProvider `
+    --artifact $Setup --artifact $Zip --artifact $SourceZip --artifact $AppExe --artifact $UninstallExe --artifact $UpdaterExe --artifact $Sbom
+if ($LASTEXITCODE -ne 0) { throw "Provenance record failed - see above." }
+
 # ---- 6. Summary ----
 Step "Writing build_release_summary.txt"
 function Describe($path) {
@@ -223,7 +262,9 @@ Contents check : passed (build\installer\release_inventory.json)
 Source archive : passed (every AGPL / GPL / LGPL component covered)
 Branding scan  : passed (no stale PDF Editor branding in the application or release folder)
 Release set    : passed (scripts\packaging\verify_release.py; release notes are checked separately before publishing)
-Code signing   : not signed (no code-signing certificate is used for this build)
+Code signing   : $(if ($SigningProvider -eq "none") { "not signed (no code-signing certificate is used for this build)" } else { "provider $SigningProvider (approved production release)" })
+SBOM           : $(Split-Path -Leaf $Sbom) (CycloneDX 1.5, build\installer)
+Provenance     : $(Split-Path -Leaf $Provenance) (commit, tools, SHA-256 of every output)
 
 Application bundle
     dist\MonographPDF\MonographPDF.exe + _internal ($([math]::Round($InternalSize / 1MB, 1)) MB)

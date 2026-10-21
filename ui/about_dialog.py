@@ -304,7 +304,12 @@ class AboutDialog(QDialog):
             prefs = getattr(parent, "_prefs", None)
             channel = "Prerelease" if getattr(prefs, "update_channel", "stable") == "prerelease" else "Stable"
             status = updates.status_text()
-        self._build_info = QLabel(f"Build: {build_label()}  ·  Release channel: {channel}  ·  Updates: {status}")
+        from core.product_meta import build_info
+
+        commit = build_info().get("commit", "")
+        built = f"{build_label()}, commit {commit[:12]}" if commit else build_label()
+        self._build_info = QLabel(f"Build: {built}  ·  Release channel: {channel}  ·  Updates: {status}")
+        self._build_info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self._build_info.setObjectName("AboutBuildInfo")
         self._build_info.setWordWrap(True)
         titles.addWidget(self._build_info)
