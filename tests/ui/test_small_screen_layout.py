@@ -188,3 +188,18 @@ def test_left_panel_tabs_never_slide_out_of_view(window):
             left.setCurrentIndex(i)
             bar = left.tabBar()
             assert bar.sizeHint().width() <= left.width(), (width, i)
+
+
+def test_left_panel_tab_bar_draws_no_base_line(window):
+    """The style's tab-bar base line showed as a light line / fragment along the top of the Navigation panel
+    tabs in the dark theme; it must stay off (QTabWidget.setDocumentMode turns it back on)."""
+    assert window._left.documentMode()  # noqa: SLF001
+    assert not window._left.tabBar().drawBase()  # noqa: SLF001
+
+
+def test_toolbar_overflow_button_has_visible_icon(window):
+    from PySide6.QtWidgets import QToolButton
+
+    window.resize(900, 700)
+    ext = [b for b in window._main_bar.findChildren(QToolButton) if b.objectName() == "qt_toolbar_ext_button"]  # noqa: SLF001
+    assert ext and not ext[0].icon().isNull()

@@ -100,6 +100,7 @@ class CommentsPanel(QWidget):
         self.tree.itemClicked.connect(self._activate)
         self.tree.itemDoubleClicked.connect(lambda item, _c: self._double(item))
         layout.addWidget(self.tree, 1)
+        layout.addStretch(0)  # no comments (list hidden): keep the tools and the message at the top
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(250)

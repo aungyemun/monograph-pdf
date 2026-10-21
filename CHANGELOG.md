@@ -142,7 +142,10 @@ verified; normal PDF work stays offline.
   right; the Properties panel keeps clear of its scroll bar and position/size values are no longer
   cut off; the Compress PDF page box and mode labels and the header/footer margin labels are no longer
   squeezed; check boxes in lists (OCR languages) follow the theme; the highlight colour swatch is pale
-  while there is no document; "Opened … (1 page)" instead of "(1 pages)".
+  while there is no document; "Opened … (1 page)" instead of "(1 pages)"; a light line / fragment along
+  the top of the Navigation panel tabs (dark theme) is gone; the toolbar overflow button (») now shows
+  an arrow — it was blank, so tools moved into it could not be found; the Comments panel keeps its tools
+  at the top when the document has no comments.
 - The Split PDF window enables only the fields the chosen split method uses; Draw a Signature no longer
   makes Undo Stroke the Enter-key button.
 - Compress PDF: choosing Lossless, Balanced, Smallest or Target size now also updates the profile

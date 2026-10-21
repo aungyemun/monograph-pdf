@@ -55,6 +55,9 @@ class LeftRail(QTabWidget):
         self.setTabBar(_RailTabBar())
         self.setObjectName("LeftRail")
         self.setDocumentMode(True)
+        # after setDocumentMode (which turns it back on): the style's tab-bar base line was drawn as a light
+        # line / fragment along the top of the bar in the dark theme
+        self.tabBar().setDrawBase(False)
         self.setMovable(False)
         self.setMinimumWidth(170)  # the five tab icons always fit (narrower: drag the splitter to hide the panel)
         # Never hide tabs behind scroll arrows: a label that does not fit is shortened ("Bookm…")

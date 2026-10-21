@@ -328,6 +328,8 @@ QToolBar QToolButton:focus { border: 1px solid $accent; }
 QToolButton[popupMode="1"] { padding-right: 18px; }
 QToolButton::menu-button { border: none; border-left: 1px solid transparent; width: 16px; border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
 QToolButton::menu-button:hover { border-left-color: $border; background: $pressed; }
+QToolButton#qt_toolbar_ext_button { qproperty-icon: url($asset_prefix:chevron-right.png); min-width: 18px; padding: 2px; border-radius: 6px; }
+QToolButton#qt_toolbar_ext_button:hover { background: $hover; }
 QToolButton::menu-arrow { image: url($asset_prefix:chevron-down.png); width: 12px; height: 12px; }
 QToolButton::menu-indicator { image: url($asset_prefix:chevron-down.png); width: 10px; height: 10px; subcontrol-position: right center; subcontrol-origin: padding; right: 2px; }
 QToolButton::menu-arrow:disabled, QToolButton::menu-indicator:disabled { image: url($asset_prefix:chevron-down-disabled.png); }
@@ -360,9 +362,11 @@ QSplitter::handle:horizontal { width: 1px; }
 QSplitter::handle:hover { background: $accent; }
 QTabWidget::pane { border: none; background: $surface; }
 QTabWidget#LeftRail { background: $surface; }
+QTabWidget#LeftRail QTabBar::tab { padding: 8px 3px; }  /* five tabs share a narrow panel */
 QTabBar { background: $surface; }
-QTabBar::tab { background: transparent; color: $text_muted; padding: 8px 3px; margin: 0; border: none; border-bottom: 2px solid transparent; min-width: 24px; }
+QTabBar::tab { background: transparent; color: $text_muted; padding: 8px 10px; margin: 0; border: none; border-bottom: 2px solid transparent; min-width: 24px; }
 QTabBar::tab:first { margin-left: 4px; }
+QTabBar::tear { width: 0; border: none; image: none; }
 QTabBar::tab:selected { color: $accent_text; border-bottom: 2px solid $accent; font-weight: 600; }
 QTabBar::tab:hover:!selected { color: $text; background: $hover; }
 QTabBar QToolButton { background: $surface; border: none; color: $text; }
