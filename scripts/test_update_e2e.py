@@ -339,8 +339,13 @@ def setup_args(setup: Path, log: Path, tasks: str | None = None) -> list[str]:
     return args
 
 
+HELPERS: list[subprocess.Popen] = []
+
+
 def quiet_popen(args, **kw):
-    return subprocess.Popen(list(args) + ["--quiet"], **kw)
+    proc = subprocess.Popen(list(args) + ["--quiet"], **kw)
+    HELPERS.append(proc)
+    return proc
 
 
 def update_once(cfg, app_pid: int, expected: str) -> dict | None:
@@ -362,12 +367,32 @@ def update_once(cfg, app_pid: int, expected: str) -> dict | None:
     check("helper started from the staging folder", helper_pid > 0)
     time.sleep(2)
     close_app(app_pid)  # in the application this is close_for_update()
+    # The relaunched program reads and deletes the result file within seconds, so it is polled
+    # closely and the helper's exit code (0 installed, 5 failed) is used as well.
     result = staging.updates_root() / f"result-{sd.update_id}.json"
-    if not check("helper finished", wait_for(result.is_file, 900, 2), str(result)):
+    proc = HELPERS[-1]
+    data: dict = {}
+    end = time.time() + 900
+    while time.time() < end:
+        if result.is_file():
+            try:
+                data = json.loads(result.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                pass
+        if proc.poll() is not None:
+            break
+        time.sleep(0.1)
+    if not check("helper finished", proc.poll() is not None, f"exit {proc.returncode}"):
         return None
-    data = json.loads(result.read_text(encoding="utf-8"))
+    if result.is_file():
+        try:
+            data = json.loads(result.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass
+    check("helper result file written", bool(data), json.dumps(data))
     data["_sd"] = sd
     data["_helper_pid"] = helper_pid
+    data["_exit"] = proc.returncode
     return data
 
 
@@ -486,7 +511,7 @@ def main(argv: list[str] | None = None) -> int:
         t1 = time.time()
         result = update_once(cfg, app.pid, a.new)
         if result:
-            check("helper result: installed", result.get("status") == "installed", json.dumps({k: v for k, v in result.items() if not k.startswith('_')}))
+            check("helper result: installed (exit 0)", result.get("status") == "installed" and result["_exit"] == 0, json.dumps({k: v for k, v in result.items() if not k.startswith('_')}))
             reg = hkcu_registration()
             check("registered version is the new one", reg["DisplayVersion"] == a.new, reg["DisplayVersion"])
             default_user = Path(os.environ["LOCALAPPDATA"]) / "Programs" / "Monograph PDF" / "MonographPDF.exe"
@@ -523,8 +548,9 @@ def main(argv: list[str] | None = None) -> int:
             time.sleep(10)
             failed = update_once(cfg, app.pid, a.fail)
             if failed:
-                check("helper result: failed with Setup's exit code", failed.get("status") == "failed"
-                      and failed.get("code") == "setup_exit_4", f"{failed.get('status')} {failed.get('code')}")
+                check("helper result: failed with Setup's exit code (exit 5)", failed.get("status") == "failed"
+                      and failed.get("code") == "setup_exit_4" and failed["_exit"] == 5,
+                      f"{failed.get('status')} {failed.get('code')} exit {failed['_exit']}")
                 check("previous version still installed", hkcu_registration()["DisplayVersion"] == a.new
                       and file_version(APP_FOLDER / "MonographPDF.exe") == a.new)
                 fsd = failed["_sd"]

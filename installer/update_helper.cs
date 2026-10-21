@@ -400,9 +400,9 @@ internal static class UpdateHelper
         try { h = Load(handoffPath); }
         catch (Exception e)
         {
+            exitCode = 2;  // set before Finish: closing the window ends Main
             Finish("The update could not be started: the update information was not valid (" + e.Message +
                    "). Nothing was changed.", MessageBoxIcon.Error);
-            exitCode = 2;
             return;
         }
         WriteMarker(h, "handed_off");
@@ -411,10 +411,10 @@ internal static class UpdateHelper
             WriteMarker(h, "cancelled");
             RemoveStagingFiles(h, false, false);
             WriteResult(h, "cancelled", cancelRequested ? "cancelled" : "app_still_running", h.PreviousVersion, false, false);
+            exitCode = 4;
             Finish(cancelRequested ? "The update was cancelled. Nothing was changed."
                                    : "Monograph PDF did not close, so the update was not installed. Nothing was changed.",
                    MessageBoxIcon.Information);
-            exitCode = 4;
             return;
         }
 
@@ -470,14 +470,20 @@ internal static class UpdateHelper
         {
             WriteMarker(h, "installed");
             RemoveStagingFiles(h, false, false);
-            bool relaunched = false;
-            if (h.Relaunch && !reboot)
-            {
-                Stage("Restarting Monograph PDF…", false);
-                try { Relaunch(h); relaunched = true; } catch { }
-            }
+            // The result is written before the restart: the new version reads it at start-up
+            bool relaunched = h.Relaunch && !reboot;
             WriteResult(h, reboot ? "installed_restart_required" : "installed", reboot ? "reboot_required" : "ok",
                         installed, reboot, relaunched);
+            if (relaunched)
+            {
+                Stage("Restarting Monograph PDF…", false);
+                try { Relaunch(h); }
+                catch
+                {
+                    relaunched = false;
+                    WriteResult(h, "installed", "relaunch_failed", installed, reboot, false);
+                }
+            }
             exitCode = 0;
             if (reboot)
                 Finish("Monograph PDF " + h.ExpectedVersion + " was installed. Restart Windows to finish the update.",
@@ -495,12 +501,13 @@ internal static class UpdateHelper
         WriteMarker(h, "failed");
         bool previousIntact = filesPresent && exeVersion == h.PreviousVersion && installed == h.PreviousVersion;
         RemoveStagingFiles(h, true, true);
-        bool relaunchedOld = false;
-        if (previousIntact && h.Relaunch)
-        {
-            try { Relaunch(h); relaunchedOld = true; } catch { }
-        }
+        bool relaunchedOld = previousIntact && h.Relaunch;
         WriteResult(h, "failed", failure, installed, reboot, relaunchedOld);
+        if (relaunchedOld)
+        {
+            try { Relaunch(h); }
+            catch { WriteResult(h, "failed", failure, installed, reboot, false); }
+        }
         exitCode = 5;
         string why = failure == "elevation_cancelled" ? "administrator approval was not given"
                    : failure == "verify" ? "the installer did not match the verified download"

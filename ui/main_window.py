@@ -5246,7 +5246,9 @@ class MainWindow(QMainWindow):
         from core.updates import manager, staging
 
         try:
-            staging.cleanup()
+            if staging.cleanup().kept:
+                # e.g. the update helper that just restarted us is still exiting: try once more
+                QTimer.singleShot(30000, lambda: self._quiet_cleanup(staging))
         except OSError:
             pass
         for res in manager.read_results():
@@ -5264,6 +5266,13 @@ class MainWindow(QMainWindow):
             except Exception:  # noqa: BLE001
                 pass
         self._updates.maybe_auto_check()
+
+    @staticmethod
+    def _quiet_cleanup(staging) -> None:
+        try:
+            staging.cleanup()
+        except OSError:
+            pass
 
     def _show_update_result(self, res: dict) -> None:
         from core.updates import staging
