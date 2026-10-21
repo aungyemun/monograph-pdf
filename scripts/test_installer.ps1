@@ -307,10 +307,15 @@ try {
     if (-not $SkipUpgradeTests) {
         Section "7. Upgrade cleanup (obsolete owned files vs unrelated files)"
         if (-not $UpgradeSetup) {
+            # Always built fresh from the current payload as the NEXT patch version, so the upgrade matrix
+            # tests an upgrade of this build (a cached Setup from an earlier build would test something else).
             $UpgradeSetup = Join-Path $Root "build\installer\MonographPDF_upgrade_test_Setup.exe"
+            Remove-Item -Force $UpgradeSetup -ErrorAction SilentlyContinue
+            $py = Join-Path $Root "env\Scripts\python.exe"
+            $NextVersion = (& $py -c "import sys; sys.path.insert(0, r'$Root'); from core.versioning import bump_patch, get_version; print(bump_patch(get_version()))").Trim()
+            if ($NextVersion -notmatch '^\d+\.\d+\.\d+$') { throw "Cannot compute the next version ('$NextVersion')" }
             if (-not (Test-Path $UpgradeSetup)) {
-                Write-Host "  [INFO] Building upgrade-test Setup (does not touch frozen release artifacts)..."
-                $py = Join-Path $Root "env\Scripts\python.exe"
+                Write-Host "  [INFO] Building upgrade-test Setup $NextVersion from the current payload (does not touch release artifacts)..."
                 $payload = Join-Path $Root "dist\MonographPDF"
                 $buildInst = Join-Path $Root "build\installer"
                 $uninst = Join-Path $buildInst "uninstall.exe"
@@ -328,9 +333,9 @@ try {
                 if ($LASTEXITCODE -ne 0) { throw "write_installed_manifest failed" }
                 $lic = Get-Content (Join-Path $Root "LICENSE.md") -Raw -Encoding UTF8
                 [System.IO.File]::WriteAllText((Join-Path $buildInst "LICENSE.txt"), $lic, (New-Object System.Text.UTF8Encoding($true)))
-                & $iscc /Q "/DAppVersion=0.2.1" "/DPayloadDir=$payload" "/DUninstallExe=$uninst" "/DInstalledManifest=$manifest" "/DOutputDirectory=$buildInst" (Join-Path $Root "installer\MonographPDF.iss")
+                & $iscc /Q "/DAppVersion=$NextVersion" "/DPayloadDir=$payload" "/DUninstallExe=$uninst" "/DInstalledManifest=$manifest" "/DOutputDirectory=$buildInst" (Join-Path $Root "installer\MonographPDF.iss")
                 if ($LASTEXITCODE -ne 0) { throw "ISCC upgrade-test Setup failed" }
-                $built = Join-Path $buildInst "MonographPDF_0.2.1_Setup.exe"
+                $built = Join-Path $buildInst "MonographPDF_$($NextVersion)_Setup.exe"
                 if (-not (Test-Path $built)) { throw "Missing $built" }
                 Copy-Item -Force $built $UpgradeSetup
             }

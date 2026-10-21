@@ -58,3 +58,12 @@ def test_setup_env_uses_python_311_and_stops_on_failed_installs():
     at = code.find("pip install --upgrade pip")
     nxt = code[at:].splitlines()[1]
     assert "$LASTEXITCODE -ne 0" in nxt and "Write-Warning" in nxt and "throw" not in nxt
+
+
+def test_installer_upgrade_matrix_builds_a_fresh_next_version_setup():
+    """scripts/test_installer.ps1 used to reuse a cached upgrade Setup hard-coded as version 0.2.1 and built
+    from an old payload, so its "upgrade" sections installed a stale, older build over the one under test."""
+    code = "\n".join(s for _, s in _code_lines(ROOT / "scripts" / "test_installer.ps1"))
+    assert not re.search(r"/DAppVersion=\d", code), "upgrade-test Setup version must not be hard-coded"
+    assert "bump_patch(get_version())" in code and "/DAppVersion=$NextVersion" in code
+    assert code.index("Remove-Item -Force $UpgradeSetup") < code.index("if (-not (Test-Path $UpgradeSetup))")
