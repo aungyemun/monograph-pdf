@@ -67,3 +67,66 @@ def test_missing_install_is_reported_not_staged(env, tmp_path, capsys):
     assert so.main(["--from", str(tmp_path / "nowhere")]) == 0
     assert not so.ENGINE.exists()
     assert "NOT VERIFIED" in capsys.readouterr().out
+
+
+def test_require_turns_a_refused_engine_into_a_failure(env, tmp_path, capsys):
+    installed, _ = env
+    (installed / "libtesseract-5.dll").write_bytes(b"MZ newer build")
+    assert so.main(["--from", str(installed), "--require"]) == 1
+    assert not so.ENGINE.exists()
+    assert so.main(["--from", str(tmp_path / "nowhere"), "--require"]) == 1
+
+
+def test_the_notice_is_the_project_file_checked_against_the_pins(env, tmp_path, monkeypatch):
+    installed, _ = env
+    notice = tmp_path / "TESSERACT_NOTICE.txt"
+    notice.write_bytes(b"Tesseract OCR notice")
+    pins = json.loads(so.PINS.read_text(encoding="utf-8"))
+    pins["engine"]["TESSERACT_NOTICE.txt"] = _h(b"Tesseract OCR notice")
+    so.PINS.write_text(json.dumps(pins), encoding="utf-8")
+    monkeypatch.setattr(so, "NOTICE", notice)
+    assert so.main(["--from", str(installed), "--require"]) == 0
+    assert (so.ENGINE / "TESSERACT_NOTICE.txt").read_bytes() == b"Tesseract OCR notice"
+    # A changed notice is refused like any other file (no placeholder is written in its place)
+    for p in (so.ENGINE, so.TESSDATA):
+        for f in p.iterdir():
+            f.unlink()
+    notice.write_bytes(b"edited")
+    assert so.main(["--from", str(installed), "--require"]) == 1
+    assert not any(so.ENGINE.iterdir())
+
+
+def test_language_data_comes_from_an_immutable_tag():
+    assert "/tessdata_fast/raw/4.1.0/" in so.TESSDATA_URL and "/main/" not in so.TESSDATA_URL
+
+
+def test_verify_accepts_only_the_pinned_files(env, capsys):
+    installed, _ = env
+    assert so.main(["--from", str(installed)]) == 0
+    (so.ENGINE / "MANIFEST.json").write_text("{}", encoding="utf-8")  # audit note: ignored
+    assert so.main(["--verify"]) == 0
+    (so.ENGINE / "libextra.dll").write_bytes(b"MZ extra")  # would be shipped without a pin
+    assert so.main(["--verify"]) == 1
+    (so.ENGINE / "libextra.dll").unlink()
+    (so.TESSDATA / "jpn.traineddata").write_bytes(b"other")
+    assert so.main(["--verify"]) == 1
+    (so.TESSDATA / "jpn.traineddata").unlink()
+    assert so.main(["--verify"]) == 1
+    assert "missing" in capsys.readouterr().out
+
+
+def test_vendor_script_only_uses_the_pinned_workflow():
+    """scripts/vendor_ocr.ps1 must not download or copy an unpinned engine (it used to install the newest
+    Tesseract through winget and download language data from a moving branch without any hash check)."""
+    text = (ROOT / "scripts" / "vendor_ocr.ps1").read_text(encoding="utf-8-sig")
+    code = "\n".join(l for l in text.splitlines() if not l.lstrip().startswith("#"))
+    assert "stage_ocr_engine.py" in code and "--require" in code and "--verify" in code
+    for forbidden in ("winget", "Invoke-WebRequest", "http://", "https://", "Get-Command tesseract", "Copy-Item"):
+        assert forbidden not in code, forbidden
+
+
+def test_release_build_verifies_the_ocr_engine_before_packaging():
+    text = (ROOT / "scripts" / "build_release.ps1").read_text(encoding="utf-8-sig")
+    verify_at = text.find("stage_ocr_engine.py\") --verify")
+    copy_at = text.find("foreach ($Side in @(\"engines\\ocr\", \"models\\tessdata\"))")
+    assert verify_at != -1 and copy_at != -1 and verify_at < copy_at

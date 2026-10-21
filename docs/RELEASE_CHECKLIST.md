@@ -17,6 +17,7 @@ release are always deliberate maintainer steps.
 | 1.3 | `CHANGELOG.md` has `## [X.Y.Z] — Unreleased` describing every user-visible change | manual |
 | 1.4 | Third-party versions changed? Update `THIRD_PARTY_NOTICES.md`, `licenses/DEPENDENCY_INVENTORY.md` and `third_party_sources.json` together | manual (compare `pip freeze` with the inventory) |
 | 1.5 | Windows CI green on the commit to be released | automated (`.github/workflows/windows-ci.yml`); check the run page |
+| 1.6 | OCR engine prepared with `scripts\vendor_ocr.ps1` ([Build and Runtime](BUILD_AND_RUNTIME.md#ocr-engine-and-language-data)) | automated: the build stops unless every OCR file matches `scripts/ci/ocr_engine_pins.json` |
 
 ## 2. Build
 

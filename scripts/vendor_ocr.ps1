@@ -1,81 +1,35 @@
-# Packaging-time OCR vendor (NOT used by the app at runtime).
-# Places Tesseract + eng/jpn/osd under engines/ocr and models/tessdata.
-# Usage: powershell -ExecutionPolicy Bypass -File scripts/vendor_ocr.ps1
+# Prepare the OCR engine for a release build (packaging machine only; never used by the app at run time).
+#
+# Places Tesseract 5.4.0.20240606 (Windows x64) in engines\ocr and the tessdata_fast eng / jpn / osd
+# language data in models\tessdata, ONLY if every file is SHA-256 identical to the engine Monograph PDF
+# ships (scripts\ci\ocr_engine_pins.json). Anything else is refused and nothing is changed.
+#
+# 1. Install exactly that Tesseract version from the approved Chocolatey package (also used by CI):
+#        choco install tesseract --version 5.4.0.20240606 -y
+# 2. powershell -ExecutionPolicy Bypass -File scripts\vendor_ocr.ps1 [-From "C:\Program Files\Tesseract-OCR"]
+#
+# The language data is downloaded from the tessdata_fast release tag 4.1.0 and checked against the pins.
+# This script itself downloads no program files and never picks a newer Tesseract. The work is done by
+# scripts\ci\stage_ocr_engine.py; afterwards the result is verified again with --verify.
+# (Before 0.2.4 this script installed the newest Tesseract through winget and downloaded the language
+# data from a moving branch without any hash check; that route is retired.)
+
+param(
+    [string]$From = (Join-Path $env:ProgramFiles "Tesseract-OCR")
+)
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $Root
 
-$OcrDir = Join-Path $Root "engines\ocr"
-$Tessdata = Join-Path $Root "models\tessdata"
-$ToolsCache = Join-Path $Root "tools\ocr_cache"
-New-Item -ItemType Directory -Force -Path $OcrDir, $Tessdata, $ToolsCache | Out-Null
+$Py = Join-Path $Root "env\Scripts\python.exe"
+if (-not (Test-Path $Py)) { throw "Missing .\env. Run scripts\setup_env.ps1 first." }
+$Stager = Join-Path $Root "scripts\ci\stage_ocr_engine.py"
 
-function Get-File($Url, $Dest) {
-    if (Test-Path $Dest) {
-        Write-Host "Exists: $Dest"
-        return
-    }
-    Write-Host "Downloading $Url"
-    Invoke-WebRequest -Uri $Url -OutFile $Dest -UseBasicParsing
+& $Py $Stager --from $From --require
+if ($LASTEXITCODE -ne 0) {
+    throw "OCR engine not prepared: the installed Tesseract at '$From' or the downloaded language data does not match the pinned release copy (see above)."
 }
-
-# --- Language data (tessdata_fast, offline thereafter) ---
-$LangBase = "https://github.com/tesseract-ocr/tessdata_fast/raw/main"
-foreach ($lang in @("eng", "jpn", "osd")) {
-    $dest = Join-Path $Tessdata "$lang.traineddata"
-    Get-File "$LangBase/$lang.traineddata" $dest
-}
-
-# --- Tesseract Windows binary (portable zip if available; else copy from PATH) ---
-$TessExe = Join-Path $OcrDir "tesseract.exe"
-if (-not (Test-Path $TessExe)) {
-    $existing = Get-Command tesseract -ErrorAction SilentlyContinue
-    if ($existing) {
-        Copy-Item $existing.Source $TessExe -Force
-        $bindir = Split-Path $existing.Source
-        Get-ChildItem $bindir -Filter "*.dll" | Copy-Item -Destination $OcrDir -Force
-        Write-Host "Copied system tesseract to engines/ocr"
-    } else {
-        # Official-ish portable build hosted by UB Mannheim mirrors as zip is uncommon;
-        # fall back to winget/choco silent if present.
-        $winget = Get-Command winget -ErrorAction SilentlyContinue
-        if ($winget) {
-            Write-Host "Attempting winget install of Tesseract OCR (packaging machine only)..."
-            winget install --id UB-Mannheim.TesseractOCR -e --accept-package-agreements --accept-source-agreements | Out-Host
-            $guess = @(
-                "$env:LOCALAPPDATA\Programs\Tesseract-OCR\tesseract.exe",
-                "C:\Program Files\Tesseract-OCR\tesseract.exe"
-            ) | Where-Object { Test-Path $_ } | Select-Object -First 1
-            if ($guess) {
-                Copy-Item $guess $TessExe -Force
-                $bindir = Split-Path $guess
-                Get-ChildItem $bindir -Filter "*.dll" | Copy-Item -Destination $OcrDir -Force
-                # Prefer project tessdata; also copy if empty
-                $sysTess = Join-Path $bindir "tessdata"
-                if (Test-Path $sysTess) {
-                    foreach ($lang in @("eng", "jpn", "osd")) {
-                        $src = Join-Path $sysTess "$lang.traineddata"
-                        $dst = Join-Path $Tessdata "$lang.traineddata"
-                        if ((Test-Path $src) -and -not (Test-Path $dst)) {
-                            Copy-Item $src $dst -Force
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-# Manifest for audits
-$manifest = @{
-    vendored_at = (Get-Date).ToString("o")
-    tesseract   = (Test-Path $TessExe)
-    tessdata    = @{}
-}
-foreach ($lang in @("eng", "jpn", "osd")) {
-    $manifest.tessdata[$lang] = Test-Path (Join-Path $Tessdata "$lang.traineddata")
-}
-$manifest | ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $OcrDir "MANIFEST.json")
-Write-Host "OCR vendor complete. tesseract=$($manifest.tesseract)"
-$manifest.tessdata.GetEnumerator() | ForEach-Object { Write-Host ("  {0}={1}" -f $_.Key, $_.Value) }
+& $Py $Stager --verify
+if ($LASTEXITCODE -ne 0) { throw "OCR engine verification failed (see above)." }
+Write-Host "OCR engine ready in engines\ocr and models\tessdata (pinned and verified)."

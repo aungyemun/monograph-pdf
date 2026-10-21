@@ -154,6 +154,50 @@ def _small_manifest(tmp_path: Path) -> tuple[Path, Path]:
     return path, cache
 
 
+def test_built_source_archive_is_complete_portable_and_private(tmp_path):
+    """The archive as built (stand-in third-party files): public documents and licenses in, internal audit
+    records and local paths out, portable unique entry names, and every third-party file matching the
+    SHA-256 recorded in SOURCE_MANIFEST.json."""
+    manifest_path, cache = _small_manifest(tmp_path)
+    out = tmp_path / f"MonographPDF_{VERSION}_Source.zip"
+    assert msa.build(out, cache, offline=True, manifest_path=manifest_path) == 0
+    top = f"MonographPDF_{VERSION}_Source/"
+    with zipfile.ZipFile(out) as z:
+        infos = z.infolist()
+        names = [i.filename for i in infos]
+        assert len(names) == len(set(names)), "duplicate entries"
+        assert len({n.lower() for n in names}) == len(names), "entries differing only in case"
+        assert not [n for n in names if "\\" in n or n.startswith("/") or ".." in n.split("/")]
+        project = {n[len(top + "monograph-pdf/"):] for n in names if n.startswith(top + "monograph-pdf/")}
+        for need in ("README.md", "LICENSE", "LICENSE.md", "CONTRIBUTING.md", "SECURITY.md", "INSTALLATION.md",
+                     "CHANGELOG.md", "THIRD_PARTY_NOTICES.md", "CITATION.cff", "VERSION", "requirements.txt",
+                     "requirements-ci.txt", "scripts/vendor_ocr.ps1", "scripts/ci/stage_ocr_engine.py",
+                     "scripts/ci/ocr_engine_pins.json", "installer/MonographPDF.iss",
+                     "third_party/licenses/TESSERACT_NOTICE.txt", "tests/fixtures/templates/manifest.json"):
+            assert need in project, need
+        audit = sorted(p for p in project if p.startswith("reports/"))
+        assert audit == ["reports/audit/SECURITY_AUDIT_0.2.0.md"], audit
+        assert not [p for p in project if p.startswith(("env/", "build/", "dist/", "packages/", "releases/", "tools/"))
+                    or "__pycache__" in p or p.endswith((".pyc", ".exe", ".dll"))]
+        problems = [p for i in infos if i.filename.startswith(top + "monograph-pdf/")
+                    and Path(i.filename).suffix.lower() in msa.TEXT_SUFFIXES
+                    for p in msa.scan_text(i.filename, z.read(i))]
+        assert problems == []
+        record = json.loads(z.read(top + "SOURCE_MANIFEST.json"))
+        checked = 0
+        for comp in record["components"]:
+            for f in comp.get("files", []):
+                member = [n for n in names if n.startswith(top + "third-party/") and n.endswith("/" + f["name"])]
+                if not member:
+                    continue  # the project itself is listed as a folder
+                assert len(member) == 1, member
+                assert hashlib.sha256(z.read(member[0])).hexdigest() == f["sha256"], f["name"]
+                checked += 1
+        assert checked == sum(len(c["files"]) for c in MANIFEST["components"] if c["id"] != "monograph-pdf") > 0
+        readme = z.read(top + "README_SOURCE.md").decode()
+        assert "vendor_ocr.ps1" in readme and "ocr_engine_pins.json" in readme and "5.4.0.20240606" in readme
+
+
 def test_source_archive_is_built_and_passes_the_release_check(tmp_path):
     manifest_path, cache = _small_manifest(tmp_path)
     out = tmp_path / f"MonographPDF_{VERSION}_Source.zip"

@@ -2,6 +2,24 @@
 
 All notable changes to Monograph PDF. Versions follow `VERSION` (see `docs/RELEASE_AND_VERSIONING.md`).
 
+## [0.2.4] — Unreleased
+
+Development version: release tooling, OCR reproducibility and source-archive maintenance. No change to the application so far.
+
+### Changed
+
+- `scripts/vendor_ocr.ps1` repaired: it now prepares only the pinned OCR engine — Tesseract 5.4.0.20240606 (Windows x64) and the `eng`, `jpn` and `osd` data of tessdata_fast 4.1.0 — through `scripts/ci/stage_ocr_engine.py`, and refuses anything whose SHA-256 differs from `scripts/ci/ocr_engine_pins.json`. It used to install the newest Tesseract through winget and download the language data from a moving branch without any integrity check.
+- The release build checks `engines\ocr` and `models\tessdata` against those pins before packaging and stops on any difference, including unpinned extra files.
+- OCR staging copies the project's own `TESSERACT_NOTICE.txt` and checks it against the pins (CI used to write a placeholder in its place); the language data comes from the tessdata_fast tag 4.1.0 instead of the `main` branch; `--require` turns a refused engine into a failure.
+- Source archive: `CONTRIBUTING.md` is included, and the build instructions in `README_SOURCE.md` describe the pinned OCR workflow. New tests check the required documents and license texts, the files linked from the README, the exclusion of internal audit records and private paths, unique portable entry names, and the SHA-256 of every third-party source file.
+- `scripts/setup_env.ps1` creates the environment with Python 3.11, the version releases bundle (it used to take any `python` on the PATH first), and stops when creating the environment or installing the requirements fails (it used to report success).
+- `engines/ocr/MANIFEST.json` no longer records a local build folder.
+- Documentation: clearer privacy, installation, security and license wording, contribution templates, and a clarification of the published 0.2.3 release notes (source downloads, SmartScreen guidance); the 0.2.3 release files were not changed.
+
+### Removed
+
+- `scripts/prepare_windows_release.ps1` and its helpers `scripts/validate_release_smoke.py` and `scripts/write_runtime_manifest.py`: unused and superseded by `installer\build_release.bat`. The script bumped `VERSION` by itself, staged an unofficial build and stopped on harmless standard-error output.
+
 ## [0.2.3] — 2026-10-21
 
 Release reliability, security verification, automated testing on GitHub Actions and refreshed documentation; no new features.

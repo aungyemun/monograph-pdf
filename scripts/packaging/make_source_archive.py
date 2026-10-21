@@ -245,7 +245,7 @@ def _readme(manifest: dict, version: str) -> str:
         "On Windows 10/11 with Python 3.11, in `monograph-pdf/`:",
         "",
         "1. `powershell -ExecutionPolicy Bypass -File scripts\\setup_env.ps1` — creates `env\\` with the pinned packages of `requirements.txt`.",
-        "2. `powershell -ExecutionPolicy Bypass -File scripts\\vendor_ocr.ps1` — places the Tesseract OCR engine and language data in `engines\\ocr` and `models\\tessdata`.",
+        "2. Install Tesseract 5.4.0.20240606 (`choco install tesseract --version 5.4.0.20240606`), then `powershell -ExecutionPolicy Bypass -File scripts\\vendor_ocr.ps1` — places the OCR engine and the eng / jpn / osd language data in `engines\\ocr` and `models\\tessdata`, only if every file matches the SHA-256 pinned in `scripts/ci/ocr_engine_pins.json`.",
         "3. Install Inno Setup 6 into `tools\\inno` (or system-wide).",
         "4. `installer\\build_release.bat` — tests, `MonographPDF.exe`, self-check, `uninstall.exe`, `Setup.exe`, this source archive.",
         "",

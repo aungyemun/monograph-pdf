@@ -78,6 +78,10 @@ if (-not (Test-Path $AppExe)) { throw "Missing $AppExe" }
 
 # OCR engine and language data sit next to the exe once installed (Setup.exe adds them from
 # engines\ocr and models\tessdata); copy them in so the self-test checks the installed layout.
+# Only the pinned engine is packaged: every file must match scripts\ci\ocr_engine_pins.json
+# (prepare it with scripts\vendor_ocr.ps1).
+& $Py (Join-Path $Root "scripts\ci\stage_ocr_engine.py") --verify
+if ($LASTEXITCODE -ne 0) { throw "engines\ocr or models\tessdata differ from the pinned OCR engine - run scripts\vendor_ocr.ps1." }
 foreach ($Side in @("engines\ocr", "models\tessdata")) {
     $Src = Join-Path $Root $Side
     $Dst = Join-Path $Payload $Side

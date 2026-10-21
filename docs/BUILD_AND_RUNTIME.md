@@ -40,17 +40,21 @@ modules, unused Qt plugins and similar) and checks that nothing still depends on
 ## OCR engine and language data
 
 The OCR engine (`engines\ocr\`) and the `eng`, `jpn` and `osd` language data (`models\tessdata\`) are
-not stored in the repository. The release build stops if they are missing. Releases ship Tesseract
-5.4.0.20240606 and `tessdata_fast` data; every file is pinned by SHA-256 in
-`scripts/ci/ocr_engine_pins.json`. To put a matching copy in place from an installed Tesseract of that
-version (the language data is downloaded from `tessdata_fast` at this step):
+not stored in the repository. Releases ship Tesseract 5.4.0.20240606 (Windows x64) and the
+tessdata_fast 4.1.0 language data; every file is pinned by SHA-256 in `scripts/ci/ocr_engine_pins.json`.
 
 ```powershell
-.\env\Scripts\python.exe scripts\ci\stage_ocr_engine.py --from "C:\Program Files\Tesseract-OCR"
+# 1. Install exactly that Tesseract version (approved Chocolatey package, also used by CI)
+choco install tesseract --version 5.4.0.20240606 -y
+
+# 2. Copy it and download the language data, only if every file matches the pins
+powershell -ExecutionPolicy Bypass -File scripts\vendor_ocr.ps1
 ```
 
-Nothing is staged unless every file matches the pinned hashes. The OCR tests are skipped when the
-engine is absent.
+`vendor_ocr.ps1` changes nothing when any file differs. The release build checks the folders against
+the pins again (`scripts\ci\stage_ocr_engine.py --verify`) and stops on a missing, different or extra
+file. The OCR tests are skipped when the engine is absent. After an intentional engine update, record
+the new files with `stage_ocr_engine.py --write-pins` and update the notices and source archives.
 
 ## Release build
 

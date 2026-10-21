@@ -1,17 +1,23 @@
-"""Stage the OCR engine for CI only when it is byte-identical to the engine Monograph PDF ships.
+"""Stage the OCR engine only when it is byte-identical to the engine Monograph PDF ships.
 
     python scripts/ci/stage_ocr_engine.py --write-pins          (maintainer: record the shipped engine)
     python scripts/ci/stage_ocr_engine.py --from "C:/Program Files/Tesseract-OCR"   (CI)
+    python scripts/ci/stage_ocr_engine.py --from "C:/Program Files/Tesseract-OCR" --require
+                                                                 (release builder: scripts/vendor_ocr.ps1)
+    python scripts/ci/stage_ocr_engine.py --verify              (release build: check engines/ocr + models/tessdata)
 
 The release bundles Tesseract (engines/ocr) and tessdata_fast eng/jpn/osd (models/tessdata); neither
-is in the repository. In CI, Tesseract is installed from the approved Chocolatey package of the same
-version and the language data is downloaded from the tessdata_fast repository. Every file is
-checked against the SHA-256 recorded from the shipped copy (scripts/ci/ocr_engine_pins.json); only
-if *all* files match are they placed where the application looks for them. Otherwise nothing is
-staged, the OCR tests skip, and the category report shows OCR as NOT VERIFIED — a different or
-tampered engine is never tested in place of the real one.
+is in the repository. Tesseract 5.4.0.20240606 (Windows x64) comes from the approved Chocolatey package
+of that version (``choco install tesseract --version 5.4.0.20240606``); the language data is downloaded
+from the tessdata_fast release tag 4.1.0. Every file is checked against the SHA-256 recorded from the
+shipped copy (scripts/ci/ocr_engine_pins.json); only if *all* files match are they placed where the
+application looks for them. ``TESSERACT_NOTICE.txt`` is the project's own notice
+(third_party/licenses), checked against the same pins. Otherwise nothing is staged: in CI the OCR tests
+skip and the category report shows OCR as NOT VERIFIED — a different or tampered engine is never tested
+or packaged in place of the real one.
 
-Exit code is 0 in both cases (the decision is reported, not hidden); 2 for usage errors.
+Exit codes: 0 staged / verified (and, without --require, also "not staged", which is reported, not
+hidden); 1 not staged with --require, or --verify found a difference; 2 usage errors.
 """
 
 from __future__ import annotations
@@ -30,9 +36,12 @@ ROOT = Path(__file__).resolve().parents[2]
 PINS = Path(__file__).with_name("ocr_engine_pins.json")
 ENGINE = ROOT / "engines" / "ocr"
 TESSDATA = ROOT / "models" / "tessdata"
-TESSDATA_URL = "https://github.com/tesseract-ocr/tessdata_fast/raw/main/{name}"
+NOTICE = ROOT / "third_party" / "licenses" / "TESSERACT_NOTICE.txt"
+# An immutable release tag of tessdata_fast; its files are the ones Monograph PDF ships (SHA-256 pinned).
+TESSDATA_URL = "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/{name}"
 LANGS = ("eng", "jpn", "osd")
-SKIP = {"MANIFEST.json"}
+# Files in engines/ocr that are not part of the engine: an audit note and the git placeholder.
+SKIP = {"MANIFEST.json", ".gitkeep"}
 
 
 def sha256(path: Path) -> str:
@@ -70,7 +79,30 @@ def summary(line: str) -> None:
             fh.write(line + "\n")
 
 
-def stage(source: Path) -> int:
+def verify() -> int:
+    """Check engines/ocr and models/tessdata against the pins (no network). Used by the release build."""
+    pins = json.loads(PINS.read_text(encoding="utf-8"))
+    problems: list[str] = []
+    for folder, pinned in ((ENGINE, pins["engine"]), (TESSDATA, pins["tessdata"])):
+        present = {p.name: p for p in folder.iterdir() if p.is_file()} if folder.is_dir() else {}
+        for name, expected in pinned.items():
+            if name not in present:
+                problems.append(f"{folder.name}/{name}: missing")
+            elif sha256(present[name]) != expected:
+                problems.append(f"{folder.name}/{name}: SHA-256 differs from the pinned copy")
+        for name in sorted(set(present) - set(pinned) - SKIP):
+            problems.append(f"{folder.name}/{name}: not part of the pinned engine (it would be shipped)")
+    if problems:
+        print("OCR engine verification FAILED (scripts/ci/ocr_engine_pins.json):")
+        for p in problems:
+            print(f"- {p}")
+        return 1
+    print(f"OCR engine verified: Tesseract {pins['tesseract_version']}, {len(pins['engine'])} files and "
+          f"{', '.join(LANGS)} language data match the pinned SHA-256.")
+    return 0
+
+
+def stage(source: Path, require: bool) -> int:
     pins = json.loads(PINS.read_text(encoding="utf-8"))
     problems: list[str] = []
     with tempfile.TemporaryDirectory(prefix="ocr_stage_") as tmp:
@@ -78,13 +110,10 @@ def stage(source: Path) -> int:
         (work / "engine").mkdir()
         (work / "tessdata").mkdir()
         for name, expected in pins["engine"].items():
-            src = source / name
-            if name == "TESSERACT_NOTICE.txt":
-                # written by the release tooling, not part of the upstream install
-                (work / "engine" / name).write_text("Tesseract OCR (Apache-2.0), staged for CI tests.\n", encoding="utf-8")
-                continue
+            # The notice is Monograph PDF's own file, not part of the upstream installation.
+            src = NOTICE if name == NOTICE.name else source / name
             if not src.is_file():
-                problems.append(f"{name}: not in the installed engine")
+                problems.append(f"{name}: not in {'third_party/licenses' if src == NOTICE else 'the installed engine'}")
             elif sha256(src) != expected:
                 problems.append(f"{name}: SHA-256 differs from the shipped engine")
             else:
@@ -103,7 +132,7 @@ def stage(source: Path) -> int:
             summary("OCR engine **not staged** — OCR tests will be SKIPPED and reported NOT VERIFIED:")
             for p in problems:
                 summary(f"- {p}")
-            return 0
+            return 1 if require else 0
         ENGINE.mkdir(parents=True, exist_ok=True)
         TESSDATA.mkdir(parents=True, exist_ok=True)
         for f in (work / "engine").iterdir():
@@ -119,14 +148,18 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--write-pins", action="store_true")
+    g.add_argument("--verify", action="store_true", help="check engines/ocr and models/tessdata against the pins")
     g.add_argument("--from", dest="source", type=Path, help="folder of the installed Tesseract")
+    ap.add_argument("--require", action="store_true", help="exit 1 when the engine cannot be staged (release builds)")
     a = ap.parse_args(argv)
     if a.write_pins:
         return write_pins()
+    if a.verify:
+        return verify()
     if not a.source.is_dir():
         summary(f"OCR engine not staged: {a.source} does not exist — OCR tests will be NOT VERIFIED.")
-        return 0
-    return stage(a.source)
+        return 1 if a.require else 0
+    return stage(a.source, a.require)
 
 
 if __name__ == "__main__":
