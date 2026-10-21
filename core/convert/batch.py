@@ -233,7 +233,9 @@ class BatchRunner:
                 done = [p for p in res.pages if p.words]
                 if not done:
                     raise RuntimeError("no text was recognized")
-                return [write_docx(done, out, title=stem)]
+                from core.convert.office_metadata import document_metadata
+
+                return [write_docx(done, out, title=stem, metadata=document_metadata(pdf))]
             raise ValueError(f"unknown output format {fmt.key}")
         finally:
             pdf.close()

@@ -143,42 +143,32 @@ def optimize_pdf(
     if preset == OptimizePreset.LOSSLESS:
         downsample_images = False
 
-    doc = fitz.open()
-    try:
-        doc.insert_pdf(src)
-        downsampled = 0
-        if downsample_images and preset != OptimizePreset.LOSSLESS:
-            downsampled = _downsample_images(
-                doc,
-                dpi=_PRESET_DPI[preset],
-                quality=_PRESET_JPEG[preset],
-                oversize_factor=_OVERSIZE_FACTOR.get(preset, 1.5),
-            )
-        if remove_metadata:
-            doc.set_metadata(
-                {
-                    "title": "",
-                    "author": "",
-                    "subject": "",
-                    "keywords": "",
-                    "creator": "",
-                    "producer": "",
-                }
-            )
+    # One engine for every compression path (core.convert.compress): the document is compressed as it
+    # is — forms, annotations, bookmarks, links, page labels and metadata stay — and written atomically.
+    from core.convert.compress import CompressResult, _source_bytes, _Work, write_result
+
+    work = _Work(_source_bytes(src), None, None, None)
+    if downsample_images:
+        cand = work.run(float(_PRESET_DPI[preset]), int(_PRESET_JPEG[preset]), label)
+        lossless = work.run(None, None, "Lossless")
+        if lossless.size <= cand.size:
+            cand = lossless
+    else:
+        cand = work.run(None, None, "Lossless")
+    if remove_metadata:
+        doc = fitz.open("pdf", cand.data)
+        try:
+            doc.set_metadata({k: "" for k in ("title", "author", "subject", "keywords", "creator", "producer")})
             try:
                 doc.del_xml_metadata()
             except Exception:  # noqa: BLE001
                 pass
-
-        garbage = 4 if preset in (OptimizePreset.LOSSLESS, OptimizePreset.MINIMUM, OptimizePreset.AGGRESSIVE) else 3
-        save_kwargs: dict = {"garbage": garbage, "deflate": True}
-        try:
-            doc.save(destination.as_posix(), clean=True, **save_kwargs)
-        except TypeError:
-            doc.save(destination.as_posix(), **save_kwargs)
-    finally:
-        doc.close()
-
+            cand.data = doc.tobytes(garbage=4, deflate=True)
+        finally:
+            doc.close()
+    write_result(CompressResult("lossless", len(work.data), cand, work.profile), destination)
+    downsampled = cand.images_changed
+    garbage = 4
     out_bytes = destination.stat().st_size
     src_b = source_bytes or out_bytes
     reduction = (1.0 - (out_bytes / src_b)) * 100.0 if src_b else 0.0
@@ -213,55 +203,3 @@ def optimize_pdf(
         images_touched=downsampled,
         reduction_pct=reduction,
     )
-
-
-def _downsample_images(
-    doc: fitz.Document,
-    *,
-    dpi: int,
-    quality: int,
-    oversize_factor: float = 1.5,
-) -> int:
-    """Recompress only clearly oversized rasters. Never touch tiny icons."""
-    if dpi <= 0:
-        return 0
-    count = 0
-    max_edge = int(11 * dpi * oversize_factor)
-    for page_index in range(doc.page_count):
-        page = doc.load_page(page_index)
-        if not hasattr(page, "replace_image"):
-            return count
-        for img in page.get_images(full=True) or []:
-            xref = int(img[0])
-            try:
-                pix = fitz.Pixmap(doc, xref)
-                if pix.n - pix.alpha >= 4:
-                    pix = fitz.Pixmap(fitz.csRGB, pix)
-            except Exception:  # noqa: BLE001
-                continue
-            if pix.width < 64 or pix.height < 64:
-                continue
-            # Skip if already within policy envelope
-            if max(pix.width, pix.height) <= max_edge and quality >= 85:
-                continue
-            scale = min(1.0, (11 * dpi) / float(max(pix.width, pix.height)))
-            try:
-                from PIL import Image
-                import io
-
-                png = pix.tobytes("png")
-                im = Image.open(io.BytesIO(png)).convert("RGB")
-                if scale < 0.99:
-                    im = im.resize(
-                        (max(1, int(im.width * scale)), max(1, int(im.height * scale))),
-                        Image.Resampling.LANCZOS,
-                    )
-                elif quality >= 88:
-                    continue
-                buf = io.BytesIO()
-                im.save(buf, format="JPEG", quality=quality, optimize=True)
-                page.replace_image(xref, stream=buf.getvalue())
-                count += 1
-            except Exception:  # noqa: BLE001
-                continue
-    return count

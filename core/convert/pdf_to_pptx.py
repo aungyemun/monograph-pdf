@@ -7,9 +7,18 @@ The slide is the PDF page as displayed (``/Rotate`` applied), converted from PDF
 either orientation) gets that sheet's exact size, so an A4 PDF becomes a 210 × 297 mm (portrait) or
 297 × 210 mm (landscape) slide — never PowerPoint's 16:9 default.
 
-PowerPoint has one slide size per file. When the pages differ in size or orientation the slide is
-the *bounding sheet* (widest page × tallest page) and every page is placed centered at its true scale:
-nothing is stretched, cropped or shrunk, the unused margin stays white.
+PowerPoint has one slide size per file. When the pages differ in size or orientation, ``size_policy``
+decides (nothing is ever stretched or cropped; every page keeps its proportions):
+
+``true_size``   (default) the slide is the widest × tallest page; every page is centred at its true
+                scale (smaller pages get a white margin).
+``fit``         the same slide; every page is enlarged or reduced to fill it as far as its proportions allow.
+``first_page``  the slide is the first page's size; the other pages are fitted into it.
+``custom``      a chosen slide size (``custom_size_pt``: A4, A3, 16:9 widescreen …); every page is fitted.
+``split``       one presentation per group of pages of the same size and orientation, each with that
+                exact slide size (``pdf_to_pptx_split``).
+
+Sizes outside PowerPoint's limits (1–56 inches per side) are scaled uniformly and reported.
 
 Modes
 -----
@@ -95,7 +104,7 @@ class PptxReport:
         w, h = self.slide_size_mm
         text = f"{self.pages} slide(s), {self.slide_label or f'{w:.0f} × {h:.0f} mm'}"
         if self.strategy != "uniform":
-            text += " (pages of different sizes are centered at true scale)"
+            text += f" ({self.strategy})"
         if self.mode == "editable":
             text += f"; {self.text_boxes} editable text box(es)"
         return text
@@ -237,6 +246,8 @@ def _add_text_line(slide: Any, line: dict[str, Any], sx: float, sy: float, ox: i
         low = str(span.get("font", "")).lower()
         font.bold = bool(flags & 16) or "bold" in low or "black" in low
         font.italic = bool(flags & 2) or "italic" in low or "oblique" in low
+        if flags & 1:  # superscript
+            run._r.get_or_add_rPr().set("baseline", "30000")
         color = int(span.get("color", 0))
         font.color.rgb = RGBColor((color >> 16) & 255, (color >> 8) & 255, color & 255)
     if rotated:
@@ -256,16 +267,66 @@ def _render(page: fitz.Page, dpi: int, path: Path) -> None:
     page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False).save(path.as_posix())
 
 
+SIZE_POLICIES = ("true_size", "fit", "first_page", "custom", "split")
+SLIDE_PRESETS_PT = {
+    "A4 portrait": (595.28, 841.89), "A4 landscape": (841.89, 595.28),
+    "A3 portrait": (841.89, 1190.55), "A3 landscape": (1190.55, 841.89),
+    "Letter portrait": (612.0, 792.0), "Letter landscape": (792.0, 612.0),
+    "Widescreen 16:9": (960.0, 540.0), "Standard 4:3": (720.0, 540.0),
+}
+
+
+def page_groups(document: PdfDocument, pages: list[int] | None = None) -> list[tuple[str, list[int]]]:
+    """Pages grouped by size and orientation (2 pt tolerance), in order of first appearance:
+    [("A4 portrait", [0, 2]), ("A3 landscape", [1]), ...]."""
+    doc = document._backend._doc
+    indices = list(range(doc.page_count)) if pages is None else list(pages)
+    groups: list[tuple[tuple[int, int, str], list[int]]] = []
+    for i in indices:
+        r = doc.load_page(i).rect
+        ew, eh, label = _snap_page(float(r.width), float(r.height))
+        for key, members in groups:
+            if abs(key[0] - ew) <= 2 * EMU_PER_PT and abs(key[1] - eh) <= 2 * EMU_PER_PT:
+                members.append(i)
+                break
+        else:
+            name = label or f"{r.width / 72 * 25.4:.0f} × {r.height / 72 * 25.4:.0f} mm"
+            groups.append(((ew, eh, name), [i]))
+    return [(key[2], members) for key, members in groups]
+
+
+def pdf_to_pptx_split(document: PdfDocument, destination: Path, *, pages: list[int] | None = None,
+                      **kwargs) -> list[Path]:
+    """One presentation per page size/orientation group: ``name (A4 portrait).pptx`` …; a document with
+    one size gives one file at ``destination``."""
+    destination = Path(destination)
+    groups = page_groups(document, pages)
+    if len(groups) <= 1:
+        return [pdf_to_pptx(document, destination, pages=pages, **kwargs)]
+    out = []
+    for label, members in groups:
+        safe = re.sub(r'[\\/:*?"<>|]', "-", label)
+        target = destination.with_name(f"{destination.stem} ({safe}){destination.suffix}")
+        out.append(pdf_to_pptx(document, target, pages=members, **kwargs))
+    return out
+
+
 def pdf_to_pptx(
     document: PdfDocument,
     destination: Path,
     *,
     pages: list[int] | None = None,
-    dpi: int = 150,
+    dpi: int = 200,
     mode: str = "layout",
     report: PptxReport | None = None,
+    size_policy: str = "true_size",
+    custom_size_pt: tuple[float, float] | None = None,
 ) -> Path:
     """Write ``destination`` (.pptx). ``report`` (optional) receives size, strategy and limitations."""
+    if size_policy not in SIZE_POLICIES or size_policy == "split":
+        raise ValueError(f"Unsupported slide size policy here: {size_policy} (use pdf_to_pptx_split for split)")
+    if size_policy == "custom" and not custom_size_pt:
+        raise ValueError("custom slide size requires custom_size_pt")
     if mode not in MODES:
         raise ValueError(f"Unsupported PowerPoint mode: {mode} (supported: {', '.join(MODES)})")
     destination = Path(destination)
@@ -289,16 +350,30 @@ def pdf_to_pptx(
             sizes.append((ew, eh, label, float(r.width), float(r.height)))
 
         uniform = all(abs(s[0] - sizes[0][0]) <= 2 * EMU_PER_PT and abs(s[1] - sizes[0][1]) <= 2 * EMU_PER_PT for s in sizes)
-        if uniform:
+        fit_pages = False
+        if size_policy == "custom":
+            slide_w, slide_h, label = _snap_page(*custom_size_pt)
+            label = label or f"{custom_size_pt[0] / 72 * 25.4:.0f} × {custom_size_pt[1] / 72 * 25.4:.0f} mm"
+            report.strategy, fit_pages = "custom slide size", True
+            report.notes.append("Every page is fitted into the chosen slide size, keeping its proportions.")
+        elif uniform:
             slide_w, slide_h, label = sizes[0][0], sizes[0][1], sizes[0][2]
             report.strategy = "uniform"
+        elif size_policy == "first_page":
+            slide_w, slide_h, label = sizes[0][0], sizes[0][1], sizes[0][2]
+            report.strategy, fit_pages = "first page size", True
+            report.notes.append("The pages differ in size: the slide is the first page's size and the other "
+                                "pages are fitted into it, keeping their proportions.")
         else:
             slide_w, slide_h = max(s[0] for s in sizes), max(s[1] for s in sizes)
             label = ""
-            report.strategy = "bounding sheet"
+            fit_pages = size_policy == "fit"
+            report.strategy = "bounding sheet, pages fitted" if fit_pages else "bounding sheet"
             report.notes.append(
                 "The pages differ in size or orientation. PowerPoint allows one slide size, so the slide is the "
-                "widest × tallest page and every page is centered at its true size, without stretching or cropping."
+                "widest × tallest page and every page is "
+                + ("enlarged or reduced to fill it, keeping its proportions." if fit_pages else
+                   "centered at its true size, without stretching or cropping.")
             )
         slide_w, slide_h, k = _fit_limits(slide_w, slide_h)
         if k != 1.0:
@@ -316,7 +391,11 @@ def pdf_to_pptx(
             tmpdir = Path(tmp)
             for n, i in enumerate(indices):
                 ew, eh, _lab, pw, ph = sizes[n]
-                ew, eh = round(ew * k), round(eh * k)
+                if fit_pages:
+                    f = min(slide_w / ew, slide_h / eh)
+                    ew, eh = round(ew * f), round(eh * f)
+                else:
+                    ew, eh = round(ew * k), round(eh * k)
                 ox, oy = (slide_w - ew) // 2, (slide_h - eh) // 2
                 sx, sy = ew / max(pw, 1.0), eh / max(ph, 1.0)
                 page = src.load_page(i)
@@ -343,11 +422,18 @@ def pdf_to_pptx(
                 )
             else:
                 report.notes.append("Layout-preserving: pages are pictures; text is not editable.")
-            try:
-                prs.core_properties.comments = LAYOUT_NOTICE if mode == "layout" else EDITABLE_NOTICE
-            except Exception:  # noqa: BLE001
-                pass
-            prs.save(destination.as_posix())
+            from core.convert.office_metadata import (
+                apply_core_properties,
+                pdf_properties,
+            )
+
+            apply_core_properties(prs.core_properties, pdf_properties(src.metadata))
+            if report.fonts:
+                report.notes.append("Fonts used for text boxes: " + ", ".join(report.fonts[:12])
+                                    + ". PowerPoint substitutes any that are not installed.")
+            tmp_out = destination.with_name(destination.name + ".part")
+            prs.save(tmp_out.as_posix())
+            tmp_out.replace(destination)
     finally:
         src.close()
     return destination

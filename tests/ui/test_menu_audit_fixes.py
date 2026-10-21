@@ -4,7 +4,7 @@
 * Save keeps password protection;
 * shapes and images can be undone and redone;
 * an export can never overwrite the PDF that is open;
-* Reduce File Size accepts the dialog's preset value and estimates per preset;
+* Compress PDF accepts the preset value; the dialog estimates per mode and caches measured results;
 * with no document, empty submenus and Insert ▸ Shapes items are disabled;
 * the print dialog starts on the paper that matches the document.
 """
@@ -105,14 +105,19 @@ def test_optimize_accepts_the_preset_value_and_includes_edits(window, tmp_path, 
     result = optimize_pdf(window._document, out, preset=OptimizePreset.STANDARD.value)  # noqa: SLF001
     assert out.exists() and result.output_bytes > 0
 
-    from ui.convert_dialogs import OptimizeDialog
+    # The Compress PDF dialog (which replaced the preset-only dialog) estimates per mode and caches
+    # measured results per setting
+    from ui.compress_dialog import CompressDialog
 
-    calls = []
-    dlg = OptimizeDialog(window, estimate=lambda p: calls.append(p) or (200_000, 100_000))
-    assert "with this preset" in dlg.size_label.text()
-    dlg.preset.setCurrentIndex(0)
-    dlg.preset.setCurrentIndex(2)  # cached: no new estimate
-    assert len(calls) == 2
+    dlg = CompressDialog(out.read_bytes(), parent=window)
+    dlg.mode_buttons["balanced"].setChecked(True)
+    assert "Estimated size" in dlg.estimate_label.text()
+    dlg.preview_btn.click()
+    first = dlg.result_
+    dlg.mode_buttons["lossless"].setChecked(True)
+    dlg.mode_buttons["balanced"].setChecked(True)
+    dlg.preview_btn.click()
+    assert dlg.result_ is first  # cached: no new run
     dlg.deleteLater()
 
 

@@ -23,13 +23,6 @@ from PySide6.QtWidgets import (
 )
 
 from core.convert.capabilities import Fidelity, list_capabilities
-from core.convert.optimize import OptimizePreset
-
-
-def _kb(n: int) -> str:
-    from ui.app_dialogs import _fmt_bytes
-
-    return _fmt_bytes(n)
 
 
 def _title(text: str) -> QLabel:
@@ -106,86 +99,6 @@ class CapabilitiesDialog(QDialog):
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
         self._table.resizeRowsToContents()
-
-
-class OptimizeDialog(QDialog):
-    def __init__(self, parent=None, estimate=None) -> None:
-        """``estimate(preset) -> (current_bytes, estimated_bytes)`` updates the size line for
-        the chosen preset (results are kept, so switching back is instant)."""
-        super().__init__(parent)
-        self._estimate = estimate
-        self._estimates: dict = {}
-        self.setWindowTitle("Reduce File Size")
-        self.setMinimumWidth(460)
-        root = QVBoxLayout(self)
-        root.setSpacing(10)
-        root.addWidget(_title("Reduce file size"))
-        layout = QFormLayout()
-        layout.setVerticalSpacing(8)
-        self.preset = QComboBox()
-        self.preset.addItem("Lossless — structural cleanup only", OptimizePreset.LOSSLESS)
-        self.preset.addItem("High Quality — preserve images", OptimizePreset.HIGH_QUALITY)
-        self.preset.addItem("Standard — recommended", OptimizePreset.STANDARD)
-        self.preset.addItem("Balanced — may reduce image quality", OptimizePreset.BALANCED)
-        self.preset.addItem("Minimum file size — lossy", OptimizePreset.MINIMUM)
-        layout.addRow("Preset:", self.preset)
-        root.addLayout(layout)
-        tip = _hint(
-            "Lossless never downsamples images. Balanced and Minimum recompress images and are lossy."
-        )
-        tip.setObjectName("ContextHint")
-        root.addWidget(tip)
-        self.remove_meta = QCheckBox("Remove document metadata (title, author, …)")
-        root.addWidget(self.remove_meta)
-        self.downsample = QCheckBox("Allow image downsampling / recompression")
-        root.addWidget(self.downsample)
-        self.size_label = QLabel("Size estimate: run Optimize to measure.")
-        self.size_label.setObjectName("DialogHint")
-        self.size_label.setWordWrap(True)
-        root.addWidget(self.size_label)
-        root.addWidget(_ok_cancel(self, "Optimize…"))
-        self.preset.currentIndexChanged.connect(self._sync_downsample)
-        self.preset.currentIndexChanged.connect(self._update_estimate)
-        self.preset.setCurrentIndex(2)  # Standard → triggers sync
-
-    def _update_estimate(self) -> None:
-        if self._estimate is None:
-            return
-        preset = self.preset.currentData()
-        key = getattr(preset, "value", preset)
-        if key not in self._estimates:
-            try:
-                self._estimates[key] = self._estimate(preset)
-            except Exception:  # noqa: BLE001 - the estimate is only a hint
-                self._estimates[key] = None
-        sizes = self._estimates[key]
-        if sizes is None:
-            self.size_label.setText("Size estimate: not available for this file.")
-            return
-        src_b, est_b = sizes
-        self.size_label.setText(
-            f"Current size: {_kb(src_b)} · with this preset: about {_kb(est_b)} "
-            "(estimate with the default options)"
-        )
-
-    def _sync_downsample(self) -> None:
-        preset = self.preset.currentData()
-        if preset == OptimizePreset.LOSSLESS:
-            self.downsample.setChecked(False)
-            self.downsample.setEnabled(False)
-        elif preset == OptimizePreset.HIGH_QUALITY:
-            self.downsample.setEnabled(True)
-            self.downsample.setChecked(False)
-        else:
-            self.downsample.setEnabled(True)
-            self.downsample.setChecked(True)
-
-    def values(self):
-        return {
-            "preset": self.preset.currentData(),
-            "remove_metadata": self.remove_meta.isChecked(),
-            "downsample_images": self.downsample.isChecked(),
-        }
 
 
 class _PageScope(QWidget):
@@ -292,25 +205,63 @@ def fidelity_confirm(parent, title: str, notice: str) -> bool:
 
 
 class PdfToPowerPointDialog(QDialog):
-    """Choose how a PDF becomes slides: whole pages as pictures, or pictures plus editable text."""
+    """Choose how a PDF becomes slides: whole pages as pictures, or pictures plus editable text; the slide
+    size policy for documents whose pages differ in size; and the picture quality."""
 
-    def __init__(self, parent=None) -> None:
+    SIZE_POLICY_LABELS = (
+        ("true_size", "Largest page size — every page at its true size, centered"),
+        ("fit", "Largest page size — every page enlarged or reduced to fill the slide"),
+        ("first_page", "First page's size — other pages fitted into it"),
+        ("custom", "Chosen slide size — every page fitted into it"),
+        ("split", "Separate presentation for each page size"),
+    )
+
+    def __init__(self, parent=None, *, page_groups: list[tuple[str, list[int]]] | None = None) -> None:
         super().__init__(parent)
         from PySide6.QtWidgets import QRadioButton
 
-        from core.convert.pdf_to_pptx import EDITABLE_NOTICE, LAYOUT_NOTICE
+        from core.convert.pdf_to_pptx import (
+            EDITABLE_NOTICE,
+            LAYOUT_NOTICE,
+            SLIDE_PRESETS_PT,
+        )
 
         self.setWindowTitle("PDF to PowerPoint")
-        self.setMinimumWidth(500)
+        self.setMinimumWidth(520)
         root = QVBoxLayout(self)
         root.setSpacing(10)
         root.addWidget(_title("Convert PDF to PowerPoint (.pptx)"))
-        size_note = QLabel(
-            "Slides use the PDF's page size (an A4 PDF gives A4 slides). If the pages differ in size, the "
-            "slide is the widest × tallest page and each page is centered at its true size."
-        )
+        groups = page_groups or []
+        mixed = len(groups) > 1
+        if mixed:
+            text = "This PDF has pages of different sizes: " + "; ".join(
+                f"{label} ({len(members)} page{'s' if len(members) != 1 else ''})" for label, members in groups[:6]
+            ) + ". A PowerPoint file has one slide size, so choose how to handle them."
+        else:
+            text = "Slides use the PDF's page size (an A4 PDF gives A4 slides)."
+        size_note = QLabel(text)
         size_note.setWordWrap(True)
         root.addWidget(size_note)
+        form = QFormLayout()
+        self.size_policy = QComboBox()
+        for key, label in self.SIZE_POLICY_LABELS:
+            if key == "split" and not mixed:
+                continue
+            if key in ("fit", "first_page") and not mixed:
+                continue
+            self.size_policy.addItem(label if mixed or key != "true_size" else "PDF page size", key)
+        form.addRow("Slide size:", self.size_policy)
+        self.custom_size = QComboBox()
+        for name, size in SLIDE_PRESETS_PT.items():
+            self.custom_size.addItem(name, size)
+        form.addRow("Chosen size:", self.custom_size)
+        self.quality = QComboBox()
+        for dpi, label in ((150, "Standard (150 dpi) — smaller file"), (200, "High (200 dpi, recommended)"),
+                           (300, "Print (300 dpi) — larger file")):
+            self.quality.addItem(label, dpi)
+        self.quality.setCurrentIndex(1)
+        form.addRow("Picture quality:", self.quality)
+        root.addLayout(form)
         self._layout = QRadioButton("Layout-preserving (recommended)")
         self._layout.setChecked(True)
         self._editable = QRadioButton("Editable text")
@@ -326,9 +277,27 @@ class PdfToPowerPointDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
+        self.size_policy.currentIndexChanged.connect(self._sync)
+        self._sync()
+
+    def _sync(self) -> None:
+        self.custom_size.setEnabled(self.policy() == "custom")
 
     def mode(self) -> str:
         return "editable" if self._editable.isChecked() else "layout"
+
+    def policy(self) -> str:
+        return str(self.size_policy.currentData())
+
+    def options(self) -> dict:
+        """Keyword arguments for pdf_to_pptx / pdf_to_pptx_split."""
+        opts = {"mode": self.mode(), "dpi": int(self.quality.currentData())}
+        policy = self.policy()
+        if policy != "split":
+            opts["size_policy"] = policy
+        if policy == "custom":
+            opts["custom_size_pt"] = tuple(self.custom_size.currentData())
+        return opts
 
 
 class PdfToWordDialog(QDialog):
@@ -367,10 +336,12 @@ class PdfToWordDialog(QDialog):
     def _sync(self) -> None:
         notes = {
             "layout": "Rebuilds every page as editable Word content and keeps the original look: "
-            "fonts, sizes, colors, paragraphs, tables, images and page size. Runs offline.",
+            "fonts, sizes, colors, paragraphs, tables, images, and each page's size and orientation (mixed sizes "
+            "stay mixed). Exact positions can make heavy re-editing harder. Runs offline.",
             "word": "Uses the Microsoft Word installed on this computer (PDF Reflow). Text flows "
             "naturally for heavy re-editing; complex layouts may shift.",
-            "text": "Extracts the text as simple paragraphs. Use for copy-and-paste only.",
+            "text": "Editable text: plain paragraphs that reflow freely, one Word section per page with "
+            "that page's size and orientation. Pictures and exact positions are not kept.",
         }
         self.notes.setText(notes.get(str(self.engine.currentData()), ""))
 

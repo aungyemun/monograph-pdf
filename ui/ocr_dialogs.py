@@ -169,7 +169,7 @@ class OcrTextDialog(QDialog):
     """Recognised text: correct it, copy it, or save it as a text file or Word document."""
 
     def __init__(self, result, *, title: str = "Recognized Text", languages: str = "", start_dir: str = "",
-                 doc_title: str = "", parent=None) -> None:
+                 doc_title: str = "", metadata: dict | None = None, parent=None) -> None:
         from core.ocr.text_export import document_text, page_text
 
         super().__init__(parent)
@@ -178,6 +178,7 @@ class OcrTextDialog(QDialog):
         self.result = result
         self._start_dir = start_dir
         self._doc_title = doc_title
+        self._metadata = metadata
         pages = [p for p in result.pages if p.words]
         layout = QVBoxLayout(self)
         words = [w for p in pages for w in p.words]
@@ -254,7 +255,8 @@ class OcrTextDialog(QDialog):
             return ""
         pages = [p for p in self.result.pages if p.words]
         try:
-            write_docx(pages, Path(path), title=self._doc_title, edited_text=self.text.toPlainText())
+            write_docx(pages, Path(path), title=self._doc_title, edited_text=self.text.toPlainText(),
+                       metadata=self._metadata)
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(self, "Save as Word", f"The document could not be written: {exc}")
             return ""

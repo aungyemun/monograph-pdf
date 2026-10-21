@@ -29,6 +29,12 @@ CANONICAL = {
     "RELEASE_PROVENANCE.md",
     "OFFICIAL_DOWNLOAD_VERIFICATION.md",
     "PRIVACY_POLICY.md",
+    # PDF <-> Office conversion, Save As and compression
+    "PDF_TO_OFFICE_CONVERSION.md",
+    "OFFICE_TO_PDF_CONVERSION.md",
+    "CONVERSION_FIDELITY.md",
+    "PDF_COMPRESSION.md",
+    "SAVE_AS_AND_EXPORT.md",
 }
 
 STALE_FRAGMENTS = (

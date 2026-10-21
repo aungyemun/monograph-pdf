@@ -70,9 +70,10 @@ The **Protected PDF** dialog asks for the password (never stored in recent files
 ## Saving
 
 - **File ▸ Save** (Ctrl+S) · **File ▸ Save As…** (Ctrl+Shift+S)
-- **File ▸ Save a Copy**: Selected Pages as PDF…, Flattened PDF…, or Copy with Metadata…
-- Other formats: **Convert** menu
-- **File ▸ Reduce File Size…**: Lossless · High Quality · Standard · Balanced · Minimum (Balanced and Minimum are lossy)
+- **File ▸ Save a Copy**: Whole Document (Keep Working on This One)…, Selected Pages as PDF…, Flattened PDF…, or Copy with Metadata… — the open document and its unsaved changes stay as they are
+- Save As asks before replacing an existing file; every save writes a temporary file first and swaps it in, so a failed save never leaves a half-written file
+- Other formats: **Convert** menu. When the document has unsaved changes, a conversion first asks **Save**, **Save As…** or **Cancel** (Cancel keeps every change)
+- **File ▸ Compress PDF…**: Lossless · Balanced · Smallest file · Target size (an exact maximum such as 956 KB or 1.99 MB; 1 KB = 1,000 bytes). The dialog shows the current size, an estimate, the measured size after **Preview**, and the original and compressed page side by side. Success is reported only when the saved file is at or below the target; otherwise you are told the smallest acceptable size and asked whether to keep it. See [PDF_COMPRESSION.md](PDF_COMPRESSION.md)
 
 ## Editing
 

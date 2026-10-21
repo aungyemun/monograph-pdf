@@ -1589,3 +1589,95 @@ def _stamp_custom(p, c):
     p.drawLine(QPointF(4, 17.5), QPointF(16, 17.5))
     _poly(p, [(7.5, 11), (8.5, 7), (11.5, 7), (12.5, 11)], close=False)
     p.drawEllipse(QRectF(7.5, 2, 5, 5))
+
+
+def _small_letter(p: QPainter, text: str, rect: QRectF, size: float = 6.5) -> None:
+    f = QFont("Segoe UI")
+    f.setPixelSize(max(1, round(size)))
+    f.setBold(True)
+    p.setFont(f)
+    p.drawText(rect, int(Qt.AlignmentFlag.AlignCenter), text)
+
+
+def _doc_to_doc(p: QPainter, left: str, right: str) -> None:
+    """Page with a letter -> arrow -> page with a letter (conversion icons)."""
+    p.drawRect(QRectF(2, 4, 6.5, 9))
+    p.drawRect(QRectF(11.5, 7, 6.5, 9))
+    _small_letter(p, left, QRectF(2, 4, 6.5, 9))
+    _small_letter(p, right, QRectF(11.5, 7, 6.5, 9))
+    p.drawLine(QPointF(6, 16.5), QPointF(9.5, 16.5))
+    _poly(p, [(8, 15), (9.5, 16.5), (8, 18)], close=False)
+
+
+@icon("pdf_to_pptx")
+def _pdf_to_pptx(p, c):
+    _doc_to_doc(p, "A", "P")
+
+
+@icon("pptx_to_pdf")
+def _pptx_to_pdf(p, c):
+    _doc_to_doc(p, "P", "A")
+
+
+@icon("pdf_to_word")
+def _pdf_to_word(p, c):
+    _doc_to_doc(p, "A", "W")
+
+
+@icon("word_to_pdf")
+def _word_to_pdf(p, c):
+    _doc_to_doc(p, "W", "A")
+
+
+@icon("save_copy")
+def _save_copy(p, c):
+    # two stacked disks
+    _poly(p, [(2.5, 12), (2.5, 2.5), (10, 2.5)], close=False)
+    _poly(p, [(5.5, 5.5), (14, 5.5), (17, 8.5), (17, 17.5), (5.5, 17.5)])
+    p.drawRect(QRectF(8, 5.5, 5.5, 3.5))
+    p.drawRoundedRect(QRectF(8, 12.5, 6.5, 5), 1, 1)
+
+
+@icon("target_size")
+def _target_size(p, c):
+    # a target with a centre dot
+    p.drawEllipse(QRectF(2.5, 2.5, 15, 15))
+    p.drawEllipse(QRectF(6, 6, 8, 8))
+    p.setBrush(c)
+    p.drawEllipse(QRectF(8.8, 8.8, 2.4, 2.4))
+    p.setBrush(Qt.BrushStyle.NoBrush)
+
+
+def _bars(p: QPainter, c: QColor, filled: int) -> None:
+    for i in range(3):
+        h = 4 + i * 4.5
+        r = QRectF(3 + i * 5.5, 17 - h, 3.5, h)
+        if i < filled:
+            p.setBrush(c)
+        p.drawRect(r)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+
+
+@icon("quality_high")
+def _quality_high(p, c):
+    _bars(p, c, 3)
+
+
+@icon("quality_balanced")
+def _quality_balanced(p, c):
+    _bars(p, c, 2)
+
+
+@icon("quality_smallest")
+def _quality_smallest(p, c):
+    _bars(p, c, 1)
+
+
+@icon("preview")
+def _preview(p, c):
+    # an eye
+    path = QPainterPath(QPointF(2, 10))
+    path.quadTo(QPointF(10, 2), QPointF(18, 10))
+    path.quadTo(QPointF(10, 18), QPointF(2, 10))
+    p.drawPath(path)
+    p.drawEllipse(QRectF(7.5, 7.5, 5, 5))

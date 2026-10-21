@@ -253,18 +253,25 @@ def convert_office_file_to_pdf(source: Path, destination: Path) -> Path:
     ext = source.suffix.lower()
     avail = office_availability()
     destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.exists():
-        destination.unlink()
-    if ext in WORD_EXTS and avail.word:
-        _run_powershell(_PS_WORD_TO_PDF, source, destination)
-    elif ext in EXCEL_EXTS and avail.excel:
-        _run_powershell(_PS_EXCEL_TO_PDF, source, destination)
-    elif ext in POWERPOINT_EXTS and avail.powerpoint:
-        _run_powershell(_PS_POWERPOINT_TO_PDF, source, destination)
-    elif avail.libreoffice and ext in OFFICE_EXTS:
-        _run_soffice(avail.libreoffice, source, destination, "pdf")
-    else:
-        raise UnsupportedConversionError(unavailable_message(ext))
+    # Written beside the destination under a temporary name and swapped in only when complete: an
+    # existing file of that name is kept if the conversion fails.
+    import uuid
+
+    part = destination.with_name(f".{destination.stem}.{uuid.uuid4().hex[:8]}.part.pdf")
+    try:
+        if ext in WORD_EXTS and avail.word:
+            _run_powershell(_PS_WORD_TO_PDF, source, part)
+        elif ext in EXCEL_EXTS and avail.excel:
+            _run_powershell(_PS_EXCEL_TO_PDF, source, part)
+        elif ext in POWERPOINT_EXTS and avail.powerpoint:
+            _run_powershell(_PS_POWERPOINT_TO_PDF, source, part)
+        elif avail.libreoffice and ext in OFFICE_EXTS:
+            _run_soffice(avail.libreoffice, source, part, "pdf")
+        else:
+            raise UnsupportedConversionError(unavailable_message(ext))
+        os.replace(part, destination)
+    finally:
+        part.unlink(missing_ok=True)
     return destination
 
 

@@ -50,24 +50,71 @@ def _live_pdf_bytes(document: PdfDocument) -> bytes:
     return doc.tobytes(garbage=1, deflate=True, encryption=fitz.PDF_ENCRYPT_NONE)
 
 
+def _page_sizes_pt(document: PdfDocument, indices: list[int]) -> list[tuple[float, float]]:
+    doc = document._backend._doc  # noqa: SLF001
+    return [(float(doc.load_page(i).rect.width), float(doc.load_page(i).rect.height)) for i in indices]
+
+
+def _set_section_geometry(section, width_pt: float, height_pt: float, *, margins: bool = True) -> None:
+    """Word section = the PDF page: exact size, orientation flag matching the shape, and (for the text
+    mode) margins of 0.75 in, at most 10 % of the page side."""
+    from docx.enum.section import WD_ORIENT
+    from docx.shared import Pt
+
+    section.orientation = WD_ORIENT.LANDSCAPE if width_pt > height_pt else WD_ORIENT.PORTRAIT
+    section.page_width = Pt(width_pt)
+    section.page_height = Pt(height_pt)
+    if margins:
+        mx, my = Pt(min(54.0, width_pt * 0.1)), Pt(min(54.0, height_pt * 0.1))
+        section.left_margin = section.right_margin = mx
+        section.top_margin = section.bottom_margin = my
+
+
 def _pdf_to_docx_text(document: PdfDocument, destination: Path, pages: list[int] | None) -> Path:
+    """Editable text: one Word section per PDF page with that page's size and orientation (mixed sizes
+    stay mixed); the text flows as plain paragraphs inside it."""
     from docx import Document as DocxDocument
+    from docx.enum.section import WD_SECTION
 
     docx = DocxDocument()
     indices = list(range(document.page_count)) if pages is None else list(pages)
-    for i, pi in enumerate(indices):
+    for pi in indices:
         if pi < 0 or pi >= document.page_count:
             raise IndexError(f"page out of range: {pi}")
-        if i > 0:
-            docx.add_page_break()
+    sizes = _page_sizes_pt(document, indices)
+    for i, pi in enumerate(indices):
+        section = docx.sections[0] if i == 0 else docx.add_section(WD_SECTION.NEW_PAGE)
+        _set_section_geometry(section, *sizes[i])
         text = document.page_text(pi) or ""
         if not text.strip():
             docx.add_paragraph("[No extractable text on this page — run OCR first]")
         else:
             for block in text.split("\n"):
                 docx.add_paragraph(block)
-    docx.save(destination.as_posix())
+    tmp = destination.with_name(destination.name + ".part")
+    docx.save(tmp.as_posix())
+    tmp.replace(destination)
     return destination
+
+
+def _fix_orientation(path: Path) -> None:
+    """pdf2docx sets each section's exact size but always marks it portrait; Word and printers read the
+    orientation flag, so landscape-shaped sections are marked landscape (size unchanged)."""
+    from docx import Document as DocxDocument
+    from docx.enum.section import WD_ORIENT
+
+    docx = DocxDocument(path.as_posix())
+    changed = False
+    for section in docx.sections:
+        landscape = section.page_width and section.page_height and section.page_width > section.page_height
+        want = WD_ORIENT.LANDSCAPE if landscape else WD_ORIENT.PORTRAIT
+        if section.orientation != want:
+            section.orientation = want
+            changed = True
+    if changed:
+        tmp = path.with_name(path.name + ".orient")
+        docx.save(tmp.as_posix())
+        tmp.replace(path)
 
 
 def _pdf_to_docx_layout(
@@ -89,7 +136,12 @@ def _pdf_to_docx_layout(
             kwargs["pages"] = [int(p) for p in pages]
         if progress is not None:
             progress(0, 1)
-        cv.convert(destination.as_posix(), **kwargs)
+        tmp = destination.with_name(destination.name + ".part")
+        try:
+            cv.convert(tmp.as_posix(), **kwargs)
+            tmp.replace(destination)
+        finally:
+            tmp.unlink(missing_ok=True)
         if progress is not None:
             progress(1, 1)
     finally:
@@ -132,7 +184,14 @@ def pdf_to_docx(
     if engine == "layout" and not layout_engine_available():
         engine = "text"
     if engine == "word":
-        return _pdf_to_docx_word(document, destination, pages)
-    if engine == "layout":
-        return _pdf_to_docx_layout(document, destination, pages, progress)
-    return _pdf_to_docx_text(document, destination, pages)
+        out = _pdf_to_docx_word(document, destination, pages)
+    elif engine == "layout":
+        out = _pdf_to_docx_layout(document, destination, pages, progress)
+        _fix_orientation(out)
+    else:
+        out = _pdf_to_docx_text(document, destination, pages)
+    # replace the template/converter properties (and Word's user name) with the PDF's own
+    from core.convert.office_metadata import apply_to_file, document_metadata
+
+    apply_to_file(out, document_metadata(document))
+    return out

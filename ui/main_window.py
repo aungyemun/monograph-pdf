@@ -202,6 +202,11 @@ class MainWindow(QMainWindow):
         self.act_save_as.setShortcut(QKeySequence.StandardKey.SaveAs)
         self.act_save_as.triggered.connect(self.save_as_dialog)
 
+        self.act_save_copy = QAction("&Whole Document (Keep Working on This One)…", self)
+        self.act_save_copy.setStatusTip("Save the document as it is now to a separate file; the open "
+                                        "document and its unsaved changes stay as they are")
+        self.act_save_copy.triggered.connect(self.save_copy_dialog)
+
         self.act_close = QAction("&Close", self)
         self.act_close.setShortcut(QKeySequence.StandardKey.Close)
         self.act_close.triggered.connect(self._close_document_interactive)
@@ -788,7 +793,7 @@ class MainWindow(QMainWindow):
             self.act_pages_export: ("Selected &Pages as PDF…", "Save the selected pages as a new PDF"),
             self.act_flatten_export: ("&Flattened PDF…", "Save a copy with form fields and comments merged into the pages"),
             self.act_meta_copy: ("Copy with &Metadata…", "Save an identical copy that keeps the document properties"),
-            self.act_optimize: ("&Reduce File Size…", "Compress images and remove unused data"),
+            self.act_optimize: ("Co&mpress PDF…", "Make the file smaller: lossless, balanced, smallest, or an exact maximum size"),
             self.act_export_image: ("Save Selected &Image As…", "Save the selected image object to a file"),
             self.act_replace_image: ("&Replace Selected Image…", "Swap the selected image for another file"),
             self.act_sec_protect: ("&Protect with Password…", "Require a password to open, and restrict printing, copying or editing"),
@@ -955,6 +960,7 @@ class MainWindow(QMainWindow):
             "open": self.act_open,
             "save": self.act_save,
             "save_as": self.act_save_as,
+            "save_copy": self.act_save_copy,
             "close": self.act_close,
             "print": self.act_print,
             "exit": self.act_exit,
@@ -1017,7 +1023,7 @@ class MainWindow(QMainWindow):
             "split": self.act_split,
             "import_images": self.act_images_to_pdf,
             "text_file": self.act_pdf_to_text,
-            "convert": self.act_pdf_to_docx,
+            "pdf_to_word": self.act_pdf_to_docx,
             "table": self.act_tables_xlsx,
             "export": self.act_pages_export,
             "optimize": self.act_optimize,
@@ -1078,7 +1084,7 @@ class MainWindow(QMainWindow):
             ("pages_to_doc", self.act_scan_to_word),
             ("export", self.act_flatten_export),
             ("copy", self.act_meta_copy),
-            ("convert", self.act_pdf_to_pptx),
+            ("pdf_to_pptx", self.act_pdf_to_pptx),
             ("convert", self.act_office_to_pdf),
             ("image", self.act_export_image),
             ("page_replace", self.act_replace_image),
@@ -1168,7 +1174,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.act_save_as)
         copy_menu = file_menu.addMenu("Save a &Copy")
         set_action_icon(copy_menu.menuAction(), "export")
-        for act in (self.act_pages_export, self.act_flatten_export, self.act_meta_copy):
+        for act in (self.act_save_copy, self.act_pages_export, self.act_flatten_export, self.act_meta_copy):
             copy_menu.addAction(act)
         file_menu.addAction(self.act_optimize)
         file_menu.addSeparator()
@@ -2002,6 +2008,43 @@ class MainWindow(QMainWindow):
                 hint="Try Save As to a new path, or close other apps locking the file.",
             )
 
+    def save_copy_dialog(self, dest: Path | None = None) -> Path | None:
+        """Save the document as it is now (with every unsaved change) to a separate file. The open
+        document, its path, its undo history and its unsaved state are unchanged; the source file is
+        never touched. Returns the written path."""
+        self._commit_field_editor()
+        if self._document is None or self._edit is None:
+            return None
+        if dest is None:
+            path, _ = QFileDialog.getSaveFileName(self, "Save a Copy", self._suggest("copy", "pdf"), "PDF Files (*.pdf)")
+            if not path:
+                return None
+            dest = Path(path)
+        dest = Path(dest)
+        if dest.suffix.lower() != ".pdf":
+            dest = dest.with_name(dest.name + ".pdf")
+        import os
+
+        try:
+            same = dest.exists() and os.path.samefile(dest, self._document.path)
+        except OSError:
+            same = False
+        if same:
+            if not self._is_headless_ui():
+                QMessageBox.information(self, "Save a Copy", "That is the open document itself. Choose another "
+                                                             "name or folder, or use Save to replace it.")
+            return None
+        from engines.bake_edits import bake_via_backend
+
+        try:
+            bake_via_backend(self._edit, dest)  # atomic; the editing model is not changed
+        except Exception as exc:  # noqa: BLE001
+            self.report_unexpected("Save a Copy failed", exc, EventId.PDF_SAVE_FAILED,
+                                   hint="Pick a writable folder and ensure the file is not open elsewhere.")
+            return None
+        self.statusBar().showMessage(f"Saved a copy as {dest.name}; still working on {self._document.name}", 6000)
+        return dest
+
     def save_as_dialog(self) -> None:
         self._commit_field_editor()
         if self._document is None or self._edit is None:
@@ -2356,11 +2399,13 @@ class MainWindow(QMainWindow):
         return dlg.result if ok else None
 
     def _show_ocr_text(self, result, title: str, languages: str) -> None:
+        from core.convert.office_metadata import document_metadata
         from ui.ocr_dialogs import OcrTextDialog
 
         stem = self._document.path.stem if self._document is not None else "recognized"
         OcrTextDialog(result, title=title, languages=languages, start_dir=self._doc_dir(),
-                      doc_title=f"{stem} (OCR)", parent=self).exec()
+                      doc_title=f"{stem} (OCR)", metadata=document_metadata(self._document) if self._document else None,
+                      parent=self).exec()
 
     def _ocr_area(self) -> None:
         if self._document is None or not self._ocr_ready_or_report():
@@ -2405,7 +2450,7 @@ class MainWindow(QMainWindow):
         if not any(p.words for p in result.pages):
             skipped = sum(1 for p in result.pages if p.skipped)
             QMessageBox.information(self, "Extract Text (OCR)",
-                                    f"No text was recognized." + (f" {skipped} page(s) were skipped because they already contain text." if skipped else ""))
+                                    "No text was recognized." + (f" {skipped} page(s) were skipped because they already contain text." if skipped else ""))
             return
         self._show_ocr_text(result, "Recognized Text", languages)
 
@@ -2436,7 +2481,10 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Scanned PDF to Word", "No text was recognized; no document was written.")
             return
         try:
-            write_docx(pages, Path(dest), title=self._document.path.stem)
+            from core.convert.office_metadata import document_metadata
+
+            write_docx(pages, Path(dest), title=self._document.path.stem,
+                       metadata=document_metadata(self._document))
         except Exception as exc:  # noqa: BLE001
             self.report_error("Scanned PDF to Word", f"The document could not be written: {exc}")
             return
@@ -3439,6 +3487,7 @@ class MainWindow(QMainWindow):
         for act in (
             self.act_save,
             self.act_save_as,
+            self.act_save_copy,
             self.act_close,
             self.act_fit_width,
             self.act_fit_page,
@@ -4179,6 +4228,8 @@ class MainWindow(QMainWindow):
     def _pdf_to_images(self) -> None:
         if self._document is None:
             return
+        if not self._confirm_unsaved_for_export("PDF to Images"):
+            return
         from core.convert.pdf_to_images import pdf_pages_to_images
         from ui.app_dialogs import ExportImagesDialog
 
@@ -4229,6 +4280,8 @@ class MainWindow(QMainWindow):
 
     def _pdf_to_text(self) -> None:
         if self._document is None:
+            return
+        if not self._confirm_unsaved_for_export("PDF to Text"):
             return
         from core.convert.pdf_to_text import pdf_to_plain_text
         from ui.convert_dialogs import choose_save
@@ -4299,6 +4352,8 @@ class MainWindow(QMainWindow):
     def _pdf_to_docx(self) -> None:
         if self._document is None:
             return
+        if not self._confirm_unsaved_for_export("PDF to Word"):
+            return
         from core.convert.pdf_to_docx import pdf_to_docx
         from ui.convert_dialogs import PdfToWordDialog, choose_save
         from ui.task_runner import run_with_progress
@@ -4334,6 +4389,8 @@ class MainWindow(QMainWindow):
     def _tables_to_xlsx(self) -> None:
         if self._document is None:
             return
+        if not self._confirm_unsaved_for_export("PDF to Excel"):
+            return
         from core.convert.tables_to_xlsx import FIDELITY_NOTICE, tables_to_xlsx
         from ui.convert_dialogs import choose_save, fidelity_confirm
 
@@ -4352,19 +4409,32 @@ class MainWindow(QMainWindow):
     def _pdf_to_pptx(self) -> None:
         if self._document is None:
             return
-        from core.convert.pdf_to_pptx import PptxReport, pdf_to_pptx
+        from core.convert.pdf_to_pptx import (
+            PptxReport,
+            page_groups,
+            pdf_to_pptx,
+            pdf_to_pptx_split,
+        )
         from ui.convert_dialogs import PdfToPowerPointDialog, choose_save
 
-        dlg = PdfToPowerPointDialog(self)
+        if not self._confirm_unsaved_for_export("PDF to PowerPoint"):
+            return
+        dlg = PdfToPowerPointDialog(self, page_groups=page_groups(self._document))
         if dlg.exec() != dlg.DialogCode.Accepted:
             return
         dest = choose_save(self, "Save as PowerPoint", self._suggest("", "pptx"), "PowerPoint (*.pptx)")
         if not dest:
             return
+        opts = dlg.options()
         try:
             report = PptxReport()
             with self._current_document() as src:
-                pdf_to_pptx(src, dest, mode=dlg.mode(), report=report)
+                if dlg.policy() == "split":
+                    outs = pdf_to_pptx_split(src, dest, **opts)
+                    self.statusBar().showMessage(
+                        f"Saved {len(outs)} presentations: " + ", ".join(o.name for o in outs), 10000)
+                    return
+                pdf_to_pptx(src, dest, report=report, **opts)
             self.statusBar().showMessage(f"Saved {dest.name} — {report.summary()}", 8000)
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(self, "PDF to PowerPoint", str(exc))
@@ -4414,45 +4484,76 @@ class MainWindow(QMainWindow):
             self.open_path(dest)
 
     def _optimize_pdf(self) -> None:
+        """Compress PDF: the document as shown (unsaved changes included, after the Save / Save As /
+        Cancel decision) is compressed in memory, measured, previewed, and written atomically to the
+        chosen file. The open file is replaced only when the user picks it and confirms."""
         if self._document is None:
             return
-        from core.convert.optimize import optimize_pdf, preview_optimize_size
-        from ui.convert_dialogs import OptimizeDialog, choose_save
+        if not self._confirm_unsaved_for_export("Compress PDF"):
+            return
+        from core.convert import compress as cz
+        from ui.compress_dialog import CompressDialog
 
-        dlg = OptimizeDialog(self, estimate=lambda preset: preview_optimize_size(self._document, preset))
-        if dlg.exec() != dlg.DialogCode.Accepted:
-            return
-        dest = choose_save(self, "Save Optimized PDF", self._suggest("optimized", "pdf"), "PDF (*.pdf)")
-        if not dest:
-            return
-        vals = dlg.values()
         try:
             with self._current_document() as src:
-                result = optimize_pdf(
-                    src,
-                    dest,
-                    preset=vals["preset"],
-                    remove_metadata=vals["remove_metadata"],
-                    downsample_images=vals["downsample_images"],
-                )
-            self.statusBar().showMessage(
-                f"Optimized: {result.source_bytes // 1024} KB → {result.output_bytes // 1024} KB",
-                8000,
-            )
-            from ui.app_dialogs import _fmt_bytes
-
-            QMessageBox.information(
-                self,
-                "Optimize complete",
-                f"Mode: {result.mode_label}"
-                f"{' (lossy)' if result.is_lossy else ' (not lossy)'}\n"
-                f"{result.notes}\n\n"
-                f"Original: {_fmt_bytes(result.source_bytes)}\n"
-                f"Optimized: {_fmt_bytes(result.output_bytes)}\n"
-                f"Reduction: {result.reduction_pct:.1f}%",
-            )
+                data = cz._source_bytes(src)  # noqa: SLF001
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.warning(self, "Optimize", str(exc))
+            self.report_unexpected("Compress PDF failed", exc, EventId.CONVERT_FAILED)
+            return
+        password = self._open_password()
+        dlg = CompressDialog(data, password=password, doc_name=self._document.name, parent=self)
+        if dlg.exec() != dlg.DialogCode.Accepted or dlg.result_ is None:
+            return
+        result = dlg.result_
+        path, _ = QFileDialog.getSaveFileName(self, "Save Compressed PDF", self._suggest("compressed", "pdf"),
+                                              "PDF Files (*.pdf)")
+        if not path:
+            return
+        self.write_compressed(result, Path(path), password=password)
+
+    def write_compressed(self, result, dest: Path, *, password: str | None = None, confirm_replace=None) -> Path | None:
+        """Write a compression result. Replacing the open document needs an explicit confirmation; the
+        file is validated before it replaces anything, and the original stays intact on any failure."""
+        import os
+
+        from core.convert import compress as cz
+
+        dest = Path(dest)
+        if dest.suffix.lower() != ".pdf":
+            dest = dest.with_name(dest.name + ".pdf")
+        try:
+            same = dest.exists() and os.path.samefile(dest, self._document.path)
+        except OSError:
+            same = False
+        try:
+            if not same:
+                cz.write_result(result, dest, password=password)
+            else:
+                ok = confirm_replace() if confirm_replace else (
+                    self._is_headless_ui() or QMessageBox.question(
+                        self, "Replace the original?",
+                        f"Replace “{dest.name}” — the open document — with the compressed version? "
+                        "The original cannot be recovered afterwards.",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes)
+                if not ok:
+                    return None
+                cz.validate_pdf(result.data, pages=result.profile.pages, password=password)
+                page = self._canvas.focus_page
+                self._document.close()  # Windows cannot replace an open file
+                try:
+                    cz.write_result(result, dest, password=password)
+                finally:
+                    self._load_document(open_document(dest, password=password))
+                    self._canvas.go_to_page(min(page, self._document.page_count - 1))
+                    self._update_title()
+        except Exception as exc:  # noqa: BLE001
+            self.report_unexpected("Compress PDF failed", exc, EventId.CONVERT_FAILED,
+                                   hint="Choose a writable folder with enough free space; the original is unchanged.")
+            return None
+        self.statusBar().showMessage(f"Saved {dest.name}: {cz.format_size(result.output_bytes, exact=True)} — "
+                                     f"{result.status()}", 10000)
+        return dest
 
     def _watermark(self) -> None:
         from ui.page_marks_dialogs import WatermarkDialog
@@ -5831,6 +5932,35 @@ class MainWindow(QMainWindow):
         clear_session(self._document.path)
         self._edit.mark_clean()
         return True
+
+    def _confirm_unsaved_for_export(self, title: str) -> bool:
+        """Before a conversion or compression of a document with unsaved changes: Save / Save As… /
+        Cancel. True = proceed (the conversion then reads the document as just saved). Cancel keeps
+        every change. The source file is never overwritten without the user choosing Save."""
+        self._commit_field_editor()
+        if self._edit is None or self._document is None or not self._edit.dirty:
+            return True
+        if self._is_headless_ui():
+            return True  # automated runs convert the current state (including the unsaved changes)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setWindowTitle(title)
+        box.setText(f"“{self._document.name}” has unsaved changes.")
+        box.setInformativeText("Save them before converting? The result will include them. "
+                               "Cancel returns to the document without losing any change.")
+        save = box.addButton("Save", QMessageBox.ButtonRole.AcceptRole)
+        save_as = box.addButton("Save As…", QMessageBox.ButtonRole.ActionRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(save)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is save:
+            self.save_document()
+        elif clicked is save_as:
+            self.save_as_dialog()
+        else:
+            return False
+        return self._edit is not None and not self._edit.dirty
 
     def _close_document_interactive(self) -> None:
         if self._document is None:

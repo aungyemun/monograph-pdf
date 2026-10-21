@@ -472,13 +472,24 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
             flatten_form_fields(doc, comments=bool(getattr(edit, "flatten_comments", True)))
 
         encrypt = fitz.PDF_ENCRYPT_KEEP if _is_protected(doc) else fitz.PDF_ENCRYPT_NONE
-        doc.save(
-            Path(destination).as_posix(),
-            garbage=3,
-            deflate=True,
-            encryption=encrypt,
-            incremental=False,
-        )
+        # Replacing an existing file is atomic: a temporary file beside it is written, then swapped in,
+        # so the existing file stays intact if anything fails (disk full, locked). A new file is written
+        # directly and removed again if writing fails, so no partial file is left behind.
+        import os
+        import uuid
+
+        final = Path(destination)
+        part = final.with_name(f".{final.stem}.{uuid.uuid4().hex[:8]}.part") if final.exists() else final
+        try:
+            doc.save(part.as_posix(), garbage=3, deflate=True, encryption=encrypt, incremental=False)
+            if part != final:
+                os.replace(part, final)
+        except BaseException:
+            try:
+                part.unlink()
+            except OSError:
+                pass
+            raise
     finally:
         targets.close()
         doc.close()

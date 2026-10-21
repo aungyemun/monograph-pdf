@@ -55,6 +55,7 @@ _MODULE_CATEGORIES = {
     "test_installed_manifest.py": {"windows"},
     # External applications
     "test_office_to_pdf.py": {"external_app", "windows"},
+    "test_office_round_trip.py": {"external_app"},
     # OCR
     "test_ocr_corpus.py": {"ocr"}, "test_ocr.py": {"ocr"},
     # Private fixtures (these files are not in the repository)

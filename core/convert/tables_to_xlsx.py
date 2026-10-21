@@ -58,6 +58,14 @@ def tables_to_xlsx(
                 cell = table.cells.get((r, c))
                 value = cell.text if cell else ""
                 ws.cell(row=r + 1, column=c + 1, value=cell_value(value))
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(destination.as_posix())
+    from core.convert.office_metadata import (
+        apply_workbook_properties,
+        document_metadata,
+        pdf_properties,
+    )
+
+    apply_workbook_properties(wb, pdf_properties(document_metadata(document)))
+    tmp = destination.with_name(destination.name + ".part")
+    wb.save(tmp.as_posix())
+    tmp.replace(destination)
     return destination

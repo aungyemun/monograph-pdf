@@ -78,7 +78,7 @@ def _merge_lines(lines: list[str]) -> str:
 
 
 def write_docx(pages, destination: Path, *, title: str = "", page_images: list[bytes | None] | None = None,
-               edited_text: str | None = None) -> Path:
+               edited_text: str | None = None, metadata: dict | None = None) -> Path:
     """A Word document of OCR results: paragraphs in reading order; a paragraph clearly taller than the
     page's body text (at most two lines) becomes a heading; a page break between pages. ``edited_text``
     (the user's corrected text, pages separated by "--- Page n ---") replaces the recognised text.
@@ -89,12 +89,16 @@ def write_docx(pages, destination: Path, *, title: str = "", page_images: list[b
     from docx import Document
     from docx.shared import Inches
 
+    from core.convert.office_metadata import apply_core_properties, pdf_properties
+
     doc = Document()
-    if title:
-        doc.core_properties.title = title
+    props = pdf_properties(metadata)
+    if not props["title"] and title:
+        props["title"] = title
+    apply_core_properties(doc.core_properties, props)
     edited_pages: dict[int, str] = {}
     if edited_text is not None:
-        chunks = re.split(r"^--- Page (\d+) ---\s*$", edited_text, flags=re.M)
+        chunks = re.split(r"^--- Page (\d+) ---\s*$", edited_text, flags=re.MULTILINE)
         if len(chunks) > 1:
             for i in range(1, len(chunks) - 1, 2):
                 edited_pages[int(chunks[i]) - 1] = chunks[i + 1].strip("\n")
