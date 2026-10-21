@@ -79,7 +79,7 @@ RELEASE_COMPONENTS: dict[str, tuple[list[str], str]] = {
     ),
     "OpenSSL (Python hashlib and ssl)": (["_internal/libcrypto-3.dll", "_internal/libssl-3.dll"], "OpenSSL"),
     "Microsoft Visual C++ / Universal C runtime": (
-        ["_internal/VCRUNTIME140*.dll", "_internal/ucrtbase.dll", "_internal/api-ms-win-*.dll",
+        ["_internal/VCRUNTIME140*.dll", "_internal/MSVCP140*.dll", "_internal/ucrtbase.dll", "_internal/api-ms-win-*.dll",
          "_internal/PySide6/VCRUNTIME140*.dll", "_internal/PySide6/MSVCP140*.dll",
          "_internal/shiboken6/VCRUNTIME140*.dll", "_internal/shiboken6/MSVCP140*.dll",
          "_internal/numpy.libs/msvcp140-*.dll"],

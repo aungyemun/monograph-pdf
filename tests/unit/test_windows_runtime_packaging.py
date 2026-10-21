@@ -141,3 +141,41 @@ def test_a_32_bit_library_in_the_program_fails_but_32_bit_helpers_do_not(tmp_pat
 def test_non_pe_files_with_program_suffixes_are_ignored(tmp_path):
     layout = _layout(tmp_path / "l", {"_internal/readme.dll": b"not a program"})
     assert rd.audit(layout)["layout_program_files"] == 0
+
+
+def test_a_library_that_finds_msvcp_only_through_pyside6_fails_until_placed_app_local(tmp_path, capsys):
+    layout = _layout(tmp_path / "l", {
+        "_internal/pymupdf/mupdfcpp64.dll": build_pe(imports=("MSVCP140.dll", "VCRUNTIME140.dll")),
+        "_internal/VCRUNTIME140.dll": build_pe(imports=("kernel32.dll",)),
+        "_internal/PySide6/MSVCP140.dll": build_pe(imports=("VCRUNTIME140.dll",)),
+        "_internal/PySide6/plugins/platforms/qwindows.dll": build_pe(imports=("MSVCP140.dll",)),
+    })
+    r = rd.audit(layout)
+    assert r["vc_runtime_search_path_dependent"]["msvcp140.dll"] == [
+        "_internal/PySide6/plugins/platforms/qwindows.dll", "_internal/pymupdf/mupdfcpp64.dll"]
+    # Qt plugins are fine (PySide6 adds its folder); MuPDF would depend on import order
+    assert rd.risky_search_dependent(r) == {"msvcp140.dll": ["_internal/pymupdf/mupdfcpp64.dll"]}
+    assert rd.main([str(layout), "--check"]) == 1
+    assert "found only through another package's folder" in capsys.readouterr().out
+    assert rd.main([str(layout), "--place-app-local", "--check"]) == 0
+    placed = layout / "_internal" / "MSVCP140.dll"
+    assert placed.read_bytes() == (layout / "_internal" / "PySide6" / "MSVCP140.dll").read_bytes()
+    assert rd.place_app_local(layout) == []  # nothing left to place
+
+
+def test_placement_takes_the_newest_bundled_copy(tmp_path, monkeypatch):
+    layout = _layout(tmp_path / "l", {
+        "_internal/x.pyd": build_pe(imports=("MSVCP140.dll",)),
+        "_internal/PySide6/MSVCP140.dll": build_pe(timestamp=1),
+        "_internal/shiboken6/MSVCP140.dll": build_pe(timestamp=2),
+    })
+    versions = {"PySide6": (14, 39, 1, 0), "shiboken6": (14, 40, 0, 0)}
+    monkeypatch.setattr(rd, "file_version", lambda p: versions.get(p.parent.name, (0, 0, 0, 0)))
+    (line,) = rd.place_app_local(layout)
+    assert "from _internal/shiboken6/MSVCP140.dll" in line and "14.40.0.0" in line
+    assert (layout / "_internal" / "MSVCP140.dll").read_bytes() == (layout / "_internal" / "shiboken6" / "MSVCP140.dll").read_bytes()
+
+
+def test_build_exe_places_and_checks_the_vc_runtime():
+    text = (ROOT / "scripts" / "build_exe.ps1").read_text(encoding="utf-8")
+    assert "runtime_dependencies.py" in text and "--place-app-local" in text and "--check" in text

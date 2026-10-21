@@ -129,6 +129,11 @@ if (-not (Test-Path $OutInternal)) { Write-Error "Missing $OutInternal" }
 # for update checks and approved problem reports.
 & $Py "$Root\scripts\packaging\check_release.py" prune $OutDir
 if ($LASTEXITCODE -ne 0) { Write-Error "Pruning the bundle failed (see above)." }
+# Microsoft Visual C++ runtime: shipped app-local (no system-wide VC++ Redistributable is needed). A
+# library outside PySide6 that needs a VC++ DLL bundled only in PySide6's folder would load only if Qt
+# was imported first; place the newest bundled copy in _internal (docs/WINDOWS_RUNTIME_DEPENDENCIES.md).
+& $Py "$Root\scripts\packaging\runtime_dependencies.py" $OutDir --place-app-local
+if ($LASTEXITCODE -ne 0) { Write-Error "Placing the VC++ runtime failed (see above)." }
 # Build provenance inside the program: the commit it was built from (shown in About; checked by
 # verify_release.py against the source archive). A build from an export without .git can pass the commit
 # in MONOGRAPH_PDF_BUILD_COMMIT.
@@ -191,6 +196,10 @@ if (Test-Path $Notice) {
         Copy-Item $Notice (Join-Path $OcrDst "TESSERACT_NOTICE.txt") -Force
     }
 }
+
+# Every imported DLL must be bundled where the loader looks, or part of every supported Windows.
+& $Py "$Root\scripts\packaging\runtime_dependencies.py" $OutDir --check
+if ($LASTEXITCODE -ne 0) { Write-Error "Runtime dependency check failed (see above)." }
 
 Write-Host "Wrote $Root\MonographPDF.exe (+ _internal\)"
 Write-Host "OCR sidecars (required for offline OCR): engines\ocr + models\tessdata"

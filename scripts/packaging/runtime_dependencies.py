@@ -16,8 +16,12 @@ with ``pefile`` and classifies every imported DLL:
   dotnet         .NET Framework 4 (mscoree.dll): part of Windows 10 and later (.NET Framework 4.8)
   unresolved     none of the above
 
-With ``--check`` the exit status is 1 if any import is ``unresolved`` or a ``vc-runtime`` DLL is
-not bundled — that is, if a clean supported Windows would need something that is not shipped.
+With ``--check`` the exit status is 1 if any import is ``unresolved``, a ``vc-runtime`` DLL is
+not bundled, or a library outside PySide6 finds a bundled VC++ runtime DLL only through another
+package's folder (it would then load only if that package happened to be imported first) — that is,
+if a clean supported Windows would need something that is not shipped where the loader looks.
+``--place-app-local`` (build step) fixes the last case by copying the newest bundled copy into
+``_internal``.
 Also checks that every library the 64-bit program loads (``_internal``, ``engines``) is x64.
 Nothing is executed. Paths in the output are relative to the layout.
 """
@@ -55,7 +59,7 @@ WINDOWS_DLLS = {
     "winspool.drv", "wintrust.dll", "wldap32.dll", "ws2_32.dll", "wtsapi32.dll", "d3d10warp.dll",
     "dxcore.dll", "msvfw32.dll", "avicap32.dll", "avifil32.dll", "ksuser.dll", "mfuuid.dll",
     "comsupp.dll", "ucrtbase.dll", "credui.dll", "shfolder.dll", "imagehlp.dll", "esent.dll",
-    "evr.dll", "mscms.dll", "wevtapi.dll", "winusb.dll", "wsock32.dll",
+    "evr.dll", "mscms.dll", "uiautomationcore.dll", "dwrite.dll", "wevtapi.dll", "winusb.dll", "wsock32.dll",
 }
 API_SET_PATTERNS = ["api-ms-win-*.dll", "ext-ms-*.dll"]
 DOTNET = {"mscoree.dll"}
@@ -116,18 +120,72 @@ def audit(layout: Path) -> dict:
         imports[dll] = {"class": kind, "bundled_at": bundled.get(dll, []), "used_by": len(users),
                         "example_user": sorted(users)[0]}
     vc_users = {d: sorted(dll_users[d]) for d in dll_users if d in VC_RUNTIME}
+    # Folders the Windows loader searches for a frozen Monograph PDF: the importing file's own folder
+    # and _internal (PyInstaller adds it). Any other location is found only through a folder another
+    # package adds at run time (PySide6 adds its own) or because a DLL of that name is already loaded.
+    search_dependent: dict[str, list[str]] = {}
+    for d, users in vc_users.items():
+        homes = {str(Path(b).parent).replace("\\", "/") for b in bundled.get(d, [])}
+        for u in users:
+            folder = str(Path(u).parent).replace("\\", "/")
+            if folder not in homes and "_internal" not in homes:
+                search_dependent.setdefault(d, []).append(u)
     vc_unbundled = sorted(d for d in vc_users if d not in bundled)
     unresolved = sorted(d for d, v in imports.items() if v["class"] == "unresolved")
-    # A DLL bundled only in a different folder than its user relies on the loader search path
-    # (PyInstaller adds _internal; PySide6 and others add their own folder at import time).
     return {
         "layout_program_files": len(per_file),
         "not_x64": not_x64,
         "imports": imports,
         "vc_runtime_imports": {d: {"bundled_at": bundled.get(d, []), "users": len(u)} for d, u in sorted(vc_users.items())},
         "vc_runtime_not_bundled": vc_unbundled,
+        "vc_runtime_search_path_dependent": search_dependent,
         "unresolved": unresolved,
     }
+
+
+def file_version(path: Path) -> tuple[int, int, int, int]:
+    """FileVersion from VS_FIXEDFILEINFO (0.0.0.0 if absent)."""
+    import pefile
+
+    pe = pefile.PE(str(path), fast_load=True)
+    try:
+        pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_RESOURCE"]])
+        for fixed in getattr(pe, "VS_FIXEDFILEINFO", None) or []:
+            ms, ls = fixed.FileVersionMS, fixed.FileVersionLS
+            return (ms >> 16, ms & 0xFFFF, ls >> 16, ls & 0xFFFF)
+        return (0, 0, 0, 0)
+    finally:
+        pe.close()
+
+
+# Packages whose own folder is on the DLL search path whenever their files load (PySide6 adds its
+# folder with os.add_dll_directory before Qt or a Qt plugin is loaded).
+SELF_SEARCHING = ("_internal/PySide6/", "_internal/shiboken6/")
+
+
+def risky_search_dependent(report: dict) -> dict[str, list[str]]:
+    return {d: [u for u in users if not u.startswith(SELF_SEARCHING)]
+            for d, users in report["vc_runtime_search_path_dependent"].items()
+            if any(not u.startswith(SELF_SEARCHING) for u in users)}
+
+
+def place_app_local(layout: Path) -> list[str]:
+    """Copy each VC++ runtime DLL that a library outside PySide6 needs but finds only through another
+    package's folder into ``_internal`` (on PyInstaller's search path), using the newest bundled copy.
+    Returns the placed files. Nothing is downloaded; only files already in the layout are used."""
+    import shutil
+
+    placed = []
+    for dll in sorted(risky_search_dependent(audit(layout))):
+        copies = [p for p in layout.rglob("*") if p.is_file() and p.name.lower() == dll]
+        if not copies:
+            continue
+        best = max(copies, key=lambda p: (file_version(p), p.as_posix()))
+        target = layout / "_internal" / best.name
+        shutil.copy2(best, target)
+        placed.append(f"{target.relative_to(layout).as_posix()} (from {best.relative_to(layout).as_posix()}, "
+                      f"version {'.'.join(map(str, file_version(best)))})")
+    return placed
 
 
 def main(argv: list[str]) -> int:
@@ -135,10 +193,15 @@ def main(argv: list[str]) -> int:
     ap.add_argument("layout", type=Path)
     ap.add_argument("--json", type=Path)
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--place-app-local", action="store_true",
+                    help="copy VC++ runtime DLLs needed outside PySide6 into _internal (build step)")
     a = ap.parse_args(argv)
     if not a.layout.is_dir():
         print(f"not a folder: {a.layout}", file=sys.stderr)
         return 2
+    if a.place_app_local:
+        for line in place_app_local(a.layout):
+            print(f"placed {line}")
     r = audit(a.layout)
     if a.json:
         a.json.write_text(json.dumps(r, indent=2, sort_keys=True), encoding="utf-8")
@@ -149,6 +212,8 @@ def main(argv: list[str]) -> int:
           + ", ".join(f"{k} {counts[k]}" for k in sorted(counts)))
     for d, v in r["vc_runtime_imports"].items():
         print(f"  VC++ runtime {d}: used by {v['users']} file(s); bundled at {', '.join(v['bundled_at']) or 'NOT BUNDLED'}")
+    for d, users in r["vc_runtime_search_path_dependent"].items():
+        print(f"  {d} is not next to {len(users)} user(s) nor in _internal, e.g. {users[0]}")
     for d in r["unresolved"]:
         print(f"  UNRESOLVED {d} (e.g. {r['imports'][d]['example_user']})")
     for f in r["not_x64"]:
@@ -156,7 +221,10 @@ def main(argv: list[str]) -> int:
     # The launcher-level helpers (uninstall.exe, MonographPDFUpdater.exe: .NET AnyCPU; unins000.exe:
     # Inno Setup's 32-bit uninstaller) may be 32-bit images; libraries the 64-bit program loads may not.
     lib_not_x64 = [f for f in r["not_x64"] if f.startswith(("_internal/", "engines/"))]
-    bad = bool(r["unresolved"] or r["vc_runtime_not_bundled"] or lib_not_x64)
+    risky = risky_search_dependent(r)
+    for d, users in risky.items():
+        print(f"  {d}: found only through another package's folder by {', '.join(users)}")
+    bad = bool(r["unresolved"] or r["vc_runtime_not_bundled"] or lib_not_x64 or risky)
     if a.check and bad:
         print("runtime dependency check FAILED", file=sys.stderr)
         return 1
