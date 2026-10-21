@@ -127,7 +127,7 @@ def test_source_selection_ships_the_repository_documents():
     files = {p.as_posix() for p in msa.product_files()}
     required = {"README.md", "LICENSE", "LICENSE.md", "CONTRIBUTING.md", "SECURITY.md", "INSTALLATION.md",
                 "CHANGELOG.md", "THIRD_PARTY_NOTICES.md", "CITATION.cff", "VERSION", "requirements.txt",
-                "requirements-ci.txt", "pytest.ini"}
+                "requirements-ci.txt", "pytest.ini", ".gitattributes"}
     assert required <= files, sorted(required - files)
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     targets = re.findall(r"\]\(([^)#\s]+)(?:#[^)]*)?\)|src=\"([^\"]+)\"", readme)

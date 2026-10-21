@@ -45,7 +45,7 @@ MANIFEST = Path(__file__).with_name("third_party_sources.json")
 # Monograph PDF source: top-level items included (everything else in the project folder is not source)
 SOURCE_TOP = [
     "app", "core", "engines", "ui", "resources", "installer", "scripts", "tests", "docs", "licenses",
-    "third_party", "reports", "VERSION", "requirements.txt", "requirements-ci.txt", "pytest.ini", ".gitignore",
+    "third_party", "reports", "VERSION", "requirements.txt", "requirements-ci.txt", "pytest.ini", ".gitignore", ".gitattributes",
     "README.md", "LICENSE", "LICENSE.md", "CHANGELOG.md", "THIRD_PARTY_NOTICES.md", "SECURITY.md", "INSTALLATION.md",
     "CONTRIBUTING.md", "CITATION.cff",
 ]
