@@ -97,7 +97,7 @@ from.
 
 ## Installer and uninstaller test
 
-`scripts\test_installer.ps1` installs Setup, launches the app, checks registrations/shortcuts/self-check, uninstall/reinstall, upgrade and internal-compatibility matrices. The upgrade sections build a Setup of the next patch version from the current payload on every run. Everything is installed for the current user into test folders; the elevated (all-users) case is skipped unless the script runs in an elevated PowerShell. Logs under `build\installer-test\`.
+`scripts\test_installer.ps1` installs Setup, launches the app, checks registrations/shortcuts/self-check, uninstall/reinstall, upgrade and internal-compatibility matrices. The upgrade sections build a Setup of the next patch version from the current payload on every run. Everything is installed for the current user into test folders; the elevated (all-users) case is skipped unless the script runs in an elevated PowerShell. Logs and the backup of your Monograph PDF / PDF Editor settings under `build\installer-test\` (an earlier run's folder is renamed, never deleted); at the end every backed-up settings file is checked by SHA-256 after the restore. Run it from a normal PowerShell window: inside an app package (for example a terminal started by a packaged app) AppData is virtualised, so the script refuses to run there.
 
 Before a release, also install the previous published Setup and upgrade it with the new one (same test folder): settings, documents and unrelated files must be kept, and the self-check must pass.
 

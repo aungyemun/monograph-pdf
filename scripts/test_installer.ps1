@@ -17,7 +17,8 @@ param(
     [string]$UpgradeSetup = "",
     [string]$LegacySetup = "",
     [switch]$SkipUpgradeTests,
-    [switch]$SkipLegacyTests
+    [switch]$SkipLegacyTests,
+    [switch]$AllowPackagedHost
 )
 
 $ErrorActionPreference = "Continue"
@@ -26,6 +27,22 @@ if (-not $Setup) {
     $Setup = (Get-ChildItem (Join-Path $Root "installer\MonographPDF_*_Setup.exe") | Sort-Object LastWriteTime | Select-Object -Last 1).FullName
 }
 if (-not $Setup -or -not (Test-Path $Setup)) { Write-Error "Setup.exe not found."; exit 99 }
+
+# A process inside an MSIX/AppX package (for example a terminal started by a packaged app) sees a
+# virtualised %APPDATA% / %LOCALAPPDATA%: the backup below would read one view while the installer,
+# the uninstaller and the restore write another, and the user's real settings could be removed and not
+# restored. Refuse to run there.
+Add-Type -Namespace MonographTest -Name AppModel -MemberDefinition @'
+[DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+public static extern int GetCurrentPackageFullName(ref int length, System.Text.StringBuilder name);
+'@
+$pkgLen = 0
+$pkgRc = [MonographTest.AppModel]::GetCurrentPackageFullName([ref]$pkgLen, $null)
+if ($pkgRc -ne 15700 -and -not $AllowPackagedHost) {  # 15700 = APPMODEL_ERROR_NO_PACKAGE
+    Write-Error ("This PowerShell runs inside an app package, where AppData is virtualised; your settings " +
+                 "could not be backed up and restored reliably. Run the test from a normal PowerShell window.")
+    exit 94
+}
 
 $AppId     = "{64FC0D97-5E17-405F-9461-D6C075E1B467}_is1"
 $Dir       = Join-Path $env:LOCALAPPDATA "MonographPDFInstallTest"
@@ -168,7 +185,9 @@ foreach ($d in $LegacyDefault, $RenamedDefault) { if (Test-Path $d) { Write-Erro
 if (Test-Path $Dir) { Write-Error "$Dir exists; remove the earlier test installation first."; exit 97 }
 if (Test-Path -LiteralPath $UninstKey) { Write-Error "A per-user Monograph PDF installation exists; uninstall it first (this test installs per-user)."; exit 96 }
 
-Remove-Item $Work -Recurse -Force -ErrorAction SilentlyContinue
+if (Test-Path $Work) {  # keep an earlier run's logs and settings backup instead of deleting them
+    Rename-Item $Work ("installer-test-" + (Get-Date -Format "yyyyMMdd-HHmmss")) -ErrorAction Stop
+}
 New-Item -ItemType Directory -Force -Path $Backup | Out-Null
 if (Test-Path $Roaming) { Copy-Item $Roaming (Join-Path $Backup "Roaming") -Recurse }
 if (Test-Path $Local) { Copy-Item $Local (Join-Path $Backup "Local") -Recurse }
@@ -805,7 +824,18 @@ finally {
     if (Test-Path (Join-Path $Backup "LegacyRoaming")) { Copy-Item (Join-Path $Backup "LegacyRoaming") $LegacyRoaming -Recurse }
     if (Test-Path (Join-Path $Backup "LegacyLocal")) { Copy-Item (Join-Path $Backup "LegacyLocal") $LegacyLocal -Recurse }
     if ($hadLegacyDesktop) { Copy-Item (Join-Path $Backup "PDF Editor.lnk") $LegacyDesktop -Force }
-    Write-Host "  restored; logs in $Work"
+    # Prove the restore: every backed-up settings file is back with the same bytes
+    foreach ($pair in @(@("Roaming", $Roaming), @("LegacyRoaming", $LegacyRoaming))) {
+        $src = Join-Path $Backup $pair[0]
+        if (-not (Test-Path $src)) { continue }
+        foreach ($f in Get-ChildItem $src -Recurse -File) {
+            $dest = Join-Path $pair[1] $f.FullName.Substring($src.Length).TrimStart('\')
+            $same = (Test-Path $dest) -and ((Get-FileHash $dest).Hash -eq (Get-FileHash $f.FullName).Hash)
+            Check "settings restored: $dest" $same
+            if (-not $same) { Write-Host "  !! copy it back from $($f.FullName)" -ForegroundColor Red }
+        }
+    }
+    Write-Host "  restored; logs in $Work (the backup is kept there)"
 }
 
 Write-Host ""
