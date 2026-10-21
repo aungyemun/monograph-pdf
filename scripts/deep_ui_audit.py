@@ -110,11 +110,15 @@ qInstallMessageHandler(_qt_handler)
 sys.excepthook = _excepthook
 
 
+LAST_UI = [[]]  # visible top-level windows, refreshed on the GUI thread, reported if a step hangs
+
+
 def _watchdog():
     while True:
         time.sleep(2)
         if STEP_DEADLINE[0] and time.time() > STEP_DEADLINE[0]:
             log(f"!!! TIMEOUT in step {CUR.get('step')} — dumping stacks and exiting")
+            log(f"    windows open at the last check: {LAST_UI[0]}")
             faulthandler.dump_traceback(file=LOG, all_threads=True)
             CUR.setdefault("exceptions", []).append("TIMEOUT (step hung)")
             RESULTS.append(dict(CUR))
@@ -442,6 +446,10 @@ W.show()
 W.activateWindow()
 QApplication.processEvents()
 INNER = W._canvas._canvas  # noqa: SLF001
+_ui_probe = QTimer()
+_ui_probe.timeout.connect(lambda: LAST_UI.__setitem__(0, [
+    f"{type(w).__name__}:{w.windowTitle()}" for w in QApplication.topLevelWidgets() if w.isVisible()]))
+_ui_probe.start(2000)
 W._is_headless_ui = lambda: False  # noqa: SLF001  # test the real "Save changes?" prompts
 
 
@@ -683,6 +691,7 @@ def _combo_pick(combo: QComboBox, words: str):
 
 
 FILLERS.update({
+    "OcrTextDialog": lambda d: "reject",  # read-only result window: Copy is its default button, Close dismisses it
     "PasswordProtectDialog": _protect_fill,
     "RemoveProtectionDialog": lambda d: d.password.setText("open123"),
     "TypedSignatureDialog": lambda d: d.name.setText("Aung Ye Mun"),
