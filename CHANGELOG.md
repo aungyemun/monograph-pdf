@@ -124,8 +124,20 @@ verified; normal PDF work stays offline.
   characters outside the Windows ANSI code page (for example a Japanese user name on an English
   Windows): Tesseract now receives no file path — the image goes through standard input, the result
   comes back on standard output and the language data is found by relative name.
+- Interface at 1366 × 768 and smaller windows: the status bar no longer prints a message over the
+  zoom value; the main toolbar shows Select, Text, Highlight and Eraser as icons only when the window
+  is too narrow, so zoom, page navigation, search and the panel buttons stay visible; the Navigation
+  panel tabs (including Comments) are no longer hidden behind scroll arrows; the start screen scrolls
+  instead of clipping; the Compress PDF window fits the screen (settings beside the preview) and its
+  preview shows the whole page; the Stamps window no longer cuts off "Make a white background
+  transparent"; the font-size box on the context toolbar stays readable when the bar is crowded.
+- Compress PDF: choosing Lossless, Balanced, Smallest or Target size now also updates the profile
+  list, so the two never disagree.
 
 ### Changed
+
+- Start screen: twelve tools in two rows, adding PDF to PowerPoint and Compress PDF.
+- Clearer tooltips for PDF to PowerPoint, Callout, Stamp, Save a Copy, Check for Updates and About.
 
 - The release build keeps Python's own `ssl` module (HTTPS for update checks and approved reports);
   Qt's network and TLS modules are still removed. Exactly two modules may use the network

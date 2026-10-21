@@ -21,12 +21,13 @@ conversions are written to new files.
 | | |
 | :--- | :--- |
 | **View** | Search, zoom, page thumbnails, editable bookmarks, attachments, printing with preview |
-| **Edit** | Edit text; add text boxes, pictures, shapes and comments; highlight, underline or strike through text, and remove these marks with the Eraser — with Undo / Redo |
+| **Edit** | Edit text; add text boxes, pictures, shapes, comments and stamps; highlight, underline, squiggly-underline or strike through text, and remove these marks with the Eraser; a Comments panel — with Undo / Redo |
 | **Forms** | Fill in forms, design new fields and flatten finished forms |
 | **Organize** | Merge, split, insert, delete, rotate, crop and reorder pages; change page size |
 | **Page design** | Headers, footers, page numbers, Bates numbers, watermarks and backgrounds |
-| **Convert** | PDF to Word, Excel, PowerPoint and images; images to PDF; Office files to PDF with Microsoft Office or LibreOffice |
-| **OCR** | Offline text recognition for English and Japanese; make scans searchable or editable |
+| **Convert** | PDF to Word, Excel, PowerPoint (keeping page sizes) and images; images to PDF; Office files to PDF with Microsoft Office or LibreOffice; batch conversion |
+| **Compress** | Lossless, balanced or smallest file, or an exact maximum size (for example 956 KB), measured before saving |
+| **OCR** | Offline text recognition for English and Japanese (optional verified language packs); make scans searchable or editable; recognize an area, extract and correct text, scanned PDF to Word |
 | **Protect** | AES-256 passwords and permissions, redaction that removes the marked content, removal of hidden information, visual signatures |
 
 Complete list: [Features](docs/FEATURES.md) · How to use each tool: [User Guide](docs/USER_GUIDE.md) (also **F1** in the app)
@@ -143,7 +144,7 @@ passed. Details: [Testing](docs/TESTING.md).
 * Signatures are visual only; certificate-based digital signatures are not supported.
 * Converting PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts.
 * Converting Office files to PDF requires Microsoft Office or LibreOffice.
-* OCR recognizes English and Japanese.
+* OCR recognizes English and Japanese; other languages need an optional language pack supplied by you (verified against a pinned SHA-256).
 
 More: [User Guide ▸ Current limitations](docs/USER_GUIDE.md#current-limitations)
 

@@ -30,7 +30,7 @@ Monograph PDF views, edits, organizes, converts, protects and signs PDF document
 
 1. Start **Monograph PDF** from the Start menu or the desktop shortcut.
 2. Open a file: **File ▸ Open…** (Ctrl+O), drag onto the window, **File ▸ Open Recent**, or in File Explorer right-click **Open with ▸ Monograph PDF**.
-3. The start screen also offers Merge PDFs, Word to PDF, Images to PDF, PDF to Word, Rotate Pages, Protect, Unlock, Watermark, Sign and OCR a Scan.
+3. The start screen also offers Merge PDFs, Word to PDF, Images to PDF, PDF to Word, PDF to PowerPoint, Compress, Rotate Pages, Protect, Unlock, Watermark, Sign and OCR a Scan. In a small window it scrolls.
 
 Images and Office files open as a new unsaved PDF; the original is never changed. Clear recent files: **File ▸ Open Recent ▸ Clear Recent Files**.
 
@@ -45,9 +45,9 @@ Images and Office files open as a new unsaved PDF; the original is never changed
 ## The Monograph PDF window
 
 - **Menu bar:** File · Edit · View · Insert · Forms · Organize · Convert · OCR · Protect · Sign · Help
-- **Main toolbar:** Open · Save · Print · Undo · Redo · Select · Text · Image · Shape ▾ · Highlight (+ color) · Comment · zoom · page · Find
+- **Main toolbar:** Open · Save · Print · Undo · Redo · Select · Text · Image · Shape ▾ · Highlight (+ color) · Eraser · Comment · Fit ▾ · zoom · page · Find · Navigation and Properties panel buttons. In a narrower window the Select, Text, Highlight and Eraser buttons show icons only (their names appear as tooltips) so the rest stays on the toolbar; anything that still does not fit is under the » button at the right end
 - The **context toolbar** (second row): font, size, style and arrange tools for the current selection
-- **Navigation panel** (F9): Pages, Bookmarks, Search, Files
+- **Navigation panel** (F9): Pages, Bookmarks, Search, Comments, Files (Files only when the PDF has attachments). In a narrow panel the tabs show icons, with the current tab’s name
 - **Properties panel** (F8): settings for the selection or document
 - **Help ▸ Keyboard Shortcuts** (Ctrl+/) · **View ▸ Theme:** System, Light or Dark
 

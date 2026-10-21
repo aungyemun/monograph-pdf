@@ -361,7 +361,7 @@ QSplitter::handle:hover { background: $accent; }
 QTabWidget::pane { border: none; background: $surface; }
 QTabWidget#LeftRail { background: $surface; }
 QTabBar { background: $surface; }
-QTabBar::tab { background: transparent; color: $text_muted; padding: 8px 10px; margin: 0; border: none; border-bottom: 2px solid transparent; min-width: 24px; }
+QTabBar::tab { background: transparent; color: $text_muted; padding: 8px 3px; margin: 0; border: none; border-bottom: 2px solid transparent; min-width: 24px; }
 QTabBar::tab:selected { color: $accent_text; border-bottom: 2px solid $accent; font-weight: 600; }
 QTabBar::tab:hover:!selected { color: $text; background: $hover; }
 QTabBar QToolButton { background: $surface; border: none; color: $text; }
@@ -469,6 +469,7 @@ QAbstractScrollArea::corner { background: transparent; }
 QMessageBox { background: $surface; }
 QMessageBox QLabel { color: $text; }
 QLabel#DialogTitle { color: $text; font-size: 15px; font-weight: 600; }
+QLabel#DialogSection { color: $text; font-weight: 600; }
 QLabel#DialogHint, QLabel#ContextHintDialog { color: $text_muted; }
 QLabel#DialogWarning { color: $warning; }
 QLabel#DialogError { color: $danger; }
@@ -497,6 +498,7 @@ QTextBrowser#LegalDocumentBrowser {
 
 /* ---------- Welcome empty state ---------- */
 QWidget#WelcomePage { background: $window; }
+QScrollArea#WelcomeScroll, QWidget#WelcomeContent { background: transparent; border: none; }
 QFrame#WelcomeCard { background: $surface; border: 1px solid $border; border-radius: 14px; }
 QLabel#WelcomeTitle { color: $text; }
 QLabel#WelcomeSubtitle { color: $text_muted; }

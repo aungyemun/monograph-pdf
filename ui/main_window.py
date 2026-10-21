@@ -151,12 +151,12 @@ class MainWindow(QMainWindow):
         self._font_family.setMaximumWidth(210)
         self._font_size = QComboBox()
         self._font_size.setEditable(True)
-        self._font_size.setMinimumWidth(64)
+        self._font_size.setMinimumWidth(84)  # "72 pt" stays readable when the context bar is crowded
         for s in (8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48, 72):
             self._font_size.addItem(f"{s} pt", s)
         self._font_size.setCurrentText("11 pt")
         self._font_size.setToolTip("Font size")
-        self._font_size.setMaximumWidth(84)
+        self._font_size.setMaximumWidth(92)
         self._font_controls_wired = False
         self._chrome_timer = QTimer(self)
         self._chrome_timer.setSingleShot(True)
@@ -781,7 +781,15 @@ class MainWindow(QMainWindow):
             self.act_office_to_pdf: ("&Word, Excel or PowerPoint to PDF…", "Convert an Office document to PDF with its exact layout"),
             self.act_pdf_to_docx: ("PDF to &Word…", "Editable Word document that keeps fonts, tables and images"),
             self.act_tables_xlsx: ("PDF Tables to &Excel…", "Detected tables as Excel worksheets"),
-            self.act_pdf_to_pptx: ("PDF to &PowerPoint…", "One slide per page (page images)"),
+            self.act_pdf_to_pptx: ("PDF to &PowerPoint…", "Slides at the PDF's page size — layout-preserving or editable text; "
+                                   "choose how pages of different sizes are handled"),
+            self.act_annot_callout: ("Call&out…", "Add a callout: a text box with a line pointing to a spot on the page"),
+            self.act_annot_stamp: ("St&amp…", "Place a stamp — Approved, Draft, Confidential … or your own text or picture"),
+            self.act_save_copy: ("&Whole Document (Keep Working on This One)…",
+                                 "Save the document as it is now, with unsaved changes, to a separate file; "
+                                 "the open document stays as it is"),
+            self.act_check_updates: ("&Check for Updates…", "Check whether a newer verified version of Monograph PDF is available"),
+            self.act_about: (f"&About {PRODUCT_NAME}", "Version, build, licence and third-party notices"),
             self.act_pdf_to_images: ("PDF to Ima&ges…", "Save pages as PNG, JPEG or TIFF images"),
             self.act_pdf_to_text: ("PDF to &Text…", "Save the text as a .txt file"),
             self.act_extract_images: ("E&xtract Images…", "Save the pictures embedded in the PDF"),
@@ -1506,11 +1514,15 @@ class MainWindow(QMainWindow):
         self._main_bar = bar
         self.addToolBar(bar)
 
+        self._labelled_buttons: list[QToolButton] = []
+        self._main_bar_full_width = 0
+
         def labelled(act: QAction) -> None:
             bar.addAction(act)
             btn = bar.widgetForAction(act)
             if isinstance(btn, QToolButton):
                 btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+                self._labelled_buttons.append(btn)
 
         for act in (self.act_open, self.act_save, self.act_print):
             bar.addAction(act)
@@ -2914,6 +2926,28 @@ class MainWindow(QMainWindow):
             if isinstance(btn, QToolButton) and act.icon().isNull():
                 btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
 
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._fit_main_toolbar()
+
+    def _fit_main_toolbar(self) -> None:
+        """Narrow windows: the labelled tool buttons (Select, Text, Highlight, Eraser) show icons only, so
+        zoom, page navigation, search and the panel buttons stay on the toolbar instead of moving into
+        the overflow menu. Tooltips keep the names."""
+        bar = getattr(self, "_main_bar", None)
+        buttons = getattr(self, "_labelled_buttons", None)
+        if bar is None or not buttons:
+            return
+        if not self._main_bar_full_width:
+            for b in buttons:
+                b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            self._main_bar_full_width = bar.sizeHint().width()
+        style = (Qt.ToolButtonStyle.ToolButtonTextBesideIcon if self.width() >= self._main_bar_full_width
+                 else Qt.ToolButtonStyle.ToolButtonIconOnly)
+        for b in buttons:
+            if b.toolButtonStyle() != style:
+                b.setToolButtonStyle(style)
+
     def _set_theme(self, key: str) -> None:
         self._prefs.theme = key
         try:
@@ -2955,6 +2989,7 @@ class MainWindow(QMainWindow):
     def _on_zoom_changed(self, zoom: float) -> None:
         pct = f"{zoom * 100:.0f}%"
         self._zoom_label.setText(pct)
+        self._status._relayout_for_width()  # noqa: SLF001 — show it (or keep it hidden during a message)
         # Keep toolbar percentage in sync without re-triggering zoom
         self._toolbar_zoom.blockSignals(True)
         self._toolbar_zoom.setCurrentText(pct)
@@ -6400,6 +6435,7 @@ class MainWindow(QMainWindow):
             "merge": self._merge_combine,
             "office_to_pdf": self._office_to_pdf,
             "images_to_pdf": self._images_to_pdf,
+            "batch": self._batch_convert,
         }
         if key in no_doc:
             no_doc[key]()
@@ -6416,4 +6452,6 @@ class MainWindow(QMainWindow):
             "watermark": self._watermark,
             "sign": self._sig_typed,
             "ocr": lambda: self._run_ocr(scope="needed"),
+            "compress": self._optimize_pdf,
+            "pdf_to_pptx": self._pdf_to_pptx,
         }.get(key, lambda: None)()

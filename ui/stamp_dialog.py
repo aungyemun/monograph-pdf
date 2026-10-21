@@ -105,10 +105,11 @@ class StampLibraryDialog(QDialog):
         add_pic.clicked.connect(self._add_picture)
         self.remove_btn = QPushButton("Remove from Library")
         self.remove_btn.clicked.connect(self._remove)
-        pics.addWidget(self.remove_white, 1)
         pics.addWidget(add_pic)
         pics.addWidget(self.remove_btn)
+        pics.addStretch(1)
         root.addLayout(pics)
+        root.addWidget(self.remove_white)  # own row: the label is never cut off
 
         form = QFormLayout()
         self.date = QCheckBox("Add today's date")

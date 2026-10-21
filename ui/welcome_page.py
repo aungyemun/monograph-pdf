@@ -114,7 +114,9 @@ class WelcomePage(QWidget):
         ("merge", "Merge PDFs", "merge", "Combine several PDFs into one", False),
         ("office_to_pdf", "Word to PDF", "convert", "Word, Excel or PowerPoint to PDF", False),
         ("images_to_pdf", "Images to PDF", "import_images", "Create a PDF from images", False),
-        ("pdf_to_word", "PDF to Word", "text_file", "Editable Word document that keeps the layout", True),
+        ("pdf_to_word", "PDF to Word", "pdf_to_word", "Editable Word document that keeps the layout", True),
+        ("pdf_to_pptx", "PDF to PowerPoint", "pdf_to_pptx", "Slides at the PDF's page size", True),
+        ("compress", "Compress", "optimize", "Make a PDF smaller — lossless, balanced or an exact maximum size", True),
         ("rotate", "Rotate Pages", "rotate_cw", "Rotate all or some pages", True),
         ("protect", "Protect", "lock", "Add a password and set permissions", True),
         ("unlock", "Unlock", "unlock", "Remove a password you know", True),
@@ -122,6 +124,7 @@ class WelcomePage(QWidget):
         ("sign", "Sign", "sign", "Add a visual signature", True),
         ("ocr", "OCR a Scan", "ocr", "Make a scanned PDF searchable — offline", True),
     )
+    COLUMNS = 6
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -129,28 +132,46 @@ class WelcomePage(QWidget):
         self.setAcceptDrops(True)
         self.setAccessibleName("Welcome — open a PDF")
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(32, 40, 32, 40)
+        # The content scrolls when the window is too small for it (it never gets squeezed or cut off)
+        from PySide6.QtWidgets import QFrame as _QFrame
+        from PySide6.QtWidgets import QScrollArea
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea(self)
+        scroll.setObjectName("WelcomeScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(_QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        content = QWidget()
+        content.setObjectName("WelcomeContent")
+        scroll.setWidget(content)
+        scroll.viewport().setAutoFillBackground(False)
+        content.setAutoFillBackground(False)
+        outer.addWidget(scroll)
+        self._scroll = scroll
+        root = QVBoxLayout(content)
+        root.setContentsMargins(32, 20, 32, 20)
         root.addStretch(1)
 
         card = QFrame()
         card.setObjectName("WelcomeCard")
-        card.setMaximumWidth(600)
-        card.setMinimumWidth(520)
+        card.setMaximumWidth(860)
+        card.setMinimumWidth(820)
         cl = QVBoxLayout(card)
-        cl.setSpacing(12)
-        cl.setContentsMargins(28, 28, 28, 28)
+        cl.setSpacing(9)
+        cl.setContentsMargins(28, 22, 28, 22)
 
         logo = QLabel()
         logo.setObjectName("WelcomeLogo")
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        logo.setFixedHeight(72)
+        logo.setFixedHeight(60)
         path = resolve_about_logo_path()
         if path and path.is_file():
             pix = QPixmap(str(path))
             if not pix.isNull():
                 dpr = self.devicePixelRatioF()
-                target = int(64 * dpr)
+                target = int(56 * dpr)
                 scaled = pix.scaled(
                     target,
                     target,
@@ -227,15 +248,15 @@ class WelcomePage(QWidget):
             btn.setToolTip(tip + (" — you’ll be asked to choose a PDF" if needs_doc else ""))
             btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
             btn.setIconSize(QSize(24, 24))
-            btn.setMinimumSize(QSize(86, 72))
-            btn.setFixedHeight(72)
+            btn.setMinimumSize(QSize(86, 64))
+            btn.setFixedHeight(64)
             # Every tile takes an equal share of the row so the grid lines up
             btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             set_action_icon(btn, icon_name)
             btn.clicked.connect(lambda _=False, k=key: self.toolRequested.emit(k))
-            grid.addWidget(btn, i // 5, i % 5)
+            grid.addWidget(btn, i // self.COLUMNS, i % self.COLUMNS)
             self._tool_buttons[key] = btn
-        for col in range(5):
+        for col in range(self.COLUMNS):
             grid.setColumnStretch(col, 1)
         cl.addLayout(grid)
 

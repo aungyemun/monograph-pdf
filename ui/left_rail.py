@@ -39,6 +39,9 @@ class LeftRail(QTabWidget):
         self.setDocumentMode(True)
         self.setMovable(False)
         self.setMinimumWidth(72)
+        # Never hide tabs behind scroll arrows: a label that does not fit is shortened ("Bookm…")
+        self.tabBar().setUsesScrollButtons(False)
+        self.tabBar().setElideMode(Qt.TextElideMode.ElideRight)
         self.setMaximumWidth(360)
         self.setAccessibleName("Document navigation")
         self._compact = False

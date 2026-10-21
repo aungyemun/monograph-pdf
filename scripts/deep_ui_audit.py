@@ -123,7 +123,7 @@ def _watchdog():
 
 
 def _write():
-    (OUT / "deep_audit.json").write_text(json.dumps(RESULTS, ensure_ascii=False, indent=1), encoding="utf-8")
+    (OUT / "deep_audit.json").write_text(json.dumps(RESULTS, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
 
 
 threading.Thread(target=_watchdog, daemon=True).start()
@@ -302,6 +302,15 @@ for _k in ("information", "warning", "critical", "question"):
 
 def _box_exec(self):
     CUR.setdefault("messages", []).append({"kind": "box", "title": self.windowTitle(), "text": self.text()[:400]})
+    custom = [b for b in self.buttons() if self.standardButton(b) == QMessageBox.StandardButton.NoButton]
+    if custom:
+        # boxes with named buttons (e.g. unsaved changes before a conversion: Save / Save As… / Cancel)
+        want = (MSG_QUEUE.popleft() if MSG_QUEUE else "save").lower()
+        pick = next((b for b in self.buttons() if b.text().replace("&", "").rstrip("…").lower() == want), None)
+        if pick is None and want == "cancel":
+            pick = self.button(QMessageBox.StandardButton.Cancel)
+        self.clickedButton = lambda pick=pick: pick  # noqa: E731
+        return 0
     return int(_answer(self.standardButtons(), self.windowTitle(), self.text()).value)
 
 
@@ -694,7 +703,7 @@ ALL_MENUS = ["File", "Edit", "View", "Insert", "Forms", "Organize", "Convert", "
 NO_DOC_OK = {"open", "open recent", "clear recent files", "exit", "full screen", "system", "light", "dark",
              "merge pdfs", "word, excel or powerpoint to pdf", "images to pdf", "conversion quality guide",
              "user guide", "keyboard shortcuts", "about monograph pdf", "make monograph pdf the default pdf app",
-             "highlightcolorbutton"}
+             "highlightcolorbutton", "settings", "batch convert", "ocr languages", "check for updates"}
 
 
 @step("00 no document: menus and toolbar")
@@ -815,7 +824,7 @@ def file_save():
     del box
 
 
-@step("05 File > Save a Copy (3) + Reduce File Size")
+@step("05 File > Save a Copy (4) + Compress PDF")
 def file_copies():
     path = open_sample("sample_invitation_form.pdf")
     fields = [f for f in edit().fillable_fields_ordered() if f.field_type.value == "text"]
@@ -833,12 +842,27 @@ def file_copies():
             if item == "Flattened PDF":
                 check("flattened copy has no fields", not info.get("widgets"), info.get("widgets"))
     CUR.pop("saved_to", None)
-    act("File > Reduce File Size")
+    act("File > Save a Copy > Whole Document (Keep Working on This One)")
     out = saved(".pdf")
-    check("Reduce File Size wrote a file", out is not None and out.exists())
+    check("Save a Copy > Whole Document wrote a file", out is not None and out.exists())
     if out and out.exists():
-        check("reduced file keeps the unsaved entry",
+        check("whole-document copy keeps the unsaved entry",
               any(v == "Copy entry 01" for _n, v in pdf_info(out).get("widgets", [])) or "Copyentry01" in flat(pdf_info(out)["text"]))
+    check("document still unsaved after Save a Copy", edit() is not None and edit().dirty)
+    check("original file untouched", pdf_info(path)["widgets"][0][1] in ("", None))
+    # Compress PDF with unsaved changes asks Save / Save As… / Cancel first: Cancel keeps the changes
+    CUR.pop("saved_to", None)
+    MSG_QUEUE.append("cancel")
+    act("File > Compress PDF")
+    check("Compress PDF cancelled at the unsaved-changes question writes nothing", saved(".pdf") is None)
+    check("changes kept after Cancel", edit() is not None and edit().dirty)
+    MSG_QUEUE.append("save as")
+    act("File > Compress PDF")
+    outs = [Path(p) for p in CUR.get("saved_to", []) if str(p).lower().endswith(".pdf")]
+    check("Save As… then Compress PDF wrote two files", len(outs) >= 2, [o.name for o in outs])
+    if len(outs) >= 2:
+        check("compressed file keeps the entry",
+              any(v == "Copy entry 01" for _n, v in pdf_info(outs[-1]).get("widgets", [])))
     check("original file untouched", pdf_info(path)["widgets"][0][1] in ("", None))
 
 
@@ -1128,6 +1152,34 @@ def insert_all():
     W.grab().save(str(OUT / "shots" / "030-insert-result.png"))
 
 
+@step("32 Insert: squiggly underline, sticky note + Comments panel, undo")
+def comments_panel():
+    open_sample("sample_text.pdf")
+
+    def n_annots():
+        return sum(1 for i in range(doc().page_count) for _ in doc()._backend._doc.load_page(i).annots())  # noqa: SLF001
+
+    before = n_annots()
+    act("Insert > Squiggly Underline")
+    drag(0, Rect(60, 40, 300, 40))
+    after_squiggly = n_annots()
+    check("squiggly underline added", after_squiggly == before + 1, (before, after_squiggly))
+    act("View > Comments Panel")
+    pump(10)
+    panel = W._left.comments  # noqa: SLF001
+    panel.refresh()
+    check("Comments panel shown", W._left.currentWidget() is panel)  # noqa: SLF001
+    check("Comments panel lists the markup", len(panel.comments()) == after_squiggly, len(panel.comments()))
+    act("Edit > Undo")
+    pump(6)
+    check("undo removes the squiggly underline", n_annots() == before, n_annots())
+    panel.refresh()
+    check("Comments panel follows undo", len(panel.comments()) == before, len(panel.comments()))
+    act("Edit > Redo")
+    pump(6)
+    check("redo restores it", n_annots() == before + 1, n_annots())
+
+
 @step("31 Insert: Watermark + Header/Footer/Page numbers (with unsaved edits)")
 def insert_design():
     open_sample("sample_text.pdf")
@@ -1345,6 +1397,51 @@ def convert_in():
 
 # ------------------------------------------------------------------ OCR
 
+def _batch_fill(d):
+    a, b = fresh("sample_text.pdf"), fresh("sample_mixed_fonts.pdf")
+    d.add_paths([a, b])
+    d.format.setCurrentIndex(d.format.findData("txt"))
+    out = OUT / "files" / "62-batch"
+    d.output.setText(str(out))
+    CUR["batch_out"] = str(out)
+    d.start()
+    deadline = time.time() + 120
+    while d._running() and time.time() < deadline:  # noqa: SLF001
+        pump(2, 50)
+    pump(10)
+    CUR["batch_counts"] = d.counts.text()
+    return "reject"  # Close
+
+
+FILLERS["BatchConvertDialog"] = _batch_fill
+
+
+@step("62 Convert: Batch Convert (two PDFs to text)", timeout=240)
+def batch_convert():
+    act("Convert > Batch Convert")
+    out = Path(CUR["batch_out"]) if CUR.get("batch_out") else None
+    files = sorted(p.name for p in out.iterdir()) if out and out.exists() else []
+    check("batch wrote one text file per PDF", len(files) == 2 and all(f.endswith(".txt") for f in files), files)
+    check("batch reports both done", "2 done, 0 failed" in CUR.get("batch_counts", ""), CUR.get("batch_counts"))
+
+
+@step("63 Convert: PDF to PowerPoint, one presentation per page size", timeout=240)
+def pptx_split():
+    open_sample("sample_mixed_page_sizes.pdf")
+    FILLERS["PdfToPowerPointDialog"] = lambda d: d.size_policy.setCurrentIndex(d.size_policy.findData("split"))
+    CUR.pop("saved_to", None)
+    act("Convert > PDF to PowerPoint")
+    FILLERS.pop("PdfToPowerPointDialog", None)
+    base = saved(".pptx")
+    decks = sorted(base.parent.glob(base.stem + " (*).pptx")) if base else []
+    check("one presentation per page size", len(decks) >= 2, str([d.name for d in decks]))
+    if decks:
+        from pptx import Presentation
+
+        sizes = {(Presentation(str(d)).slide_width, Presentation(str(d)).slide_height) for d in decks}
+        check("each presentation has its own slide size", len(sizes) == len(decks), str(sorted(sizes)))
+
+
 @step("70 OCR: make editable, OCR page/document, searchable PDF", timeout=420)
 def ocr_all():
     open_sample("ocr_english_scan.pdf")
@@ -1370,6 +1467,33 @@ def ocr_all():
     if not WINDOWS:
         note("OCR engine is Windows-only (tesseract.exe); results above reflect that on Linux")
         CUR["expect_warning"] = True
+
+
+@step("71 OCR: area, extract text, scanned PDF to Word, languages", timeout=420)
+def ocr_text_tools():
+    open_sample("ocr_english_scan.pdf")
+    act("OCR > OCR Languages")
+    check("OCR Languages dialog shown", any(d["class"] == "OcrLanguagesDialog" for d in CUR.get("dialogs", [])),
+          [d["class"] for d in CUR.get("dialogs", [])])
+    if not WINDOWS:
+        note("OCR engine is Windows-only (tesseract.exe): area / extract / scanned-to-Word checked on Windows")
+        CUR["expect_warning"] = True
+        return
+    act("OCR > Extract Text (OCR)")
+    check("recognised-text dialog shown", any(d["class"] == "OcrTextDialog" for d in CUR.get("dialogs", [])),
+          [d["class"] for d in CUR.get("dialogs", [])])
+    CUR.pop("saved_to", None)
+    act("OCR > Scanned PDF to Word (OCR)")
+    out = saved(".docx")
+    check("scanned PDF to Word wrote a document", out is not None and out.exists())
+    if out and out.exists():
+        import docx
+
+        body = "\n".join(p.text for p in docx.Document(out).paragraphs)
+        check("Word document has recognised text", len(flat(body)) > 20, body[:80])
+    act("OCR > Recognize Text in Area")
+    drag(0, Rect(40, 40, 400, 200))
+    check("area OCR shows the recognised text", any(d["class"] == "OcrTextDialog" for d in CUR.get("dialogs", [])))
 
 
 # ------------------------------------------------------------------ Protect

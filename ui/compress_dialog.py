@@ -63,8 +63,13 @@ class _Worker(QThread):
             self.failed.emit(exc)
 
 
-def render_page(data: bytes, index: int, width_px: int, password: str | None = None) -> QImage:
-    """A small rendering of one page (for the preview only — never a full-resolution page)."""
+PREVIEW_W, PREVIEW_H = 200, 270
+
+
+def render_page(data: bytes, index: int, width_px: int, password: str | None = None,
+                height_px: int | None = None) -> QImage:
+    """A small rendering of one page, fitted into width × height (for the preview only — never a
+    full-resolution page)."""
     import fitz
 
     with fitz.open("pdf", data) as doc:
@@ -72,6 +77,8 @@ def render_page(data: bytes, index: int, width_px: int, password: str | None = N
             doc.authenticate(password or "")
         page = doc[max(0, min(index, doc.page_count - 1))]
         zoom = width_px / max(1.0, page.rect.width)
+        if height_px:
+            zoom = min(zoom, height_px / max(1.0, page.rect.height))
         pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
         return QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGB888).copy()
 
@@ -82,7 +89,7 @@ class CompressDialog(QDialog):
         import fitz
 
         self.setWindowTitle("Compress PDF")
-        self.setMinimumWidth(620)
+        self.setMinimumWidth(980)
         self._data = data
         self._password = password
         self._worker: _Worker | None = None
@@ -95,8 +102,14 @@ class CompressDialog(QDialog):
             self.profile = cz.analyze(doc, len(data))
             self._preview_page = self._pick_preview_page(doc)
 
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setSpacing(10)
+        body = QHBoxLayout()
+        body.setSpacing(18)
+        outer.addLayout(body, 1)
+        root = QVBoxLayout()  # settings and results (left)
         root.setSpacing(10)
+        body.addLayout(root, 1)
         title = QLabel("Compress PDF")
         title.setObjectName("DialogTitle")
         root.addWidget(title)
@@ -166,23 +179,32 @@ class CompressDialog(QDialog):
         self.result_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         root.addWidget(self.result_label)
 
-        prev = QGridLayout()
+        root.addStretch(1)
+
+        prev = QGridLayout()  # preview (right): original and compressed side by side
+        prev.setHorizontalSpacing(10)
         self.page_spin = QSpinBox()
         self.page_spin.setRange(1, max(1, self.profile.pages))
         self.page_spin.setValue(self._preview_page + 1)
         self.page_spin.setPrefix("Page ")
-        prev.addWidget(QLabel("Original"), 0, 0)
-        prev.addWidget(QLabel("Compressed"), 0, 1)
-        prev.addWidget(self.page_spin, 0, 2)
+        self.page_spin.setToolTip("Page to compare (the page with the most picture data is chosen first)")
+        head = QLabel("Preview")
+        head.setObjectName("DialogSection")
+        prev.addWidget(head, 0, 0)
+        prev.addWidget(self.page_spin, 0, 1, Qt.AlignmentFlag.AlignRight)
+        prev.addWidget(QLabel("Original"), 1, 0)
+        prev.addWidget(QLabel("Compressed"), 1, 1)
         self.orig_view = QLabel()
         self.new_view = QLabel()
         for v in (self.orig_view, self.new_view):
-            v.setFixedSize(270, 300)
+            v.setFixedSize(PREVIEW_W, PREVIEW_H)
             v.setAlignment(Qt.AlignmentFlag.AlignCenter)
             v.setObjectName("PreviewPane")
-        prev.addWidget(self.orig_view, 1, 0)
-        prev.addWidget(self.new_view, 1, 1)
-        root.addLayout(prev)
+        prev.addWidget(self.orig_view, 2, 0)
+        prev.addWidget(self.new_view, 2, 1)
+        prev.setRowStretch(3, 1)
+        body.addLayout(prev)
+        root = outer  # progress, status and buttons span the whole width
 
         self.bar = QProgressBar()
         self.bar.setRange(0, 100)
@@ -205,7 +227,7 @@ class CompressDialog(QDialog):
 
         self._syncing = False
         self.profile_combo.currentIndexChanged.connect(self._apply_profile)
-        self.mode_group.buttonToggled.connect(lambda *_: self._sync())
+        self.mode_group.buttonToggled.connect(self._mode_toggled)
         self.size_spin.valueChanged.connect(self._spin_changed)
         self.unit.currentIndexChanged.connect(self._unit_changed)
         self.slider.valueChanged.connect(self._slider_changed)
@@ -313,6 +335,19 @@ class CompressDialog(QDialog):
         self.mode_buttons[mode].setChecked(True)
         if target:
             self.set_target_bytes(target)
+        self._sync()
+
+    def _mode_toggled(self, _button, checked: bool) -> None:
+        """A mode chosen directly selects the matching profile (Target size: the custom maximum unless a
+        size profile is already chosen), so the two never contradict each other."""
+        if checked:
+            mode = self.mode()
+            current = PROFILES[self.profile_combo.currentIndex()][1]
+            if current != mode:
+                index = {"lossless": 0, "balanced": 1, "smallest": 2, "target": len(PROFILES) - 1}[mode]
+                self.profile_combo.blockSignals(True)
+                self.profile_combo.setCurrentIndex(index)
+                self.profile_combo.blockSignals(False)
         self._sync()
 
     def _key(self) -> tuple:
@@ -455,10 +490,10 @@ class CompressDialog(QDialog):
     def _show_preview(self) -> None:
         idx = self.page_spin.value() - 1
         try:
-            self.orig_view.setPixmap(QPixmap.fromImage(render_page(self._data, idx, 260, self._password)))
+            self.orig_view.setPixmap(QPixmap.fromImage(render_page(self._data, idx, PREVIEW_W - 6, self._password, PREVIEW_H - 6)))
             res = self._results.get(self._key()) if hasattr(self, "_results") else None
             if res is not None:
-                self.new_view.setPixmap(QPixmap.fromImage(render_page(res.data, idx, 260, self._password)))
+                self.new_view.setPixmap(QPixmap.fromImage(render_page(res.data, idx, PREVIEW_W - 6, self._password, PREVIEW_H - 6)))
                 self.new_view.setText("")
             else:
                 self.new_view.setPixmap(QPixmap())

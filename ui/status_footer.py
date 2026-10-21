@@ -67,6 +67,9 @@ class AppStatusBar(QStatusBar):
         self.copyright_label.setFont(font)
         self.copyright_label.setToolTip(COPYRIGHT_DISPLAY)
         self.copyright_label.show()
+        # A temporary message hides the left widgets; when it ends, re-apply the width rules (and the
+        # copyright steps aside while a long message would run under it)
+        self.messageChanged.connect(lambda _m: self._relayout_for_width())
 
     def _sep(self) -> QLabel:
         lab = QLabel("·")
@@ -124,14 +127,21 @@ class AppStatusBar(QStatusBar):
         y = max(0, (bar_h - label.sizeHint().height()) // 2)
         label.setGeometry(x, y, text_w, label.sizeHint().height())
         label.raise_()
+        message = self.currentMessage()
+        if message:
+            needed = self.fontMetrics().horizontalAdvance(message) + 16
+            label.setVisible(needed < x)
+        else:
+            label.setVisible(True)
 
     def _relayout_for_width(self) -> None:
         w = self.width()
         show_doc = w >= 780
         show_sep = w >= 480
         show_zoom = w >= 420
+        busy = bool(self.currentMessage())  # Qt hides the left widgets while a message is shown
         self.doc_state_label.setVisible(show_doc and bool(self.doc_state_label.text()))
-        self.zoom_label.setVisible(show_zoom and bool(self.zoom_label.text()))
+        self.zoom_label.setVisible(not busy and show_zoom and bool(self.zoom_label.text()))
         if w < 560 and self.progress_label.text():
             metrics = self.progress_label.fontMetrics()
             full = self.progress_label.property("fullText") or self.progress_label.text()
@@ -149,5 +159,5 @@ class AppStatusBar(QStatusBar):
             self.progress_label.setVisible(bool(self.progress_label.text()))
         for sep in self.findChildren(QLabel):
             if sep.objectName() == "StatusSep":
-                sep.setVisible(show_sep and show_zoom)
+                sep.setVisible(not busy and show_sep and show_zoom)
         self._position_copyright()
