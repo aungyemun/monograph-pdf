@@ -162,5 +162,5 @@ class AppStatusBar(QStatusBar):
             self.progress_label.setVisible(bool(self.progress_label.text()))
         for sep in self.findChildren(QLabel):
             if sep.objectName() == "StatusSep":
-                sep.setVisible(not busy and show_sep and show_zoom)
+                sep.setVisible(not busy and show_sep and show_zoom and bool(self.zoom_label.text()))
         self._position_copyright()
