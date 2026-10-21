@@ -1,4 +1,11 @@
-"""Extract native PDF text spans; safe replace vs redaction+reinsertion."""
+"""Extract native PDF text spans and plan their replacement.
+
+Editing existing text is a *controlled reconstruction*: the original span's glyphs are removed from
+the page content when the document is saved (a text-only redaction: pictures and drawings under it
+are kept) and the edited text is written in their place as new text. While editing, the canvas covers
+the original span with the page's background colour. This is not a secure redaction tool and does not
+change any other occurrence of the text (bookmarks, metadata, form values).
+"""
 
 from __future__ import annotations
 
@@ -19,7 +26,17 @@ class NativeSpan:
     rect: Rect
     font: str
     size: float
-    safe_direct: bool  # True when single-line simple span replacement is considered safe
+    safe_direct: bool  # single simple span (kept for callers; every replacement removes the original)
+    color: str = "#000000"
+    bold: bool = False
+    italic: bool = False
+
+
+def clean_font_name(name: str) -> str:
+    """'ABCDEF+NotoSans-Bold' -> 'NotoSans-Bold' (drop the subset tag of an embedded font)."""
+    if len(name) > 7 and name[6] == "+" and name[:6].isalpha() and name[:6].isupper():
+        return name[7:]
+    return name
 
 
 def extract_spans(backend: Any, page_index: int) -> list[NativeSpan]:
@@ -40,6 +57,8 @@ def extract_spans(backend: Any, page_index: int) -> list[NativeSpan]:
                 bbox = rect_to_display(page, sp.get("bbox") or (0, 0, 0, 0))
                 font = str(sp.get("font") or "")
                 size = float(sp.get("size") or 12)
+                flags = int(sp.get("flags") or 0)
+                color = "#%06x" % (int(sp.get("color") or 0) & 0xFFFFFF)
                 # Safe direct edit: single span, no complex writing mode flags
                 safe = len(line_spans) == 1 and "\n" not in text and len(text) < 200
                 spans.append(
@@ -51,6 +70,9 @@ def extract_spans(backend: Any, page_index: int) -> list[NativeSpan]:
                         font=font,
                         size=size,
                         safe_direct=safe,
+                        color=color,
+                        bold=bool(flags & 16) or "bold" in font.lower(),
+                        italic=bool(flags & 2) or "italic" in font.lower() or "oblique" in font.lower(),
                     )
                 )
                 n += 1
@@ -58,30 +80,67 @@ def extract_spans(backend: Any, page_index: int) -> list[NativeSpan]:
 
 
 def span_to_textbox(span: NativeSpan) -> TextBox:
-    """Create an overlay TextBox bound to a native span (replacement workflow)."""
+    """Create an overlay TextBox bound to a native span (replacement workflow).
+
+    No padding, no wrapping and automatic size, so the text starts where the original did and a longer
+    replacement grows the box instead of breaking onto a second line."""
+    from core.editing.text_box import SizeMode
+
     return TextBox(
         page_index=span.page_index,
-        rect=span.rect.inflate(1.0),
+        rect=span.rect.inflate(0.5),
         text=span.text,
-        style=TextStyle(font_family=span.font or "sans-serif", font_size=span.size),
+        style=TextStyle(font_family=clean_font_name(span.font) or "sans-serif", font_size=span.size,
+                        text_color=span.color, bold=span.bold, italic=span.italic, padding=0.0,
+                        wrap=False, line_spacing=1.0),
+        size_mode=SizeMode.AUTO_SIZE,
         replaces_native=True,
         native_span_id=span.span_id,
     )
 
 
-def plan_replacement(span: NativeSpan, new_text: str) -> dict[str, Any]:
-    """
-    Decide workflow:
-    - safe_direct: replace text in-place when backend supports it
-    - redaction_reinsert: white-out/redact original area and insert overlay (undoable)
-    Never silently corrupt — always returns explicit mode.
-    """
-    if span.safe_direct and len(new_text) <= max(8, int(len(span.text) * 1.5)):
-        return {"mode": "safe_direct", "span_id": span.span_id, "new_text": new_text}
+def plan_replacement(span: NativeSpan, new_text: str, cover: str = "#ffffff") -> dict[str, Any]:
+    """The replacement plan for a native span: remove the span's glyphs at Save, reinsert the edited
+    text as an overlay (undoable until saved). ``cover`` is the background colour used on screen."""
     return {
         "mode": "redaction_reinsert",
         "span_id": span.span_id,
         "rect": span.rect.as_tuple(),
         "new_text": new_text,
-        "note": "True rewriting unsafe; use controlled redaction + reinsertion (undoable).",
+        "original_text": span.text,
+        "cover": cover,
+        "note": "Text-only removal of the original span at Save; pictures and drawings are kept.",
     }
+
+
+def removal_rect(rect: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+    """The area whose glyphs are removed: the span's box with its top and bottom quarter left out, so
+    characters of the lines above and below (whose boxes may overlap) are never caught."""
+    x, y, w, h = rect
+    inset = h * 0.25
+    return (x + 0.2, y + inset, max(0.1, w - 0.4), max(0.1, h - 2 * inset))
+
+
+def sample_background(page: Any, rect: tuple[float, float, float, float]) -> str:
+    """Most common colour on the border of a span's box in the rendered page (``#rrggbb``)."""
+    import fitz
+
+    from core.page_space import rect_to_page
+
+    x, y, w, h = rect
+    try:
+        clip = rect_to_page(page, fitz.Rect(x - 1.5, y - 1.5, x + w + 1.5, y + h + 1.5)) & page.rect
+        pix = page.get_pixmap(clip=clip, dpi=72, alpha=False, colorspace=fitz.csRGB)
+    except Exception:  # noqa: BLE001
+        return "#ffffff"
+    counts: dict[tuple[int, int, int], int] = {}
+    for yy in range(pix.height):
+        for xx in range(pix.width):
+            if 0 < yy < pix.height - 1 and 0 < xx < pix.width - 1:
+                continue
+            c = pix.pixel(xx, yy)[:3]
+            counts[c] = counts.get(c, 0) + 1
+    if not counts:
+        return "#ffffff"
+    r, g, b = max(counts.items(), key=lambda kv: kv[1])[0]
+    return f"#{r:02x}{g:02x}{b:02x}"

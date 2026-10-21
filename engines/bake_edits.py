@@ -103,6 +103,7 @@ def _draw_text_box(page: fitz.Page, rect: fitz.Rect, box, family: str, fontsize:
         align=getattr(box.align, "value", "left"),
         valign=getattr(box.valign, "value", "top"),
         multiline=bool(getattr(box.style, "wrap", True)),
+        character_spacing=float(getattr(box.style, "character_spacing", 0.0) or 0.0),
     )
     scratch = fitz.open()
     try:
@@ -116,11 +117,70 @@ def _draw_text_box(page: fitz.Page, rect: fitz.Rect, box, family: str, fontsize:
             wrap=entry.multiline,  # Wrap Text off: long lines run on (and are cut at the box edge)
             line_factor=float(getattr(box.style, "line_spacing", 1.2) or 1.2),
             underline=bool(getattr(box.style, "underline", False)),
+            opacity=max(0.0, min(1.0, float(getattr(box.style, "opacity", 1.0)))),
         )
         scratch.subset_fonts()
         page.show_pdf_page(rect, scratch, 0, keep_proportion=False, overlay=True)
     finally:
         scratch.close()
+
+
+def _span_page(span_id: str) -> int | None:
+    if span_id.startswith("p"):
+        try:
+            return int(span_id.split("-")[0][1:])
+        except ValueError:
+            return None
+    return None
+
+
+def remove_native_spans(doc: fitz.Document, edit: EditableDocument) -> int:
+    """Remove the glyphs of every replaced native span (``edit.native_replacements``). Returns the
+    number of spans processed. Plans saved by earlier versions without a rectangle use the bound text
+    box's rectangle."""
+    from core.editing.native_text import removal_rect
+
+    boxes = {b.native_span_id: b for b in edit.all_objects() if getattr(b, "replaces_native", False)}
+    pages: set[int] = set()
+    for plan in edit.native_replacements.values():
+        sid = str(plan.get("span_id") or "")
+        page_index = _span_page(sid)
+        rect_t = plan.get("rect")
+        if rect_t is None and sid in boxes:
+            r = boxes[sid].rect
+            rect_t = (r.x + 0.5, r.y + 0.5, max(0.1, r.w - 1), max(0.1, r.h - 1))
+        if page_index is None or rect_t is None or not (0 <= page_index < doc.page_count):
+            continue
+        page = doc.load_page(page_index)
+        x, y, w, h = removal_rect(tuple(rect_t))
+        page.add_redact_annot(rect_to_page(page, fitz.Rect(x, y, x + w, y + h)), fill=False)
+        pages.add(page_index)
+    for pi in pages:
+        doc.load_page(pi).apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE,
+                                           graphics=getattr(fitz, "PDF_REDACT_LINE_ART_NONE", 0),
+                                           text=getattr(fitz, "PDF_REDACT_TEXT_REMOVE", 0))
+    return len(pages)
+
+
+def _alpha(hex_color: str) -> float:
+    """Alpha of #AARRGGBB (1.0 for #RRGGBB)."""
+    h = (hex_color or "").strip().lstrip("#")
+    return int(h[0:2], 16) / 255.0 if len(h) == 8 else 1.0
+
+
+def _place_turned(page: fitz.Page, rect: fitz.Rect, scratch: fitz.Document, angle: float) -> None:
+    """Place scratch page 0 (drawn upright at ``rect``'s size) turned clockwise by ``angle`` about the
+    centre of ``rect``; the target grows to the turned outline so nothing is scaled."""
+    import math
+
+    a = math.radians(angle)
+    w, h = rect.width, rect.height
+    bw = abs(w * math.cos(a)) + abs(h * math.sin(a))
+    bh = abs(w * math.sin(a)) + abs(h * math.cos(a))
+    cx, cy = (rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2
+    target = fitz.Rect(cx - bw / 2, cy - bh / 2, cx + bw / 2, cy + bh / 2)
+    # show_pdf_page turns counter-clockwise for positive angles
+    page.show_pdf_page(target, scratch, 0, keep_proportion=True, overlay=True, rotate=-angle)
 
 
 class _OverlayTargets:
@@ -162,6 +222,175 @@ class _OverlayTargets:
             self._scratch = None
 
 
+def overlays_in_order(edit: EditableDocument) -> list[tuple[str, Any]]:
+    """Every text box, picture and shape, bottom first (by z-order; ties keep text, picture, shape)."""
+    items = [("text", o) for o in edit.all_objects()]
+    items += [("image", o) for o in getattr(edit, "images", {}).values()]
+    items += [("shape", o) for o in getattr(edit, "shapes", {}).values()]
+    rank = {"text": 0, "image": 1, "shape": 2}
+    return sorted(items, key=lambda it: (int(getattr(it[1], "z_index", 0)), rank[it[0]]))
+
+
+def _bake_text_box(targets: "_OverlayTargets", box) -> None:
+    """Draw one text box overlay (opacity, letter spacing and a turn, as on screen)."""
+    page = targets.page(box.page_index)
+    layout = layout_text_box(box)
+    res = resolve_font(box.style.font_family, box.text)
+    family = layout.resolved_font or res.resolved
+    # The font the user picked is used (and embedded) when it is installed and may be embedded;
+    # characters it lacks (Japanese in a Latin font ...) fall back inside draw_text. Only when it
+    # is missing does the resolver's substitute take over, and the user is told.
+    from core.editing import system_fonts
+
+    wanted = (box.style.font_family or "").strip()
+    if wanted and system_fonts.find_font_file(wanted):
+        family = wanted
+    elif wanted:
+        system_fonts.note_fallback(wanted, f"this font is not installed; saved with {family}")
+    fontsize = layout.font_size
+    pad = box.style.padding
+    # Ensure bake rect is tall enough for MuPDF insert_textbox (needs slack).
+    bake_h = max(box.rect.h, layout.content_height + 2 * pad + fontsize * 0.35)
+    rect = fitz.Rect(box.rect.x, box.rect.y, box.rect.x1, box.rect.y + bake_h)
+
+    opacity = max(0.0, min(1.0, float(getattr(box.style, "opacity", 1.0) or 0.0)))
+    angle = float(getattr(box.style, "rotation", 0.0) or 0.0) % 360.0
+    turned = min(angle, 360.0 - angle) > 0.01
+    # A turned box is drawn upright on a scratch page of its size and placed turned about its
+    # centre (clockwise, as on screen), like a turned picture.
+    scratch = fitz.open() if turned else None
+    try:
+        if scratch is not None:
+            draw_on = scratch.new_page(width=rect.width, height=rect.height)
+            local = fitz.Rect(0, 0, rect.width, rect.height)
+        else:
+            draw_on, local = page, rect
+        bg = _parse_color(box.style.background_color)
+        if bg is not None:
+            draw_on.draw_rect(local, color=None, fill=bg, width=0, fill_opacity=opacity * _alpha(box.style.background_color))
+        border = _parse_color(box.style.border_color)
+        if border is not None and box.style.border_width > 0:
+            draw_on.draw_rect(local, color=border, fill=None, width=box.style.border_width,
+                              stroke_opacity=opacity * _alpha(box.style.border_color))
+        text_rect = fitz.Rect(local.x0 + pad, local.y0 + pad, local.x1 - pad, local.y1 - pad)
+        if box.text and text_rect.width > 1 and text_rect.height > 1:
+            earlier = system_fonts.take_notes()
+            _draw_text_box(draw_on, text_rect, box, family, fontsize)
+            # only the font the user picked is worth reporting; the resolver's own stand-ins are not
+            mine = system_fonts.take_notes()
+            for fam, why in {**earlier, **{k: v for k, v in mine.items() if k == wanted}}.items():
+                system_fonts.note_fallback(fam, why)
+        if scratch is not None:
+            _place_turned(page, rect, scratch, angle)
+    finally:
+        if scratch is not None:
+            scratch.close()
+    _ = family  # reserved for embedded-font path
+
+
+def _bake_image(targets: "_OverlayTargets", img) -> None:
+    """Draw one placed picture (opacity, crop and a turn, as on screen)."""
+    try:
+        page = targets.page(img.page_index)
+        rect = fitz.Rect(img.rect.x, img.rect.y, img.rect.x1, img.rect.y1)
+        path = Path(img.source_path)
+        if not path.is_file():
+            return
+        # Opacity, crop or a turn: render the picture with Pillow, then place the result
+        opacity = max(0.0, min(1.0, float(getattr(img, "opacity", 1.0))))
+        angle = float(getattr(img, "rotation", 0.0)) % 360.0
+        turned = min(angle, 360.0 - angle) > 0.01
+        if opacity < 0.999 or turned or any(c != v for c, v in zip(img.crop, (0.0, 0.0, 1.0, 1.0))):
+            from PIL import Image
+            import io
+
+            # Everyday raster formats only: Pillow's rarely used decoders are never run on a user file
+            pil = Image.open(path.as_posix(), formats=SAFE_IMAGE_FORMATS).convert("RGBA")
+            w, h = pil.size
+            l, t, r, b = img.crop
+            pil = pil.crop((int(l * w), int(t * h), int(r * w), int(b * h)))
+            target = rect
+            if turned:
+                # Same as the canvas: stretch the picture to its box, then turn it about the
+                # box centre. The turned picture is larger than the box, so the rectangle it
+                # is placed in grows around the same centre and nothing is squeezed or cut.
+                k = max(0.5, min(8.0, pil.width / max(rect.width, 1.0)))
+                k = min(k, 4000.0 / max(rect.width, rect.height, 1.0))
+                pil = pil.resize(
+                    (max(1, round(rect.width * k)), max(1, round(rect.height * k))), Image.Resampling.BICUBIC
+                )
+                pil = pil.rotate(-angle, expand=True, resample=Image.Resampling.BICUBIC)
+                cx, cy = (rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2
+                target = fitz.Rect(
+                    cx - pil.width / k / 2, cy - pil.height / k / 2, cx + pil.width / k / 2, cy + pil.height / k / 2
+                )
+            if opacity < 0.999:
+                alpha = pil.split()[-1].point(lambda p: int(p * opacity))
+                pil.putalpha(alpha)
+            buf = io.BytesIO()
+            pil.save(buf, format="PNG")
+            page.insert_image(target, stream=buf.getvalue())
+        else:
+            page.insert_image(rect, filename=path.as_posix())
+    except Exception:  # noqa: BLE001
+        return
+
+
+def _bake_shape(targets: "_OverlayTargets", shape) -> None:
+    """Draw one vector shape (opacity, dash style and a turn about its box centre, as on screen)."""
+    try:
+        page = targets.page(shape.page_index)
+        stroke = _parse_color(getattr(shape, "stroke_color", "#000000")) or (0, 0, 0)
+        fill_hex = getattr(shape, "fill_color", "#00000000")
+        fill = _parse_color(fill_hex)
+        width = float(getattr(shape, "stroke_width", 1.5) or 1.5)
+        opacity = max(0.0, min(1.0, float(getattr(shape, "opacity", 1.0))))
+        ops = {
+            "stroke_opacity": opacity * _alpha(getattr(shape, "stroke_color", "#000000")),
+            "fill_opacity": opacity * max(0.0, min(1.0, float(getattr(shape, "fill_opacity", 1.0)))) * _alpha(fill_hex),
+        }
+        angle = float(getattr(shape, "rotation", 0.0) or 0.0) % 360.0
+        morph = None
+        if min(angle, 360.0 - angle) > 0.01:
+            centre = fitz.Point((shape.rect.x + shape.rect.x1) / 2, (shape.rect.y + shape.rect.y1) / 2)
+            morph = (centre, fitz.Matrix(-angle))  # MuPDF turns counter-clockwise on the page
+        dashes = None
+        style = getattr(getattr(shape, "stroke_style", None), "value", "solid")
+        if style == "dashed":
+            dashes = "[3 2] 0"
+        elif style == "dotted":
+            dashes = "[1 2] 0"
+        kind = getattr(getattr(shape, "kind", None), "value", "rectangle")
+        if kind in ("line", "arrow"):
+            p0 = fitz.Point(float(shape.x0), float(shape.y0))
+            p1 = fitz.Point(float(shape.x1), float(shape.y1))
+            page.draw_line(p0, p1, color=stroke, width=width, dashes=dashes, morph=morph,
+                           stroke_opacity=ops["stroke_opacity"])
+            if kind == "arrow":
+                import math
+
+                ang = math.atan2(p1.y - p0.y, p1.x - p0.x)
+                ah = 8.0
+                for aoff in (2.6, -2.6):
+                    ax = p1.x - ah * math.cos(ang + aoff)
+                    ay = p1.y - ah * math.sin(ang + aoff)
+                    page.draw_line(p1, fitz.Point(ax, ay), color=stroke, width=width, morph=morph,
+                                   stroke_opacity=ops["stroke_opacity"])
+        elif kind == "ellipse":
+            r = fitz.Rect(shape.rect.x, shape.rect.y, shape.rect.x1, shape.rect.y1)
+            page.draw_oval(r, color=stroke, fill=fill, width=width, dashes=dashes, morph=morph, **ops)
+        elif kind == "freehand" and getattr(shape, "points", None):
+            pts = [fitz.Point(x, y) for x, y in shape.points]
+            if len(pts) >= 2:
+                page.draw_polyline(pts, color=stroke, width=width, dashes=dashes, morph=morph,
+                                   stroke_opacity=ops["stroke_opacity"])
+        else:
+            r = fitz.Rect(shape.rect.x, shape.rect.y, shape.rect.x1, shape.rect.y1)
+            page.draw_rect(r, color=stroke, fill=fill, width=width, dashes=dashes, morph=morph, **ops)
+    except Exception:  # noqa: BLE001
+        return
+
+
 def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryption: bool = True) -> None:
     """
     Open a working copy of the live document (or source path), apply redactions + text boxes,
@@ -172,72 +401,13 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
     targets = _OverlayTargets(doc)
     try:
 
-        # Controlled native replacements first
-        for plan in edit.native_replacements.values():
-            if plan.get("mode") == "redaction_reinsert":
-                page_index = None
-                # find from span id p{n}-s{m}
-                sid = str(plan.get("span_id") or "")
-                if sid.startswith("p"):
-                    try:
-                        page_index = int(sid.split("-")[0][1:])
-                    except Exception:  # noqa: BLE001
-                        page_index = None
-                rect_t = plan.get("rect")
-                if page_index is not None and rect_t:
-                    page = doc.load_page(page_index)
-                    r = rect_to_page(page, fitz.Rect(rect_t[0], rect_t[1], rect_t[0] + rect_t[2], rect_t[1] + rect_t[3]))
-                    page.add_redact_annot(r, fill=(1, 1, 1))
-        # Apply redactions page-wise
-        touched = {
-            int(str(p.get("span_id", "p-1")).split("-")[0][1:])
-            for p in edit.native_replacements.values()
-            if str(p.get("span_id", "")).startswith("p")
-        }
-        for pi in touched:
-            try:
-                doc.load_page(pi).apply_redactions()
-            except Exception:  # noqa: BLE001
-                pass
+        # Edited existing text: remove the original span's glyphs (text only — pictures, drawings and
+        # the page background stay); the replacement text box is drawn below with the other overlays.
+        remove_native_spans(doc, edit)
 
-        for box in edit.all_objects():
-            page = targets.page(box.page_index)
-            layout = layout_text_box(box)
-            res = resolve_font(box.style.font_family, box.text)
-            family = layout.resolved_font or res.resolved
-            # The font the user picked is used (and embedded) when it is installed and may be embedded;
-            # characters it lacks (Japanese in a Latin font ...) fall back inside draw_text. Only when it
-            # is missing does the resolver's substitute take over, and the user is told.
-            from core.editing import system_fonts
-
-            wanted = (box.style.font_family or "").strip()
-            if wanted and system_fonts.find_font_file(wanted):
-                family = wanted
-            elif wanted:
-                system_fonts.note_fallback(wanted, f"this font is not installed; saved with {family}")
-            fontsize = layout.font_size
-            pad = box.style.padding
-            # Ensure bake rect is tall enough for MuPDF insert_textbox (needs slack).
-            bake_h = max(box.rect.h, layout.content_height + 2 * pad + fontsize * 0.35)
-            rect = fitz.Rect(box.rect.x, box.rect.y, box.rect.x1, box.rect.y + bake_h)
-
-            bg = _parse_color(box.style.background_color)
-            if bg is not None:
-                page.draw_rect(rect, color=None, fill=bg, width=0)
-
-            border = _parse_color(box.style.border_color)
-            if border is not None and box.style.border_width > 0:
-                page.draw_rect(rect, color=border, fill=None, width=box.style.border_width)
-
-            text_rect = fitz.Rect(rect.x0 + pad, rect.y0 + pad, rect.x1 - pad, rect.y1 - pad)
-            if box.text and text_rect.width > 1 and text_rect.height > 1:
-                earlier = system_fonts.take_notes()
-                _draw_text_box(page, text_rect, box, family, fontsize)
-                # only the font the user picked is worth reporting; the resolver's own stand-ins are not
-                mine = system_fonts.take_notes()
-                for fam, why in {**earlier, **{k: v for k, v in mine.items() if k == wanted}}.items():
-                    system_fonts.note_fallback(fam, why)
-            _ = family  # reserved for embedded-font path
+        # Text boxes, pictures and shapes in their stacking order (Bring Forward / Send Backward)
+        for kind, obj in overlays_in_order(edit):
+            {"text": _bake_text_box, "image": _bake_image, "shape": _bake_shape}[kind](targets, obj)
 
         # Forms: create new widgets, apply values/geometry, optional flatten
         from core.forms.acroform import (
@@ -296,93 +466,6 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
                     page.draw_rect(fr, color=border, width=cell.border_width)
                     if cell.text:
                         page.insert_textbox(fr, cell.text, fontsize=9)
-
-        # Placed images
-        for img in getattr(edit, "images", {}).values():
-            try:
-                page = targets.page(img.page_index)
-                rect = fitz.Rect(img.rect.x, img.rect.y, img.rect.x1, img.rect.y1)
-                path = Path(img.source_path)
-                if not path.is_file():
-                    continue
-                # Opacity, crop or a turn: render the picture with Pillow, then place the result
-                opacity = max(0.0, min(1.0, float(getattr(img, "opacity", 1.0))))
-                angle = float(getattr(img, "rotation", 0.0)) % 360.0
-                turned = min(angle, 360.0 - angle) > 0.01
-                if opacity < 0.999 or turned or any(c != v for c, v in zip(img.crop, (0.0, 0.0, 1.0, 1.0))):
-                    from PIL import Image
-                    import io
-
-                    # Everyday raster formats only: Pillow's rarely used decoders are never run on a user file
-                    pil = Image.open(path.as_posix(), formats=SAFE_IMAGE_FORMATS).convert("RGBA")
-                    w, h = pil.size
-                    l, t, r, b = img.crop
-                    pil = pil.crop((int(l * w), int(t * h), int(r * w), int(b * h)))
-                    target = rect
-                    if turned:
-                        # Same as the canvas: stretch the picture to its box, then turn it about the
-                        # box centre. The turned picture is larger than the box, so the rectangle it
-                        # is placed in grows around the same centre and nothing is squeezed or cut.
-                        k = max(0.5, min(8.0, pil.width / max(rect.width, 1.0)))
-                        k = min(k, 4000.0 / max(rect.width, rect.height, 1.0))
-                        pil = pil.resize(
-                            (max(1, round(rect.width * k)), max(1, round(rect.height * k))), Image.Resampling.BICUBIC
-                        )
-                        pil = pil.rotate(-angle, expand=True, resample=Image.Resampling.BICUBIC)
-                        cx, cy = (rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2
-                        target = fitz.Rect(
-                            cx - pil.width / k / 2, cy - pil.height / k / 2, cx + pil.width / k / 2, cy + pil.height / k / 2
-                        )
-                    if opacity < 0.999:
-                        alpha = pil.split()[-1].point(lambda p: int(p * opacity))
-                        pil.putalpha(alpha)
-                    buf = io.BytesIO()
-                    pil.save(buf, format="PNG")
-                    page.insert_image(target, stream=buf.getvalue())
-                else:
-                    page.insert_image(rect, filename=path.as_posix())
-            except Exception:  # noqa: BLE001
-                continue
-
-        # Vector shape overlays
-        for shape in getattr(edit, "shapes", {}).values():
-            try:
-                page = targets.page(shape.page_index)
-                stroke = _parse_color(getattr(shape, "stroke_color", "#000000")) or (0, 0, 0)
-                fill = _parse_color(getattr(shape, "fill_color", "#00000000"))
-                width = float(getattr(shape, "stroke_width", 1.5) or 1.5)
-                dashes = None
-                style = getattr(getattr(shape, "stroke_style", None), "value", "solid")
-                if style == "dashed":
-                    dashes = [3, 2]
-                elif style == "dotted":
-                    dashes = [1, 2]
-                kind = getattr(getattr(shape, "kind", None), "value", "rectangle")
-                if kind in ("line", "arrow"):
-                    p0 = fitz.Point(float(shape.x0), float(shape.y0))
-                    p1 = fitz.Point(float(shape.x1), float(shape.y1))
-                    page.draw_line(p0, p1, color=stroke, width=width, dashes=dashes)
-                    if kind == "arrow":
-                        import math
-
-                        ang = math.atan2(p1.y - p0.y, p1.x - p0.x)
-                        ah = 8.0
-                        for aoff in (2.6, -2.6):
-                            ax = p1.x - ah * math.cos(ang + aoff)
-                            ay = p1.y - ah * math.sin(ang + aoff)
-                            page.draw_line(p1, fitz.Point(ax, ay), color=stroke, width=width)
-                elif kind == "ellipse":
-                    r = fitz.Rect(shape.rect.x, shape.rect.y, shape.rect.x1, shape.rect.y1)
-                    page.draw_oval(r, color=stroke, fill=fill, width=width, dashes=dashes)
-                elif kind == "freehand" and getattr(shape, "points", None):
-                    pts = [fitz.Point(x, y) for x, y in shape.points]
-                    if len(pts) >= 2:
-                        page.draw_polyline(pts, color=stroke, width=width, dashes=dashes)
-                else:
-                    r = fitz.Rect(shape.rect.x, shape.rect.y, shape.rect.x1, shape.rect.y1)
-                    page.draw_rect(r, color=stroke, fill=fill, width=width, dashes=dashes)
-            except Exception:  # noqa: BLE001
-                continue
 
         targets.merge()
         if edit.flatten_on_save:

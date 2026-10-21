@@ -200,6 +200,8 @@ class _Layout:
         self._styles = [resolve(dict(zip(STYLE_KEYS, st)), field) for st in styles]
         self.items: list[tuple[fitz.Font, float, dict]] = []
         self.widths: list[float] = []
+        # Letter spacing (text boxes): extra advance after every character, in points
+        self.tracking = float(getattr(field, "character_spacing", 0.0) or 0.0)
 
     def _font(self, ch: str, style: dict) -> fitz.Font:
         key = (style["family"], style["bold"], style["italic"])
@@ -225,7 +227,7 @@ class _Layout:
                 font = self.items[-1][0]  # a space stays with the word before it (copy / search keep it)
             look = {"bold": style["bold"], "italic": style["italic"], "color": style["color"]}
             self.items.append((font, size, look))
-            self.widths.append(font.text_length(ch, fontsize=size) if ch not in "\r\n" else 0.0)
+            self.widths.append(font.text_length(ch, fontsize=size) + self.tracking if ch not in "\r\n" else 0.0)
         self.base = base
 
     def width(self, a: int, b: int) -> float:
@@ -362,6 +364,7 @@ def draw_text(
     line_factor: float = 1.15,
     underline: bool = False,
     wrap: bool = True,
+    opacity: float = 1.0,
 ) -> None:
     """Draw an entry (field value or text-box text) inside ``box`` on ``page``.
 
@@ -435,21 +438,25 @@ def draw_text(
         while k < b:
             font, size, style = layout.items[k]
             j = k + 1
-            if not extra:  # group characters that look the same
+            if not extra and not layout.tracking:  # group characters that look the same
                 while j < b and layout.items[j][0] is font and layout.items[j][1] == size and layout.items[j][2] == style:
                     j += 1
             chunk = layout.text[k:j]
             emit(chunk, font, size, style, x, y)
             x += sum(layout.widths[k:j])
+            if layout.tracking and underline:
+                underlines[-1] = (*underlines[-1][:2], layout.widths[k], *underlines[-1][3:])
             if extra and ((layout.text[k] == " ") if spaced else (k < b - 1)):
                 x += extra
             k = j
     for (fake_bold, color), tw, morph in segments:
         if tw.text_rect is None or tw.text_rect.is_empty:
             continue
-        tw.write_text(page, color=_hex_rgb(color), morph=morph, render_mode=2 if fake_bold else 0)
+        tw.write_text(page, color=_hex_rgb(color), morph=morph, render_mode=2 if fake_bold else 0,
+                      opacity=-1 if opacity >= 0.999 else max(0.0, opacity))
     for x, y, length, size, color in underlines:
-        page.draw_line(fitz.Point(x, y), fitz.Point(x + length, y), color=_hex_rgb(color), width=max(0.5, size * 0.06))
+        page.draw_line(fitz.Point(x, y), fitz.Point(x + length, y), color=_hex_rgb(color), width=max(0.5, size * 0.06),
+                       stroke_opacity=1.0 if opacity >= 0.999 else max(0.0, opacity))
 
 
 def write_text_appearance(doc: fitz.Document, widget: Any, field: Any) -> bool:

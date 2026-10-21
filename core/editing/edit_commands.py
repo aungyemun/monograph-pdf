@@ -149,32 +149,54 @@ class SetStyleCommand(Command):
 
 
 class DuplicateCommand(Command):
+    """Duplicate text boxes, shapes and pictures (offset down and right); Undo removes the copies."""
+
     def __init__(self, model: "EditableDocument", object_ids: list[str], offset: float = 12.0) -> None:
         self.model = model
         self.source_ids = list(object_ids)
         self.offset = offset
-        self._created: list[TextBox] = []
+        self._created: list[Any] = []
+        self._kinds: dict[str, str] = {}
 
     @property
     def name(self) -> str:
         return "Duplicate"
 
     def execute(self) -> None:
-        self._created = []
+        if self._created:  # Redo: the same copies again
+            for obj in self._created:
+                self._put(self._kinds[obj.object_id], obj.clone_same_id())
+            return
         for oid in self.source_ids:
-            src = self.model.get(oid)
-            if src is None:
+            found = self.model.overlay(oid)
+            if found is None:
                 continue
+            kind, src = found
             dup = src.copy()
-            dup.rect = src.rect.translated(self.offset, self.offset)
+            self.model.translate_overlay(dup, self.offset, self.offset)
             dup.z_index = self.model.next_z()
-            apply_layout_to_box(dup)
-            self.model.add_object(dup, record_dirty=True)
+            if kind == "text":
+                apply_layout_to_box(dup)
+            self._kinds[dup.object_id] = kind
+            self._put(kind, dup)
             self._created.append(dup.clone_same_id())
 
+    def _put(self, kind: str, obj: Any) -> None:
+        if kind == "text":
+            self.model.add_object(obj, record_dirty=True)
+        else:
+            getattr(self.model, "shapes" if kind == "shape" else "images")[obj.object_id] = obj
+            self.model.mark_dirty()
+
     def undo(self) -> None:
-        for box in self._created:
-            self.model.remove_object(box.object_id, record_dirty=True)
+        for obj in self._created:
+            kind = self._kinds[obj.object_id]
+            if kind == "text":
+                self.model.remove_object(obj.object_id, record_dirty=True)
+            else:
+                getattr(self.model, "shapes" if kind == "shape" else "images").pop(obj.object_id, None)
+                self.model.selection = [s for s in self.model.selection if s != obj.object_id]
+                self.model.mark_dirty()
 
 
 class LayerCommand(Command):
@@ -195,13 +217,12 @@ class LayerCommand(Command):
         return f"Layer {self.direction}"
 
     def execute(self) -> None:
-        self._before = {oid: self.model.get(oid).z_index for oid in self.object_ids if self.model.get(oid)}
+        self._before = self.model.z_snapshot(self.object_ids)
         self.model.change_layer(self.object_ids, self.direction)
-        self._after = {oid: self.model.get(oid).z_index for oid in self.object_ids if self.model.get(oid)}
+        self._after = self.model.z_snapshot(self.object_ids)
 
     def undo(self) -> None:
-        for oid, z in self._before.items():
-            self.model.set_z(oid, z, record_dirty=True)
+        self.model.restore_z(self._before)
 
 
 class ReplaceNativeTextCommand(Command):
@@ -258,3 +279,46 @@ class AddOverlayCommand(Command):
             self._snapshot = current.clone_same_id()
         self.model.selection = [s for s in self.model.selection if s != self.obj.object_id]
         self.model.mark_dirty()
+
+
+class SetOverlayAttrsCommand(Command):
+    """Change properties of a shape or picture (colour, line width, opacity, rotation, ...).
+
+    Consecutive changes of the same properties of the same object within a moment (a spin box being
+    stepped or typed into) merge into one Undo step."""
+
+    MERGE_SECONDS = 1.5
+
+    def __init__(self, model: "EditableDocument", object_id: str, before: dict[str, Any], after: dict[str, Any]) -> None:
+        import time
+
+        self.model = model
+        self.object_id = object_id
+        self.before = dict(before)
+        self.after = dict(after)
+        self.stamp = time.monotonic()
+
+    @property
+    def name(self) -> str:
+        return "Change Properties"
+
+    def _apply(self, values: dict[str, Any]) -> None:
+        found = self.model.overlay(self.object_id)
+        if found is None:
+            return
+        obj = found[1]
+        for k, v in values.items():
+            setattr(obj, k, v)
+        if getattr(getattr(obj, "kind", None), "value", None) in ("line", "arrow"):
+            obj.sync_rect_from_line()
+        self.model.mark_dirty()
+
+    def execute(self) -> None:
+        self._apply(self.after)
+
+    def undo(self) -> None:
+        self._apply(self.before)
+
+    def can_merge(self, other: "SetOverlayAttrsCommand") -> bool:
+        return (other.object_id == self.object_id and set(other.after) == set(self.after)
+                and other.stamp - self.stamp <= self.MERGE_SECONDS)

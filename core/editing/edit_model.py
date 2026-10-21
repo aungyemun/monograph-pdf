@@ -238,6 +238,38 @@ class EditableDocument:
     def get(self, object_id: str) -> TextBox | None:
         return self.objects.get(object_id)
 
+    def overlay(self, object_id: str) -> tuple[str, Any] | None:
+        """(kind, object) of a text box ("text"), shape ("shape") or picture ("image")."""
+        if object_id in self.objects:
+            return "text", self.objects[object_id]
+        if object_id in self.shapes:
+            return "shape", self.shapes[object_id]
+        if object_id in self.images:
+            return "image", self.images[object_id]
+        return None
+
+    def overlays_on_page(self, page_index: int) -> list[Any]:
+        """Text boxes, pictures and shapes of a page, bottom first (the order they are drawn and saved)."""
+        rank = {"text": 0, "image": 1, "shape": 2}
+        items = [("text", o) for o in self.objects_on_page(page_index)]
+        items += [("image", o) for o in self.images_on_page(page_index)]
+        items += [("shape", o) for o in self.shapes_on_page(page_index)]
+        items.sort(key=lambda it: (int(it[1].z_index), rank[it[0]]))
+        return [o for _k, o in items]
+
+    @staticmethod
+    def translate_overlay(obj: Any, dx: float, dy: float) -> None:
+        """Move any overlay, including a line's end points and a freehand stroke's points."""
+        obj.rect = obj.rect.translated(dx, dy)
+        kind = getattr(getattr(obj, "kind", None), "value", None)
+        if kind in ("line", "arrow"):
+            obj.x0 += dx
+            obj.y0 += dy
+            obj.x1 += dx
+            obj.y1 += dy
+        elif kind == "freehand" and getattr(obj, "points", None):
+            obj.points = [(px + dx, py + dy) for px, py in obj.points]
+
     def objects_on_page(self, page_index: int) -> list[TextBox]:
         items = [o for o in self.objects.values() if o.page_index == page_index]
         return sorted(items, key=lambda o: o.z_index)
@@ -289,29 +321,44 @@ class EditableDocument:
             self._notify()
 
     def change_layer(self, object_ids: list[str], direction: str) -> None:
-        ids = [i for i in object_ids if i in self.objects]
-        if not ids:
+        """Bring forward / send backward / to front / to back among all overlays of the same page
+        (text boxes, pictures and shapes share one stacking order)."""
+        found = [self.overlay(i) for i in object_ids]
+        moved = [o for _k, o in (f for f in found if f)]
+        if not moved:
             return
-        zs = sorted(self.objects.values(), key=lambda o: o.z_index)
-        if direction == "forward":
-            for oid in ids:
-                box = self.objects[oid]
-                box.z_index += 1
-        elif direction == "backward":
-            for oid in ids:
-                box = self.objects[oid]
-                box.z_index = max(0, box.z_index - 1)
-        elif direction == "front":
-            top = max((o.z_index for o in zs), default=0) + 1
-            for i, oid in enumerate(ids):
-                self.objects[oid].z_index = top + i
-        elif direction == "back":
-            for i, oid in enumerate(ids):
-                self.objects[oid].z_index = i
-            # shift others up
-            for o in zs:
-                if o.object_id not in ids:
-                    o.z_index += len(ids)
+        ids = {o.object_id for o in moved}
+        for page_index in sorted({o.page_index for o in moved}):
+            order = self.overlays_on_page(page_index)
+            sel = [o for o in order if o.object_id in ids]
+            rest = [o for o in order if o.object_id not in ids]
+            if direction == "front":
+                order = rest + sel
+            elif direction == "back":
+                order = sel + rest
+            elif direction == "forward":
+                for i in range(len(order) - 2, -1, -1):
+                    if order[i].object_id in ids and order[i + 1].object_id not in ids:
+                        order[i], order[i + 1] = order[i + 1], order[i]
+            elif direction == "backward":
+                for i in range(1, len(order)):
+                    if order[i].object_id in ids and order[i - 1].object_id not in ids:
+                        order[i], order[i - 1] = order[i - 1], order[i]
+            for z, obj in enumerate(order, start=1):
+                obj.z_index = z
+            self._z_counter = max(self._z_counter, len(order))
+        self.mark_dirty()
+
+    def z_snapshot(self, object_ids: list[str]) -> dict[str, int]:
+        """z-order of every overlay on the pages of ``object_ids`` (for undo of a layer change)."""
+        pages = {f[1].page_index for f in (self.overlay(i) for i in object_ids) if f}
+        return {o.object_id: int(o.z_index) for p in pages for o in self.overlays_on_page(p)}
+
+    def restore_z(self, snapshot: dict[str, int]) -> None:
+        for oid, z in snapshot.items():
+            found = self.overlay(oid)
+            if found:
+                found[1].z_index = z
         self.mark_dirty()
 
     def note_native_replacement(self, plan: dict[str, Any]) -> None:
@@ -410,15 +457,30 @@ class EditableDocument:
         return shape
 
     def update_shape(self, object_id: str, **kwargs: Any) -> None:
-        shape = self.shapes.get(object_id)
-        if shape is None:
+        """Change shape properties (undoable)."""
+        self.set_overlay_attrs(object_id, **kwargs)
+
+    def set_overlay_attrs(self, object_id: str, **kwargs: Any) -> None:
+        """Change properties of a shape or picture as one undoable step (merged with an immediately
+        preceding change of the same properties of the same object)."""
+        from core.editing.edit_commands import SetOverlayAttrsCommand
+
+        found = self.overlay(object_id)
+        if found is None:
             return
-        for k, v in kwargs.items():
-            if hasattr(shape, k) and v is not None:
-                setattr(shape, k, v)
-        if shape.kind.value in ("line", "arrow"):
-            shape.sync_rect_from_line()
-        self.mark_dirty()
+        obj = found[1]
+        changes = {k: v for k, v in kwargs.items() if hasattr(obj, k) and v is not None and getattr(obj, k) != v}
+        if not changes:
+            return
+        before = {k: copy.deepcopy(getattr(obj, k)) for k in changes}
+        cmd = SetOverlayAttrsCommand(self, object_id, before, changes)
+        last = self.commands._undo[-1] if self.commands._undo else None  # noqa: SLF001
+        if isinstance(last, SetOverlayAttrsCommand) and last.can_merge(cmd) and not self.commands.can_redo_now:
+            last.after = dict(changes)
+            last.stamp = cmd.stamp
+            last.execute()
+            return
+        self.commands.execute(cmd)
 
     # --- high-level ops via commands -------------------------------------
 
@@ -567,13 +629,29 @@ class EditableDocument:
         if notify:
             self._notify()
 
+    @staticmethod
+    def keep_aspect(old: Rect, new: Rect) -> Rect:
+        """``new`` reshaped to ``old``'s width:height ratio, following the larger relative change and
+        keeping the corner opposite the dragged handle where ``old`` had it."""
+        if old.w <= 0 or old.h <= 0 or new.w <= 0 or new.h <= 0:
+            return new
+        ratio = old.w / old.h
+        if abs(new.w - old.w) / old.w >= abs(new.h - old.h) / old.h:
+            w, h = new.w, new.w / ratio
+        else:
+            w, h = new.h * ratio, new.h
+        left_moved = abs(new.x - old.x) > 1e-6 and abs(new.x1 - old.x1) <= 1e-6
+        top_moved = abs(new.y - old.y) > 1e-6 and abs(new.y1 - old.y1) <= 1e-6
+        x = new.x1 - w if left_moved else new.x
+        y = new.y1 - h if top_moved else new.y
+        return Rect(x, y, w, h)
+
     def live_resize(self, object_id: str, new_rect: Rect, *, notify: bool = True) -> None:
         if object_id in self.shapes:
             shape = self.shapes[object_id]
             nr = new_rect.normalized()
-            if shape.lock_aspect and nr.w > 0 and nr.h > 0:
-                side = max(nr.w, nr.h)
-                nr = Rect(nr.x, nr.y, side, side)
+            if shape.lock_aspect and nr.w > 0 and nr.h > 0 and shape.kind.value not in ("line", "arrow", "freehand"):
+                nr = self.keep_aspect(shape.rect, nr)
             shape.rect = nr
             if shape.kind.value in ("line", "arrow"):
                 shape.x0, shape.y0 = nr.x, nr.y
@@ -592,8 +670,7 @@ class EditableDocument:
             return
         nr = new_rect.normalized()
         if object_id in self.images and getattr(box, "lock_aspect", False):
-            # ImageBox may gain lock_aspect via setattr
-            pass
+            nr = self.keep_aspect(box.rect, nr)
         box.rect = nr
         if object_id in self.objects:
             apply_layout_to_box(box)
@@ -678,12 +755,19 @@ class EditableDocument:
         self.mark_dirty()
 
     def layer_selection(self, direction: str) -> None:
-        if not self.selection:
+        if not any(self.overlay(i) for i in self.selection):
             return
         self.commands.execute(LayerCommand(self, list(self.selection), direction))
 
     def begin_native_edit(self, span: NativeSpan, new_text: str) -> TextBox:
-        plan = plan_replacement(span, new_text)
+        from core.editing.native_text import sample_background
+
+        try:
+            page = self.pdf._backend._doc.load_page(span.page_index)  # noqa: SLF001
+            cover = sample_background(page, span.rect.as_tuple())
+        except Exception:  # noqa: BLE001
+            cover = "#ffffff"
+        plan = plan_replacement(span, new_text, cover)
         box = span_to_textbox(span)
         box.text = new_text
         box.z_index = self.next_z()
@@ -691,6 +775,30 @@ class EditableDocument:
         self.select([box.object_id])
         self.editing_object_id = box.object_id
         return self.objects[box.object_id]
+
+    def native_box_for(self, object_id: str) -> dict[str, Any] | None:
+        box = self.objects.get(object_id)
+        if box is None or not box.replaces_native or not box.native_span_id:
+            return None
+        return self._native_replacements.get(str(box.native_span_id))
+
+    def discard_unchanged_native_edit(self, object_id: str) -> bool:
+        """Undo a native-text edit that changed nothing (opened and closed without typing) so the
+        original text stays exactly as it was, without an Undo entry. Returns True if discarded."""
+        plan = self.native_box_for(object_id)
+        box = self.objects.get(object_id)
+        last = self.commands._undo[-1] if self.commands._undo else None  # noqa: SLF001
+        if (plan is None or box is None or box.text != plan.get("original_text")
+                or not isinstance(last, ReplaceNativeTextCommand) or last.box.object_id != object_id
+                or box.style.to_dict() != last.box.style.to_dict()):
+            return False
+        self.commands._undo.pop()  # noqa: SLF001
+        last.undo()
+        if self.editing_object_id == object_id:
+            self.editing_object_id = None
+        self.selection = [s for s in self.selection if s != object_id]
+        self._notify()
+        return True
 
     def extract_native_spans(self, page_index: int) -> list[NativeSpan]:
         return extract_spans(self.pdf._backend, page_index)  # noqa: SLF001
@@ -1016,25 +1124,13 @@ class EditableDocument:
         self.mark_dirty()
 
     def set_image_opacity(self, object_id: str, opacity: float) -> None:
-        img = self.images.get(object_id)
-        if img is None:
-            return
-        img.opacity = max(0.0, min(1.0, opacity))
-        self.mark_dirty()
+        self.set_overlay_attrs(object_id, opacity=max(0.0, min(1.0, opacity)))
 
     def set_image_rotation(self, object_id: str, degrees: float) -> None:
-        img = self.images.get(object_id)
-        if img is None:
-            return
-        img.rotation = float(degrees) % 360.0
-        self.mark_dirty()
+        self.set_overlay_attrs(object_id, rotation=float(degrees) % 360.0)
 
     def set_image_crop(self, object_id: str, crop: tuple[float, float, float, float]) -> None:
-        img = self.images.get(object_id)
-        if img is None:
-            return
-        img.crop = crop
-        self.mark_dirty()
+        self.set_overlay_attrs(object_id, crop=tuple(crop))
 
     def smart_layout_after_move(self, moved_id: str, before: Rect, after: Rect) -> None:
         from core.layout.ops import LayoutPolicy, smart_nudge_related
@@ -1056,6 +1152,7 @@ class EditableDocument:
             "source": str(self.pdf.path),
             "objects": [o.to_dict() for o in self.all_objects()],
             "images": [o.to_dict() for o in self.images.values()],
+            "shapes": [o.to_dict() for o in self.shapes.values()],
             "fields": [f.to_dict() for f in self.fields.values()],
             "tables": [t.to_dict() for t in self.tables.values()],
             "native_replacements": self._native_replacements,
@@ -1074,6 +1171,7 @@ class EditableDocument:
         self.fields.clear()
         self.tables.clear()
         self.images.clear()
+        self.shapes.clear()
         self._native_replacements = dict(data.get("native_replacements") or {})
         for item in data.get("objects") or []:
             box = TextBox.from_dict(item)
@@ -1084,6 +1182,12 @@ class EditableDocument:
             img = ImageBox.from_dict(item)
             self.images[img.object_id] = img
             self._z_counter = max(self._z_counter, img.z_index)
+        from core.editing.shape_box import ShapeBox
+
+        for item in data.get("shapes") or []:
+            shape = ShapeBox.from_dict(item)
+            self.shapes[shape.object_id] = shape
+            self._z_counter = max(self._z_counter, shape.z_index)
         for item in data.get("fields") or []:
             f = FormField.from_dict(item)
             self.fields[f.object_id] = f
@@ -1096,13 +1200,39 @@ class EditableDocument:
         self._notify()
 
     def clipboard_copy(self) -> list[dict[str, Any]]:
-        return [o.to_dict() for o in self.selected_objects()]
+        """Selected text boxes, shapes and pictures (text boxes as before; others tagged by kind)."""
+        out: list[dict[str, Any]] = []
+        for oid in self.selection:
+            found = self.overlay(oid)
+            if found is None:
+                continue
+            kind, obj = found
+            data = obj.to_dict()
+            if kind != "text":
+                data = {"_overlay": kind, "data": data}
+            out.append(data)
+        return out
 
     def clipboard_paste(self, payload: list[dict[str, Any]], *, page_index: int | None = None) -> None:
         import uuid
 
+        from core.editing.edit_commands import AddOverlayCommand
+        from core.editing.image_box import ImageBox
+        from core.editing.shape_box import ShapeBox
+
         created: list[str] = []
         for item in payload:
+            kind = item.get("_overlay") if isinstance(item, dict) else None
+            if kind in ("shape", "image"):
+                obj = (ShapeBox if kind == "shape" else ImageBox).from_dict(item.get("data") or {})
+                obj.object_id = str(uuid.uuid4())
+                if page_index is not None:
+                    obj.page_index = page_index
+                self.translate_overlay(obj, 12, 12)
+                obj.z_index = self.next_z()
+                self.commands.execute(AddOverlayCommand(self, obj, "shapes" if kind == "shape" else "images"))
+                created.append(obj.object_id)
+                continue
             box = TextBox.from_dict(item)
             box.object_id = str(uuid.uuid4())
             if page_index is not None:

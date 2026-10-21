@@ -864,8 +864,10 @@ class InspectorPanel(QScrollArea):
         img = self._edit.images.get(oid)
         if img is None:
             return
-        img.opacity = float(self._img_op.value()) / 100.0
-        img.rotation = float(self._img_rot.value())
-        img.lock_aspect = self._img_lock.isChecked()
-        self._edit.mark_dirty()
+        self._edit.set_overlay_attrs(  # undoable
+            oid,
+            opacity=float(self._img_op.value()) / 100.0,
+            rotation=float(self._img_rot.value()),
+            lock_aspect=self._img_lock.isChecked(),
+        )
         self.styleEdited.emit()

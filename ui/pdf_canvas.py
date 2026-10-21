@@ -873,51 +873,63 @@ class _CanvasWidget(QWidget):
                 y = layout.top() + int(g.position * sy)
                 painter.drawLine(layout.left(), y, layout.right(), y)
 
-        for box in self._edit.objects_on_page(page_index):
-            wr = self.pdf_rect_to_widget(page_index, box.rect)
-            if wr is None:
+        # Existing text being replaced: cover the original glyphs with the page's background colour
+        # (Save removes them from the page content; see core/editing/native_text.py)
+        prefix = f"p{page_index}-"
+        for sid, plan in self._edit.native_replacements.items():
+            rect_t = plan.get("rect")
+            if not str(sid).startswith(prefix) or not rect_t:
                 continue
-            self._paint_textbox(painter, box, wr)
-            if box.object_id in self._edit.selection:
+            cr = self.pdf_rect_to_widget(page_index, Rect(*rect_t))
+            if cr is not None:
+                painter.fillRect(cr.adjusted(-1, -1, 1, 1), QColor(str(plan.get("cover") or "#ffffff")))
+
+        # Text boxes, pictures and shapes in their stacking order — the same order Save uses
+        # (engines/bake_edits.py overlays_in_order)
+        items = [("text", o) for o in self._edit.objects_on_page(page_index)]
+        items += [("image", o) for o in self._edit.images_on_page(page_index)]
+        items += [("shape", o) for o in self._edit.shapes_on_page(page_index)]
+        rank = {"text": 0, "image": 1, "shape": 2}
+        items.sort(key=lambda it: (int(getattr(it[1], "z_index", 0)), rank[it[0]]))
+        for kind, obj in items:
+            wr = self.pdf_rect_to_widget(page_index, obj.rect)
+            if kind == "shape":
+                self._paint_shape(painter, page_index, obj)
+            elif wr is None:
+                continue
+            elif kind == "text":
+                self._paint_textbox(painter, obj, wr)
+            else:
+                self._paint_image(painter, obj, wr)
+            if wr is not None and obj.object_id in self._edit.selection:
                 painter.setPen(QPen(QColor("#2563eb"), 1))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
                 painter.drawRect(wr)
                 for hx, hy in self._handle_points(wr):
                     painter.fillRect(QRect(hx - _HANDLE // 2, hy - _HANDLE // 2, _HANDLE, _HANDLE), QColor("#2563eb"))
-            if box.overflow:
+            if kind == "text" and wr is not None and obj.overflow:
                 painter.setPen(QPen(QColor("#dc2626"), 2))
                 painter.drawRect(wr.adjusted(1, 1, -1, -1))
                 painter.drawText(wr.adjusted(4, 2, -4, -2), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight, "!")
 
-        for shape in self._edit.shapes_on_page(page_index):
-            self._paint_shape(painter, page_index, shape)
-            wr = self.pdf_rect_to_widget(page_index, shape.rect)
-            if wr is not None and shape.object_id in self._edit.selection:
-                painter.setPen(QPen(QColor("#2563eb"), 1))
-                painter.setBrush(Qt.BrushStyle.NoBrush)
-                painter.drawRect(wr)
-                for hx, hy in self._handle_points(wr):
-                    painter.fillRect(
-                        QRect(hx - _HANDLE // 2, hy - _HANDLE // 2, _HANDLE, _HANDLE),
-                        QColor("#2563eb"),
-                    )
-
-        for img in self._edit.images_on_page(page_index):
-            wr = self.pdf_rect_to_widget(page_index, img.rect)
-            if wr is None:
-                continue
-            self._paint_image(painter, img, wr)
-            if img.object_id in self._edit.selection:
-                painter.setPen(QPen(QColor("#2563eb"), 1))
-                painter.setBrush(Qt.BrushStyle.NoBrush)
-                painter.drawRect(wr)
-                for hx, hy in self._handle_points(wr):
-                    painter.fillRect(
-                        QRect(hx - _HANDLE // 2, hy - _HANDLE // 2, _HANDLE, _HANDLE),
-                        QColor("#2563eb"),
-                    )
-
     def _paint_shape(self, painter: QPainter, page_index: int, shape) -> None:
+        angle = float(getattr(shape, "rotation", 0.0) or 0.0) % 360.0
+        wr = self.pdf_rect_to_widget(page_index, shape.rect)
+        if min(angle, 360.0 - angle) > 0.01 and wr is not None:
+            # Turned clockwise about the shape's box centre — the same as Save
+            painter.save()
+            c = QRectF(wr).center()
+            painter.translate(c)
+            painter.rotate(angle)
+            painter.translate(-c)
+            try:
+                self._paint_shape_upright(painter, page_index, shape)
+            finally:
+                painter.restore()
+            return
+        self._paint_shape_upright(painter, page_index, shape)
+
+    def _paint_shape_upright(self, painter: QPainter, page_index: int, shape) -> None:
         from core.editing.shape_box import ShapeKind, StrokeStyle
 
         stroke = QColor(shape.stroke_color)
@@ -997,6 +1009,22 @@ class _CanvasWidget(QWidget):
         painter.drawText(wr, Qt.AlignmentFlag.AlignCenter, "Image")
 
     def _paint_textbox(self, painter: QPainter, box: TextBox, wr: QRect) -> None:
+        angle = float(getattr(box.style, "rotation", 0.0) or 0.0) % 360.0
+        if min(angle, 360.0 - angle) > 0.01 and box.object_id != self._text_editor_id:
+            # Turned about the box centre, clockwise — the same as Save (engines/bake_edits.py)
+            painter.save()
+            c = QRectF(wr).center()
+            painter.translate(c)
+            painter.rotate(angle)
+            painter.translate(-c)
+            try:
+                self._paint_textbox_upright(painter, box, wr)
+            finally:
+                painter.restore()
+            return
+        self._paint_textbox_upright(painter, box, wr)
+
+    def _paint_textbox_upright(self, painter: QPainter, box: TextBox, wr: QRect) -> None:
         layout = layout_text_box(box)
         bg = QColor(box.style.background_color)
         if bg.alpha() > 0:
@@ -1004,6 +1032,7 @@ class _CanvasWidget(QWidget):
             painter.fillRect(wr, bg)
         border = QColor(box.style.border_color)
         if border.alpha() > 0 and box.style.border_width > 0:
+            border.setAlphaF(border.alphaF() * min(1.0, box.style.opacity))
             painter.setPen(QPen(border, max(1, int(box.style.border_width))))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(wr)
@@ -1019,6 +1048,9 @@ class _CanvasWidget(QWidget):
         font.setBold(box.style.bold)
         font.setItalic(box.style.italic)
         font.setUnderline(box.style.underline)
+        tracking = float(getattr(box.style, "character_spacing", 0.0) or 0.0)
+        if tracking:
+            font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, tracking * sx)
         painter.setFont(font)
         color = QColor(box.style.text_color)
         color.setAlphaF(min(1.0, box.style.opacity))
@@ -1427,6 +1459,9 @@ class _CanvasWidget(QWidget):
         font.setBold(box.style.bold)
         font.setItalic(box.style.italic)
         font.setUnderline(box.style.underline)
+        tracking = float(getattr(box.style, "character_spacing", 0.0) or 0.0)
+        if tracking:
+            font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, tracking * sx)
         if editor.font() != font:
             editor.setFont(font)
         pad = max(0, int(box.style.padding * sx) - 1)
@@ -1564,6 +1599,8 @@ class _CanvasWidget(QWidget):
                 text = before
             self._edit.editing_object_id = None
             self._edit.commit_text_edit(oid, before, text)
+            # Opened on existing text and closed without a change: leave the original untouched
+            self._edit.discard_unchanged_native_edit(oid)
         if had_focus:
             self.setFocus(Qt.FocusReason.OtherFocusReason)
         self.editModelChanged.emit()
@@ -2263,9 +2300,10 @@ class _CanvasWidget(QWidget):
             spans = self._edit.extract_native_spans(page_index)
             for span in spans:
                 if span.rect.contains(pdf_pt):
-                    self._edit.begin_native_edit(span, span.text)
+                    box = self._edit.begin_native_edit(span, span.text)
+                    self.open_text_editor(box.object_id, click_pos=event.position().toPoint())
                     self.requestStatus.emit(
-                        "Editing existing text (controlled replacement — undoable)"
+                        "Editing existing text: the original is replaced when you save (Undo restores it)"
                     )
                     return
         except Exception:  # noqa: BLE001
