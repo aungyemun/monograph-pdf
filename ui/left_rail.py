@@ -122,6 +122,13 @@ class LeftRail(QTabWidget):
         self.setTabIcon(self._search_tab, icon_search())
         self.setTabToolTip(self._search_tab, "Find text in the open document")
 
+        from ui.comments_panel import CommentsPanel
+
+        self.comments = CommentsPanel()
+        self._comments_tab = self.addTab(self.comments, "Comments")
+        self.setTabIcon(self._comments_tab, make_icon("comments_panel"))
+        self.setTabToolTip(self._comments_tab, "Comments and markup by page — go to, edit or delete")
+
         # Attachments (optional)
         attach_page = QWidget()
         al = QVBoxLayout(attach_page)
@@ -146,13 +153,14 @@ class LeftRail(QTabWidget):
         self.setTabIcon(self._pages_tab, icon_pages())
         self.setTabIcon(self._bookmarks_tab, icon_bookmarks())
         self.setTabIcon(self._search_tab, icon_search())
+        self.setTabIcon(self._comments_tab, make_icon("comments_panel"))
         self.setTabIcon(self._attach_tab, make_icon("attachments"))
 
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
         self._apply_tab_mode(compact=self.width() < 150)
 
-    TAB_LABELS = ("Pages", "Bookmarks", "Search", "Files")
+    TAB_LABELS = ("Pages", "Bookmarks", "Search", "Comments", "Files")
 
     def _apply_tab_mode(self, *, compact: bool) -> None:
         """Tab labels that fit the panel: every label when there is room; otherwise only the
@@ -160,7 +168,7 @@ class LeftRail(QTabWidget):
         icons only when the panel is very narrow. Tabs never hide behind scroll arrows when
         icons alone fit."""
         self._compact = compact
-        tabs = (self._pages_tab, self._bookmarks_tab, self._search_tab, self._attach_tab)
+        tabs = (self._pages_tab, self._bookmarks_tab, self._search_tab, self._comments_tab, self._attach_tab)
         if getattr(self, "_relabelling", False) or not all(0 <= t < self.count() for t in tabs):
             return
         self._relabelling = True
@@ -185,6 +193,7 @@ class LeftRail(QTabWidget):
     def clear_document(self) -> None:
         self._document = None
         self.thumbs.clear_document()
+        self.comments.set_document(None)
         self._bookmarks.clear()
         self._search_results.clear()
         self._attachments.clear()
@@ -198,6 +207,7 @@ class LeftRail(QTabWidget):
     def set_document(self, document: PdfDocument) -> None:
         self._document = document
         self.thumbs.set_document(document)
+        self.comments.set_document(document)
         self._load_bookmarks(document)
         self._load_attachments(document)
         self._apply_tab_mode(compact=self.width() < 150)

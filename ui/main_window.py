@@ -422,6 +422,12 @@ class MainWindow(QMainWindow):
         self.act_annot_underline.triggered.connect(lambda: self._annot_markup("underline"))
         self.act_annot_strike = QAction("Stri&kethrough Text", self)
         self.act_annot_strike.triggered.connect(lambda: self._annot_markup("strikeout"))
+        self.act_annot_squiggly = QAction("S&quiggly Underline", self)
+        self.act_annot_squiggly.setToolTip("Squiggly underline: drag across the text")
+        self.act_annot_squiggly.triggered.connect(lambda: self._annot_markup("squiggly"))
+        self.act_show_comments = QAction("&Comments Panel", self)
+        self.act_show_comments.setToolTip("Show the comments and markup of the document, by page")
+        self.act_show_comments.triggered.connect(self._show_comments_panel)
         self.act_annot_comment = QAction("Sticky &Note Comment…", self)
         self.act_annot_comment.triggered.connect(self._annot_comment)
         self.act_annot_callout = QAction("Call&out…", self)
@@ -959,6 +965,8 @@ class MainWindow(QMainWindow):
             "eraser": self.act_annot_eraser,
             "underline": self.act_annot_underline,
             "strikeout": self.act_annot_strike,
+            "squiggly": self.act_annot_squiggly,
+            "comments_panel": self.act_show_comments,
             "comment": self.act_annot_comment,
             "callout": self.act_annot_callout,
             "stamp": self.act_annot_stamp,
@@ -1213,6 +1221,7 @@ class MainWindow(QMainWindow):
             view.addAction(act)
         view.addSeparator()
         view.addAction(self.act_toggle_left)
+        view.addAction(self.act_show_comments)
         view.addAction(self.act_toggle_right)
         view.addAction(self.act_fullscreen)
         view.addSeparator()
@@ -1245,6 +1254,7 @@ class MainWindow(QMainWindow):
             self.act_annot_eraser,
             self.act_annot_underline,
             self.act_annot_strike,
+            self.act_annot_squiggly,
             self.act_annot_comment,
             self.act_annot_callout,
             self.act_annot_stamp,
@@ -1578,6 +1588,23 @@ class MainWindow(QMainWindow):
         self._left.bookmarkDeleteRequested.connect(self._bookmark_delete)
         self._left.bookmarkMoveRequested.connect(self._bookmark_move)
         self._left.bookmarkRetargetRequested.connect(self._bookmark_retarget)
+        self._left.thumbs.set_context_actions([
+            self.act_rotate_cw, self.act_rotate_ccw, None,
+            self.act_insert_blank, self.act_insert_pdf, self.act_dup_pages, self.act_replace_page, None,
+            self.act_extract_pages, self.act_copy_to_doc, self.act_move_to_doc, None,
+            self.act_crop_page, self.act_page_sizes, None,
+            self.act_delete_pages,
+        ])
+        self._canvas.annotationSelected.connect(lambda page, xref: self._left.comments.select(page, xref))
+        self._canvas.annotationMoveRequested.connect(self._annot_move)
+        self._canvas.annotationDeleteRequested.connect(lambda page, xref: self._comment_delete(self._annot_ref(page, xref)))
+        self._canvas.annotationEditRequested.connect(lambda page, xref: self._comment_edit_text(self._annot_ref(page, xref)))
+        comments = self._left.comments
+        comments.commentActivated.connect(self._comment_go_to)
+        comments.editTextRequested.connect(self._comment_edit_text)
+        comments.colorRequested.connect(self._comment_color)
+        comments.opacityRequested.connect(self._comment_opacity)
+        comments.deleteRequested.connect(self._comment_delete)
         self._canvas.pageChanged.connect(self._on_page_changed)
         self._canvas.zoomChanged.connect(self._on_zoom_changed)
         self._canvas.selectionChanged.connect(self._on_selection_changed)
@@ -2395,6 +2422,12 @@ class MainWindow(QMainWindow):
             self._delete_selected_pages()
             return
         if self._edit:
+            annot = self._canvas.selected_annotation()
+            if not self._edit.selection and annot is not None:
+                page, xref, _kind = annot
+                self._canvas._canvas.clear_annotation_selection()  # noqa: SLF001
+                self._comment_delete(self._annot_ref(page, xref))
+                return
             self._edit.delete_selection()
 
     def _copy_style(self) -> None:
@@ -2411,6 +2444,7 @@ class MainWindow(QMainWindow):
 
     def _on_edit_changed(self) -> None:
         self._update_title()
+        self._left.comments.mark_stale()
         if self._edit and self._edit.dirty:
             state, text = "modified", "Modified"
         else:
@@ -3342,6 +3376,8 @@ class MainWindow(QMainWindow):
             self.act_annot_eraser,
             self.act_annot_underline,
             self.act_annot_strike,
+            self.act_annot_squiggly,
+            self.act_show_comments,
             self.act_annot_comment,
             self.act_annot_callout,
             self.act_annot_ink,
@@ -3411,6 +3447,34 @@ class MainWindow(QMainWindow):
         )
         return resp == QMessageBox.StandardButton.Yes
 
+    def _page_undo_begin(self):
+        """Snapshot for undo of the page operation about to run (None if the document is too large)."""
+        from core.organize import page_snapshot
+
+        try:
+            return page_snapshot.capture(self._document, self._edit)
+        except Exception:  # noqa: BLE001 — undo is a convenience; the operation itself must still run
+            return None
+
+    def _page_undo_end(self, before, name: str) -> None:
+        """Record a finished page operation for Undo/Redo. Without a snapshot the operation cannot be
+        undone; the Undo list is then cleared so earlier steps cannot act on the wrong pages."""
+        from core.organize import page_snapshot
+
+        after = page_snapshot.capture(self._document, self._edit) if before is not None else None
+        if before is None or after is None:
+            self._edit.commands.clear()
+            self.statusBar().showMessage(f"{name}: this document is too large to undo page changes", 6000)
+            self._on_edit_changed()
+            return
+
+        def restored() -> None:
+            self._refresh_after_page_ops(focus=min(self._canvas.focus_page, self._document.page_count - 1))
+
+        page_snapshot.push(self._edit.commands, page_snapshot.PageStructureCommand(
+            name, self._document, self._edit, before, after, restored))
+        self._on_edit_changed()
+
     def _refresh_after_page_ops(self, *, focus: int | None = None, changed_pages=None) -> None:
         """Rebuild the views after a page operation. ``changed_pages`` (e.g. rotation) keeps the cached
         analysis of every other page instead of re-reading the whole document."""
@@ -3443,10 +3507,12 @@ class MainWindow(QMainWindow):
         from core.organize.remap import map_after_reorder
 
         try:
+            before = self._page_undo_begin()
             mapping = map_after_reorder(list(new_order))
             reorder_pages(self._document, list(new_order))
             self._edit.remap_page_indices(mapping)
             self._refresh_after_page_ops(focus=0)
+            self._page_undo_end(before, "Reorder Pages")
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(self, "Reorder failed", str(exc))
             self._refresh_after_page_ops(focus=self._canvas.focus_page)
@@ -3463,9 +3529,11 @@ class MainWindow(QMainWindow):
         old_n = self._document.page_count
         mapping = map_after_insert(old_n, at, 1)
         try:
+            before = self._page_undo_begin()
             insert_blank_page(self._document, at)
             self._edit.remap_page_indices(mapping)
             self._refresh_after_page_ops(focus=at)
+            self._page_undo_end(before, "Insert Blank Page")
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(self, "Insert blank", str(exc))
 
@@ -3483,6 +3551,7 @@ class MainWindow(QMainWindow):
         password = None
         at = self._canvas.focus_page + 1
         old_n = self._document.page_count
+        before = self._page_undo_begin()
         try:
             count = insert_pdf_pages(self._document, Path(path), at_index=at, password=password)
         except PasswordRequiredError:
@@ -3501,6 +3570,7 @@ class MainWindow(QMainWindow):
             return
         self._edit.remap_page_indices(map_after_insert(old_n, at, count))
         self._refresh_after_page_ops(focus=at)
+        self._page_undo_end(before, "Insert Pages")
 
     def _delete_selected_pages(self) -> None:
         if self._document is None or self._edit is None:
@@ -3519,9 +3589,11 @@ class MainWindow(QMainWindow):
         old_n = self._document.page_count
         mapping = map_after_delete(old_n, list(pages))
         try:
+            before = self._page_undo_begin()
             delete_pages(self._document, pages)
             self._edit.remap_page_indices(mapping)
             self._refresh_after_page_ops(focus=min(pages))
+            self._page_undo_end(before, "Delete Pages")
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(self, "Delete pages", str(exc))
 
@@ -3539,9 +3611,11 @@ class MainWindow(QMainWindow):
         old_n = self._document.page_count
         insert_at = max(pages) + 1
         try:
+            before = self._page_undo_begin()
             inserted = duplicate_pages(self._document, pages, after=True)
             self._edit.remap_page_indices(map_after_duplicate_block(old_n, insert_at, len(inserted)))
             self._refresh_after_page_ops(focus=inserted[0] if inserted else 0)
+            self._page_undo_end(before, "Duplicate Pages")
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(self, "Duplicate pages", str(exc))
 
@@ -3556,6 +3630,7 @@ class MainWindow(QMainWindow):
         from core.organize.page_ops import replace_page
 
         idx = self._canvas.focus_page
+        before = self._page_undo_begin()
         try:
             replace_page(self._document, idx, Path(path))
         except PasswordRequiredError:
@@ -3572,6 +3647,7 @@ class MainWindow(QMainWindow):
             return
         self._edit.mark_dirty()
         self._refresh_after_page_ops(focus=idx)
+        self._page_undo_end(before, "Replace Page")
 
     # --- bookmarks ------------------------------------------------------------------------
 
@@ -3726,9 +3802,11 @@ class MainWindow(QMainWindow):
         if dlg.exec() != dlg.DialogCode.Accepted:
             return
         try:
+            before = self._page_undo_begin()
             crop_page(self._document, self._canvas.focus_page, dlg.crop_tuple())
             self._edit.mark_dirty()
             self._refresh_after_page_ops(focus=self._canvas.focus_page)
+            self._page_undo_end(before, "Crop Page")
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(self, "Crop", str(exc))
 
@@ -4447,7 +4525,8 @@ class MainWindow(QMainWindow):
         from core.annotations import classify_stroke
         from core.editing.annot_commands import HighlightStrokeCommand, MarkupAnnotCommand
 
-        label = {"highlight": "Highlight", "underline": "Underline", "strikeout": "Strikethrough"}[kind]
+        label = {"highlight": "Highlight", "underline": "Underline", "strikeout": "Strikethrough",
+                 "squiggly": "Squiggly underline"}[kind]
         color = self._markup_color_rgb(kind)
         pick_kind = "stroke" if kind == "highlight" else "rect"
         # Highlight stays active until toggled off, Esc (twice if mid-stroke), another tool, or close.
@@ -4521,6 +4600,7 @@ class MainWindow(QMainWindow):
             "highlight": getattr(self._prefs, "highlight_color", None) or "#ffff00",
             "underline": getattr(self._prefs, "underline_color", None) or "#0000ff",
             "strikeout": getattr(self._prefs, "strikeout_color", None) or "#ff0000",
+            "squiggly": getattr(self._prefs, "squiggly_color", None) or "#dc2626",
         }
         c = QColor(hex_map.get(kind, "#ffff00"))
         if not c.isValid():
@@ -4612,8 +4692,10 @@ class MainWindow(QMainWindow):
             if not ok or not text.strip():
                 return
             pt = self._to_page_point(page, rect.x, rect.y)
-            add_text_comment(self._document, page, pt, text.strip())
-            self._after_annotation(page, "Comment added")
+            color = self._note_color_rgb()
+            self._run_annot_command(page, lambda: add_text_comment(self._document, page, pt, text.strip(), color=color),
+                                    "Add Sticky Note")
+            self._after_annotation(page, "Sticky note added (Undo removes it; edit it in the Comments panel)")
 
         self._pick_on_page("Sticky note: click where the note should go", apply, kind="point")
 
@@ -4630,13 +4712,13 @@ class MainWindow(QMainWindow):
             if not ok or not text.strip():
                 return
             box = self._to_page_rect(page, rect)
-            add_callout(
+            self._run_annot_command(page, lambda: add_callout(
                 self._document,
                 page,
                 box,
                 text.strip(),
                 callout_point=Point(max(4.0, box.x - 40), box.y + box.h / 2),
-            )
+            ), "Add Callout")
             self._after_annotation(page, "Callout added")
 
         self._pick_on_page("Callout: drag the text box area", apply, default_size=(180.0, 48.0))
@@ -4703,19 +4785,212 @@ class MainWindow(QMainWindow):
     def _annot_stamp(self) -> None:
         if self._document is None or not self._confirm_signed():
             return
-        from core.annotations import StampKind, add_stamp
-        from ui.app_dialogs import StampDialog
+        import fitz
 
-        dlg = StampDialog([s.value for s in StampKind], self)
+        from core.annotations.stamps import add_custom_stamp
+        from ui.stamp_dialog import StampLibraryDialog
+
+        dlg = StampLibraryDialog(self, start_dir=self._doc_dir())
         if dlg.exec() != dlg.DialogCode.Accepted:
             return
-        kind = StampKind(dlg.value())
+        spec = dlg.spec()
+        w, h = dlg.default_size()
 
         def apply(page: int, rect) -> None:
-            add_stamp(self._document, page, self._to_page_rect(page, rect), kind)
-            self._after_annotation(page, f"Stamp “{dlg.combo.currentText()}” added")
+            r = self._to_page_rect(page, rect)
+            if r.w < 12 or r.h < 8:  # a click: the stamp's default size, centred on the click
+                cx, cy = r.x + r.w / 2, r.y + r.h / 2
+                r = type(r)(cx - w / 2, cy - h / 2, w, h)
+            frect = fitz.Rect(r.x, r.y, r.x1, r.y1)
+            self._run_annot_command(page, lambda: add_custom_stamp(self._document, page, frect, spec), "Add Stamp")
+            label = spec.text if not spec.image_path else "picture"
+            self._after_annotation(page, f"Stamp “{label}” added (Undo removes it; change it in the Comments panel)")
 
-        self._pick_on_page("Stamp: drag a box or click to place", apply, default_size=(160.0, 52.0))
+        self._pick_on_page("Stamp: drag a box or click to place", apply, default_size=(w, h))
+
+    # --- comments (any annotation): undoable create / edit / delete -------------------------------
+
+    def _run_annot_command(self, page: int, create, name: str):
+        from core.editing.annot_commands import AnnotCreateCommand
+
+        cmd = AnnotCreateCommand(self._document, self._edit, page, create, name)
+        self._edit.commands.execute(cmd)
+        return cmd
+
+    def _note_color_rgb(self) -> tuple[float, float, float]:
+        from PySide6.QtGui import QColor
+
+        c = QColor(getattr(self._prefs, "note_color", None) or "#fbbf24")
+        return (c.redF(), c.greenF(), c.blueF()) if c.isValid() else (0.98, 0.75, 0.14)
+
+    def _show_comments_panel(self) -> None:
+        if not self.act_toggle_left.isChecked():
+            self.act_toggle_left.trigger()
+        self._left.setCurrentWidget(self._left.comments)
+        self._left.comments.refresh()
+
+    def _comment_go_to(self, ref) -> None:
+        if self._document is None or not (0 <= ref.page_index < self._document.page_count):
+            return
+        self._canvas.go_to_page(ref.page_index)
+        label = {"Text": "Note", "FreeText": "Callout"}.get(ref.kind, ref.kind)
+        self.statusBar().showMessage(f"{label} on page {ref.page_index + 1}", 3000)
+
+    def _comment_change(self, ref, change, name: str) -> None:
+        from core.editing.annot_commands import AnnotModifyCommand
+
+        if self._document is None or self._edit is None:
+            return
+        try:
+            self._edit.commands.execute(AnnotModifyCommand(self._document, self._edit, ref.page_index, ref.xref, change, name))
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, name, f"The comment could not be changed: {exc}")
+            return
+        self._after_annotation(ref.page_index, f"{name} — Undo restores the previous state")
+        self._left.comments.refresh()
+        self._left.comments.select(ref.page_index, ref.xref)
+
+    def _annot_ref(self, page: int, xref: int):
+        from core.annotations.store import find_live
+        from ui.comments_panel import CommentRef
+
+        found = find_live(self._document, page, xref) if self._document is not None else None
+        kind, rect = ("", (0.0, 0.0, 0.0, 0.0))
+        if found is not None:
+            kind, r = found[1].type[1], found[1].rect
+            rect = (r.x0, r.y0, r.x1, r.y1)
+        return CommentRef(page, int(xref), kind, rect)
+
+    def _annot_move(self, page: int, xref: int, dx: float, dy: float) -> None:
+        """Move a comment (sticky note, callout, stamp, rectangle ...) dragged with the Select tool."""
+        import fitz
+
+        from core.annotations.stamps import stamp_spec, update_stamp
+
+        ref = self._annot_ref(page, xref)
+
+        def change() -> None:
+            if stamp_spec(self._document, xref) is not None:
+                _p, live = self._live_annot(ref)
+                r = live.rect
+                update_stamp(self._document, page, xref, center=((r.x0 + r.x1) / 2 + dx, (r.y0 + r.y1) / 2 + dy))
+                return
+            _p, live = self._live_annot(ref)
+            live.set_rect(live.rect + fitz.Rect(dx, dy, dx, dy))
+            if live.type[1] != "Stamp":  # a stamp from another app keeps its own appearance
+                live.update()
+
+        self._comment_change(ref, change, "Move Comment")
+        self._canvas.select_annotation(page, xref)
+
+    def _live_annot(self, ref):
+        from core.annotations.store import find_live
+
+        return find_live(self._document, ref.page_index, ref.xref)
+
+    def _comment_edit_text(self, ref) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from core.annotations.stamps import StampSpec, stamp_spec, update_stamp
+
+        found = self._live_annot(ref)
+        if found is None:
+            return
+        _page, annot = found
+        current = (annot.info or {}).get("content") or ""
+        text, ok = QInputDialog.getMultiLineText(self, "Edit Comment", "Text:", current)
+        if not ok or text == current:
+            return
+        custom = stamp_spec(self._document, ref.xref)
+
+        def change() -> None:
+            if custom is not None:
+                spec, _size = custom
+                if spec.image_path:
+                    import fitz
+
+                    self._document._backend._doc.xref_set_key(ref.xref, "Contents", fitz.get_pdf_str(text))  # noqa: SLF001
+                else:
+                    update_stamp(self._document, ref.page_index, ref.xref, spec=StampSpec(**{**spec.__dict__, "text": text}))
+                return
+            page, live = self._live_annot(ref)
+            live.set_info(content=text)
+            live.update()
+
+        self._comment_change(ref, change, "Edit Comment")
+
+    def _comment_color(self, ref) -> None:
+        from PySide6.QtGui import QColor
+        from PySide6.QtWidgets import QColorDialog
+
+        from core.annotations.stamps import StampSpec, stamp_spec, update_stamp
+
+        found = self._live_annot(ref)
+        if found is None:
+            return
+        _page, annot = found
+        stroke = (annot.colors or {}).get("stroke") or [1, 1, 0]
+        initial = QColor.fromRgbF(*[float(c) for c in stroke[:3]]) if len(stroke) >= 3 else QColor("#ffff00")
+        custom = stamp_spec(self._document, ref.xref)
+        if custom is not None:
+            initial = QColor(custom[0].color)
+        color = QColorDialog.getColor(initial, self, "Comment Colour")
+        if not color.isValid():
+            return
+        rgb = (color.redF(), color.greenF(), color.blueF())
+
+        def change() -> None:
+            if custom is not None:
+                spec, _size = custom
+                update_stamp(self._document, ref.page_index, ref.xref, spec=StampSpec(**{**spec.__dict__, "color": color.name()}))
+                return
+            page, live = self._live_annot(ref)
+            if ref.kind == "FreeText":
+                live.update(text_color=rgb)
+            else:
+                live.set_colors(stroke=rgb)
+                live.update()
+
+        self._comment_change(ref, change, "Change Comment Colour")
+
+    def _comment_opacity(self, ref) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from core.annotations.stamps import StampSpec, stamp_spec, update_stamp
+
+        found = self._live_annot(ref)
+        if found is None:
+            return
+        _page, annot = found
+        current = int(round((annot.opacity if annot.opacity >= 0 else 1.0) * 100))
+        value, ok = QInputDialog.getInt(self, "Comment Opacity", "Opacity (%):", current, 5, 100, 5)
+        if not ok or value == current:
+            return
+        custom = stamp_spec(self._document, ref.xref)
+
+        def change() -> None:
+            if custom is not None:
+                spec, _size = custom
+                update_stamp(self._document, ref.page_index, ref.xref, spec=StampSpec(**{**spec.__dict__, "opacity": value / 100}))
+                return
+            page, live = self._live_annot(ref)
+            live.set_opacity(value / 100)
+            live.update()
+
+        self._comment_change(ref, change, "Change Comment Opacity")
+
+    def _comment_delete(self, ref) -> None:
+        from core.editing.annot_commands import AnnotRemoveCommand
+
+        if self._document is None or self._edit is None:
+            return
+        try:
+            self._edit.commands.execute(AnnotRemoveCommand(self._document, self._edit, ref.page_index, ref.xref))
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, "Delete Comment", f"The comment could not be deleted: {exc}")
+            return
+        self._after_annotation(ref.page_index, "Comment deleted — Undo restores it")
+        self._left.comments.refresh()
 
     def _password_protect(self) -> None:
         if self._document is None:
@@ -5119,59 +5394,72 @@ class MainWindow(QMainWindow):
                 note += f" ({unchecked} attachment(s) not checked: their content is never read)"
             self.statusBar().showMessage(note, 12000)
 
+    def _place_signature(self, png_path, message: str) -> None:
+        """Let the user drag where a visual signature goes; it becomes a movable picture overlay."""
+        from core.signatures.ops import signature_box
+
+        def apply(page: int, rect) -> None:
+            if self._edit is None:
+                return
+            box = signature_box(page, rect, png_path)
+            box.z_index = self._edit.next_z()
+            self._edit.add_image(box)  # undoable
+            self._edit.selection = [box.object_id]
+            self._set_tool(EditTool.SELECT)
+            self._on_edit_changed()
+            self.statusBar().showMessage(message, 6000)
+
+        self._pick_on_page("Signature: drag where it should go (or click)", apply, default_size=(200.0, 60.0))
+
     def _sig_typed(self) -> None:
         if self._document is None or not self._confirm_signed():
             return
-        from core.signatures import insert_typed_signature
+        from core.annotations.stamp_library import png_bytes_to_library
         from ui.security_dialogs import TypedSignatureDialog
 
         dlg = TypedSignatureDialog(self)
         if dlg.exec() != dlg.DialogCode.Accepted or not dlg.name.text().strip():
             return
-        name = dlg.name.text().strip()
         png = dlg.signature_png()
-
-        def apply(page: int, rect) -> None:
-            insert_typed_signature(self._document, page, self._to_page_rect(page, rect), name, image_png=png)
-            self._after_annotation(page, "Visual signature placed")
-
-        self._pick_on_page("Signature: drag where it should go", apply, default_size=(200.0, 52.0))
+        if not png:
+            return
+        self._place_signature(png_bytes_to_library(png),
+                              "Visual signature placed — move or resize it, Delete removes it (a picture, not a digital signature)")
 
     def _sig_image(self) -> None:
         if self._document is None or not self._confirm_signed():
             return
-        from core.signatures import insert_image_signature
+        from core.annotations.stamp_library import import_picture
 
         path, _ = QFileDialog.getOpenFileName(
             self, "Signature from Image", self._doc_dir(), "Images (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.tif *.tiff)"
         )
         if not path:
             return
-
-        def apply(page: int, rect) -> None:
-            insert_image_signature(self._document, page, self._to_page_rect(page, rect), Path(path))
-            self._after_annotation(page, "Signature image placed")
-
-        self._pick_on_page("Signature: drag where it should go", apply, default_size=(180.0, 60.0))
+        answer = QMessageBox.question(
+            self, "Signature from Image",
+            "Make the picture's white background transparent?\n\nRecommended for a scanned or photographed signature.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes)
+        try:
+            stored = import_picture(Path(path), remove_white=answer == QMessageBox.StandardButton.Yes)
+        except Exception as exc:  # noqa: BLE001
+            QMessageBox.warning(self, "Signature from Image", f"The picture could not be read: {type(exc).__name__}")
+            return
+        self._place_signature(stored, "Signature picture placed — move or resize it, Delete removes it")
 
     def _sig_drawn(self) -> None:
         if self._document is None or not self._confirm_signed():
             return
-        from core.signatures import insert_drawn_signature
-        from ui.app_dialogs import SignaturePadDialog, fit_strokes_into
+        from core.annotations.stamp_library import png_bytes_to_library
+        from core.signatures.ops import strokes_to_png
+        from ui.app_dialogs import SignaturePadDialog
 
         dlg = SignaturePadDialog(self)
         if dlg.exec() != dlg.DialogCode.Accepted or not dlg.strokes():
             return
-        strokes = dlg.strokes()
-
-        def apply(page: int, rect) -> None:
-            fitted = fit_strokes_into(strokes, rect.x, rect.y, rect.w, rect.h)
-            pts = [[self._to_page_point(page, x, y) for x, y in s] for s in fitted]
-            insert_drawn_signature(self._document, page, pts)
-            self._after_annotation(page, "Drawn signature placed")
-
-        self._pick_on_page("Signature: drag where it should go", apply, default_size=(200.0, 64.0))
+        png = strokes_to_png(dlg.strokes())
+        self._place_signature(png_bytes_to_library(png),
+                              "Drawn signature placed — move or resize it, Delete removes it (a picture, not a digital signature)")
 
     def _print_document(self) -> None:
         """Print with Monograph PDF's own dialog — printer settings plus a live preview of every sheet."""

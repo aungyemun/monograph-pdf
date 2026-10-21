@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Callable, Sequence
 from core.annotations.ops import (
     add_free_highlight,
     add_highlight,
+    add_squiggly,
     add_strikeout,
     add_underline,
     delete_annotation_by_nm,
@@ -26,6 +27,7 @@ _ADDERS: dict[str, Callable[..., int]] = {
     "highlight": add_highlight,
     "underline": add_underline,
     "strikeout": add_strikeout,
+    "squiggly": add_squiggly,
 }
 
 
@@ -41,6 +43,7 @@ class MarkupAnnotCommand(Command):
         rects: Sequence[Rect],
         *,
         color: tuple[float, float, float],
+        opacity: float = 1.0,
     ) -> None:
         if kind not in _ADDERS:
             raise ValueError(f"unsupported markup kind: {kind}")
@@ -50,17 +53,19 @@ class MarkupAnnotCommand(Command):
         self.kind = kind
         self.rects = [Rect(r.x, r.y, r.w, r.h) for r in rects]
         self.color = color
+        self.opacity = opacity
         self._xref: int | None = None
 
     @property
     def name(self) -> str:
-        return {"highlight": "Highlight", "underline": "Underline", "strikeout": "Strikethrough"}.get(
+        return {"highlight": "Highlight", "underline": "Underline", "strikeout": "Strikethrough",
+                "squiggly": "Squiggly Underline"}.get(
             self.kind, "Markup"
         )
 
     def execute(self) -> None:
         adder = _ADDERS[self.kind]
-        self._xref = adder(self.document, self.page_index, self.rects, color=self.color)
+        self._xref = adder(self.document, self.page_index, self.rects, color=self.color, opacity=self.opacity)
         self.model.mark_dirty()
 
     def undo(self) -> None:
@@ -156,3 +161,111 @@ def fitz_pdf_str(text: str) -> str:
     import fitz
 
     return fitz.get_pdf_str(text)
+
+
+# --- any annotation: create / remove / change, undone through core/annotations/store.py ----------
+
+class AnnotCreateCommand(Command):
+    """Create one or more annotations with ``create`` (returns their xrefs); Undo takes them off the
+    page, Redo puts the same objects back."""
+
+    def __init__(self, document: "PdfDocument", model: "EditableDocument", page_index: int,
+                 create: Callable[[], int | list[int]], name: str = "Add Comment") -> None:
+        self.document = document
+        self.model = model
+        self.page_index = page_index
+        self._create = create
+        self._name = name
+        self.xrefs: list[int] = []
+        self._snaps: list[dict] = []
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def execute(self) -> None:
+        from core.annotations import store
+
+        if self._snaps:
+            for snap in self._snaps:
+                store.reinsert(self.document, snap)
+            self._snaps = []
+        else:
+            made = self._create()
+            self.xrefs = [int(x) for x in (made if isinstance(made, (list, tuple)) else [made])]
+        self.model.mark_dirty()
+
+    def undo(self) -> None:
+        from core.annotations import store
+
+        self._snaps = [store.remove(self.document, self.page_index, x) for x in reversed(self.xrefs)
+                       if store.is_on_page(self.document, self.page_index, x)]
+        self.model.mark_dirty()
+
+
+class AnnotRemoveCommand(Command):
+    """Delete an annotation (any type, imported ones included); Undo puts it back unchanged."""
+
+    def __init__(self, document: "PdfDocument", model: "EditableDocument", page_index: int, xref: int) -> None:
+        self.document = document
+        self.model = model
+        self.page_index = page_index
+        self.xref = int(xref)
+        self._snap: dict | None = None
+
+    @property
+    def name(self) -> str:
+        return "Delete Comment"
+
+    def execute(self) -> None:
+        from core.annotations import store
+
+        self._snap = store.remove(self.document, self.page_index, self.xref)
+        self.model.mark_dirty()
+
+    def undo(self) -> None:
+        from core.annotations import store
+
+        if self._snap is not None:
+            store.reinsert(self.document, self._snap)
+        self.model.mark_dirty()
+
+
+class AnnotModifyCommand(Command):
+    """Change an annotation with ``change`` (text, colour, opacity, position ...); Undo and Redo write
+    back the annotation's objects as they were before and after."""
+
+    def __init__(self, document: "PdfDocument", model: "EditableDocument", page_index: int, xref: int,
+                 change: Callable[[], None], name: str = "Edit Comment") -> None:
+        self.document = document
+        self.model = model
+        self.page_index = page_index
+        self.xref = int(xref)
+        self._change = change
+        self._name = name
+        self._before: dict | None = None
+        self._after: dict | None = None
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def execute(self) -> None:
+        from core.annotations import store
+
+        if self._after is not None:
+            store.restore_objects(self.document, self._after)
+        else:
+            self._before = store.capture(self.document, self.page_index, self.xref)
+            self._change()
+            self._after = store.capture(self.document, self.page_index, self.xref)
+            # objects created by the change (a new appearance stream) are kept in "after" only
+        self.document.invalidate_pages()
+        self.model.mark_dirty()
+
+    def undo(self) -> None:
+        from core.annotations import store
+
+        if self._before is not None:
+            store.restore_objects(self.document, self._before)
+        self.model.mark_dirty()

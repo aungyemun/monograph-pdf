@@ -1490,3 +1490,100 @@ def _settings(p, c):
         p.setBrush(c)
         p.drawEllipse(QRectF(knob - 1.8, y - 1.8, 3.6, 3.6))
         p.setBrush(Qt.BrushStyle.NoBrush)
+
+
+# --- 0.3.0 tools ---------------------------------------------------------------------------------
+
+@icon("squiggly")
+def _squiggly(p, c):
+    # "S" over a wavy line
+    path = QPainterPath(QPointF(13.5, 4.5))
+    path.cubicTo(QPointF(12.5, 2.5), QPointF(6.5, 2.5), QPointF(6.8, 5.5))
+    path.cubicTo(QPointF(7, 7.5), QPointF(13.2, 7.5), QPointF(13.3, 10.3))
+    path.cubicTo(QPointF(13.3, 13.3), QPointF(7.2, 13.4), QPointF(6.3, 11.2))
+    p.drawPath(path)
+    wave = QPainterPath(QPointF(2.5, 16.5))
+    x = 2.5
+    up = True
+    while x < 17:
+        wave.quadTo(QPointF(x + 1.25, 14.6 if up else 18.4), QPointF(x + 2.5, 16.5))
+        x += 2.5
+        up = not up
+    p.drawPath(wave)
+
+
+@icon("area_ocr")
+def _area_ocr(p, c):
+    # dashed selection rectangle around "Aa"
+    pen = p.pen()
+    dashed = QPen(pen)
+    dashed.setStyle(Qt.PenStyle.DashLine)
+    dashed.setDashPattern([2.0, 1.6])
+    p.setPen(dashed)
+    p.drawRect(QRectF(2.5, 4, 15, 12))
+    p.setPen(pen)
+    f = QFont("Segoe UI")
+    f.setPixelSize(8)
+    f.setBold(True)
+    p.setFont(f)
+    p.drawText(QRectF(2.5, 4, 15, 12), int(Qt.AlignmentFlag.AlignCenter), "Aa")
+
+
+@icon("searchable")
+def _searchable(p, c):
+    # page with text lines and a magnifier
+    _poly(p, [(3, 2.5), (11.5, 2.5), (14.5, 5.5), (14.5, 9)], close=False)
+    _poly(p, [(3, 2.5), (3, 17.5), (9, 17.5)], close=False)
+    for y in (7, 10, 13):
+        p.drawLine(QPointF(5.5, y), QPointF(9.5 if y > 7 else 11, y))
+    p.drawEllipse(QRectF(10, 10, 5.5, 5.5))
+    p.drawLine(QPointF(14.6, 14.6), QPointF(17.5, 17.5))
+
+
+@icon("batch")
+def _batch(p, c):
+    # three stacked pages and an arrow
+    for dx in (0, 2.5, 5):
+        p.drawRect(QRectF(2.5 + dx, 2.5 + dx, 8, 10))
+    p.drawLine(QPointF(12.5, 15.5), QPointF(17.5, 15.5))
+    _poly(p, [(15.3, 13.3), (17.5, 15.5), (15.3, 17.7)], close=False)
+
+
+@icon("comments_panel")
+def _comments_panel(p, c):
+    # two overlapping speech bubbles
+    p.drawRoundedRect(QRectF(2.5, 3, 10, 7), 1.5, 1.5)
+    _poly(p, [(5, 10), (5, 12.5), (7.5, 10)], close=False)
+    p.drawRoundedRect(QRectF(8, 8.5, 9.5, 6.5), 1.5, 1.5)
+    _poly(p, [(14.5, 15), (14.5, 17.5), (12, 15)], close=False)
+
+
+@icon("text_extract")
+def _text_extract(p, c):
+    # scanned page -> text lines
+    p.drawRect(QRectF(2.5, 3, 7, 9))
+    p.drawLine(QPointF(4, 6), QPointF(8, 6))
+    p.drawLine(QPointF(4, 8.5), QPointF(8, 8.5))
+    p.drawLine(QPointF(10.5, 10), QPointF(13, 12.5))
+    _poly(p, [(10.6, 12.6), (13, 12.5), (12.9, 10.1)], close=False)
+    for y in (14, 16.5):
+        p.drawLine(QPointF(11.5, y), QPointF(17.5, y))
+
+
+@icon("language")
+def _language(p, c):
+    # globe
+    p.drawEllipse(QRectF(2.5, 2.5, 15, 15))
+    p.drawEllipse(QRectF(6.5, 2.5, 7, 15))
+    p.drawLine(QPointF(2.5, 10), QPointF(17.5, 10))
+    p.drawLine(QPointF(4, 6), QPointF(16, 6))
+    p.drawLine(QPointF(4, 14), QPointF(16, 14))
+
+
+@icon("stamp_custom")
+def _stamp_custom(p, c):
+    # stamp with a plus
+    p.drawRoundedRect(QRectF(2.5, 11, 15, 4), 1, 1)
+    p.drawLine(QPointF(4, 17.5), QPointF(16, 17.5))
+    _poly(p, [(7.5, 11), (8.5, 7), (11.5, 7), (12.5, 11)], close=False)
+    p.drawEllipse(QRectF(7.5, 2, 5, 5))

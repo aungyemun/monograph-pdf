@@ -159,6 +159,38 @@ class ThumbnailPanel(QListWidget):
         self._hub.failed.connect(self._on_fail)
         self._reorder_enabled = True
         self.verticalScrollBar().valueChanged.connect(self._schedule_visible)
+        self._context_actions: list = []
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._context_menu)
+
+    def set_context_actions(self, actions: list) -> None:
+        """Actions offered on right-click (None = separator); they act on the selected pages."""
+        self._context_actions = list(actions)
+
+    def _context_menu(self, pos) -> None:
+        menu = self.build_context_menu(pos)
+        if menu is not None:
+            menu.exec(self.viewport().mapToGlobal(pos))
+
+    def build_context_menu(self, pos):
+        """The right-click menu for the thumbnail at ``pos`` (selects it first); None off the pages."""
+        from PySide6.QtWidgets import QMenu
+
+        item = self.itemAt(pos)
+        if item is None or not self._context_actions:
+            return None
+        if not item.isSelected():
+            self.clearSelection()
+            item.setSelected(True)
+        self.setCurrentItem(item)
+        self.pageActivated.emit(self.row(item))
+        menu = QMenu(self)
+        for act in self._context_actions:
+            if act is None:
+                menu.addSeparator()
+            else:
+                menu.addAction(act)
+        return menu
 
     def set_reorder_enabled(self, enabled: bool) -> None:
         self._reorder_enabled = enabled

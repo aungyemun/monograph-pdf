@@ -25,6 +25,8 @@ class ImageBox:
     crop: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)
     z_index: int = 0
     object_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    # "signature" for a visual signature (a picture of a signature — not a certificate-based one)
+    role: str = ""
 
     def copy(self) -> "ImageBox":
         return ImageBox(
@@ -37,6 +39,7 @@ class ImageBox:
             crop=self.crop,
             z_index=self.z_index,
             object_id=str(uuid.uuid4()),
+            role=self.role,
         )
 
     def clone_same_id(self) -> "ImageBox":
@@ -56,6 +59,7 @@ class ImageBox:
             "lock_aspect": self.lock_aspect,
             "crop": list(self.crop),
             "z_index": self.z_index,
+            "role": self.role,
         }
 
     @staticmethod
@@ -71,6 +75,7 @@ class ImageBox:
             crop=(float(crop[0]), float(crop[1]), float(crop[2]), float(crop[3])),
             z_index=int(data.get("z_index", 0)),
             object_id=str(data.get("object_id") or uuid.uuid4()),
+            role=str(data.get("role") or ""),
         )
 
 

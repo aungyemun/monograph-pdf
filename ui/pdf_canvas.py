@@ -134,6 +134,11 @@ class _CanvasWidget(QWidget):
     editModelChanged = Signal()
     requestStatus = Signal(str)
     regionPickCancelled = Signal()
+    # PDF annotations (comments, stamps ...) selected with the Select tool: page, xref
+    annotationSelected = Signal(int, int)
+    annotationMoveRequested = Signal(int, int, float, float)  # page, xref, dx, dy (unrotated page space)
+    annotationDeleteRequested = Signal(int, int)
+    annotationEditRequested = Signal(int, int)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -183,6 +188,9 @@ class _CanvasWidget(QWidget):
         self._drag_perf: list[float] = []
         # Region pick (draw-to-place for annotations, redaction, stamps, signatures)
         self._region_pick: tuple[str, Callable[[int, Rect, bool], None], str] | None = None
+        # Selected PDF annotation: (page, xref, kind, display rect); drag offset while moving
+        self._annot_sel: tuple[int, int, str, Rect] | None = None
+        self._annot_drag: tuple[float, float] | None = None
         self._region_origin: Point | None = None
         self._region_current: Point | None = None
         self._region_page: int = 0
@@ -202,6 +210,7 @@ class _CanvasWidget(QWidget):
     # --- document / edit model -------------------------------------------
 
     def clear_document(self) -> None:
+        self._annot_sel = None
         if self._edit is not None:
             self._edit.remove_listener(self._on_edit_changed)
         self._cache.clear()
@@ -912,6 +921,15 @@ class _CanvasWidget(QWidget):
                 painter.drawRect(wr.adjusted(1, 1, -1, -1))
                 painter.drawText(wr.adjusted(4, 2, -4, -2), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight, "!")
 
+        if self._annot_sel is not None and self._annot_sel[0] == page_index:
+            dx, dy = self._annot_drag or (0.0, 0.0)
+            ar = self.pdf_rect_to_widget(page_index, self._annot_sel[3].translated(dx, dy))
+            if ar is not None:
+                pen = QPen(QColor("#2563eb"), 1, Qt.PenStyle.DashLine)
+                painter.setPen(pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRect(ar.adjusted(-2, -2, 2, 2))
+
     def _paint_shape(self, painter: QPainter, page_index: int, shape) -> None:
         angle = float(getattr(shape, "rotation", 0.0) or 0.0) % 360.0
         wr = self.pdf_rect_to_widget(page_index, shape.rect)
@@ -1277,8 +1295,59 @@ class _CanvasWidget(QWidget):
         if editor.geometry() != geo:
             editor.setGeometry(geo)
 
+    # --- PDF annotations: select, move, delete ---------------------------------------------------
+
+    ANNOT_MOVABLE = ("Stamp", "Text", "FreeText", "Square", "Circle", "FileAttachment")
+    ANNOT_IGNORED = ("Popup", "Link", "Widget")
+
+    def _annotation_at(self, page_index: int, pt: Point) -> tuple[int, int, str, Rect] | None:
+        """Topmost comment-type annotation under ``pt`` (display space), as (page, xref, kind, rect)."""
+        if self._document is None:
+            return None
+        from core.page_space import rect_to_display
+
+        try:
+            page = self._document._backend._doc.load_page(page_index)  # noqa: SLF001
+            annots = list(page.annots() or [])
+        except Exception:  # noqa: BLE001
+            return None
+        for annot in reversed(annots):
+            kind = annot.type[1]
+            if kind in self.ANNOT_IGNORED:
+                continue
+            r = rect_to_display(page, annot.rect)
+            rect = Rect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0)
+            if rect.inflate(2.0).contains(pt):
+                return (page_index, int(annot.xref), kind, rect)
+        return None
+
+    def select_annotation(self, page_index: int, xref: int) -> bool:
+        """Select the annotation ``xref`` on ``page_index`` (e.g. again after it was moved)."""
+        if self._document is None:
+            return False
+        from core.page_space import rect_to_display
+
+        page = self._document._backend._doc.load_page(page_index)  # noqa: SLF001
+        for annot in page.annots() or []:
+            if int(annot.xref) == int(xref):
+                r = rect_to_display(page, annot.rect)
+                self._annot_sel = (page_index, int(xref), annot.type[1], Rect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0))
+                self.update()
+                return True
+        return False
+
+    def selected_annotation(self) -> tuple[int, int, str] | None:
+        return self._annot_sel[:3] if self._annot_sel else None
+
+    def clear_annotation_selection(self) -> None:
+        if self._annot_sel is not None:
+            self._annot_sel = None
+            self._annot_drag = None
+            self.update()
+
     def deselect_all(self) -> None:
         """Finish any typing and select nothing — selection boxes and handles disappear."""
+        self.clear_annotation_selection()
         if self._edit is None:
             return
         if self._text_editor is not None:
@@ -1935,6 +2004,15 @@ class _CanvasWidget(QWidget):
                 self._edit.editing_object_id = None
             self._edit.clear_selection()
             self._mode = "idle"
+            found = self._annotation_at(page_index, pdf_pt) if self._edit.tool == EditTool.SELECT else None
+            self._annot_sel = found
+            self._annot_drag = None
+            if found is not None:
+                self._mode = "annot_move" if found[2] in self.ANNOT_MOVABLE else "idle"
+                self._annot_drag = (0.0, 0.0)
+                self.annotationSelected.emit(found[0], found[1])
+        if hit:
+            self.clear_annotation_selection()
         self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
@@ -1946,6 +2024,12 @@ class _CanvasWidget(QWidget):
         if mapped is None:
             return
         page_index, pdf_pt = mapped
+
+        if self._mode == "annot_move" and self._annot_sel is not None and self._press_pdf is not None \
+                and event.buttons() & Qt.MouseButton.LeftButton and page_index == self._annot_sel[0]:
+            self._annot_drag = (pdf_pt.x - self._press_pdf.x, pdf_pt.y - self._press_pdf.y)
+            self.update()
+            return
 
         if self._region_pick is not None:
             if self._region_origin is not None:
@@ -2054,6 +2138,21 @@ class _CanvasWidget(QWidget):
                 self.update()
                 return
             self._finish_region_pick()
+            return
+        if self._mode == "annot_move" and self._annot_sel is not None:
+            self._mode = "idle"
+            dx, dy = self._annot_drag or (0.0, 0.0)
+            self._annot_drag = None
+            if abs(dx) >= 1.0 or abs(dy) >= 1.0:
+                page_index, xref, kind, rect = self._annot_sel
+                from core.page_space import point_to_page
+
+                page = self._document._backend._doc.load_page(page_index)  # noqa: SLF001
+                a = point_to_page(page, rect.x, rect.y)
+                b = point_to_page(page, rect.x + dx, rect.y + dy)
+                self._annot_sel = (page_index, xref, kind, rect.translated(dx, dy))
+                self.annotationMoveRequested.emit(page_index, xref, float(b.x - a.x), float(b.y - a.y))
+            self.update()
             return
         if self._mode == "drag_create" and self._create_origin and self._create_current:
             from core.editing.shape_box import constrain_line_angle, constrain_rect_aspect
@@ -2295,6 +2394,13 @@ class _CanvasWidget(QWidget):
             self._edit.select([own])
             self.open_text_editor(own, click_pos=event.position().toPoint())
             return
+        # A comment (sticky note, callout, stamp ...) on top of the page: edit its text
+        if not own and self._edit.tool == EditTool.SELECT:
+            found = self._annotation_at(page_index, pdf_pt)
+            if found is not None and found[2] not in ("Highlight", "Underline", "StrikeOut", "Squiggly", "Ink"):
+                self._annot_sel = found
+                self.annotationEditRequested.emit(found[0], found[1])
+                return
         # Try native span edit
         try:
             spans = self._edit.extract_native_spans(page_index)
@@ -2479,7 +2585,15 @@ class _CanvasWidget(QWidget):
             and self._edit.editing_object_id is None
             and self._edit.editing_field_id is None
         ):
+            if not self._edit.selection and self._annot_sel is not None:
+                page_index, xref = self._annot_sel[:2]
+                self.clear_annotation_selection()
+                self.annotationDeleteRequested.emit(page_index, xref)
+                return
             self._edit.delete_selection()
+            return
+        if key == Qt.Key.Key_Escape and self._annot_sel is not None:
+            self.clear_annotation_selection()
             return
 
         # Keyboard nudging
@@ -2589,6 +2703,11 @@ class PdfCanvas(QScrollArea):
     editModelChanged = Signal()
     requestStatus = Signal(str)
     regionPickCancelled = Signal()
+    # PDF annotations (comments, stamps ...) selected with the Select tool: page, xref
+    annotationSelected = Signal(int, int)
+    annotationMoveRequested = Signal(int, int, float, float)  # page, xref, dx, dy (unrotated page space)
+    annotationDeleteRequested = Signal(int, int)
+    annotationEditRequested = Signal(int, int)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -2604,6 +2723,10 @@ class PdfCanvas(QScrollArea):
         self._canvas.regionPickCancelled.connect(self.regionPickCancelled.emit)
         self._canvas.fieldValueEdited.connect(self.fieldValueEdited.emit)
         self._canvas.fieldEditorFormatChanged.connect(self.fieldEditorFormatChanged.emit)
+        self._canvas.annotationSelected.connect(self.annotationSelected.emit)
+        self._canvas.annotationMoveRequested.connect(self.annotationMoveRequested.emit)
+        self._canvas.annotationDeleteRequested.connect(self.annotationDeleteRequested.emit)
+        self._canvas.annotationEditRequested.connect(self.annotationEditRequested.emit)
         self.verticalScrollBar().valueChanged.connect(self._on_scroll)
         self.horizontalScrollBar().valueChanged.connect(self._on_scroll)
 
@@ -2624,6 +2747,12 @@ class PdfCanvas(QScrollArea):
 
     def set_highlights(self, hits: list[tuple[int, object]]) -> None:
         self._canvas.set_highlights(hits)
+
+    def select_annotation(self, page_index: int, xref: int) -> bool:
+        return self._canvas.select_annotation(page_index, xref)
+
+    def selected_annotation(self):
+        return self._canvas.selected_annotation()
 
     def clear_highlights(self) -> None:
         self._canvas.clear_highlights()

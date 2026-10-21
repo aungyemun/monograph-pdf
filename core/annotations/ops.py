@@ -70,6 +70,12 @@ class AnnotInfo:
     kind: str
     rect: tuple[float, float, float, float]
     content: str = ""
+    xref: int = 0
+    author: str = ""
+    modified: str = ""
+    color: str = ""  # #rrggbb of the stroke colour, if any
+    opacity: float = 1.0
+    is_reply_or_popup: bool = False
 
 
 def _page(document: PdfDocument, page_index: int) -> fitz.Page:
@@ -91,6 +97,7 @@ def add_highlight(
     color: tuple[float, float, float] = (1, 1, 0),
     content: str = "",
     nm: str | None = None,
+    opacity: float = 1.0,
 ) -> int:
     """Add a highlight; returns the annotation xref. ``nm`` gives it a stable identity (/NM) so undo
     and redo find it again even when its xref changes."""
@@ -100,6 +107,8 @@ def add_highlight(
         raise ValueError("no highlight regions")
     annot = page.add_highlight_annot(quads)
     annot.set_colors(stroke=color)
+    if opacity < 0.999:
+        annot.set_opacity(max(0.05, opacity))
     if content:
         annot.set_info(content=content)
     annot.update()
@@ -116,10 +125,13 @@ def add_underline(
     *,
     color: tuple[float, float, float] = (0, 0, 1),
     content: str = "",
+    opacity: float = 1.0,
 ) -> int:
     page = _page(document, page_index)
     annot = page.add_underline_annot([_fitz_rect(r) for r in rects])
     annot.set_colors(stroke=color)
+    if opacity < 0.999:
+        annot.set_opacity(max(0.05, opacity))
     if content:
         annot.set_info(content=content)
     annot.update()
@@ -134,10 +146,35 @@ def add_strikeout(
     *,
     color: tuple[float, float, float] = (1, 0, 0),
     content: str = "",
+    opacity: float = 1.0,
 ) -> int:
     page = _page(document, page_index)
     annot = page.add_strikeout_annot([_fitz_rect(r) for r in rects])
     annot.set_colors(stroke=color)
+    if opacity < 0.999:
+        annot.set_opacity(max(0.05, opacity))
+    if content:
+        annot.set_info(content=content)
+    annot.update()
+    document.invalidate_pages()
+    return int(annot.xref)
+
+
+def add_squiggly(
+    document: PdfDocument,
+    page_index: int,
+    rects: Sequence[Rect],
+    *,
+    color: tuple[float, float, float] = (0.86, 0.15, 0.15),
+    content: str = "",
+    opacity: float = 1.0,
+) -> int:
+    """Squiggly (wavy) underline text markup."""
+    page = _page(document, page_index)
+    annot = page.add_squiggly_annot([_fitz_rect(r) for r in rects])
+    annot.set_colors(stroke=color)
+    if opacity < 0.999:
+        annot.set_opacity(max(0.05, opacity))
     if content:
         annot.set_info(content=content)
     annot.update()
@@ -174,7 +211,7 @@ def delete_annotation_by_nm(document: PdfDocument, page_index: int, nm: str) -> 
     return False
 
 
-ERASABLE = ("Highlight", "Underline", "StrikeOut", "Ink")
+ERASABLE = ("Highlight", "Underline", "StrikeOut", "Squiggly", "Ink")
 
 
 def annotations_at(
@@ -263,7 +300,7 @@ def restore_annotation(document: PdfDocument, page_index: int, snap: dict) -> in
     else:
         quads = [fitz.Quad(*[fitz.Point(*p) for p in q]) for q in snap["quads"]]
         adder = {"Highlight": page.add_highlight_annot, "Underline": page.add_underline_annot,
-                 "StrikeOut": page.add_strikeout_annot}[kind]
+                 "StrikeOut": page.add_strikeout_annot, "Squiggly": page.add_squiggly_annot}[kind]
         annot = adder(quads)
     annot.set_colors(stroke=tuple(stroke))
     if snap["opacity"] >= 0:
@@ -460,11 +497,20 @@ def add_text_comment(
     text: str,
     *,
     icon: str = "Comment",
-) -> None:
+    color: tuple[float, float, float] | None = None,
+    author: str = "",
+) -> int:
+    """Sticky note; returns its xref."""
     page = _page(document, page_index)
     annot = page.add_text_annot(fitz.Point(point.x, point.y), text, icon=icon)
+    if color is not None:
+        annot.set_colors(stroke=color)
+    if author:
+        annot.set_info(title=author)
     annot.update()
+    _set_nm(document, int(annot.xref), new_annotation_id())
     document.invalidate_pages()
+    return int(annot.xref)
 
 
 def add_callout(
@@ -474,11 +520,12 @@ def add_callout(
     text: str,
     *,
     callout_point: Point | None = None,
-) -> None:
-    """Free-text annotation with optional callout line (best-effort)."""
+) -> list[int]:
+    """Free-text annotation with optional callout line (best-effort); returns the xrefs created."""
     page = _page(document, page_index)
     fr = _fitz_rect(rect)
     annot = page.add_freetext_annot(fr, text, fontsize=10, fontname="helv", border_color=(0, 0, 0))
+    made = [int(annot.xref)]
     if callout_point is not None:
         try:
             # Callout: end point of leader line
@@ -491,10 +538,12 @@ def add_callout(
             line.set_colors(stroke=(0, 0, 0))
             line.set_line_ends(fitz.PDF_ANNOT_LE_NONE, fitz.PDF_ANNOT_LE_CLOSED_ARROW)
             line.update()
+            made.append(int(line.xref))
         except Exception:  # noqa: BLE001
             pass
     annot.update()
     document.invalidate_pages()
+    return made
 
 
 def add_freehand(
@@ -576,12 +625,13 @@ def add_stamp(
     page_index: int,
     rect: Rect,
     stamp: StampKind = StampKind.DRAFT,
-) -> None:
+) -> int:
     """Built-in PDF stamp icons — no third-party stamp artwork required."""
     page = _page(document, page_index)
     annot = page.add_stamp_annot(_fitz_rect(rect), stamp=stamp.to_mupdf())
     annot.update()
     document.invalidate_pages()
+    return int(annot.xref)
 
 
 def list_annotations(document: PdfDocument) -> list[AnnotInfo]:
@@ -592,12 +642,22 @@ def list_annotations(document: PdfDocument) -> list[AnnotInfo]:
         for annot in page.annots() or []:
             r = annot.rect
             info = annot.info or {}
+            stroke = (annot.colors or {}).get("stroke") or []
+            color = "#%02x%02x%02x" % tuple(int(max(0, min(1, c)) * 255) for c in stroke[:3]) if len(stroke) >= 3 else ""
+            kind = str(annot.type[1] if annot.type else "annot")
+            irt = doc.xref_get_key(annot.xref, "IRT")[0] != "null"
             out.append(
                 AnnotInfo(
                     page_index=i,
-                    kind=str(annot.type[1] if annot.type else "annot"),
+                    kind=kind,
                     rect=(float(r.x0), float(r.y0), float(r.x1), float(r.y1)),
                     content=str(info.get("content") or ""),
+                    xref=int(annot.xref),
+                    author=str(info.get("title") or ""),
+                    modified=str(info.get("modDate") or ""),
+                    color=color,
+                    opacity=float(annot.opacity) if annot.opacity >= 0 else 1.0,
+                    is_reply_or_popup=irt or kind == "Popup",
                 )
             )
     return out

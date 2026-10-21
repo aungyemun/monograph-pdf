@@ -275,3 +275,20 @@ class MuPdfBackend:
         if self._doc is not None:
             self._doc.close()
             self._doc = None  # type: ignore[assignment]
+
+
+def snapshot_bytes(backend: "MuPdfBackend") -> bytes:
+    """The live document as PDF bytes with every object number unchanged (no garbage collection) and
+    its encryption kept, for undo of page operations."""
+    doc = backend._doc  # noqa: SLF001
+    keep = bool(backend._password) and bool((doc.metadata or {}).get("encryption"))  # noqa: SLF001
+    return doc.tobytes(garbage=0, deflate=False, encryption=fitz.PDF_ENCRYPT_KEEP if keep else fitz.PDF_ENCRYPT_NONE)
+
+
+def restore_bytes(backend: "MuPdfBackend", data: bytes) -> None:
+    """Replace the live document with ``data`` from ``snapshot_bytes`` (re-unlocked with the same
+    password). The previous document object is left to Python to close: a view may still hold it."""
+    doc = fitz.open("pdf", data)
+    if doc.needs_pass and backend._password:  # noqa: SLF001
+        doc.authenticate(backend._password)  # noqa: SLF001
+    backend._doc = doc  # noqa: SLF001

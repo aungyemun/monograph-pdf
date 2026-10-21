@@ -836,7 +836,14 @@ class InspectorPanel(QScrollArea):
 
     def _build_image_editors(self, image) -> None:
         self._updating = True
-        self._add_ro("Source", _path_name(str(getattr(image, "source_path", "") or "")))
+        if getattr(image, "role", "") == "signature":
+            note = QLabel("Visual signature: a picture of a signature. It is not a certificate-based "
+                          "digital signature and does not prove who signed.")
+            note.setWordWrap(True)
+            note.setObjectName("ContextHint")
+            self._form.addRow(note)
+        else:
+            self._add_ro("Source", _path_name(str(getattr(image, "source_path", "") or "")))
         self._section("Position")
         self._add_geometry_editors(image.rect, oid=image.object_id, kind="image")
         self._img_rot = _angle_spin(float(getattr(image, "rotation", 0.0)))
