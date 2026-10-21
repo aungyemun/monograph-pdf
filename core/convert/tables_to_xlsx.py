@@ -35,11 +35,15 @@ def tables_to_xlsx(
     destination: Path,
     *,
     page_index: int | None = None,
+    pages: list[int] | None = None,
 ) -> Path:
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     backend_doc = document._backend._doc  # noqa: SLF001
-    tables = detect_tables(backend_doc, page_index)
+    if pages is not None:
+        tables = [t for p in pages for t in detect_tables(backend_doc, p)]
+    else:
+        tables = detect_tables(backend_doc, page_index)
     wb = Workbook()
     # Remove default sheet after we create content
     default = wb.active

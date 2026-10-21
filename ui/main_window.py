@@ -384,6 +384,10 @@ class MainWindow(QMainWindow):
         self.act_extract_images.triggered.connect(self._extract_images)
         self.act_pdf_to_text = QAction("PDF → Plain &Text…", self)
         self.act_pdf_to_text.triggered.connect(self._pdf_to_text)
+        self.act_batch_convert = QAction("&Batch Convert…", self)
+        self.act_batch_convert.setToolTip("Convert many files at once: PDF to Word, Excel, PowerPoint, text or pictures, "
+                                          "pictures or Office files to PDF, OCR")
+        self.act_batch_convert.triggered.connect(self._batch_convert)
         self.act_searchable = QAction("Scanned → &Searchable PDF…", self)
         self.act_searchable.triggered.connect(self._scanned_to_searchable)
         self.act_pages_export = QAction("Selected Pages → P&DF…", self)
@@ -1066,6 +1070,7 @@ class MainWindow(QMainWindow):
             ("image", self.act_pdf_to_images),
             ("image", self.act_extract_images),
             ("searchable", self.act_searchable),
+            ("batch", self.act_batch_convert),
             ("ocr", self.act_ocr_pages),
             ("area_ocr", self.act_ocr_area),
             ("text_extract", self.act_ocr_extract),
@@ -1345,6 +1350,8 @@ class MainWindow(QMainWindow):
         convert.addAction(self.act_pdf_to_pptx)
         convert.addAction(self.act_pdf_to_images)
         convert.addAction(self.act_pdf_to_text)
+        convert.addSeparator()
+        convert.addAction(self.act_batch_convert)
         convert.addSeparator()
         convert.addAction(self.act_extract_images)
         convert.addAction(self.act_convert_caps)
@@ -4141,6 +4148,13 @@ class MainWindow(QMainWindow):
         from ui.convert_dialogs import CapabilitiesDialog
 
         CapabilitiesDialog(self).exec()
+
+    def _batch_convert(self) -> None:
+        from ui.batch_dialog import BatchConvertDialog
+
+        # Works on files as saved on disk; the open document's unsaved changes are not part of a batch
+        dlg = BatchConvertDialog(self, start_dir=self._doc_dir(), ocr_languages=self._ocr_languages_pref())
+        dlg.exec()
 
     def _images_to_pdf(self) -> None:
         from core.convert.images_to_pdf import images_to_pdf
