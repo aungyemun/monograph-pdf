@@ -1925,18 +1925,19 @@ class MainWindow(QMainWindow):
             self._edit.mark_clean()
             clear_session(path)
             self._report_font_notes()
-            # Reload from saved file to sync backend
-            self._document.close()
-            self._document = open_document(path, password=password)
-            self._edit.pdf = self._document
-            self._edit.objects.clear()  # baked into PDF
-            self._edit.mark_clean()
-            self._canvas.set_document(self._document)
-            self._canvas.set_edit_model(self._edit)
-            self._left.set_document(self._document)
+            # Continue with the saved file. Everything that was saved (text boxes, pictures, shapes,
+            # replaced text, new form fields) is now part of the pages; a fresh editing model keeps it
+            # from being drawn — or replaced text removed — a second time on the next Save.
+            page = self._canvas.focus_page
+            zoom, mode = self._canvas.zoom, self._canvas._canvas.zoom_mode  # noqa: SLF001
+            self._load_document(open_document(path, password=password))
+            if mode == ZoomMode.MANUAL:
+                self._canvas.set_manual_zoom(zoom)
+            else:
+                self._canvas.set_zoom_mode(mode)
+            self._canvas.go_to_page(min(page, self._document.page_count - 1))
             self._update_title()
             self.statusBar().showMessage("Saved", 4000)
-            self._on_edit_changed()
         except Exception as exc:  # noqa: BLE001
             self.report_unexpected(
                 "Save failed",
