@@ -135,7 +135,7 @@ Earlier internal builds used a different application name and executable. Setup 
 
 ### [0.1.5] — 2026-10-15
 
-A full audit of every menu (File, Edit, View, Insert, Forms, Organize, Convert, OCR, Protect, Sign, Help) and the toolbar, alone and in combination, and a security, privacy, dependency and installer audit (`reports/audit/SECURITY_AUDIT_0.1.5.md`).
+A full audit of every menu (File, Edit, View, Insert, Forms, Organize, Convert, OCR, Protect, Sign, Help) and the toolbar, alone and in combination, and a security, privacy, dependency and installer audit.
 
 #### Security
 

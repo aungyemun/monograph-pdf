@@ -1,68 +1,94 @@
 # Installation
 
-Offline Windows installer for Monograph PDF. Python, Qt, and OCR are bundled.
+Monograph PDF is installed with a standard Windows installer. Everything it needs — including
+Python, Qt and the OCR engine — is included, and no internet connection is required.
 
-## Requirements
+## System requirements
 
 | | Minimum | Recommended |
 | :--- | :--- | :--- |
-| OS | Windows 10 x64 | Windows 11 x64 |
-| RAM | 4 GB | 8 GB+ |
-| Disk | 1 GB free | 2 GB |
-| Display | 1280×720 | 1920×1080+ |
-| Office suite | — | Optional, for Office → PDF |
+| Operating system | Windows 10, 64-bit | Windows 11, 64-bit |
+| Memory | 4 GB | 8 GB or more |
+| Free disk space | 1 GB | 2 GB |
+| Screen | 1280 × 720 | 1920 × 1080 or larger |
+| Office suite | — | Microsoft Office or LibreOffice, only for converting Office files to PDF |
 
-## Install
+## Installing
 
-Run `Setup.exe` (`installer\MonographPDF_{version}_Setup.exe`).
+1. Download `MonographPDF_<version>_Setup.exe` from the
+   [latest release](https://github.com/aungyemun/monograph-pdf/releases/latest).
+2. Optionally check the download: in PowerShell, `Get-FileHash .\MonographPDF_<version>_Setup.exe`
+   must show the SHA-256 value from the release page or `SHA256SUMS.txt`.
+3. Run Setup. The installer is not code-signed, so Windows SmartScreen may warn; after checking the
+   checksum, select **More info ▸ Run anyway**.
+4. Choose where to install:
+   * **For all users** — `C:\Program Files\Monograph PDF` (needs administrator rights)
+   * **Only for me** — `%LOCALAPPDATA%\Programs\Monograph PDF`
 
-* **All users** → `C:\Program Files\Monograph PDF` (admin)
-* **Current user** → `%LOCALAPPDATA%\Programs\Monograph PDF`
+Setup copies the program, OCR data, documentation and `uninstall.exe`, registers the file types you
+select, and finishes with an offline self-check. Its report is saved as
+`%LOCALAPPDATA%\Monograph PDF\logs\install_smoke_test.json`.
 
-Setup copies the app, OCR data, docs, and `uninstall.exe`; registers file types if selected; then runs an offline self-check (`install_smoke_test.json` under `%LOCALAPPDATA%\Monograph PDF\logs`). Upgrades replace owned app files only; settings and documents stay.
+### Upgrading
 
-### Silent (admins)
+Run the Setup of the newer version. It replaces the program files of the existing installation in
+place; your settings and documents are kept.
+
+### Silent installation (administrators)
 
 ```bat
 MonographPDF_0.2.3_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 MonographPDF_0.2.3_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="D:\Apps\Monograph PDF" /MIGRATEINSTALL
 ```
 
-Same path = in-place upgrade. Different `/DIR` without `/MIGRATEINSTALL` keeps the registered location. Stops if `MonographPDF.exe` is running.
+* Installing to the same folder upgrades the existing installation in place.
+* A different `/DIR` keeps the existing location unless `/MIGRATEINSTALL` is given, which moves the
+  installation to the new folder.
+* Setup stops if `MonographPDF.exe` is running.
 
 ## File types
 
 | Option | Default |
 | :--- | :--- |
-| Register for `.pdf` (Open with / Default apps) | On |
-| Open with for images and Office files | On |
+| Offer Monograph PDF for `.pdf` files (Open with / Default apps) | On |
+| Offer **Open with** for images and Office files | On |
 
-Setup never silently becomes the default PDF app. Use **Help ▸ Make Monograph PDF the Default PDF App…** or Windows **Open with ▸ Always**.
+Setup never makes Monograph PDF your default PDF app on its own. To do so, use
+**Help ▸ Make Monograph PDF the Default PDF App…** or Windows **Open with ▸ Always**.
 
-## Uninstallation
+## Uninstalling
 
-**Settings ▸ Apps ▸ Installed apps** → **Monograph PDF**, or run `uninstall.exe`.
+Use **Settings ▸ Apps ▸ Installed apps ▸ Monograph PDF ▸ Uninstall**, or run `uninstall.exe` in the
+installation folder.
 
-Removes the install folder contents Setup owns, shortcuts, registrations, recent files, and `%LOCALAPPDATA%\Monograph PDF` working data. Settings (`%APPDATA%\Monograph PDF`) are optional. Your documents are never removed.
+Uninstalling removes the program files installed by Setup, the shortcuts, the file registrations,
+the recent-files list and the working files in `%LOCALAPPDATA%\Monograph PDF`. You are asked whether
+to remove your settings (`%APPDATA%\Monograph PDF`) as well. **Your own documents are never removed.**
+
+Silent uninstall, keeping or removing settings:
 
 ```bat
 "C:\Program Files\Monograph PDF\uninstall.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 "C:\Program Files\Monograph PDF\uninstall.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /REMOVEUSERDATA
 ```
 
-## Offline smoke check
+## Checking an installation
 
-On a clean offline PC: install → open a PDF → fill a field → PDF to Word → protect/unlock → OCR → uninstall with settings removed. Expect `install_smoke_test.json` with `"passed": true`. Automated: `scripts\test_installer.ps1` ([Testing](docs/TESTING.md#installer-and-uninstaller-test)).
+On an offline computer: install, open a PDF, fill in a form field, convert a PDF to Word, protect
+and unlock a file, run OCR on a scanned page, and uninstall. The self-check report
+`install_smoke_test.json` should contain `"passed": true`. Developers can run the automated
+installer test, `scripts\test_installer.ps1` ([Testing](docs/TESTING.md#installer-and-uninstaller-test)).
 
 ## Troubleshooting
 
-1. Re-run Setup.
-2. Check `%LOCALAPPDATA%\Monograph PDF\logs\install_smoke_test.json` or `MonographPDF.exe --smoke-test`.
-3. Check antivirus quarantine for `MonographPDF.exe` / `_internal`.
-4. Office → PDF: **Help ▸ About Monograph PDF ▸ Office Integration**.
+| Problem | What to do |
+| :--- | :--- |
+| The app does not start | Run Setup again. Check whether your antivirus software quarantined `MonographPDF.exe` or files in `_internal`. |
+| You want to check the installation | Run `MonographPDF.exe --smoke-test`, or open `%LOCALAPPDATA%\Monograph PDF\logs\install_smoke_test.json`. |
+| Office files cannot be converted | Open **Help ▸ About Monograph PDF ▸ Office Integration** to see which Office suite was found. |
 
-Builds are **not code-signed**. Compare Setup with `SHA256SUMS.txt` before **More info ▸ Run anyway**.
+---
 
-Developers: [Build and Runtime](docs/BUILD_AND_RUNTIME.md) · [Release](docs/RELEASE_AND_VERSIONING.md).
+Developers: [Build and Runtime](docs/BUILD_AND_RUNTIME.md) · [Release and Versioning](docs/RELEASE_AND_VERSIONING.md)
 
-© 2026 Aung Ye Mun. **AGPL-3.0-or-later** — [LICENSE.md](LICENSE.md). Source: `MonographPDF_{version}_Source.zip`.
+© 2026 Aung Ye Mun · AGPL-3.0-or-later ([LICENSE.md](LICENSE.md)) · Source code: `MonographPDF_<version>_Source.zip`

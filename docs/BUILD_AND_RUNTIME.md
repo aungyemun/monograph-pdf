@@ -1,36 +1,40 @@
 # Build and runtime
 
-## Prerequisites
+## Requirements
 
-* Windows 10/11 x64
-* Python **3.11** for `./env` (3.12-compatible source)
-* Inno Setup 6 (`tools\inno\` or system install); .NET Framework 4 `csc` for `uninstall.exe`
+* Windows 10 or 11, 64-bit
+* Python **3.11** for the development environment in `.\env` (the source is also compatible with 3.12)
+* Inno Setup 6 (in `tools\inno\` or installed system-wide) and the .NET Framework 4 C# compiler
+  (`csc`, part of Windows) to build the installer and `uninstall.exe`
 
-End users need no Python, Qt, or Tesseract. qpdf is reserved and not shipped.
+End users need none of these: Python, Qt and Tesseract are bundled with the application.
 
-## Setup and run
+## Setting up and running from source
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/setup_env.ps1
-powershell -ExecutionPolicy Bypass -File scripts/dev_launch.ps1
+powershell -ExecutionPolicy Bypass -File scripts\setup_env.ps1    # create .\env with the pinned packages
+powershell -ExecutionPolicy Bypass -File scripts\dev_launch.ps1   # start the app
 # or: .\env\Scripts\python.exe -m app
 ```
 
-| Option | Purpose |
+| Command-line option | Purpose |
 | :--- | :--- |
-| `<file>` | Open at startup |
-| `--user-guide` | User Guide only (Start menu shortcut) |
-| `--smoke-test` | Offline self-check (build / Setup) |
+| `<file>` | Open this file at start-up |
+| `--user-guide` | Open only the User Guide (used by the Start menu shortcut) |
+| `--smoke-test` | Run the offline self-check (used by the build and by Setup) |
 
-Tests: `scripts/run_tests.ps1` → artifacts under `tests/outputs/`. See [TESTING.md](TESTING.md).
+Tests: `scripts\run_tests.ps1`; results go to `tests\outputs\`. See [Testing](TESTING.md).
 
-## Build exe
+## Building the executable
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/build_exe.ps1
+powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1
 ```
 
-Output: `dist/MonographPDF/` (onedir) and root `MonographPDF.exe` + `_internal/`. Version from `VERSION`. `check_release.py prune` removes unused network/Qt/SSL bits.
+The output is `dist\MonographPDF\` (a PyInstaller one-folder build), copied to `MonographPDF.exe`
+and `_internal\` in the project root. The version comes from `VERSION`. The build then runs
+`check_release.py prune`, which removes components the application never uses (networking and TLS
+modules, unused Qt plugins and similar) and checks that nothing still depends on them.
 
 ## Release build
 
@@ -38,37 +42,48 @@ Output: `dist/MonographPDF/` (onedir) and root `MonographPDF.exe` + `_internal/`
 installer\build_release.bat
 ```
 
-Flow: tests → exe → OCR copy → contents/smoke checks → `uninstall.exe` → Setup → Source.zip → `installer\release\` + Installer.zip + summary. First build may download third-party sources into `packages\sources` (~300 MB); later builds use the cache.
+The release build runs these steps in order: tests → executable → OCR engine copy → contents check
+and self-check → `uninstall.exe` → Setup → Source.zip → release folder, Installer.zip and summary →
+release-set verification. The first build downloads the third-party source archives into
+`packages\sources\` (about 300 MB); later builds use that cache.
 
 ```text
-installer\release\
-  Setup.exe
-  MonographPDF_{version}_Source.zip
-  SHA256SUMS.txt
-  README.md, INSTALLATION.md, LICENSE.md, THIRD_PARTY_NOTICES.md,
-  SECURITY.md, CITATION.cff, CHANGELOG.md, docs\USER_GUIDE.md, licenses\
+installer\
+  MonographPDF_<version>_Setup.exe
+  MonographPDF_<version>_Installer.zip
+  MonographPDF_<version>_Source.zip
+  build_release_summary.txt
+  release\
+    Setup.exe, MonographPDF_<version>_Source.zip, SHA256SUMS.txt,
+    README.md, INSTALLATION.md, LICENSE.md, THIRD_PARTY_NOTICES.md, SECURITY.md,
+    CITATION.cff, CHANGELOG.md, docs\USER_GUIDE.md, licenses\, runtime\
 ```
+
+Publishing a release is a separate, manual step: see the [Release checklist](RELEASE_CHECKLIST.md).
 
 ### Installer and uninstaller design
 
-* Per-machine or per-user; optional Start menu / desktop / Open with.
-* Upgrades reuse AppId; owned-file cleanup; unknown files kept.
-* `uninstall.exe` wraps Inno `unins000.exe`; removes app data; settings optional.
-* Internal compatibility with earlier `PDF Editor` / `PDF_editor.exe` installs (migration only).
+* Installs for all users or for the current user, with optional Start menu and desktop shortcuts and
+  **Open with** registrations.
+* Upgrades keep the same AppId, replace only the files Setup owns, and keep unknown files.
+* `uninstall.exe` runs Inno Setup's uninstaller, removes the application's working data and asks
+  before removing settings.
+* Earlier internal builds (installed as `PDF Editor` / `PDF_editor.exe`) are recognized so that
+  they can be upgraded and their settings migrated; this is the only reason the old name appears.
 
-### Environment variables (development and testing)
+### Environment variables for development and testing
 
 | Variable | Purpose |
 | :--- | :--- |
-| `MONOGRAPH_PDF_RUNTIME_DIR` | Cache / temp / logs / sessions |
-| `MONOGRAPH_PDF_USER_DATA_DIR` | Settings / recent files |
-| `MONOGRAPH_PDF_HEADLESS` | No modal dialogs |
-| `MONOGRAPH_PDF_DISABLE_OFFICE` | Pretend no Office suite |
-| `MONOGRAPH_PDF_NO_LEGACY_MIGRATION` | Skip first-start migration |
-| `MONOGRAPH_PDF_STARTUP_TIMING` | `0` turns off the startup-timing file (20 newest kept) |
-| `MONOGRAPH_PDF_PERF_LOG` | `1` lets an installed copy write the text-box drag timing log (always on in a source checkout; capped at 256 KB) |
-| `MONOGRAPH_PDF_NO_PAUSE` | Skip pause in `build_release.bat` |
+| `MONOGRAPH_PDF_RUNTIME_DIR` | Folder for cache, temporary files, logs and sessions |
+| `MONOGRAPH_PDF_USER_DATA_DIR` | Folder for settings and recent files |
+| `MONOGRAPH_PDF_HEADLESS` | Never show modal dialogs (automated tests) |
+| `MONOGRAPH_PDF_DISABLE_OFFICE` | Behave as if no Office suite were installed |
+| `MONOGRAPH_PDF_NO_LEGACY_MIGRATION` | Skip the one-time settings migration at first start |
+| `MONOGRAPH_PDF_STARTUP_TIMING` | `0` turns off the start-up timing file (the 20 newest are kept) |
+| `MONOGRAPH_PDF_PERF_LOG` | `1` lets an installed copy write the text-box drag timing log (always on when running from source; at most 256 KB) |
+| `MONOGRAPH_PDF_NO_PAUSE` | Skip the final pause of `build_release.bat` |
 
 ## Related
 
-[ARCHITECTURE.md](ARCHITECTURE.md) · [RELEASE_AND_VERSIONING.md](RELEASE_AND_VERSIONING.md) · [TESTING.md](TESTING.md)
+[Architecture](ARCHITECTURE.md) · [Release and Versioning](RELEASE_AND_VERSIONING.md) · [Testing](TESTING.md)

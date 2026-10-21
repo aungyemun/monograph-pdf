@@ -1,6 +1,6 @@
 # Monograph PDF 0.2.0 — Security and Privacy Audit (release candidate)
 
-Status: **0.2.0 is Unreleased.** This audit was run against the repository at the commit named in the release record. Results below are factual; items that could not be performed are marked as such.
+Status: audit of the **0.2.0 release candidate**, the basis of the 0.2 release line (0.2.0 – 0.2.3). Results below are factual; items that could not be performed are marked as such. Security changes made after this audit are listed in the [changelog](../../CHANGELOG.md) — for example, the broader removal of scripts and automatic actions by Remove Hidden Information in 0.2.3.
 
 Result: **no BLOCKER and no unresolved HIGH finding.** The MEDIUM finding (Pillow advisories) is fixed by the upgrade to Pillow 12.3.0. One LOW finding is known and open (finding 13).
 

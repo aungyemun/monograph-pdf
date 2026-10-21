@@ -44,7 +44,7 @@ Images and Office files open as a new unsaved PDF; the original is never changed
 
 - **Menu bar:** File · Edit · View · Insert · Forms · Organize · Convert · OCR · Protect · Sign · Help
 - **Main toolbar:** Open · Save · Print · Undo · Redo · Select · Text · Image · Shape ▾ · Highlight (+ color) · Comment · zoom · page · Find
-- **context toolbar** (second row): font, size, style and arrange tools for the current selection
+- The **context toolbar** (second row): font, size, style and arrange tools for the current selection
 - **Navigation panel** (F9): Pages, Bookmarks, Search, Files
 - **Properties panel** (F8): settings for the selection or document
 - **Help ▸ Keyboard Shortcuts** (Ctrl+/) · **View ▸ Theme:** System, Light or Dark
@@ -76,8 +76,9 @@ The **Protected PDF** dialog asks for the password (never stored in recent files
 
 Opening a PDF never changes it. Edits are written only when you save.
 
-- **Insert ▸ Text Box** (`T`); shapes via Shape ▾; keys `V T I R E L A P H` · Eraser `Shift+E` · `U K N`
-- **context toolbar** / **Properties panel**: font, size, wrap, box sizing, color
+- **Insert ▸ Text Box** (`T`); shapes from the Shape ▾ button
+- Tool keys: `V` Select · `T` Text Box · `I` Image · `R` Rectangle · `E` Ellipse · `L` Line · `A` Arrow · `P` Freehand · `H` Highlight · `Shift+E` Eraser · `U` Underline · `K` Strikethrough · `N` Sticky Note
+- The **context toolbar** and **Properties panel**: font, size, wrapping, box sizing and color
 - While typing in a text box or field, Ctrl+Z / Ctrl+Y undo and redo typing and paste; after you leave, **Edit ▸ Undo** / **Edit ▸ Redo** cover the session
 - Arrange: Ctrl+] / Ctrl+[ · **Edit ▸ Align & Distribute**
 - **Edit ▸ Copy Page as Picture** (Ctrl+Alt+C) — the current page as shown, including unsaved changes, at 150 dpi, ready to paste into another program

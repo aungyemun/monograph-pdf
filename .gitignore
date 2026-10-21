@@ -149,8 +149,7 @@ installer_test*.log
 # Local audit reports, GUI evidence and one-off QA scripts (they name personal documents and folders;
 # also left out of the source archive by scripts/packaging/make_source_archive.py)
 /reports/audit/*
-!/reports/audit/PROJECT_AUDIT.md
-!/reports/audit/SECURITY_AUDIT_*.md
+!/reports/audit/SECURITY_AUDIT_0.2.0.md
 /scripts/qa_*
 /scripts/gui_driver.ps1
 /scripts/office_open_check.ps1

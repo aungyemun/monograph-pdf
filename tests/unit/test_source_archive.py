@@ -114,7 +114,9 @@ def test_source_selection_leaves_out_development_and_personal_files():
                      "reports/audit/MONOGRAPH_PDF_COMPREHENSIVE_QA_REPORT.md"):
         assert personal not in files
     assert not [f for f in files if f.startswith("reports/audit/qa_evidence/") or f.startswith("scripts/qa_")]
-    assert "reports/audit/PROJECT_AUDIT.md" in files  # published audit summaries stay
+    assert "reports/audit/SECURITY_AUDIT_0.2.0.md" in files  # the published security audit stays
+    assert "reports/audit/PROJECT_AUDIT.md" not in files  # internal records are not published
+    assert "reports/audit/SECURITY_AUDIT_0.1.5.md" not in files
     problems = [p for rel in files if Path(rel).suffix.lower() in msa.TEXT_SUFFIXES
                 for p in msa.scan_text(rel, (ROOT / rel).read_bytes())]
     assert problems == []

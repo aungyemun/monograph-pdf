@@ -73,6 +73,82 @@ def make_sample(path: Path) -> Path:
     return path
 
 
+def make_review(path: Path) -> Path:
+    """A one-page project update with typical review markup: highlight, underline, rectangle,
+    sticky note, text box and arrow (real PDF annotations, drawn by the app)."""
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((60, 100), "Quarterly Project Update", fontsize=26, color=BLUE)
+    page.insert_text((60, 128), "Draft for review  -  sample document", fontsize=12, color=GREY)
+    page.draw_line((60, 142), (535, 142), color=BLUE, width=1.2)
+    body = ("The pilot phase finished on schedule. All twelve test sites reported stable results, and "
+            "the average processing time fell by 18 percent compared with the previous quarter. "
+            "Two sites still need updated equipment before the full rollout.\n\n"
+            "Next steps: confirm the rollout budget, schedule training for the remaining sites and "
+            "publish the final report to all partners by the end of the month.")
+    page.insert_textbox(fitz.Rect(60, 160, 535, 330), body, fontsize=12, lineheight=1.5)
+    for needle, kind in (("fell by 18 percent", "highlight"), ("updated equipment", "underline")):
+        hits = page.search_for(needle)
+        if hits:
+            (page.add_highlight_annot if kind == "highlight" else page.add_underline_annot)(hits[0])
+    budget = page.search_for("by the end of the month")[0]
+    rect = page.add_rect_annot(budget + (-3, -2, 3, 2))  # around the words, from their position
+    rect.set_colors(stroke=(0.85, 0.2, 0.2))
+    rect.set_border(width=1.5)
+    rect.update()
+    note = page.add_text_annot((542, budget.y0 - 2), "Is this date agreed with all partners?")
+    note.set_info(title="Reviewer")
+    note.update()
+    box_rect = fitz.Rect(330, budget.y1 + 60, 535, budget.y1 + 84)
+    box = page.add_freetext_annot(box_rect, "Move to the 15th?", fontsize=11,
+                                  text_color=(0.11, 0.23, 0.45), fill_color=(1, 0.98, 0.85))
+    box.update()
+    arrow = page.add_line_annot((box_rect.x0 + 30, box_rect.y0), ((budget.x0 + budget.x1) / 2, budget.y1 + 3))
+    arrow.set_colors(stroke=(0.85, 0.2, 0.2))
+    arrow.set_line_ends(fitz.PDF_ANNOT_LE_NONE, fitz.PDF_ANNOT_LE_OPEN_ARROW)
+    arrow.set_border(width=1.5)
+    arrow.update()
+    doc.set_metadata({"title": "Quarterly Project Update", "author": "Sample author"})
+    doc.save(path)
+    doc.close()
+    return path
+
+
+def make_form(path: Path) -> Path:
+    """A simple application form with text fields, a choice list and check boxes, partly filled in."""
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((60, 100), "Membership Application", fontsize=26, color=BLUE)
+    page.insert_text((60, 128), "Sample form  -  fields can be filled in Monograph PDF", fontsize=12, color=GREY)
+    page.draw_line((60, 142), (535, 142), color=BLUE, width=1.2)
+    rows = [("Full name", "name", "Alex Sample"), ("Email", "email", "alex@example.com"),
+            ("Organization", "org", ""), ("Phone", "phone", "")]
+    y = 180
+    for label, name, value in rows:
+        page.insert_text((60, y + 14), label, fontsize=12)
+        w = fitz.Widget()
+        w.field_name, w.field_type = name, fitz.PDF_WIDGET_TYPE_TEXT
+        w.rect, w.field_value, w.text_fontsize = fitz.Rect(190, y, 535, y + 22), value, 11
+        page.add_widget(w)
+        y += 40
+    page.insert_text((60, y + 14), "Membership", fontsize=12)
+    w = fitz.Widget()
+    w.field_name, w.field_type = "plan", fitz.PDF_WIDGET_TYPE_COMBOBOX
+    w.choice_values = ["Individual", "Team", "Organization"]
+    w.rect, w.field_value, w.text_fontsize = fitz.Rect(190, y, 380, y + 22), "Team", 11
+    page.add_widget(w)
+    y += 50
+    for i, (label, on) in enumerate((("Send me the newsletter", True), ("I agree to the terms", False))):
+        w = fitz.Widget()
+        w.field_name, w.field_type = f"check{i}", fitz.PDF_WIDGET_TYPE_CHECKBOX
+        w.rect, w.field_value = fitz.Rect(60, y + i * 32, 76, y + 16 + i * 32), on
+        page.add_widget(w)
+        page.insert_text((86, y + 13 + i * 32), label, fontsize=12)
+    doc.save(path)
+    doc.close()
+    return path
+
+
 def main() -> int:
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "docs" / "images"
     out.mkdir(parents=True, exist_ok=True)
@@ -156,6 +232,26 @@ def main() -> int:
 
     capture_modal(win.act_header_footer, "monograph-pdf-header-footer.png")
     capture_modal(win.act_sec_protect, "monograph-pdf-password-protect.png")
+
+    # Editing and review markup
+    win.close_document(save_session=False)
+    assert win.open_path(make_review(WORK / "Quarterly Project Update.pdf"))
+    win._left.setCurrentIndex(0)  # noqa: SLF001
+    win.act_fit_width.trigger()
+    win.statusBar().clearMessage()
+    settle(1800)
+    shot("monograph-pdf-editing-comments.png")
+
+    # Forms: fields highlighted (View > Highlight Fillable Fields; display only, never saved)
+    win.close_document(save_session=False)
+    assert win.open_path(make_form(WORK / "Membership Application.pdf"))
+    if not win.act_highlight_fields.isChecked():
+        win.act_highlight_fields.trigger()
+    win.act_fit_width.trigger()
+    win.statusBar().clearMessage()
+    settle(1800)
+    shot("monograph-pdf-forms.png")
+    win.act_highlight_fields.trigger()  # leave the (remembered) view option off again
 
     win.close_document(save_session=False)
     win.close()

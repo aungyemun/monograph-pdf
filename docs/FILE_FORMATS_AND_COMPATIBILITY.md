@@ -1,53 +1,58 @@
 # File formats and compatibility
 
-## Formats
+## Supported formats
 
-* **PDF** — view, edit (overlays + bake), organize, convert, OCR, annotate, protect, redact, print (PyMuPDF). qpdf reserved, not shipped.
-* **Images** — PNG/JPEG/TIFF/BMP/GIF/WebP open as PDF or as overlays.
-* **Office** — Word/Excel/PowerPoint open as new unsaved PDF when a local suite is present.
+| Format | What Monograph PDF does with it |
+| :--- | :--- |
+| **PDF** | View, edit, organize, convert, recognize text (OCR), annotate, protect, redact and print |
+| **Images** (PNG, JPEG, TIFF, BMP, GIF, WebP) | Open as a new PDF, or place on a page as a picture |
+| **Word, Excel, PowerPoint** | Open as a new, unsaved PDF when Microsoft Office or LibreOffice is installed |
 
 ## Platforms
 
 | Platform | Status |
-|---|---|
-| Windows 10/11 x64 | Supported |
+| :--- | :--- |
+| Windows 10 and 11, 64-bit | Supported |
 | macOS | Planned |
-| Android | Future |
+| Android | Planned for a later stage |
 | iOS | Not planned |
 
 ## Engines
 
-| Engine | Role |
-|---|---|
-| PyMuPDF | Render, edit, security, annotations |
-| Tesseract | Offline OCR (`eng`/`jpn`/`osd`) |
+| Engine | Used for |
+| :--- | :--- |
+| PyMuPDF (MuPDF) | Rendering, editing, annotations, encryption and most conversions |
+| pdf2docx | Layout-preserving PDF to Word conversion |
+| Tesseract | Offline OCR with English, Japanese and orientation data (`eng`, `jpn`, `osd`) |
 
-## Support levels
+## Level of support
 
-| Area | Level |
-|---|---|
-| View / search / zoom | Full |
-| Overlay edit | Full (bake on Save) |
-| AcroForm | Partial (rich text; no painted field names) |
-| XFA | View hybrid AcroForm only; template editing unsupported |
-| Tables | Partial (ruled lines) |
-| OCR | Offline, English and Japanese; accuracy measured on a small synthetic set only |
-| Organize / merge / split | Full |
-| Office → PDF | When Microsoft Office or LibreOffice is installed |
-| PDF → DOCX / XLSX / PPTX | Best-effort |
-| Cryptographic signatures | Unsupported (visual only) |
-| Japanese vertical | Not supported |
+| Area | Support |
+| :--- | :--- |
+| Viewing, search and zoom | Full |
+| Editing (text boxes, shapes, pictures, comments) | Full; written into the PDF when you save |
+| Interactive forms (AcroForm) | Partial: filling in, rich text formatting and field design |
+| XFA forms | Hybrid forms with an AcroForm part can be viewed; XFA templates cannot be edited |
+| Tables | Partial: tables with ruled lines are detected |
+| OCR | Offline, English and Japanese; accuracy has been measured on a small synthetic set only |
+| Organize, merge and split | Full |
+| Office to PDF | When Microsoft Office or LibreOffice is installed |
+| PDF to Word, Excel and PowerPoint | Best-effort; complex layouts may need manual correction |
+| Digital (certificate) signatures | Not supported; signatures are visual only |
+| Japanese vertical text | Not supported for editing |
 
-Opening without edits shows the MuPDF page. Passwords stay in memory only — never in recent files, sessions, or logs. Encrypted PDFs are handled locally; protection is never removed silently.
+A PDF that is opened but not edited is displayed exactly as MuPDF renders it. Passwords are kept in
+memory only — never in recent files, recovery data or logs. Encrypted PDFs are processed locally, and
+protection is never removed without the correct password.
 
-## Save / optimize
+## Saving and reducing file size
 
-| Mode | Behavior |
-|---|---|
-| Save / Save As | Bake dirty overlays; keep fonts; no full-page rasterize |
-| Lossless | Structure only — no image downsample |
-| Standard / Balanced / Minimum | Increasing size reduction; Balanced+ are lossy |
+| Option | Effect |
+| :--- | :--- |
+| **Save** / **Save As** | Writes your edits; keeps fonts; never turns pages into images |
+| **Lossless** (File ▸ Reduce File Size…) | Optimizes the file structure only; pictures are not changed |
+| **High Quality**, **Standard**, **Balanced**, **Minimum** | Increasing size reduction; Balanced and Minimum reduce picture quality |
 
 ## Related
 
-[FEATURES.md](FEATURES.md) · [SECURITY_AND_PRIVACY.md](SECURITY_AND_PRIVACY.md) · [USER_GUIDE.md](USER_GUIDE.md)
+[Features](FEATURES.md) · [Security and Privacy](SECURITY_AND_PRIVACY.md) · [User Guide](USER_GUIDE.md)

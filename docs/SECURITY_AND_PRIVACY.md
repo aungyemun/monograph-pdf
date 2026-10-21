@@ -1,18 +1,18 @@
 # Security and privacy
 
-How Monograph PDF protects documents and the PC. Reporting: [SECURITY.md](../SECURITY.md). Audit: [SECURITY_AUDIT_0.2.0.md](../reports/audit/SECURITY_AUDIT_0.2.0.md).
+How Monograph PDF protects your documents and your computer. To report a vulnerability, see the [Security policy](../SECURITY.md). Security audit of the 0.2 line: [SECURITY_AUDIT_0.2.0.md](../reports/audit/SECURITY_AUDIT_0.2.0.md).
 
 ## Offline by design
 
-* Local processing only — no accounts, telemetry, online OCR, or runtime downloads.
-* Optional Office conversion uses a locally installed suite only (Monograph PDF does not upload the file).
-* Qt network/TLS and Python SSL are stripped from the release; the self-check fails on any connect attempt.
+* Everything is processed on your computer — no accounts, telemetry, online OCR or downloads at run time.
+* Optional Office conversion uses the Office suite installed on your computer; Monograph PDF does not upload the file.
+* Qt's network and TLS modules and Python's SSL module are removed from the release build; the self-check fails if anything tries to connect.
 
 ## Untrusted input
 
-* MuPDF parses PDFs; malformed files fail without writing the source.
-* PDF JavaScript, actions, and links are never run; attachments are listed only.
-* Office macros are forced off; programs start by full system/install path only.
+* PDFs are read with MuPDF; a damaged file is refused without ever writing to the original.
+* PDF JavaScript, actions and links are never run automatically; attachments are listed but never opened.
+* Office macros are always disabled; external programs are started only by their full system or installation path.
 
 ## Photos
 

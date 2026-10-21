@@ -71,7 +71,7 @@ machine: modules for private PDFs are not in the repository at all, and Office-d
 * Viewer, text edit / undo, forms, tables, layout, OCR
 * Organize, convert/export; **Office→PDF supported when Microsoft Office or LibreOffice is installed locally**
 * Security, redaction, annotations, print
-* Highlight Round 7: toggle, mid-stroke Esc, color switch, eraser, preservation across edits (`tests/ui/test_highlight_round7.py`, `test_highlight_continuous.py`)
+* Highlighting: pen toggle, Esc during a stroke, color switching, the eraser, and marks kept across other edits (`tests/ui/test_highlight_round7.py`, `test_highlight_continuous.py`)
 * Docs / menus: User Guide menu paths match the app (`test_user_guide_menus.py`)
 * Menu audit (`test_menu_audit_fixes.py`); deep harness `scripts\deep_ui_audit.py` (manual)
 * Page design: header/footer slots, watermark and background placement on 0/90/180/270° and cropped pages (measured on renders), replace/remove, shared fonts/pictures (`tests/integration/test_page_marks.py`, `tests/ui/test_page_marks_ui.py`)
@@ -82,7 +82,7 @@ machine: modules for private PDFs are not in the repository at all, and Office-d
 * Installer: `scripts\test_installer.ps1`
 * Release tooling: release-note validation, release-set verification, portable Installer ZIP names (`test_release_notes_validation.py`, `test_verify_release.py`), test categories (`test_test_categories.py`)
 * Audit tools (`scripts\audit\`): installed-copy file/registry audit, isolated run of an installed copy (modules, sockets, profile writes), generated inputs and an independent verifier for real-GUI sessions, timing of page design / redaction / merge / Images to PDF
-* Maintainer-local real-PDF scripts (gitignored) when present
+* Checks against the maintainer's own PDFs, when present on that computer (not in the repository)
 
 ## Installer and uninstaller test
 

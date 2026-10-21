@@ -1,42 +1,37 @@
 # Monograph PDF License
 
-**Monograph PDF**  
-Copyright © 2026 Aung Ye Mun
+**Monograph PDF** · Copyright © 2026 Aung Ye Mun
 
-This program is free software: you may redistribute it and/or modify it under the terms of the
+This program is free software: you can redistribute it and/or modify it under the terms of the
 GNU Affero General Public License as published by the Free Software Foundation, either version 3
 of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
 even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-Affero General Public License below for further details.
+Affero General Public License below for more details.
+
+The full license text is reproduced below and, unchanged, in the file [`LICENSE`](LICENSE).
+
+## What this means in practice
+
+This summary is for convenience only; the license text below is what applies.
+
+* You may use Monograph PDF for any purpose, including commercial and professional work, free of
+  charge.
+* You may copy and share the installer.
+* If you distribute Monograph PDF, modified or not, you must make the complete corresponding source
+  code available to the recipients under the same license.
+* The corresponding source of every release is published next to the installer as
+  `MonographPDF_<version>_Source.zip`. It contains the application, build scripts, installer,
+  documentation and tests, and the corresponding source of the bundled AGPL, GPL and LGPL
+  components. For questions about the source archive, contact **aungyemun25@gmail.com**.
 
 ## Licensing rationale (AGPL-3.0-or-later)
 
-Monograph PDF itself is licensed under the **GNU Affero General Public License v3.0 or later**
-(`AGPL-3.0-or-later`), matching the grant above (“either version 3 of the License, or (at your
-option) any later version”).
-
-Monograph PDF depends on PyMuPDF / MuPDF (Artifex Software), whose upstream licensing is AGPL-3.0,
-and on pdf2docx, licensed under GPL-3.0. Those components keep their own upstream license
-expressions. To redistribute Monograph PDF together with them, the application as a whole is
-licensed under AGPL-3.0-or-later.
-
-In practical terms:
-
-* You may use Monograph PDF for any purpose, including professional use, without a fee.
-* You may copy and share the installer.
-* If you distribute Monograph PDF (modified or unmodified), you must make the complete corresponding
-  source code available to recipients under the same license.
-* Corresponding source for each release is published beside the installer as
-  `MonographPDF_<version>_Source.zip` (application, build, installer, documentation and release
-  tests, plus corresponding source of the bundled AGPL, GPL and LGPL components). For assistance
-  with the source archive, contact **aungyemun25@gmail.com**.
-
-Third-party components retain their own licenses. See `THIRD_PARTY_NOTICES.md`.
-
-Monograph PDF is licensed under the GNU Affero General Public License v3.0 or later. Bundled
-third-party components keep their own licenses.
+Monograph PDF uses PyMuPDF / MuPDF (Artifex Software), which is licensed under AGPL-3.0, and
+pdf2docx, which is licensed under GPL-3.0. To distribute Monograph PDF together with these
+components, the application as a whole is licensed under AGPL-3.0-or-later. Each third-party
+component keeps its own license; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## GNU Affero General Public License, version 3
 

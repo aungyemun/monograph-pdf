@@ -45,8 +45,8 @@ MANIFEST = Path(__file__).with_name("third_party_sources.json")
 # Monograph PDF source: top-level items included (everything else in the project folder is not source)
 SOURCE_TOP = [
     "app", "core", "engines", "ui", "resources", "installer", "scripts", "tests", "docs", "licenses",
-    "third_party", "reports", "VERSION", "requirements.txt", "pytest.ini", ".gitignore", "README.md",
-    "LICENSE.md", "CHANGELOG.md", "THIRD_PARTY_NOTICES.md", "SECURITY.md", "INSTALLATION.md",
+    "third_party", "reports", "VERSION", "requirements.txt", "requirements-ci.txt", "pytest.ini", ".gitignore",
+    "README.md", "LICENSE", "LICENSE.md", "CHANGELOG.md", "THIRD_PARTY_NOTICES.md", "SECURITY.md", "INSTALLATION.md",
     "CITATION.cff",
 ]
 # Never included (relative paths / name patterns)
@@ -64,6 +64,8 @@ EXCLUDE_PATHS = [
     "reports/audit/INSTALLATION_AND_RUNTIME_AUDIT.md", "reports/audit/SOURCE_AND_ARCHITECTURE_AUDIT.md",
     "reports/audit/CONVERSION_AND_OUTPUT_FIDELITY.md", "reports/audit/PROFESSIONAL_FEATURE_GAP_ANALYSIS.md",
     "reports/audit/PROJECT_CLEANUP_INVENTORY.md", "reports/audit/MENU_AND_TOOLBAR_TEST_MATRIX.md",
+    # internal development records, no longer published (only SECURITY_AUDIT_0.2.0.md is)
+    "reports/audit/PROJECT_AUDIT.md", "reports/audit/SECURITY_AUDIT_0.1.5.md",
     "scripts/qa_*", "scripts/gui_driver.ps1", "scripts/office_open_check.ps1", "scripts/powerpoint_export.ps1",
 ]
 EXCLUDE_NAMES = ["*.pyc", "*.pyo", "*.log", ".env", ".env.*", "*.pem", "*.key", "*.pfx", "*.p12", "*.kdbx", "Thumbs.db", "desktop.ini"]
