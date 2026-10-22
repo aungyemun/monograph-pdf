@@ -2,24 +2,28 @@
 
 All notable changes to Monograph PDF. Versions follow `VERSION` (see `docs/RELEASE_AND_VERSIONING.md`).
 
-## [0.3.0] — Unreleased
+## [0.3.0] — 2026-10-22
 
-Development milestone v0.3.0-dev (branch `feature/v0.3.0-secure-updates-diagnostics`): secure
-updates, automatic in-place upgrades, private error reporting and international Windows
-compatibility. It also contains the unreleased 0.2.4 maintenance work below. **Network features are
-disabled** in every build until production signing and the reporting gateway are set up and
-verified; normal PDF work stays offline.
+Feature release: new editing, comment, stamp, signature, OCR, conversion, printing and compression
+tools, interface fixes for small screens and display scaling, and the groundwork for secure updates,
+automatic in-place upgrades and private problem reports. It also contains the release-tooling and
+maintenance work that had been prepared as 0.2.4, which was never released on its own.
+
+**Disabled in this release:** update checks, automatic upgrades and the sending of problem reports
+are built in but switched off. No production update-signing key and no reporting service exist yet,
+so **Help ▸ Check for Updates…** reports "Updates not configured" and **Send to Developer** sends
+nothing. New versions are published on the GitHub Releases page. Normal PDF work stays offline.
 
 ### Added
 
-- **Secure update checks** — **Help ▸ Check for Updates…**, **File ▸ Settings… ▸ Updates**
+- **Secure update checks** (switched off in this release) — **Help ▸ Check for Updates…**, **File ▸ Settings… ▸ Updates**
   (automatic checks, off by default; interval; stable or prerelease channel; last successful check;
   Check Now; status) and the update status in **About**. Update information is a release manifest
   signed with Ed25519 and verified against keys built into the program; the download must match the
   signed size and SHA-256. Identity, channel, architecture, downgrade, expiry and replay checks; HTTPS
   with certificate verification and an allow-list of GitHub hosts, also for redirects. An unreachable
   server or unverifiable information is never reported as "up to date" ([docs/SECURE_UPDATES.md](docs/SECURE_UPDATES.md)).
-- **Automatic in-place upgrade** — **Update Now** downloads and verifies the new Setup, lets you save
+- **Automatic in-place upgrade** (switched off in this release) — **Update Now** downloads and verifies the new Setup, lets you save
   or discard open changes, closes Monograph PDF and hands over to `MonographPDFUpdater.exe`, which
   waits for the program to exit, checks the installer again, runs the existing Setup silently for the
   same folder and install mode (keeping shortcuts, file-type choices and settings), verifies the
@@ -28,7 +32,7 @@ verified; normal PDF work stays offline.
   installation registered in Windows for the running copy is updated; ambiguous cases stop.
 - **Update staging cleanup** with ownership markers, bounded retention for failed attempts, a size
   limit and no deletion outside the updater's own files.
-- **Private problem reports** — unexpected errors, unhandled exceptions, Qt critical errors and
+- **Private problem reports** (sending switched off in this release) — unexpected errors, unhandled exceptions, Qt critical errors and
   unexpected termination produce a report of approved technical fields only (no documents, names,
   paths, user names or typed text), shown in full with exactly two buttons, **Don't Send** and
   **Send to Developer**; nothing is sent without that click. Sending is disabled until the reporting
@@ -41,7 +45,7 @@ verified; normal PDF work stays offline.
   verification), `scripts/test_update_e2e.py` (Windows end-to-end upgrade test with synthetic keys
   and a local HTTPS mock server).
 
-### Added — PDF work (v0.3.0-dev)
+### Added — PDF work
 
 - **Editing**:
   - Replaced text no longer overlaps the original: the original glyphs are removed and the
@@ -165,11 +169,10 @@ verified; normal PDF work stays offline.
 - `verify_release.py --layout` fails if the bundled update or reporting configuration differs from
   the repository's.
 
-## [0.2.4] — Unreleased
+### Changed — release tooling and maintenance
 
-Development version: release tooling, OCR reproducibility and source-archive maintenance. No change to the application so far.
-
-### Changed
+Prepared as maintenance version 0.2.4 (never released); these changes are part of 0.3.0 and do not
+change the application.
 
 - `scripts/vendor_ocr.ps1` repaired: it now prepares only the pinned OCR engine — Tesseract 5.4.0.20240606 (Windows x64) and the `eng`, `jpn` and `osd` data of tessdata_fast 4.1.0 — through `scripts/ci/stage_ocr_engine.py`, and refuses anything whose SHA-256 differs from `scripts/ci/ocr_engine_pins.json`. It used to install the newest Tesseract through winget and download the language data from a moving branch without any integrity check.
 - The release build checks `engines\ocr` and `models\tessdata` against those pins before packaging and stops on any difference, including unpinned extra files.
@@ -177,6 +180,7 @@ Development version: release tooling, OCR reproducibility and source-archive mai
 - Source archive: `CONTRIBUTING.md` and `.gitattributes` are included, and the build instructions in `README_SOURCE.md` describe the pinned OCR workflow. When built from a git checkout, the archive is made from the committed files and their committed bytes, so an untracked local file or an uncommitted edit can never be published (a local development build had picked up an untracked copy of the OCR notice), and uncommitted changes to selected files stop the build unless `--allow-dirty` is given. The archive is now reproducible: the same commit gives the same ZIP bytes whatever the checkout's line-ending setting (fixed entry order, dates, attributes and compression). `LICENSES/AGPL-3.0.txt` is now the official license text (`LICENSE`) instead of `LICENSE.md`. New tests check the required documents and license texts, the files linked from the README, the exclusion of internal audit records and private paths, unique portable entry names, and the SHA-256 of every third-party source file.
 - `scripts/setup_env.ps1` creates the environment with Python 3.11, the version releases bundle (it used to take any `python` on the PATH first), and stops when creating the environment or installing the requirements fails (it used to report success); a failed pip self-upgrade (for example offline) is only a warning.
 - `scripts/test_installer.ps1`: the upgrade sections now install a Setup built fresh from the current build as the next patch version; they used to reuse a cached Setup hard-coded as 0.2.1 and built from an old payload, so they did not test an upgrade of the build under test.
+- `scripts/test_installer.ps1` refuses to run inside an app package, where `%APPDATA%` is virtualised and a settings backup and restore can see a different folder from the one the installer changes; it checks every restored settings file by SHA-256 and keeps an earlier run's backup instead of deleting it.
 - `engines/ocr/MANIFEST.json` no longer records a local build folder.
 - Documentation: clearer privacy, installation, security and license wording, contribution templates, and a clarification of the published 0.2.3 release notes (source downloads, SmartScreen guidance); the 0.2.3 release files were not changed.
 

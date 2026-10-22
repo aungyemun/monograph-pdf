@@ -5,7 +5,7 @@
 [![Windows CI](https://github.com/aungyemun/monograph-pdf/actions/workflows/windows-ci.yml/badge.svg)](https://github.com/aungyemun/monograph-pdf/actions/workflows/windows-ci.yml)
 
 **A free, open-source PDF editor for Windows 10 and 11, designed for privacy and fully offline
-operation.** Current release: **0.2.3**.
+operation.** Current release: **0.3.0**.
 
 Monograph PDF lets you view, edit, annotate, organize, convert and protect PDF documents on your own
 computer. It needs no account or internet connection and has no function that uploads your files.
@@ -31,6 +31,16 @@ conversions are written to new files.
 | **Protect** | AES-256 passwords and permissions, redaction that removes the marked content, removal of hidden information, visual signatures |
 
 Complete list: [Features](docs/FEATURES.md) · How to use each tool: [User Guide](docs/USER_GUIDE.md) (also **F1** in the app)
+
+### Feature status in 0.3.0
+
+| Status | Features |
+| :--- | :--- |
+| **Included** | Everything in the table above unless listed below; covered by the automated tests on Windows |
+| **Needs another application** | Office files to PDF and Office round trips need Microsoft Office or LibreOffice installed (tested with Microsoft 365 and LibreOffice 24.2 only) |
+| **Limited** | PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts. Optional OCR language packs (Chinese, Korean, vertical Japanese, German, French, Spanish) are installed only from a file you supply that matches the pinned SHA-256; their recognition quality has not been tested. Editing Japanese vertical text is not fully supported |
+| **Built in, switched off** | Update checks and automatic upgrades; sending problem reports. They stay off until a production update-signing key and a reporting service exist and have been verified |
+| **Not supported** | Certificate-based digital signatures (signatures are visual); macOS, Android and iOS; Windows on ARM has not been tested |
 
 ## Screenshots
 
@@ -59,12 +69,12 @@ Only Windows builds are available.
 
 ## Download and installation
 
-1. Download `MonographPDF_0.2.3_Setup.exe` from the official
+1. Download `MonographPDF_0.3.0_Setup.exe` from the official
    [latest release](https://github.com/aungyemun/monograph-pdf/releases/latest) page only.
 2. Check its SHA-256 checksum in PowerShell and compare it with the value in the release notes:
 
    ```powershell
-   Get-FileHash .\MonographPDF_0.2.3_Setup.exe -Algorithm SHA256
+   Get-FileHash .\MonographPDF_0.3.0_Setup.exe -Algorithm SHA256
    ```
 
 3. Run Setup and choose to install for all users or only for yourself.
@@ -86,9 +96,10 @@ silent installation, upgrading and uninstalling are described in [Installation](
 * Monograph PDF is designed to operate offline. It requires no account or cloud service and has no
   telemetry, advertising, online OCR or document upload. Viewing, editing, saving, OCR, conversion and
   printing never use the network.
-* Version 0.3.0 (in development, not yet released) adds secure update checks and private problem
-  reports. Both contact the network only when you ask (or after you switch on automatic update
-  checks), and both stay disabled until production signing and the reporting service are set up:
+* Version 0.3.0 contains secure update checks and private problem reports, but **both are switched
+  off in this release**: **Help ▸ Check for Updates…** reports "Updates not configured" and
+  **Send to Developer** sends nothing. Once enabled in a later release, they contact the network only
+  when you ask (or after you switch on automatic update checks):
   [Secure updates](docs/SECURE_UPDATES.md) · [Error reporting](docs/ERROR_REPORTING.md).
 * Qt's network and TLS modules are removed from the release build; only the update and problem-report
   code uses Python's HTTPS support. The built-in self-check fails if a network connection is attempted
@@ -141,10 +152,14 @@ passed. Details: [Testing](docs/TESTING.md).
 
 * Windows 10 and 11 (64-bit) only.
 * The installer and program are not code-signed ([Code Signing](docs/CODE_SIGNING.md)).
+* Update checks, automatic upgrades and the sending of problem reports are switched off in 0.3.0;
+  install new versions from the [Releases](https://github.com/aungyemun/monograph-pdf/releases) page.
 * Signatures are visual only; certificate-based digital signatures are not supported.
 * Converting PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts.
 * Converting Office files to PDF requires Microsoft Office or LibreOffice.
 * OCR recognizes English and Japanese; other languages need an optional language pack supplied by you (verified against a pinned SHA-256).
+* Not verified for 0.3.0: Windows 10, localized (Japanese, Chinese, Korean, German, French) Windows,
+  Office versions other than Microsoft 365 and LibreOffice 24.2, and printing on a physical printer.
 
 More: [User Guide ▸ Current limitations](docs/USER_GUIDE.md#current-limitations)
 
@@ -167,7 +182,7 @@ contains the corresponding source code of the bundled AGPL, GPL and LGPL compone
 
 If you use Monograph PDF in research, please cite it as described in [CITATION.cff](CITATION.cff):
 
-> Mun AY. *Monograph PDF*. Version 0.2.3. 2026. https://github.com/aungyemun/monograph-pdf
+> Mun AY. *Monograph PDF*. Version 0.3.0. 2026. https://github.com/aungyemun/monograph-pdf
 
 Design, development, testing, documentation and packaging: **Aung Ye Mun**. With thanks to the
 developers of the open-source projects listed in the third-party notices.

@@ -27,7 +27,7 @@ the release page lists; it does not by itself show who published it.
 Get-AuthenticodeSignature .\MonographPDF_X.Y.Z_Setup.exe | Format-List Status, SignerCertificate
 ```
 
-* The releases published so far (0.2.2 and 0.2.3) are **not code-signed**: the expected status is `NotSigned`.
+* The releases published so far (0.2.2, 0.2.3 and 0.3.0) are **not code-signed**: the expected status is `NotSigned`.
   Windows SmartScreen may warn ("Windows protected your PC"); continue (**More info ▸ Run anyway**)
   only for a file whose checksum matched in step 1.
 * If a future release is signed, its release notes and [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md)

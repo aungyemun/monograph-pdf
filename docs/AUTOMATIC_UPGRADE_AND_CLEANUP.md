@@ -1,6 +1,6 @@
 # Automatic in-place upgrade and update cleanup
 
-Status: **in development for 0.3.0**, disabled until production update signing is set up
+Status: **included in 0.3.0, switched off** until production update signing is set up
 ([SECURE_UPDATES.md](SECURE_UPDATES.md#production-setup)). This page describes what happens after
 the user clicks **Update Now**, which installation is changed, which files may be replaced or
 removed, how temporary update files are cleaned up and what happens when something fails.

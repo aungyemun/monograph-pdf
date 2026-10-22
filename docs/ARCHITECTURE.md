@@ -86,7 +86,7 @@ Nothing is written to the installation folder `{app}` during normal use.
     get a correctly placed text layer; recognised text can be exported (`core/ocr/text_export.py`);
     optional language packs are verified against pinned hashes (`core/ocr/language_packs.py`).
 
-## Updates and problem reports (0.3.0, in development)
+## Updates and problem reports (0.3.0, switched off)
 
 * `core/updates/manager.py` checks a signed manifest (`manifest.py`, `ed25519.py`) fetched over
   HTTPS (`net.py`), downloads and verifies Setup into the staging folder (`staging.py`), picks the

@@ -8,7 +8,12 @@ Root `VERSION` only. Read via `core.versioning` / `app.read_version`. Do not dup
 
 * Patch bumps after successful app/runtime/UI/resource/dependency fixes (`0.2.0` → `0.2.1` …; `0.0.99` → `0.1.0`).
 * Minor bumps are intentional milestones. Below 0.2.0 = internal only; **0.2.x** is the first public line;
-  **0.3.0** (in development) adds secure updates and private problem reports.
+  **0.3.0** is the current stable feature release (secure updates and private problem reports included
+  but switched off).
+* After 0.3.0: bug fixes, security patches and stability improvements go into **0.3.1** (and **0.3.2**
+  if needed); new features wait for **0.4.0**, the next feature milestone.
+* A version prepared but never released is folded into the next public release (0.2.4 into 0.3.0);
+  no historical release is invented for it.
 * Failed builds/tests do not bump. Pure doc-only edits usually do not bump.
 
 ```powershell

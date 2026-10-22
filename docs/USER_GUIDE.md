@@ -167,7 +167,11 @@ All conversions run on your computer.
 **Help ▸ Check for Updates…** checks for a newer version; **File ▸ Settings… ▸ Updates** turns on
 automatic checks (off by default), sets how often (every day, every 3 days or every week) and the
 release channel (stable, or prereleases as well), and shows the last successful check and the status.
-In builds where updates are not yet enabled, the check says so instead of reporting "up to date".
+
+**In version 0.3.0 updates are switched off.** The check reports "Updates not configured" (never
+"up to date") and contacts nothing. Download new versions from the official GitHub Releases page and
+run their Setup; your settings and documents are kept. The rest of this section describes how updates
+will work once they are switched on in a later version.
 
 When an update is available you see the installed and available versions, the release date, the
 release notes and the download size. **Update Now** downloads the update, verifies it, asks you to
@@ -181,8 +185,8 @@ If something unexpected goes wrong, Monograph PDF can show a problem report — 
 information such as the version, Windows version and language, the failing operation and where in
 Monograph PDF's code it failed. It never contains your documents, file names, folder paths, user name
 or typed text. The full report is shown before you decide: **Don't Send** discards it; **Send to
-Developer** sends exactly that report. Nothing is sent without your click. (Sending is not yet enabled
-in development builds; the dialog says so.)
+Developer** sends exactly that report. Nothing is sent without your click. **In version 0.3.0 sending
+is switched off:** choosing **Send to Developer** says so and sends nothing.
 
 ## Keyboard shortcuts
 
@@ -203,6 +207,8 @@ Full list: **Help ▸ Keyboard Shortcuts**.
 - Office to PDF needs a local suite; PDF to Word / Excel / PowerPoint is best-effort on complex layouts
 - Signatures are visual only
 - Builds are not code-signed — verify `SHA256SUMS.txt`; SmartScreen may warn
+- Update checks and sending problem reports are switched off in version 0.3.0
+- Optional OCR language packs (other than English and Japanese) have not been tested for recognition quality
 
 ## Troubleshooting
 

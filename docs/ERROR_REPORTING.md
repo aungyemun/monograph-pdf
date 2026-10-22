@@ -1,6 +1,6 @@
 # Private error reporting
 
-Status: **in development for 0.3.0**. Problem reports are detected, built and shown to the user;
+Status: **included in 0.3.0, sending switched off**. Problem reports are detected, built and shown to the user;
 **sending is disabled** until the reporting gateway described below is deployed and verified
 (`resources/diagnostics/reporting.json` has `"enabled": false` and no endpoint). Choosing
 **Send to Developer** in this build says so truthfully and sends nothing.

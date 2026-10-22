@@ -102,6 +102,8 @@ from.
 
 Before a release, also install the previous published Setup and upgrade it with the new one (same test folder): settings, documents and unrelated files must be kept, and the self-check must pass.
 
+**Release validation runs only in a disposable Windows environment** (a fresh virtual machine restored from a clean snapshot, or Windows Sandbox), never on the maintainer's everyday Windows account: the test installs, upgrades and uninstalls, and backs up and restores the Monograph PDF settings folders. Use test settings with recognizable dummy values and compare their SHA-256 before and after each install, upgrade and uninstall. A result is recorded as **BLOCKED** when no such environment is available, never as passed.
+
 ## Updates, problem reports and international tests
 
 * Update security (synthetic keys only): `test_update_crypto.py` (RFC 8032 vectors, OpenSSL
