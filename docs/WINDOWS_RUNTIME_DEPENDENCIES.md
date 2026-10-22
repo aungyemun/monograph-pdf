@@ -13,7 +13,7 @@ Nothing has to be installed first: no Python, no Visual C++ Redistributable, no 
 - `--place-app-local` copies the newest bundled VC++ DLL into `_internal` when a library could otherwise find it only through another package's folder.
 - `--check` fails the build on any unresolved import, a VC++ DLL that is not bundled where the loader looks, or a 32-bit library.
 
-Result for the 0.3.0 development build (commit 96b6c6f, 485 files, 456 MB unpacked):
+Result for the 0.3.0 release build (tag `v0.3.0`, commit 96c36b9; 485 files, 456 MB unpacked), the same as for the earlier 0.3.0 development build 96b6c6f:
 
 | Measure | Result |
 |---|---|

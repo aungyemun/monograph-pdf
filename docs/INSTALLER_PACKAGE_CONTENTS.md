@@ -41,18 +41,18 @@ The release build verifies the following, and stops on any failure (`scripts/bui
 - **Runtime-dependency check** (`scripts/packaging/runtime_dependencies.py --check`).
 - **`MonographPDF.exe --smoke-test`.**
 
-The package audit of the 0.3.0 development build (commit 96b6c6f) found:
+The package checks of the 0.3.0 release build (tag `v0.3.0`, commit 96c36b9) found the same as the audit of the earlier development build 96b6c6f:
 
 - 485 files in the layout.
 - Present: the program, the Python DLL, the Qt platform plugin, MuPDF, the VC++ and UCRT DLLs, Tesseract, the three language files, the icon and logo, and the update configuration.
 - No test or build-tool files.
 - The `Setup.exe` inside the Installer ZIP is byte-identical to the standalone `Setup.exe`.
 
-`scripts/test_installer.ps1` then installs the real Setup.exe into a test folder and checks the files, registrations, shortcuts and self-check, launches the program, uninstalls, and tests upgrades. The results are in the release notes.
+`scripts/test_installer.ps1` then installs the real Setup.exe into a test folder and checks the files, registrations, shortcuts and self-check, launches the program, uninstalls, and tests upgrades. The results are in the release notes. For 0.3.0 this test was **not run**; its release notes say so.
 
 ## Installer ZIP
 
-The 0.3.0 development build contains these 18 entries and nothing else:
+The published `MonographPDF_0.3.0_Installer.zip` contains these 18 entries and nothing else:
 
 ```
 Setup.exe                     (identical to MonographPDF_0.3.0_Setup.exe)

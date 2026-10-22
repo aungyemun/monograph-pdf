@@ -32,6 +32,8 @@ The following are also not verified:
 - Windows 10;
 - an administrator-run all-users installation of 0.3.0.
 
+0.3.0 was published on 2026-10-22 with these checks, and the installer test, still not verified; its release notes say so. They remain open.
+
 ### How to run the clean-PC test
 
 Windows Sandbox (Windows 11 Pro or Enterprise) is a disposable clean Windows. To enable it:

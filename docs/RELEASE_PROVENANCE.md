@@ -28,6 +28,12 @@ The provenance record and the SBOM are written to `build\installer\` by every re
 can be attached to a release, but are not part of the three release files checked by
 `verify_release.py`.
 
+## Published releases
+
+| Release | Tag → commit | Evidence |
+| :--- | :--- | :--- |
+| 0.3.0 (2026-10-22) | `v0.3.0` → `96c36b9` | **About** and the provenance record name `96c36b9` with a clean tree; `provenance.py verify --require-published` and `verify_release.py --notes` passed against the files downloaded from the published release |
+
 ## Reproducibility
 
 Source and binaries are assessed separately.
