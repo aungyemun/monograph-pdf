@@ -1,6 +1,6 @@
 # Private error reporting
 
-Status: **included since 0.3.0, sending switched off (also in 0.4.0)**. Problem reports are detected, built and shown to the user;
+Status: **included since 0.3.0, sending switched off (also in 0.4.0 and 0.4.1)**. Problem reports are detected, built and shown to the user;
 **sending is disabled** until the reporting gateway described below is deployed and verified
 (`resources/diagnostics/reporting.json` has `"enabled": false` and no endpoint). In such a build
 the dialog does not offer **Send to Developer** at all; it offers **Copy Report**, **Open Issues
@@ -36,7 +36,7 @@ refused, and the gateway enforces the same schema.
 | Field | Example |
 | :--- | :--- |
 | `schema`, `report_type` | `1`, `error` · `crash` · `termination` |
-| `app_version`, `build` | `0.4.0`, `installed-x64` |
+| `app_version`, `build` | `0.4.1`, `installed-x64` |
 | `python_version`, `os`, `os_version`, `os_arch` | `3.11.9`, `windows`, `10.0.26100`, `AMD64` |
 | `display_language` | `ja-JP` (Windows display language) |
 | `timestamp` | `2026-10-21T07:19:00Z` (minute resolution, UTC) |

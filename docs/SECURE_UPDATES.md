@@ -1,6 +1,6 @@
 # Secure updates
 
-Status: **included since 0.3.0, switched off (also in 0.4.0)**. The update system is implemented and tested with synthetic
+Status: **included since 0.3.0, switched off (also in 0.4.0 and 0.4.1)**. The update system is implemented and tested with synthetic
 keys and local mock servers. It is **switched off** in every build until a production signing key
 exists and the configuration below has been validated (see [Production setup](#production-setup)).
 Until then, **Help ▸ Check for Updates…** reports "Updates not configured" — never "Up to date" —

@@ -2,6 +2,42 @@
 
 All notable changes to Monograph PDF. Versions follow `VERSION` (see `docs/RELEASE_AND_VERSIONING.md`).
 
+## [0.4.1] — 2026-10-23
+
+Bug-fix release for 0.4.0. Update checks, automatic upgrades and the sending of problem reports remain
+switched off.
+
+### Fixed
+
+- **Crash when choosing a font while editing text.** Adding a text box, typing, selecting the text and
+  then picking a font in the **Properties** panel could close Monograph PDF without a message (an
+  access violation): the panel rebuilt its rows while the font list was still open and deleted the
+  list under the mouse. The panel now waits until the list has closed and removes old rows safely.
+- The font list in the text toolbar closed on the first click instead of opening, and turning the
+  mouse wheel over a font box changed the font of the selected text. The list now opens on the first
+  click, and the wheel scrolls the panel instead of changing the font.
+- **Fonts installed as collections (.ttc / .otc)** — for example MS Mincho, MS Gothic, Meiryo,
+  Yu Gothic, SimSun or Cambria — were replaced by a built-in font with the message "font collections
+  (.ttc) are not embedded". The chosen face is now taken from the collection and embedded (only the
+  characters used), after checking that face's embedding permission.
+
+### Changed
+
+- **Compress PDF** is easier to use. It asks one question — *How do you want to compress it?* — with
+  five answers, each explained in one line: **Best quality (lossless)**, **Balanced (recommended)**,
+  **Smallest file**, **Fit a size limit** (e-mail attachment 10 MB, online form 2 MB, or your own exact
+  limit) and **My own picture settings**. Only the settings of the chosen answer are shown. A box
+  states what is always kept exactly as it is: text (also text you added), fonts, comments, form
+  fields, drawings, links, bookmarks and the page layout; only pictures can be reduced. The button
+  reads **Compress and Save As…**, and the dialog fits a 1366 × 768 screen. What compression does to a
+  file is unchanged.
+- **Problem reports after a crash** now say what happened instead of only "did not close normally":
+  the kind of fault (for example an access violation), the place in Monograph PDF's own code, the
+  program file it happened in (only files of Monograph PDF itself; anything else is reported as
+  "external") and the last few actions (such as changing a font, a style, pages or a comment). The
+  report is built from approved fields only, is shown in full, and is still not sent anywhere: sending
+  remains switched off. The fault details stay in a local file until the next start.
+
 ## [0.4.0] — 2026-10-23
 
 Feature and reliability release: fixes for problems found in daily use of 0.3.0 (a crash in the font
