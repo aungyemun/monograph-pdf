@@ -164,7 +164,19 @@ def scan_zip(path: Path, *, source: bool) -> list[str]:
     return problems
 
 
+def _utf8_output() -> None:
+    """Results contain non-ASCII text (—, ▸). Redirected to a file on a Japanese, Chinese or Korean
+    Windows, Python's default code page (cp932 …) cannot encode them and the check crashed with
+    UnicodeEncodeError instead of reporting its result."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _utf8_output()
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--dir", type=Path, required=True, help="folder with the three release files")
     ap.add_argument("--version", default=(ROOT / "VERSION").read_text(encoding="utf-8").strip())
