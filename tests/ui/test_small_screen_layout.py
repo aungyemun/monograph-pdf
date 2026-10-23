@@ -85,19 +85,24 @@ def test_start_screen_tiles_include_new_tools(window):
     assert len(keys) % welcome_page.COLUMNS == 0  # full rows, no ragged last row
 
 
-def test_compress_dialog_fits_1366x768_and_mode_selects_profile(qtbot):
+def test_compress_dialog_fits_1366x768_and_shows_only_the_chosen_settings(qtbot):
     from tests.unit.test_compress import _image_pdf
-    from ui.compress_dialog import PROFILES, CompressDialog
+    from ui.compress_dialog import CompressDialog
 
     dlg = CompressDialog(_image_pdf(2))
     qtbot.addWidget(dlg)
     dlg.show()
     hint = dlg.sizeHint()
     assert hint.height() <= 700 and hint.width() <= 1366
-    for key in ("lossless", "balanced", "smallest", "target"):
+    for key in ("lossless", "balanced", "smallest", "target", "custom"):
         dlg.mode_buttons[key].setChecked(True)
-        assert PROFILES[dlg.profile_combo.currentIndex()][1] == key
         assert dlg.mode() == key
+        assert dlg.target_panel.isHidden() == (key != "target")
+        assert dlg.custom_panel.isHidden() == (key != "custom")
+        assert dlg.sizeHint().height() <= 700, key
+    for box in (dlg.ppi_spin, dlg.quality_spin, dlg.size_spin, dlg.margin):  # values never clipped
+        text = box.textFromValue(box.maximum()) + box.suffix()
+        assert box.minimumWidth() >= box.fontMetrics().horizontalAdvance(text), box.objectName()
 
 
 def test_stamp_dialog_checkbox_label_not_clipped(qtbot, tmp_path, monkeypatch):

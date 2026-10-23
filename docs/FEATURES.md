@@ -79,7 +79,7 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
   the selected pages, before or after any page, at the beginning or at the end.
 - PDF to Word, Excel and PowerPoint (best-effort); images to PDF and PDF to images; Office files to
   PDF through a locally installed Office suite.
-- **Compress PDF.** Lossless, Balanced, Smallest file, Custom (picture resolution and JPEG quality), or an exact maximum size in bytes, with an estimate, the measured size and a preview. See [PDF Compression](PDF_COMPRESSION.md).
+- **Compress PDF.** Best quality (lossless), Balanced, Smallest file, Fit a size limit (an exact maximum in bytes) or My own picture settings (resolution and JPEG quality); text, fonts, comments, forms and drawings are never changed, with an estimate, the measured size and a preview. See [PDF Compression](PDF_COMPRESSION.md).
 - **Batch conversion.** Converts many files to Word, Excel, PowerPoint, text, images, a searchable PDF, or Word via OCR.
 - **Page sizes in conversions.** PowerPoint and Word files keep each page's size and orientation, with policies for mixed sizes. Document properties come from the PDF. See [PDF to Office](PDF_TO_OFFICE_CONVERSION.md) and [Conversion Fidelity](CONVERSION_FIDELITY.md).
 - **Save a Copy ▸ Whole Document** keeps working on the open document. Overwriting files is atomic. See [Save As and Export](SAVE_AS_AND_EXPORT.md).

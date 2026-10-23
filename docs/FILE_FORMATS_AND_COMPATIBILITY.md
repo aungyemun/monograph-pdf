@@ -52,7 +52,7 @@ protection is never removed without the correct password.
 | **Save** / **Save As** / **Save a Copy** | Writes your edits; keeps fonts; never turns pages into images; replacing a file is atomic ([Save As and Export](SAVE_AS_AND_EXPORT.md)) |
 | **Lossless** (File ▸ Compress PDF…) | Optimizes the file structure only; pictures are not changed |
 | **Balanced**, **Smallest file** | Pictures are reduced and re-encoded (lossy for pictures only); text and vectors are unchanged |
-| **Target size** | An exact maximum in bytes (1 KB = 1,000 bytes); reported as achieved only when the saved file is at or below it ([PDF Compression](PDF_COMPRESSION.md)) |
+| **Fit a size limit** | An exact maximum in bytes (1 KB = 1,000 bytes); reported as achieved only when the saved file is at or below it ([PDF Compression](PDF_COMPRESSION.md)) |
 
 ## Related
 

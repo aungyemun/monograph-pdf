@@ -50,14 +50,21 @@ def _edit(window):
     assert window._edit.dirty  # noqa: SLF001
 
 
+def dlg_module():
+    import ui.compress_dialog as m
+
+    return m
+
+
 def test_slider_and_numeric_target_stay_in_step(qtbot):
     from core.convert import compress as cz
     from ui.compress_dialog import CompressDialog
 
     dlg = CompressDialog(_image_pdf(2))
     qtbot.addWidget(dlg)
-    dlg.profile_combo.setCurrentIndex(5)  # custom maximum size
+    dlg.mode_buttons["target"].setChecked(True)  # Fit a size limit (own limit)
     assert dlg.mode() == "target" and dlg.size_spin.isEnabled() and dlg.slider.isEnabled()
+    assert not dlg.target_panel.isHidden() and dlg.custom_panel.isHidden()
     dlg.unit.setCurrentText("KB")
     dlg.size_spin.setValue(956)
     assert dlg.target_bytes() == 956_000
@@ -70,11 +77,13 @@ def test_slider_and_numeric_target_stay_in_step(qtbot):
     dlg.slider.setValue(dlg.slider.value() - 100)
     assert dlg.target_bytes() < 1_990_000 and dlg.mode() == "target"
     assert "Target" in dlg.estimate_label.text() and "Preview measures" in dlg.estimate_label.text()
-    # profiles set mode and size
-    dlg.profile_combo.setCurrentIndex(4)
+    # an offered limit sets the size; another way to compress hides the size settings
+    dlg.limit_combo.setCurrentIndex(1)  # Online form upload — 2 MB
     assert dlg.target_bytes() == 2 * cz.MB
-    dlg.profile_combo.setCurrentIndex(0)
-    assert dlg.mode() == "lossless" and not dlg.size_spin.isEnabled()
+    dlg.size_spin.setValue(1.5)  # typed by hand: "My own limit"
+    assert dlg.limit_combo.currentIndex() == len(dlg_module().LIMITS) - 1
+    dlg.mode_buttons["lossless"].setChecked(True)
+    assert dlg.mode() == "lossless" and not dlg.size_spin.isEnabled() and dlg.target_panel.isHidden()
 
 
 def test_preview_measures_and_compress_returns_result(qtbot):
@@ -83,7 +92,7 @@ def test_preview_measures_and_compress_returns_result(qtbot):
     data = _image_pdf(2)
     dlg = CompressDialog(data)
     qtbot.addWidget(dlg)
-    dlg.profile_combo.setCurrentIndex(5)
+    dlg.mode_buttons["target"].setChecked(True)
     dlg.unit.setCurrentText("KB")
     dlg.size_spin.setValue(500)
     dlg.preview_btn.click()

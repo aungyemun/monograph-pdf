@@ -12,25 +12,24 @@ All comparisons are made in bytes. A target typed as `956 KB` means at most 956,
 
 Values are rounded **down** when converted, so rounding can never let a file exceed the limit. Windows Explorer shows sizes in binary units, where its "KB" is 1,024 bytes. Binary units (KiB, MiB, GiB) are accepted by the size parser, but the dialog's KB/MB/GB are decimal; when an upload limit is stated in binary units, enter the byte equivalent.
 
-## Modes
+## How to compress
 
-| Mode | What changes | Lossy |
+The dialog asks one question — *How do you want to compress it?* — with five answers, each explained
+in one line. Only the settings of the chosen answer are shown. A green box states what is always kept
+exactly as it is (text, also text you added, fonts, comments, form fields, drawings, links, bookmarks
+and the page layout).
+
+| Choice in the dialog | What changes | Lossy |
 |---|---|---|
-| **Lossless** | Identical objects are merged, unused objects removed, and uncompressed content, font and image streams deflated. Objects are packed into object streams, which needs PDF 1.5 (2003) or later. | no |
-| **Balanced** | Lossless, plus pictures shown above 150 ppi are reduced to 150 ppi and re-encoded as JPEG quality 75. | pictures only |
+| **Best quality (lossless)** | Identical objects are merged, unused objects removed, and uncompressed content, font and image streams deflated. Objects are packed into object streams, which needs PDF 1.5 (2003) or later. | no |
+| **Balanced (recommended)** | Lossless, plus pictures shown above 150 ppi are reduced to 150 ppi and re-encoded as JPEG quality 75. | pictures only |
 | **Smallest file** | Pictures are reduced to 110 ppi (scanned pages 150 ppi) and re-encoded as JPEG quality 55. | pictures only |
-| **Target size** | Lossless first. Pictures are then reduced only as far as needed (see below). | only if needed |
+| **Fit a size limit** | Lossless first. Pictures are then reduced only as far as needed (see below). | only if needed |
+| **My own picture settings** | Pictures above the resolution you choose (100–600 ppi) are reduced to it and re-encoded at the JPEG quality you choose (40–95); scanned pages stay at 150 ppi or more. | pictures only |
 
-**Profiles** fill these in for you:
-
-- High quality (lossless)
-- Balanced
-- Small file
-- Email attachment (at most 10 MB)
-- Online form upload (at most 2 MB)
-- Custom maximum size
-
-Real limits differ between sites, so check the requirement you need to meet.
+**Fit a size limit** offers common limits — *E-mail attachment (10 MB)* and *Online form upload
+(2 MB)* — or *My own limit*, typed in KB, MB or GB or set with the slider. Real limits differ between
+sites, so check the requirement you need to meet.
 
 ## What is never changed
 
@@ -71,7 +70,7 @@ Measured examples (tests/unit/test_compress.py, a 3.78 MB PDF with three 1600 ×
 
 - **Estimate.** Before running, the dialog shows an estimate from the analysis alone: typical JPEG bit rates for the reducible pictures, with everything else unchanged. It is labelled as an estimate.
 - **Preview.** **Preview** runs the real compression and shows the measured size in bytes, the reduction, the settings used, how many pictures changed and any notes. It also shows the original and compressed versions side by side for the page with the most picture data, at a small size; you can pick another page.
-- **Compress.** **Compress…** uses the same measured result.
+- **Compress and Save As…** uses the same measured result and asks where to save the smaller copy.
 
 ## Output
 

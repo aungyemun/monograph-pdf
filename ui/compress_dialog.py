@@ -1,6 +1,12 @@
-"""Compress PDF: Lossless / Balanced / Smallest file / Target size, with a target in KB/MB/GB (numeric
-entry kept in step with a slider), an estimate before running, the measured size after, a side-by-side
-preview of a representative page, and Cancel. Compression runs in a worker thread."""
+"""Compress PDF — make the file smaller without touching its text.
+
+One choice of how to compress (best quality, balanced, smallest file, fit a size limit, or your own
+picture settings); only the settings of that choice are shown. The dialog says plainly what is kept
+exactly as it is — text (also text you added), fonts, comments, form fields, drawings, links and the
+page layout — because compression only ever reduces pictures. An estimate is shown at once, Preview
+measures the real size and shows the page side by side, and the result is saved as a new file.
+Compression runs in a worker thread.
+"""
 
 from __future__ import annotations
 
@@ -16,6 +22,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QDoubleSpinBox,
     QFormLayout,
+    QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -31,18 +38,32 @@ from PySide6.QtWidgets import (
 
 from core.convert import compress as cz
 
-PROFILES: tuple[tuple[str, str, int | None], ...] = (
-    ("High quality — lossless", "lossless", None),
-    ("Balanced", "balanced", None),
-    ("Small file", "smallest", None),
-    ("Email attachment — at most 10 MB", "target", 10 * cz.MB),
-    ("Online form upload — at most 2 MB", "target", 2 * cz.MB),
-    ("Custom maximum size", "target", None),
-    ("Custom resolution and quality", "custom", None),
+# The ways to compress, in the order shown: (key, title, one-line explanation, icon)
+CHOICES: tuple[tuple[str, str, str, str], ...] = (
+    ("lossless", "Best quality (lossless)",
+     "Nothing in the document changes — the file is only stored more compactly.", "quality_high"),
+    ("balanced", "Balanced (recommended)",
+     "Pictures sharper than 150 ppi are reduced (JPEG quality 75). Fine on screen and in normal printing.",
+     "quality_balanced"),
+    ("smallest", "Smallest file",
+     "Pictures reduced to 110 ppi (scanned pages 150 ppi), JPEG quality 55. For e-mail and screen reading.",
+     "quality_smallest"),
+    ("target", "Fit a size limit",
+     "For e-mail or upload limits: the best picture quality that still fits under the limit.", "target_size"),
+    ("custom", "My own picture settings",
+     "Choose the picture resolution and JPEG quality yourself.", "quality_balanced"),
 )
-# The "Custom maximum size" entry (found by name, so adding profiles never shifts it)
-CUSTOM_TARGET_INDEX = next(i for i, p in enumerate(PROFILES) if p[0] == "Custom maximum size")
-CUSTOM_QUALITY_INDEX = next(i for i, p in enumerate(PROFILES) if p[1] == "custom")
+# Size limits offered under "Fit a size limit" (None = type your own)
+LIMITS: tuple[tuple[str, int | None], ...] = (
+    ("E-mail attachment — 10 MB", 10 * cz.MB),
+    ("Online form upload — 2 MB", 2 * cz.MB),
+    ("My own limit", None),
+)
+OWN_LIMIT_INDEX = len(LIMITS) - 1
+GUARANTEE = ("<b>Always kept exactly as they are:</b> text — including text you added — stays real text "
+             "(sharp, searchable, copyable); fonts, comments, form fields, drawings, links, bookmarks and the "
+             "page layout. Only pictures can be reduced, and only in the options that say so. "
+             "Your open document is not changed: the result is saved as a new file.")
 UNIT_NAMES = ("KB", "MB", "GB")
 SLIDER_STEPS = 1000
 
@@ -92,6 +113,8 @@ class CompressDialog(QDialog):
         super().__init__(parent)
         import fitz
 
+        from ui.toolbar_icons import make_icon
+
         self.setWindowTitle("Compress PDF")
         self.setMinimumWidth(980)
         self._data = data
@@ -111,96 +134,136 @@ class CompressDialog(QDialog):
         body = QHBoxLayout()
         body.setSpacing(18)
         outer.addLayout(body, 1)
-        root = QVBoxLayout()  # settings and results (left)
-        root.setSpacing(10)
+        root = QVBoxLayout()  # choice, settings and results (left)
+        root.setSpacing(8)
         body.addLayout(root, 1)
         title = QLabel("Compress PDF")
         title.setObjectName("DialogTitle")
         root.addWidget(title)
         info = QLabel(f"Current size: <b>{cz.format_size(len(data), exact=True)}</b>"
-                      f"{' — ' + doc_name if doc_name else ''} (the document as shown, including unsaved "
-                      f"changes).<br>{self.profile.summary()}.")
+                      f"{' — ' + doc_name if doc_name else ''}<br>{self.profile.summary()} "
+                      "(the document as shown, including unsaved changes).")
         info.setWordWrap(True)
         root.addWidget(info)
 
-        form = QFormLayout()
-        self.profile_combo = QComboBox()
-        for label, _mode, _t in PROFILES:
-            self.profile_combo.addItem(label)
-        form.addRow("Profile:", self.profile_combo)
-        modes = QWidget()
-        mrow = QHBoxLayout(modes)
-        mrow.setContentsMargins(0, 0, 0, 0)
+        # --- how to compress: one choice, each with a one-line explanation
+        head = QLabel("How do you want to compress it?")
+        head.setObjectName("DialogSection")
+        root.addWidget(head)
+        choices = QGridLayout()
+        choices.setHorizontalSpacing(8)
+        choices.setVerticalSpacing(2)
         self.mode_group = QButtonGroup(self)
         self.mode_buttons: dict[str, QRadioButton] = {}
-        from ui.toolbar_icons import make_icon
-
-        for key, icon in (("lossless", "quality_high"), ("balanced", "quality_balanced"),
-                          ("smallest", "quality_smallest"), ("custom", "quality_balanced"), ("target", "target_size")):
-            b = QRadioButton(cz.MODE_LABELS[key])
+        self.mode_hints: dict[str, QLabel] = {}
+        for row, (key, label, hint, icon) in enumerate(CHOICES):
+            b = QRadioButton(label)
             b.setIcon(make_icon(icon))
             b.setMinimumWidth(b.sizeHint().width())  # never squeezed so the label is cut
+            h = QLabel(hint)
+            h.setObjectName("DialogHint")
+            h.setWordWrap(True)
             self.mode_group.addButton(b)
             self.mode_buttons[key] = b
-            mrow.addWidget(b)
-        mrow.addStretch(1)
-        form.addRow("Mode:", modes)
+            self.mode_hints[key] = h
+            choices.addWidget(b, row, 0, Qt.AlignmentFlag.AlignTop)
+            choices.addWidget(h, row, 1)
+        choices.setColumnStretch(1, 1)
+        root.addLayout(choices)
 
-        # Custom: choose the picture resolution and JPEG quality yourself
-        custom = QWidget()
-        crow = QHBoxLayout(custom)
-        crow.setContentsMargins(0, 0, 0, 0)
+        # --- settings of "Fit a size limit" (shown only for it)
+        self.target_panel = QWidget()
+        tform = QFormLayout(self.target_panel)
+        tform.setContentsMargins(24, 2, 0, 2)
+        self.limit_combo = QComboBox()
+        for label, _n in LIMITS:
+            self.limit_combo.addItem(label)
+        self.limit_combo.setToolTip("Choose a common limit, or My own limit to type any size")
+        self.size_spin = QDoubleSpinBox()
+        self.size_spin.setDecimals(2)
+        self.size_spin.setRange(0.01, 999999.0)
+        self.size_spin.setAccelerated(True)
+        self.size_spin.setMinimumWidth(self.size_spin.fontMetrics().horizontalAdvance("999999.99") + 40)
+        units_tip = ("1 KB = 1,000 bytes · 1 MB = 1,000,000 bytes. Success is reported only when the saved file "
+                     "is at or below the limit, measured in bytes.")
+        self.size_spin.setToolTip(units_tip)
+        self.unit = QComboBox()
+        self.unit.addItems(UNIT_NAMES)
+        self.unit.setToolTip(units_tip)
+        limit_row = QWidget()
+        lrow = QHBoxLayout(limit_row)
+        lrow.setContentsMargins(0, 0, 0, 0)
+        lrow.addWidget(self.limit_combo, 1)
+        lrow.addWidget(QLabel("at most"))
+        lrow.addWidget(self.size_spin)
+        lrow.addWidget(self.unit)
+        tform.addRow("Limit:", limit_row)
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setRange(0, SLIDER_STEPS)
+        self.slider.setToolTip("Drag to choose the limit (smaller to the left)")
+        self.margin = QSpinBox()
+        self.margin.setRange(0, 10)
+        self.margin.setSuffix(" % below the limit")
+        self.margin.setValue(1)
+        self.margin.setMinimumWidth(self.margin.fontMetrics().horizontalAdvance("10 % below the limit") + 40)
+        self.margin.setToolTip("Aim slightly below the limit, so a site that counts sizes a little "
+                               "differently still accepts the file")
+        slide_row = QWidget()
+        srow = QHBoxLayout(slide_row)
+        srow.setContentsMargins(0, 0, 0, 0)
+        srow.addWidget(self.slider, 1)
+        srow.addWidget(QLabel("Safety margin"))
+        srow.addWidget(self.margin)
+        tform.addRow("", slide_row)
+        root.addWidget(self.target_panel)
+
+        # --- settings of "My own picture settings" (shown only for it)
+        self.custom_panel = QWidget()
+        cform = QFormLayout(self.custom_panel)
+        cform.setContentsMargins(24, 2, 0, 2)
         self.ppi_spin = QSpinBox()
         self.ppi_spin.setObjectName("CompressPpi")
         self.ppi_spin.setRange(*cz.CUSTOM_PPI_RANGE)
         self.ppi_spin.setSingleStep(10)
         self.ppi_spin.setValue(200)
         self.ppi_spin.setSuffix(" ppi")
-        self.ppi_spin.setToolTip("Picture resolution (pixels per inch at the size shown on the page). Pictures "
-                                 "already below it are not enlarged. 300 ppi = print quality, 150 ppi = screen.")
+        self.ppi_spin.setMinimumWidth(self.ppi_spin.fontMetrics().horizontalAdvance("600 ppi") + 44)
+        self.ppi_spin.setToolTip("Pixels per inch at the size shown on the page. Pictures already below it are "
+                                 "not enlarged. 300 ppi = print quality, 150 ppi = screen.")
         self.quality_spin = QSpinBox()
         self.quality_spin.setObjectName("CompressQuality")
         self.quality_spin.setRange(*cz.CUSTOM_QUALITY_RANGE)
         self.quality_spin.setValue(80)
-        self.quality_spin.setToolTip("JPEG quality of reduced pictures: higher = sharper and larger "
-                                     "(85–95 very good, 70–80 good, below 60 visible artefacts)")
-        crow.addWidget(QLabel("Resolution"))
-        crow.addWidget(self.ppi_spin)
-        crow.addSpacing(12)
-        crow.addWidget(QLabel("JPEG quality"))
-        crow.addWidget(self.quality_spin)
-        crow.addStretch(1)
-        form.addRow("Pictures:", custom)
+        self.quality_spin.setMinimumWidth(self.quality_spin.fontMetrics().horizontalAdvance("95") + 44)
+        self.quality_spin.setToolTip("JPEG quality of reduced pictures: 85–95 very good, 70–80 good, "
+                                     "below 60 visible artefacts")
+        res_row = QWidget()
+        rrow = QHBoxLayout(res_row)
+        rrow.setContentsMargins(0, 0, 0, 0)
+        rrow.addWidget(self.ppi_spin)
+        rrow.addWidget(QLabel("300 = print · 200 = sharp on screen · 150 = screen"))
+        rrow.addStretch(1)
+        q_row = QWidget()
+        qrow = QHBoxLayout(q_row)
+        qrow.setContentsMargins(0, 0, 0, 0)
+        qrow.addWidget(self.quality_spin)
+        qrow.addWidget(QLabel("85–95 very good · 70–80 good · below 60 visible blur"))
+        qrow.addStretch(1)
+        cform.addRow("Picture resolution:", res_row)
+        cform.addRow("JPEG quality:", q_row)
+        root.addWidget(self.custom_panel)
 
-        target = QWidget()
-        trow = QHBoxLayout(target)
-        trow.setContentsMargins(0, 0, 0, 0)
-        self.size_spin = QDoubleSpinBox()
-        self.size_spin.setDecimals(2)
-        self.size_spin.setRange(0.01, 999999.0)
-        self.size_spin.setAccelerated(True)
-        self.unit = QComboBox()
-        self.unit.addItems(UNIT_NAMES)
-        self.slider = QSlider(Qt.Orientation.Horizontal)
-        self.slider.setRange(0, SLIDER_STEPS)
-        trow.addWidget(self.size_spin)
-        trow.addWidget(self.unit)
-        trow.addWidget(self.slider, 1)
-        form.addRow("Maximum size:", target)
-        self.margin = QSpinBox()
-        self.margin.setRange(0, 10)
-        self.margin.setSuffix(" % below the maximum")
-        self.margin.setValue(1)
-        form.addRow("Safety margin:", self.margin)
-        root.addLayout(form)
-        units = QLabel("1 KB = 1,000 bytes · 1 MB = 1,000,000 bytes. The size is a maximum: success is "
-                       "reported only when the saved file is at or below it, measured in bytes. Upload limits "
-                       "differ — check the requirement you need to meet.")
-        units.setObjectName("DialogHint")
-        units.setWordWrap(True)
-        root.addWidget(units)
+        # --- what is never changed
+        guarantee = QLabel(GUARANTEE)
+        guarantee.setObjectName("CompressGuarantee")
+        guarantee.setWordWrap(True)
+        guarantee.setStyleSheet("QLabel#CompressGuarantee { border-left: 4px solid #15803d; padding: 6px 10px; "
+                                "background: rgba(21, 128, 61, 0.08); border-radius: 4px; }")
+        root.addWidget(guarantee)
+
         self.mode_note = QLabel()
         self.mode_note.setWordWrap(True)
+        self.mode_note.setObjectName("DialogHint")
         root.addWidget(self.mode_note)
         self.estimate_label = QLabel()
         self.estimate_label.setWordWrap(True)
@@ -209,7 +272,6 @@ class CompressDialog(QDialog):
         self.result_label.setWordWrap(True)
         self.result_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         root.addWidget(self.result_label)
-
         root.addStretch(1)
 
         prev = QGridLayout()  # preview (right): original and compressed side by side
@@ -221,18 +283,19 @@ class CompressDialog(QDialog):
         digits = len(str(max(1, self.profile.pages)))
         self.page_spin.setMinimumWidth(self.page_spin.fontMetrics().horizontalAdvance("Page " + "8" * digits) + 48)
         self.page_spin.setToolTip("Page to compare (the page with the most picture data is chosen first)")
-        head = QLabel("Preview")
-        head.setObjectName("DialogSection")
-        prev.addWidget(head, 0, 0)
+        phead = QLabel("Preview")
+        phead.setObjectName("DialogSection")
+        prev.addWidget(phead, 0, 0)
         prev.addWidget(self.page_spin, 0, 1, Qt.AlignmentFlag.AlignRight)
-        prev.addWidget(QLabel("Original"), 1, 0)
-        prev.addWidget(QLabel("Compressed"), 1, 1)
+        prev.addWidget(QLabel("Now"), 1, 0)
+        prev.addWidget(QLabel("After compressing"), 1, 1)
         self.orig_view = QLabel()
         self.new_view = QLabel()
         for v in (self.orig_view, self.new_view):
             v.setFixedSize(PREVIEW_W, PREVIEW_H)
             v.setAlignment(Qt.AlignmentFlag.AlignCenter)
             v.setObjectName("PreviewPane")
+            v.setFrameShape(QFrame.Shape.StyledPanel)
         prev.addWidget(self.orig_view, 2, 0)
         prev.addWidget(self.new_view, 2, 1)
         prev.setRowStretch(3, 1)
@@ -249,8 +312,10 @@ class CompressDialog(QDialog):
         buttons = QDialogButtonBox()
         self.preview_btn = QPushButton("Preview")
         self.preview_btn.setIcon(make_icon("preview"))
-        self.ok_btn = buttons.addButton("Compress…", QDialogButtonBox.ButtonRole.AcceptRole)
+        self.preview_btn.setToolTip("Measure the real size and show the page after compressing (nothing is saved)")
+        self.ok_btn = buttons.addButton("Compress and Save As…", QDialogButtonBox.ButtonRole.AcceptRole)
         self.ok_btn.setIcon(make_icon("optimize"))
+        self.ok_btn.setToolTip("Compress and choose where to save the smaller copy")
         buttons.addButton(self.preview_btn, QDialogButtonBox.ButtonRole.ActionRole)
         self.cancel_btn = buttons.addButton(QDialogButtonBox.StandardButton.Cancel)
         self.ok_btn.clicked.connect(self._on_ok)
@@ -259,7 +324,7 @@ class CompressDialog(QDialog):
         root.addWidget(buttons)
 
         self._syncing = False
-        self.profile_combo.currentIndexChanged.connect(self._apply_profile)
+        self.limit_combo.currentIndexChanged.connect(self._apply_limit)
         self.mode_group.buttonToggled.connect(self._mode_toggled)
         self.size_spin.valueChanged.connect(self._spin_changed)
         self.unit.currentIndexChanged.connect(self._unit_changed)
@@ -271,8 +336,11 @@ class CompressDialog(QDialog):
         self._unit_name = "KB"
         default_target = max(self.min_bytes(), int(len(data) * 0.5))
         self.set_target_bytes(default_target)
-        self.profile_combo.setCurrentIndex(1)
-        self._apply_profile()
+        self.limit_combo.blockSignals(True)
+        self.limit_combo.setCurrentIndex(OWN_LIMIT_INDEX)
+        self.limit_combo.blockSignals(False)
+        self.mode_buttons["balanced"].setChecked(True)
+        self._sync()
         self._show_preview()
 
     # ------------------------------------------------------------ target size: spin <-> slider
@@ -348,13 +416,15 @@ class CompressDialog(QDialog):
         self._choose_custom()
 
     def _choose_custom(self) -> None:
+        """A size typed or dragged by hand: "Fit a size limit" with "My own limit" (unless it is exactly
+        one of the offered limits)."""
         if not self.mode_buttons["target"].isChecked():
             self.mode_buttons["target"].setChecked(True)
-        last = CUSTOM_TARGET_INDEX
-        if self.profile_combo.currentIndex() != last and PROFILES[self.profile_combo.currentIndex()][2] != self.target_bytes():
-            self.profile_combo.blockSignals(True)
-            self.profile_combo.setCurrentIndex(last)
-            self.profile_combo.blockSignals(False)
+        current = LIMITS[self.limit_combo.currentIndex()][1]
+        if current != self.target_bytes():
+            self.limit_combo.blockSignals(True)
+            self.limit_combo.setCurrentIndex(OWN_LIMIT_INDEX)
+            self.limit_combo.blockSignals(False)
         self._sync()
 
     # ------------------------------------------------------------ modes
@@ -365,26 +435,18 @@ class CompressDialog(QDialog):
                 return key
         return "lossless"
 
-    def _apply_profile(self, *_a) -> None:
-        _label, mode, target = PROFILES[self.profile_combo.currentIndex()]
-        self.mode_buttons[mode].setChecked(True)
-        if target:
-            self.set_target_bytes(target)
+    def _apply_limit(self, *_a) -> None:
+        """One of the offered limits (E-mail 10 MB, upload 2 MB) sets the size; My own limit keeps it."""
+        n = LIMITS[self.limit_combo.currentIndex()][1]
+        if not self.mode_buttons["target"].isChecked():
+            self.mode_buttons["target"].setChecked(True)
+        if n:
+            self.set_target_bytes(n)
         self._sync()
 
     def _mode_toggled(self, _button, checked: bool) -> None:
-        """A mode chosen directly selects the matching profile (Target size: the custom maximum unless a
-        size profile is already chosen), so the two never contradict each other."""
         if checked:
-            mode = self.mode()
-            current = PROFILES[self.profile_combo.currentIndex()][1]
-            if current != mode:
-                index = {"lossless": 0, "balanced": 1, "smallest": 2, "custom": CUSTOM_QUALITY_INDEX,
-                         "target": CUSTOM_TARGET_INDEX}[mode]
-                self.profile_combo.blockSignals(True)
-                self.profile_combo.setCurrentIndex(index)
-                self.profile_combo.blockSignals(False)
-        self._sync()
+            self._sync()
 
     def _key(self) -> tuple:
         mode = self.mode()
@@ -396,21 +458,23 @@ class CompressDialog(QDialog):
 
     def _sync(self) -> None:
         mode = self.mode()
-        for w in (self.size_spin, self.unit, self.slider, self.margin):
+        # only the settings of the chosen option are shown
+        self.target_panel.setVisible(mode == "target")
+        self.custom_panel.setVisible(mode == "custom")
+        for w in (self.size_spin, self.unit, self.slider, self.margin, self.limit_combo):
             w.setEnabled(mode == "target")
         for w in (self.ppi_spin, self.quality_spin):
             w.setEnabled(mode == "custom")
+        for key, hint in self.mode_hints.items():
+            hint.setEnabled(key == mode)
         notes = {
-            "lossless": "Lossless: no picture, text or drawing is changed; only the way the file is stored.",
-            "balanced": "Balanced (lossy for pictures): pictures above 150 ppi are reduced and re-encoded "
-                        "(JPEG quality 75). Text, fonts, drawings, annotations and forms are not changed.",
-            "smallest": "Smallest file (lossy for pictures): pictures reduced to 110 ppi (scanned pages 150 ppi), "
-                        "JPEG quality 55. Text stays sharp — it is never turned into a picture.",
-            "custom": f"Custom (lossy for pictures): pictures above {self.ppi_spin.value()} ppi are reduced to it "
-                      f"and re-encoded at JPEG quality {self.quality_spin.value()} (scanned pages stay at 150 ppi or "
-                      "more). Text, fonts, drawings, annotations and forms are not changed.",
-            "target": "Target size: lossless first; pictures are reduced only as far as needed, best quality "
-                      "first, never below 100 ppi (scanned pages 150 ppi) or JPEG quality 40.",
+            "lossless": "Pictures are not changed either: nothing in the document is different afterwards.",
+            "balanced": "Only pictures change, and only where they are sharper than needed.",
+            "smallest": "Only pictures change. Small print in scanned pages stays readable (150 ppi or more).",
+            "custom": f"Only pictures change: those above {self.ppi_spin.value()} ppi are reduced to it and saved "
+                      f"at JPEG quality {self.quality_spin.value()} (scanned pages stay at 150 ppi or more).",
+            "target": "Lossless first; pictures are then reduced only as far as needed, best quality first — never "
+                      "below 100 ppi (scanned pages 150 ppi) or JPEG quality 40.",
         }
         self.mode_note.setText(notes[mode])
         if self.profile.signed:
@@ -482,7 +546,7 @@ class CompressDialog(QDialog):
     def _set_running(self, on: bool) -> None:
         self.bar.setVisible(on)
         self.bar.setValue(0)
-        for w in (self.profile_combo, self.preview_btn, self.ok_btn, *self.mode_buttons.values(), self.size_spin,
+        for w in (self.limit_combo, self.preview_btn, self.ok_btn, *self.mode_buttons.values(), self.size_spin,
                   self.unit, self.slider, self.margin, self.ppi_spin, self.quality_spin):
             w.setEnabled(not on)
         self.cancel_btn.setText("Stop" if on else "Cancel")
