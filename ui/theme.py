@@ -390,7 +390,7 @@ QLineEdit:hover, QComboBox:hover, QAbstractSpinBox:hover { border-color: $text_f
 QLineEdit:focus, QComboBox:focus, QAbstractSpinBox:focus, QTextEdit:focus, QPlainTextEdit:focus { border: 1px solid $accent; }
 QLineEdit:disabled, QComboBox:disabled, QAbstractSpinBox:disabled, QTextEdit:disabled { color: $text_faint; background: $surface_alt; border-color: $border; }
 QLineEdit:read-only { background: $surface_alt; }
-QComboBox { padding-right: 24px; }
+QComboBox { padding-right: 24px; combobox-popup: 0; }
 QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 22px; border: none; }
 QComboBox::down-arrow { image: url($asset_prefix:chevron-down.png); width: 12px; height: 12px; }
 QComboBox::down-arrow:disabled { image: url($asset_prefix:chevron-down-disabled.png); }

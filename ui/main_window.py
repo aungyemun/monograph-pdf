@@ -140,8 +140,10 @@ class MainWindow(QMainWindow):
         self._search_edit.setClearButtonEnabled(True)
         self._search_edit.setToolTip("Find text  (Ctrl+F) — Enter: next · Shift+Enter: previous · Esc: clear")
         self._search_edit.setAccessibleName("Find in document")
-        self._search_edit.setMaximumWidth(240)
-        self._search_edit.setMinimumWidth(130)
+        # A fixed width: the clear (×) button appearing while typing used to widen the box, and the
+        # zoom and page controls next to it jumped to the left on every first key press
+        self._search_edit.setFixedWidth(176)
+        self._search_edit.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self._search_edit.returnPressed.connect(self._on_search_return)
         self._search_edit.installEventFilter(self)
         self._last_query: str | None = None
@@ -370,6 +372,10 @@ class MainWindow(QMainWindow):
         self.act_image_tool = QAction("&Image…", self)
         self.act_image_tool.setCheckable(True)
         self.act_image_tool.triggered.connect(self._add_image)
+        self.act_insert_symbol = QAction("S&ymbol…", self)
+        self.act_insert_symbol.setToolTip("Insert a symbol: ✓ ★ → ± € ① 〒 … (placed as a text box)")
+        self.act_insert_symbol.triggered.connect(self._insert_symbol)
+        set_action_icon(self.act_insert_symbol, "symbol")
         self._tool_group = QActionGroup(self)
         self._tool_group.setExclusive(True)
         for act in (self.act_select_tool, self.act_text_tool, self.act_image_tool):
@@ -896,6 +902,11 @@ class MainWindow(QMainWindow):
         self.act_toggle_right.setText("&Properties Panel")
         self.act_rotate_cw.setText("Rotate &Clockwise")
         self.act_rotate_ccw.setText("Rotate C&ounterclockwise")
+        # Short labels next to the icons on the Page bar; the full names stay in menus and tooltips
+        self.act_rotate_cw.setIconText("Right 90°")
+        self.act_rotate_ccw.setIconText("Left 90°")
+        self.act_rotate_cw.setToolTip("Rotate the current (or selected) pages 90° clockwise  (Ctrl+R)")
+        self.act_rotate_ccw.setToolTip("Rotate the current (or selected) pages 90° counterclockwise  (Ctrl+Shift+R)")
         self.act_about.setText(f"&About {PRODUCT_NAME}")
         renames = {
             self.act_images_to_pdf: ("&Images to PDF…", "Create a PDF from one or more images"),
@@ -1020,9 +1031,12 @@ class MainWindow(QMainWindow):
         set_action_icon(self.act_field_next, "next")
         set_action_icon(self.act_field_clear, "close")
         self.act_rotate_pages = new(
-            "&Rotate Pages…", self._rotate_pages_dialog, tip="Rotate all, odd, even, selected or a range of pages"
+            "&Rotate Pages…", self._rotate_pages_dialog,
+            tip="Rotate all, odd, even, selected or a range of pages — clockwise, counterclockwise, 180° or "
+                "to an exact orientation, with a preview",
         )
-        set_action_icon(self.act_rotate_pages, "rotate_cw")
+        self.act_rotate_pages.setIconText("Rotate…")
+        set_action_icon(self.act_rotate_pages, "rotate_pages")
         self.act_default_app = new(
             "Make Monograph PDF the Default PDF App…",
             self._make_default_app,
@@ -1395,6 +1409,7 @@ class MainWindow(QMainWindow):
         insert = mb.addMenu("&Insert")
         insert.addAction(self.act_text_tool)
         insert.addAction(self.act_image_tool)
+        insert.addAction(self.act_insert_symbol)
         shapes = insert.addMenu("&Shapes")
         set_action_icon(shapes.menuAction(), "shapes")
         for act in (
@@ -1998,6 +2013,7 @@ class MainWindow(QMainWindow):
             self._canvas.cancel_region_pick(announce=False)
         self.act_select_tool.setChecked(True)
         self._converted_from = None
+        self._search_generation = getattr(self, "_search_generation", 0) + 1  # stops a running search
         self._search_hits = []
         self._search_index = -1
         self._canvas.clear_highlights()
@@ -2037,10 +2053,20 @@ class MainWindow(QMainWindow):
         backend = getattr(self._document, "_backend", None) if self._document is not None else None
         return getattr(backend, "_password", None)
 
+    def _report_xfa_notes(self) -> None:
+        """After a save: say when the XFA version of a hybrid form had to be removed (core/forms/xfa_sync.py)."""
+        from core.forms import xfa_sync
+
+        for message in dict.fromkeys(xfa_sync.take_notes()):
+            self.statusBar().showMessage("The form's XFA version was removed so Adobe Acrobat shows your values", 8000)
+            if not self._is_headless_ui():
+                QMessageBox.information(self, "Form saved for Adobe Acrobat", message)
+
     def _report_font_notes(self) -> None:
         """After a save: say which fonts could not be embedded (their text was saved with a built-in face)."""
         from core.editing import system_fonts
 
+        self._report_xfa_notes()
         notes = system_fonts.take_notes()
         if not notes:
             return
@@ -2068,6 +2094,9 @@ class MainWindow(QMainWindow):
         from engines.bake_edits import bake_via_backend
 
         system_fonts.take_notes()  # forget fallbacks noted by earlier temporary bakes (print, export)
+        from core.forms import xfa_sync
+
+        xfa_sync.take_notes()
         dest = Path(dest)
         password = self._open_password()
         current = Path(self._document.path) if self._document and self._document.path else None
@@ -2180,8 +2209,10 @@ class MainWindow(QMainWindow):
                 QMessageBox.information(self, "Save a Copy", "That is the open document itself. Choose another "
                                                              "name or folder, or use Save to replace it.")
             return None
+        from core.forms import xfa_sync
         from engines.bake_edits import bake_via_backend
 
+        xfa_sync.take_notes()
         try:
             bake_via_backend(self._edit, dest)  # atomic; the editing model is not changed
         except Exception as exc:  # noqa: BLE001
@@ -2189,6 +2220,7 @@ class MainWindow(QMainWindow):
                                    hint="Pick a writable folder and ensure the file is not open elsewhere.")
             return None
         self.statusBar().showMessage(f"Saved a copy as {dest.name}; still working on {self._document.name}", 6000)
+        self._report_xfa_notes()
         return dest
 
     def save_as_dialog(self) -> None:
@@ -2377,7 +2409,7 @@ class MainWindow(QMainWindow):
         self._set_tool(EditTool.SHAPE_ELLIPSE)
         if self._edit is not None:
             self._edit._force_shape_lock = True  # noqa: SLF001
-        self.statusBar().showMessage("Circle — drag (aspect locked)", 4000)
+        self.statusBar().showMessage("Circle — drag to draw; afterwards drag a side handle to make it oval", 5000)
 
     def _pick_text_color(self) -> None:
         from PySide6.QtGui import QColor
@@ -2742,6 +2774,7 @@ class MainWindow(QMainWindow):
             page = self._annotation_page(self._edit.commands._undo)  # noqa: SLF001
             if self._edit.undo() and page is not None:
                 self._refresh_page_view(page)  # the comment / highlight disappears at once
+                self._canvas.refresh_note_popup()
 
     def _redo(self) -> None:
         if self._canvas.try_editor_redo():
@@ -2751,6 +2784,7 @@ class MainWindow(QMainWindow):
             page = self._annotation_page(self._edit.commands._redo)  # noqa: SLF001
             if self._edit.redo() and page is not None:
                 self._refresh_page_view(page)
+                self._canvas.refresh_note_popup()
 
     @staticmethod
     def _annotation_page(stack) -> int | None:
@@ -3091,6 +3125,7 @@ class MainWindow(QMainWindow):
             for act in (
                 self.act_rotate_ccw,
                 self.act_rotate_cw,
+                self.act_rotate_pages,
                 self.act_insert_blank,
                 self.act_dup_pages,
                 self.act_delete_pages,
@@ -3099,11 +3134,14 @@ class MainWindow(QMainWindow):
             ):
                 bar.addAction(act)
             stretch_hint("Create / navigate with the main toolbar — select an object to see its formatting tools")
-        # Text-labelled buttons for actions that have no icon
+        # Text-labelled buttons for actions that have no icon; the rotate buttons show icon + direction
+        rotate = (self.act_rotate_ccw, self.act_rotate_cw, self.act_rotate_pages)
         for act in bar.actions():
             btn = bar.widgetForAction(act)
             if isinstance(btn, QToolButton) and act.icon().isNull():
                 btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+            elif isinstance(btn, QToolButton) and act in rotate:
+                btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
 
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
@@ -3563,43 +3601,104 @@ class MainWindow(QMainWindow):
     def _run_search(self) -> None:
         self._run_search_query(self._search_edit.text())
 
+    SEARCH_SLICE_S = 0.06  # search work per step; the window stays responsive in long documents
+
     def _run_search_query(self, query: str) -> None:
+        """Find *query* in page text and form-field values.
+
+        The pages are searched in short slices: a short document is done at once, a long one keeps
+        searching in the background with the matches found so far already shown (and the first one
+        selected); typing a new query or closing the document stops the old search."""
         if self._document is None:
             return
         query = (query or "").strip()
         self._last_query = query
+        self._search_generation = getattr(self, "_search_generation", 0) + 1
         self._canvas.clear_highlights()
         self._search_hits = []
         self._search_index = -1
+        self._search_labels: list[tuple[int, str]] = []
+        self._search_labels_shown = 0
         if not query:
             self._left.set_search_hits([])
             return
         if self._search_edit.text().strip() != query:
             self._search_edit.setText(query)
-        hits = self._document.search(query)
-        self._search_hits = hits
-        labels: list[tuple[int, str]] = []
-        seen: set[int] = set()
-        for page_i, _rect in hits[:500]:
-            if page_i in seen:
-                continue
-            seen.add(page_i)
-            text = (self._document.page_text(page_i) or "").replace("\n", " ")
-            pos = text.lower().find(query.lower())
-            start = max(0, pos - 30) if pos >= 0 else 0
-            snippet = text[start : start + 90].strip()
-            if start > 0:
-                snippet = "…" + snippet
-            if start + 90 < len(text):
-                snippet += "…"
-            labels.append((page_i, snippet))
-        self._left.set_search_hits(labels)
-        if not hits:
-            self.statusBar().showMessage(f"No matches for “{query}”", 4000)
+        self._search_next_page = 0
+        self._search_step(self._search_generation, query)
+
+    def _field_hits(self, page_i: int, query: str) -> list:
+        """Form fields on the page whose current entry (also typed but not yet saved) contains *query*."""
+        import fitz
+
+        from engines.mupdf_backend import search_variants
+
+        if self._edit is None:
+            return []
+        wanted = [q.casefold() for q in search_variants(query)]
+        out = []
+        for f in self._edit.fields_on_page(page_i):
+            value = str(getattr(f, "value", "") or "").casefold()
+            if value and not f.is_candidate and any(q in value for q in wanted):
+                r = f.rect.normalized()
+                out.append(fitz.Rect(r.x, r.y, r.x1, r.y1))
+        return out
+
+    def _search_snippet(self, page_i: int, query: str) -> str:
+        text = (self._document.page_text(page_i) or "").replace("\n", " ")
+        pos = text.lower().find(query.lower())
+        start = max(0, pos - 30) if pos >= 0 else 0
+        snippet = text[start : start + 90].strip()
+        if start > 0:
+            snippet = "…" + snippet
+        if start + 90 < len(text):
+            snippet += "…"
+        return snippet
+
+    def _search_step(self, generation: int, query: str) -> None:
+        import time
+
+        if generation != getattr(self, "_search_generation", 0) or self._document is None:
+            return  # a newer search started, or the document was closed
+        total = self._document.page_count
+        start_hits = len(self._search_hits)
+        deadline = time.perf_counter() + self.SEARCH_SLICE_S
+        while self._search_next_page < total:
+            i = self._search_next_page
+            self._search_next_page += 1
+            rects = self._document.search_page(i, query, fields=False) + self._field_hits(i, query)
+            if rects:
+                self._search_hits.extend((i, r) for r in rects)
+                if len(self._search_labels) < 500:
+                    self._search_labels.append((i, self._search_snippet(i, query)))
+            if time.perf_counter() >= deadline:
+                break
+        done = self._search_next_page >= total
+        now = time.perf_counter()
+        first = start_hits == 0 and self._search_hits
+        # the results list and highlights are refreshed a few times a second, not after every slice
+        if done or first or (len(self._search_hits) != start_hits and now - getattr(self, "_search_shown", 0) > 0.5):
+            self._search_shown = now
+            shown = getattr(self, "_search_labels_shown", 0) if not first else 0
+            if shown == 0:
+                self._left.set_search_hits(self._search_labels)
+            elif len(self._search_labels) > shown:
+                # added below the ones already listed: the list keeps its scroll position and selection
+                self._left.add_search_hits(self._search_labels[shown:], total=len(self._search_labels))
+            self._search_labels_shown = len(self._search_labels)
+            self._canvas.set_highlights(self._search_hits)
+            if self._search_index < 0 and self._search_hits:
+                self._search_index = 0
+                self._goto_hit(0)
+        if not done:
+            self.statusBar().showMessage(
+                f"Searching… page {self._search_next_page} of {total} — {len(self._search_hits)} matches so far", 2000)
+            QTimer.singleShot(0, lambda: self._search_step(generation, query))
             return
-        self._canvas.set_highlights(hits)
-        self._search_index = 0
-        self._goto_hit(0)
+        if not self._search_hits:
+            self.statusBar().showMessage(f"No matches for “{query}”", 4000)
+        elif total > 1 and self._search_index >= 0:
+            self._goto_hit(self._search_index, move=False)
 
     def _find_next(self) -> None:
         if not self._search_hits:
@@ -3608,9 +3707,10 @@ class MainWindow(QMainWindow):
         self._search_index = (self._search_index + 1) % len(self._search_hits)
         self._goto_hit(self._search_index)
 
-    def _goto_hit(self, hit_index: int) -> None:
+    def _goto_hit(self, hit_index: int, *, move: bool = True) -> None:
         page_index, _ = self._search_hits[hit_index]
-        self._canvas.go_to_page(page_index)
+        if move:
+            self._canvas.go_to_page(page_index)
         self.statusBar().showMessage(
             f"Match {hit_index + 1} of {len(self._search_hits)} — page {page_index + 1}"
             "   (Enter / F3 next · Shift+Enter / Shift+F3 previous)",
@@ -3960,6 +4060,11 @@ class MainWindow(QMainWindow):
         self._on_edit_changed()
 
     def _refresh_after_page_ops(self, *, focus: int | None = None, changed_pages=None) -> None:
+        if getattr(self, "_search_next_page", 0) < (self._document.page_count if self._document else 0):
+            self._search_generation = getattr(self, "_search_generation", 0) + 1  # pages moved: stop a search
+        self._refresh_after_page_ops_impl(focus=focus, changed_pages=changed_pages)
+
+    def _refresh_after_page_ops_impl(self, *, focus: int | None = None, changed_pages=None) -> None:
         """Rebuild the views after a page operation. ``changed_pages`` (e.g. rotation) keeps the cached
         analysis of every other page instead of re-reading the whole document."""
         if self._document is None:
@@ -4324,18 +4429,27 @@ class MainWindow(QMainWindow):
 
     def _rotate_pages(self, pages: list[int], degrees: int) -> bool:
         """Undoable page turn; overlays move with the page (see core.organize.rotate_command)."""
+        return self._rotate_page_groups({degrees: pages})
+
+    def _rotate_page_groups(self, groups: dict[int, list[int]]) -> bool:
+        """Turn each group of pages by its angle — one undo step for all of them."""
+        from core.editing.edit_commands import GroupCommand
         from core.organize.rotate_command import RotatePagesCommand
 
-        focus = pages[0] if pages else 0
+        everything = sorted({i for g in groups.values() for i in g})
+        focus = everything[0] if everything else 0
         try:
-            cmd = RotatePagesCommand(
-                self._document,
-                self._edit,
-                pages,
-                degrees,
-                on_changed=lambda: self._refresh_after_page_ops(focus=focus, changed_pages=pages),
-            )
-            self._edit.commands.execute(cmd)
+            cmds = [
+                RotatePagesCommand(
+                    self._document,
+                    self._edit,
+                    pages,
+                    degrees,
+                    on_changed=lambda: self._refresh_after_page_ops(focus=focus, changed_pages=everything),
+                )
+                for degrees, pages in groups.items()
+            ]
+            self._edit.commands.execute(cmds[0] if len(cmds) == 1 else GroupCommand("Rotate Pages", cmds))
         except Exception as exc:  # noqa: BLE001
             self.report_error("Rotate", str(exc))
             return False
@@ -5320,16 +5434,69 @@ class MainWindow(QMainWindow):
         from core.annotations import add_text_comment
 
         def apply(page: int, rect) -> None:
-            text, ok = QInputDialog.getMultiLineText(self, "Sticky Note", "Comment:")
+            color = self._note_color_rgb()
+            icon = getattr(self._prefs, "note_icon", "Comment") or "Comment"
+            if self._is_headless_ui():
+                text, ok = QInputDialog.getMultiLineText(self, "Sticky Note", "Comment:")
+            else:
+                from ui.note_dialog import NoteDialog
+
+                dlg = NoteDialog(self, title="Sticky Note", icon=icon,
+                                 color=getattr(self._prefs, "note_color", None) or "#fbbf24")
+                ok = dlg.exec() == dlg.DialogCode.Accepted
+                text, icon, color = dlg.note_text(), dlg.icon(), dlg.color_rgb()
+                if ok and dlg.remember.isChecked():
+                    self._prefs.note_icon, self._prefs.note_color = icon, dlg.color()
+                    self._prefs.save()
             if not ok or not text.strip():
                 return
             pt = self._to_page_point(page, rect.x, rect.y)
-            color = self._note_color_rgb()
-            self._run_annot_command(page, lambda: add_text_comment(self._document, page, pt, text.strip(), color=color),
-                                    "Add Sticky Note")
+            self._run_annot_command(
+                page, lambda: add_text_comment(self._document, page, pt, text.strip(), color=color, icon=icon),
+                "Add Sticky Note")
             self._after_annotation(page, "Sticky note added (Undo removes it; edit it in the Comments panel)")
 
         self._pick_on_page("Sticky note: click where the note should go", apply, kind="point")
+
+    def _insert_symbol(self) -> None:
+        """Insert ▸ Symbol…: choose a symbol, click on the page; it becomes a text box (undoable)."""
+        if self._document is None or self._edit is None:
+            return
+        from ui.symbol_dialog import SymbolDialog
+
+        dlg = SymbolDialog(self)
+        if dlg.exec() != dlg.DialogCode.Accepted or not dlg.symbol():
+            return
+        self.place_symbol_at_click(dlg.symbol(), dlg.font_family(), float(dlg.size.value()))
+
+    def place_symbol_at_click(self, symbol: str, family: str, size: float) -> None:
+        def apply(page: int, rect) -> None:
+            self.place_symbol(page, rect.x, rect.y, symbol, family, size)
+
+        self._pick_on_page(f"Symbol {symbol}: click where it should go", apply, kind="point")
+
+    def place_symbol(self, page: int, x: float, y: float, symbol: str, family: str, size: float):
+        """A text box holding *symbol* centred on (x, y) — one undoable step (Undo/Redo keep its font)."""
+        from core.editing.edit_commands import AddTextBoxCommand
+        from core.editing.geometry import Rect
+        from core.editing.text_box import SizeMode, TextBox
+        from core.editing.text_style import TextStyle
+
+        side = size * 1.6
+        style = TextStyle()
+        style.font_family = family
+        style.font_size = size
+        style.padding = 1.0
+        box = TextBox(page_index=page, rect=Rect(x - side / 2, y - side / 2, side, side), text=symbol,
+                      z_index=self._edit.next_z(), size_mode=SizeMode.AUTO_SIZE, style=style)
+        self._edit.commands.execute(AddTextBoxCommand(self._edit, box))
+        placed = self._edit.objects[box.object_id]
+        self._edit.editing_object_id = None
+        self._edit.select([placed.object_id])
+        self._edit.mark_dirty()
+        self._canvas.update()
+        self.statusBar().showMessage("Symbol placed — drag it to move it; change its size or colour on the toolbar", 5000)
+        return placed
 
     def _annot_callout(self) -> None:
         if self._document is None or not self._confirm_signed():
@@ -5495,6 +5662,7 @@ class MainWindow(QMainWindow):
         self._after_annotation(ref.page_index, f"{name} — Undo restores the previous state")
         self._left.comments.refresh()
         self._left.comments.select(ref.page_index, ref.xref)
+        self._canvas.refresh_note_popup()
 
     def _annot_ref(self, page: int, xref: int):
         from core.annotations.store import find_live
@@ -5548,6 +5716,9 @@ class MainWindow(QMainWindow):
             self._stamp_edit(ref, custom[0])  # text stamps: wording, theme, font, colours, frame …
             return
         current = (annot.info or {}).get("content") or ""
+        if annot.type[1] == "Text" and not self._is_headless_ui():
+            self._note_edit(ref, annot, current)
+            return
         text, ok = QInputDialog.getMultiLineText(self, "Edit Comment", "Text:", current)
         if not ok or text == current:
             return
@@ -5567,6 +5738,44 @@ class MainWindow(QMainWindow):
             live.update()
 
         self._comment_change(ref, change, "Edit Comment")
+
+    def _note_edit(self, ref, annot, current: str) -> None:
+        """Sticky note: text, icon and colour in one dialog (undoable as one step)."""
+        from PySide6.QtGui import QColor
+
+        from core.annotations.note_style import note_icon_name
+        from ui.note_dialog import NoteDialog
+
+        stroke = (annot.colors or {}).get("stroke") or (1.0, 0.85, 0.4)
+        color = QColor.fromRgbF(*[float(c) for c in stroke[:3]]).name()
+        icon = note_icon_name(self._document, ref.xref)
+        dlg = NoteDialog(self, title="Edit Sticky Note", text=current, icon=icon, color=color)
+        if dlg.exec() != dlg.DialogCode.Accepted:
+            return
+        self.apply_note_changes(ref, text=dlg.note_text(), icon=dlg.icon(), color=dlg.color())
+        if dlg.remember.isChecked():
+            self._prefs.note_icon, self._prefs.note_color = dlg.icon(), dlg.color()
+            self._prefs.save()
+
+    def apply_note_changes(self, ref, *, text: str | None = None, icon: str | None = None,
+                           color: str | None = None) -> None:
+        """Change a sticky note's text, icon and/or colour (one undoable step)."""
+        from PySide6.QtGui import QColor
+
+        from core.annotations.note_style import set_note_style
+
+        def change() -> None:
+            _page, live = self._live_annot(ref)
+            if text is not None and text != ((live.info or {}).get("content") or ""):
+                live.set_info(content=text)
+                live.update()
+            rgb = None
+            if color is not None:
+                c = QColor(color)
+                rgb = (c.redF(), c.greenF(), c.blueF())
+            set_note_style(self._document, ref.page_index, ref.xref, color=rgb, icon=icon)
+
+        self._comment_change(ref, change, "Edit Sticky Note")
 
     def _stamp_edit(self, ref, spec) -> None:
         """Edit a Monograph PDF text stamp in place (undoable)."""
@@ -6856,8 +7065,19 @@ class MainWindow(QMainWindow):
             return
         from ui.organize_dialogs import RotatePagesDialog
 
+        focus = self._canvas.focus_page
+
+        def preview():
+            from PySide6.QtGui import QImage
+
+            try:
+                return QImage.fromData(self._document.render_thumbnail_png(focus, max_edge_px=200), "PNG")
+            except Exception:  # noqa: BLE001
+                return None
+
         dlg = RotatePagesDialog(
-            self._document.page_count, self._canvas.focus_page, self._left.selected_page_indices(), self
+            self._document.page_count, focus, self._left.selected_page_indices(), self,
+            preview=preview, current_rotation=self._document.page(focus).rotation,
         )
         if dlg.exec() != dlg.DialogCode.Accepted:
             return
@@ -6870,7 +7090,20 @@ class MainWindow(QMainWindow):
             return
         if not self._warn_signatures_if_needed():
             return
-        if not self._rotate_pages(pages, dlg.degrees()):
+        if dlg.is_exact():
+            # each page turns by what it needs to reach the chosen orientation (pages already there stay)
+            target = dlg.exact_rotation()
+            groups: dict[int, list[int]] = {}
+            for i in pages:
+                turn = (target - self._document.page(i).rotation) % 360
+                if turn:
+                    groups.setdefault(turn if turn != 270 else -90, []).append(i)
+            if not groups:
+                self.statusBar().showMessage("The chosen pages already have that orientation", 5000)
+                return
+            if not self._rotate_page_groups(groups):
+                return
+        elif not self._rotate_pages(pages, dlg.degrees()):
             return
         self.statusBar().showMessage(f"Rotated {len(pages)} page(s) — Save to keep the change", 5000)
 

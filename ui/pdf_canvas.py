@@ -9,7 +9,7 @@ from enum import Enum
 
 from typing import Callable
 
-from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -17,8 +17,10 @@ from PySide6.QtGui import (
     QKeyEvent,
     QMouseEvent,
     QPainter,
+    QPainterPath,
     QPen,
     QPixmap,
+    QPolygonF,
     QRegion,
     QTextCursor,
     QTextOption,
@@ -35,6 +37,46 @@ from core.forms.display import should_paint_field_overlay, visible_field_content
 from core.forms.fields import FieldType, effective_valign
 from core.page_info import PageInfo
 from core.render_cache import RenderCache, RenderKey
+
+
+def resize_rect(base: Rect, handle: str, pt: Point, *, keep_ratio: bool, square: bool = False,
+                min_size: float = 8.0) -> Rect:
+    """The box ``base`` resized by dragging ``handle`` (n, ne, e, se, s, sw, w, nw) to ``pt``.
+
+    Computed from the box as it was when the drag started, so it never drifts; the opposite edge or
+    corner stays put and an edge cannot be dragged across it. ``keep_ratio`` keeps ``base``'s width :
+    height (a side handle also centres the other direction); ``square`` makes width = height.
+    """
+    x0, y0, x1, y1 = base.x, base.y, base.x + base.w, base.y + base.h
+    nx0, ny0, nx1, ny1 = x0, y0, x1, y1
+    if "e" in handle:
+        nx1 = max(pt.x, x0 + min_size)
+    if "w" in handle:
+        nx0 = min(pt.x, x1 - min_size)
+    if "s" in handle:
+        ny1 = max(pt.y, y0 + min_size)
+    if "n" in handle:
+        ny0 = min(pt.y, y1 - min_size)
+    w, h = nx1 - nx0, ny1 - ny0
+    corner = len(handle) == 2
+    if (keep_ratio or square) and base.w > 0 and base.h > 0:
+        ratio = 1.0 if square else base.w / base.h
+        if corner:
+            if square:
+                w = h = max(w, h)
+            else:
+                scale = max(w / base.w, h / base.h)
+                w, h = base.w * scale, base.h * scale
+            w, h = max(w, min_size), max(h, min_size)
+            nx0 = x1 - w if "w" in handle else x0
+            ny0 = y1 - h if "n" in handle else y0
+        elif handle in ("e", "w"):
+            h = max(min_size, w / ratio)
+            ny0 = (y0 + y1) / 2 - h / 2
+        else:  # n, s
+            w = max(min_size, h * ratio)
+            nx0 = (x0 + x1) / 2 - w / 2
+    return Rect(nx0, ny0, w, h)
 
 
 class ZoomMode(str, Enum):
@@ -174,6 +216,7 @@ class _CanvasWidget(QWidget):
         self._fit_ref_page: int | None = None  # page Fit Width / Fit Page is measured on (see apply_zoom_for_viewport)
         self._retain_radius = 3
         self._highlights: list[tuple[int, object]] = []
+        self._highlights_by_page: dict[int, list[object]] = {}
         self._render_timer = QTimer(self)
         self._render_timer.setSingleShot(True)
         self._render_timer.setInterval(16)
@@ -196,6 +239,7 @@ class _CanvasWidget(QWidget):
         self._form_create_type: str | None = None
         self._shape_create_kind: str | None = None
         self._freehand_points: list[tuple[float, float]] = []
+        self._line_before: dict | None = None
         self._shift_constrain: bool = False
         self._drag_shape_lines: dict[str, tuple[float, float, float, float]] = {}
         self._drag_shape_points: dict[str, list[tuple[float, float]]] = {}
@@ -249,11 +293,13 @@ class _CanvasWidget(QWidget):
             self._edit.remove_listener(self._on_edit_changed)
         self._cache.clear()
         self._tiles.clear()
+        self.close_note_popup()
         self._document = None
         self._edit = None
         self._pages = []
         self._layouts = []
         self._highlights = []
+        self._highlights_by_page = {}
         self._focus_page = 0
         self._fit_ref_page = None
         self._mode = "idle"
@@ -313,10 +359,16 @@ class _CanvasWidget(QWidget):
 
     def set_highlights(self, hits: list[tuple[int, object]]) -> None:
         self._highlights = hits
+        # by page: painting a page looks only at its own matches (a long document can have 100 000+)
+        by_page: dict[int, list[object]] = {}
+        for page_index, rect in hits:
+            by_page.setdefault(page_index, []).append(rect)
+        self._highlights_by_page = by_page
         self.update()
 
     def clear_highlights(self) -> None:
         self._highlights = []
+        self._highlights_by_page = {}
         self.update()
 
     @property
@@ -650,6 +702,10 @@ class _CanvasWidget(QWidget):
             stroke = float(getattr(obj, "stroke_width", 0.0) or 0.0)
             if stroke:
                 margin += int(stroke * max(self._zoom, 0.5)) + 12  # arrow heads
+            if self._is_line_shape(obj):
+                from core.editing.shape_box import head_length
+
+                margin += int(head_length(stroke or 1.0, float(getattr(obj, "head_size", 0.0) or 0.0)) * max(self._zoom, 0.5) * 1.4)
             angle = float(getattr(obj, "rotation", 0.0) or getattr(getattr(obj, "style", None), "rotation", 0.0) or 0.0)
             if abs(angle) % 360.0 > 0.01:
                 half = int((wr.width() ** 2 + wr.height() ** 2) ** 0.5 / 2) + 1
@@ -900,7 +956,71 @@ class _CanvasWidget(QWidget):
 
     # --- painting --------------------------------------------------------
 
+    # ------------------------------------------------------------------ sticky note pop-up
+    def open_note_popup(self, page_index: int, xref: int, rect: Rect | None = None) -> bool:
+        """Show the note's text in a pop-up next to it (stays open until closed)."""
+        if self._document is None:
+            return False
+        try:
+            page = self._document._backend._doc.load_page(page_index)  # noqa: SLF001
+            annot = next((a for a in page.annots() or [] if int(a.xref) == int(xref)), None)
+        except Exception:  # noqa: BLE001
+            return False
+        if annot is None or annot.type[1] != "Text":
+            return False
+        if rect is None:
+            from core.page_space import rect_to_display
+
+            r = rect_to_display(page, annot.rect)
+            rect = Rect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0)
+        if getattr(self, "_note_popup", None) is None:
+            from ui.note_popup import NotePopup
+
+            self._note_popup = NotePopup(self)
+            self._note_popup.editRequested.connect(self._edit_from_note_popup)
+        info = annot.info or {}
+        stroke = (annot.colors or {}).get("stroke") or (1.0, 0.85, 0.4)
+        color = QColor.fromRgbF(*[max(0.0, min(1.0, float(c))) for c in stroke[:3]])
+        self._note_popup_anchor = (page_index, rect)
+        self._note_popup.show_note(page_index, xref, text=(info.get("content") or "").strip(),
+                                   author=(info.get("title") or "").strip(),
+                                   date=info.get("modDate") or info.get("creationDate") or "",
+                                   color=color, at=self._note_popup_point())
+        return True
+
+    def _note_popup_point(self):
+        page_index, rect = self._note_popup_anchor
+        anchor = self.pdf_rect_to_widget(page_index, rect)
+        if anchor is None:
+            return QPoint(0, 0)
+        return QPoint(anchor.right() + 6, anchor.top())
+
+    def _edit_from_note_popup(self, page_index: int, xref: int) -> None:
+        self.annotationEditRequested.emit(page_index, xref)
+
+    def refresh_note_popup(self) -> None:
+        """Show the open note's current text and colour again (after it was edited or undone)."""
+        popup = getattr(self, "_note_popup", None)
+        if popup is None or not popup.isVisible() or popup.key is None:
+            return
+        page_index, xref = popup.key
+        if not self.open_note_popup(page_index, xref):
+            popup.close_popup()
+
+    def close_note_popup(self) -> None:
+        popup = getattr(self, "_note_popup", None)
+        if popup is not None:
+            popup.close_popup()
+
+    def note_popup(self):
+        return getattr(self, "_note_popup", None)
+
     def paintEvent(self, event) -> None:  # noqa: N802
+        popup = getattr(self, "_note_popup", None)
+        if popup is not None and popup.isVisible():  # follows zoom and page layout changes
+            at = self._note_popup_point()
+            if popup.pos() != at:
+                popup.move_to(at)
         painter = QPainter(self)
         pal = _theme_palette()
         # Neutral workspace distinct from white PDF pages (theme-aware)
@@ -935,9 +1055,7 @@ class _CanvasWidget(QWidget):
             if pix is not None:
                 painter.drawPixmap(rect, pix)
             self._paint_tiles(painter, i, dpr)
-            for page_index, pdf_rect in self._highlights:
-                if page_index != i:
-                    continue
+            for pdf_rect in getattr(self, "_highlights_by_page", {}).get(i, ()):
                 hr = self._pdf_rect_to_widget(i, pdf_rect)
                 if hr is not None:
                     painter.fillRect(hr, QColor(255, 220, 0, 100))
@@ -955,13 +1073,13 @@ class _CanvasWidget(QWidget):
             painter.setBrush(QColor(37, 99, 235, 40))
             kind = self._shape_create_kind
             if kind == "freehand" and self._freehand_points:
-                pts = []
-                for x, y in self._freehand_points:
-                    wp = self.pdf_to_widget(self._press_page, Point(x, y))
-                    if wp is not None:
-                        pts.append(wp)
-                for i in range(1, len(pts)):
-                    painter.drawLine(pts[i - 1], pts[i])
+                path = self._freehand_path(self._press_page, self._freehand_points)
+                if path is not None:
+                    painter.save()
+                    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawPath(path)
+                    painter.restore()
             elif kind in ("line", "arrow"):
                 end = constrain_line_angle(
                     self._create_origin, self._create_current, snap=self._shift_constrain
@@ -1231,7 +1349,16 @@ class _CanvasWidget(QWidget):
                 self._paint_textbox(painter, obj, wr)
             else:
                 self._paint_image(painter, obj, wr)
-            if wr is not None and obj.object_id in self._edit.selection:
+            if wr is not None and obj.object_id in self._edit.selection and self._is_line_shape(obj):
+                # a line or arrow: a round handle on each end (drag one to move that end)
+                painter.save()
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+                painter.setPen(QPen(QColor("#2563eb"), 1.5))
+                painter.setBrush(QColor("#ffffff"))
+                for end in self._line_end_points(page_index, obj):
+                    painter.drawEllipse(QPointF(end), _HANDLE * 0.9, _HANDLE * 0.9)
+                painter.restore()
+            elif wr is not None and obj.object_id in self._edit.selection:
                 painter.setPen(QPen(QColor("#2563eb"), 1))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
                 painter.drawRect(wr)
@@ -1268,63 +1395,116 @@ class _CanvasWidget(QWidget):
             return
         self._paint_shape_upright(painter, page_index, shape)
 
+    def _shape_pen(self, shape, color: QColor, *, dashed: bool = True) -> QPen:
+        """Pen for a shape on screen: the saved line width at the current zoom and the saved dash
+        pattern (core.editing.shape_box.dash_pattern), so the screen and the PDF match."""
+        from core.editing.shape_box import dash_pattern
+
+        scale = self._scale(shape.page_index)[0] if 0 <= shape.page_index < len(self._layouts) else self._zoom
+        width = max(0.75, float(shape.stroke_width) * scale)
+        pen = QPen(color, width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        pattern = dash_pattern(shape.stroke_style, shape.stroke_width) if dashed else None
+        if pattern:
+            pen.setDashPattern([max(0.01, v / max(float(shape.stroke_width), 0.5)) for v in pattern])
+        return pen
+
     def _paint_shape_upright(self, painter: QPainter, page_index: int, shape) -> None:
-        from core.editing.shape_box import ShapeKind, StrokeStyle
+        from core.editing.shape_box import ShapeKind, line_geometry
 
-        stroke = QColor(shape.stroke_color)
-        stroke.setAlphaF(min(1.0, float(shape.opacity)))
-        fill = QColor(shape.fill_color)
-        if fill.alpha() > 0:
-            fill.setAlphaF(min(1.0, float(shape.fill_opacity) * float(shape.opacity) * fill.alphaF()))
-        else:
-            fill = Qt.GlobalColor.transparent
-        style = Qt.PenStyle.SolidLine
-        if shape.stroke_style == StrokeStyle.DASHED:
-            style = Qt.PenStyle.DashLine
-        elif shape.stroke_style == StrokeStyle.DOTTED:
-            style = Qt.PenStyle.DotLine
-        pen = QPen(stroke, max(1, int(shape.stroke_width * max(self._zoom, 0.5))))
-        pen.setStyle(style)
-        painter.setPen(pen)
-        if fill == Qt.GlobalColor.transparent or (isinstance(fill, QColor) and fill.alpha() == 0):
-            painter.setBrush(Qt.BrushStyle.NoBrush)
-        else:
-            painter.setBrush(fill)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        try:
+            stroke = QColor(shape.stroke_color)
+            stroke.setAlphaF(min(1.0, float(shape.opacity)) * (stroke.alphaF() if stroke.alpha() else 1.0))
+            fill = QColor(shape.fill_color)
+            if fill.alpha() > 0:
+                fill.setAlphaF(min(1.0, float(shape.fill_opacity) * float(shape.opacity) * fill.alphaF()))
+            painter.setPen(self._shape_pen(shape, stroke))
+            painter.setBrush(fill if fill.alpha() > 0 else Qt.BrushStyle.NoBrush)
 
-        kind = shape.kind
-        if kind in (ShapeKind.LINE, ShapeKind.ARROW):
-            p0 = self.pdf_to_widget(page_index, Point(shape.x0, shape.y0))
-            p1 = self.pdf_to_widget(page_index, Point(shape.x1, shape.y1))
-            if p0 is None or p1 is None:
+            kind = shape.kind
+            if kind in (ShapeKind.LINE, ShapeKind.ARROW):
+                start, end = shape.heads()
+                a, b, marks = line_geometry(shape.x0, shape.y0, shape.x1, shape.y1, width=shape.stroke_width,
+                                            start=start, end=end, head_size=shape.head_size)
+                p0 = self.pdf_to_widget_f(page_index, Point(*a))
+                p1 = self.pdf_to_widget_f(page_index, Point(*b))
+                if p0 is None or p1 is None:
+                    return
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawLine(p0, p1)
+                solid = self._shape_pen(shape, stroke, dashed=False)  # heads are never dashed
+                for style, pts in marks:
+                    wpts = [self.pdf_to_widget_f(page_index, Point(x, y)) for x, y in pts]
+                    if any(p is None for p in wpts):
+                        continue
+                    if style == "circle":
+                        r = pts[1][0] * self._scale(page_index)[0]
+                        painter.setPen(Qt.PenStyle.NoPen)
+                        painter.setBrush(stroke)
+                        painter.drawEllipse(wpts[0], r, r)
+                    elif style == "open":
+                        painter.setPen(solid)
+                        painter.setBrush(Qt.BrushStyle.NoBrush)
+                        painter.drawPolyline(QPolygonF(wpts))
+                    else:  # filled, stealth, bar
+                        thin = QPen(solid)
+                        thin.setWidthF(max(0.5, solid.widthF() * 0.35))
+                        painter.setPen(thin)
+                        painter.setBrush(stroke)
+                        painter.drawPolygon(QPolygonF(wpts))
                 return
-            painter.drawLine(p0, p1)
-            if kind == ShapeKind.ARROW:
-                import math
+            if kind == ShapeKind.FREEHAND and shape.points:
+                path = self._freehand_path(page_index, shape.points)
+                if path is not None:
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawPath(path)
+                return
+            wr = self.pdf_rect_to_widget_f(page_index, shape.rect)
+            if wr is None:
+                return
+            if kind == ShapeKind.ELLIPSE:
+                painter.drawEllipse(wr)
+            else:
+                painter.drawRect(wr)
+        finally:
+            painter.restore()
 
-                ang = math.atan2(p1.y() - p0.y(), p1.x() - p0.x())
-                ah = 10
-                for aoff in (2.5, -2.5):
-                    ax = int(p1.x() - ah * math.cos(ang + aoff))
-                    ay = int(p1.y() - ah * math.sin(ang + aoff))
-                    painter.drawLine(p1, QPoint(ax, ay))
-            return
-        if kind == ShapeKind.FREEHAND and shape.points:
-            pts = []
-            for x, y in shape.points:
-                wp = self.pdf_to_widget(page_index, Point(x, y))
-                if wp is not None:
-                    pts.append(wp)
-            if len(pts) >= 2:
-                for i in range(1, len(pts)):
-                    painter.drawLine(pts[i - 1], pts[i])
-            return
-        wr = self.pdf_rect_to_widget(page_index, shape.rect)
-        if wr is None:
-            return
-        if kind == ShapeKind.ELLIPSE:
-            painter.drawEllipse(wr)
-        else:
-            painter.drawRect(wr)
+    def _freehand_path(self, page_index: int, points) -> QPainterPath | None:
+        """Smooth curves through a freehand stroke (core/editing/freehand.py) in widget coordinates."""
+        from core.editing.freehand import smooth_segments
+
+        segs = smooth_segments(points)
+        if not segs:
+            return None
+        path = QPainterPath()
+        first = self.pdf_to_widget_f(page_index, Point(*segs[0][0]))
+        if first is None:
+            return None
+        path.moveTo(first)
+        for _a, c1, c2, b in segs:
+            w1 = self.pdf_to_widget_f(page_index, Point(*c1))
+            w2 = self.pdf_to_widget_f(page_index, Point(*c2))
+            wb = self.pdf_to_widget_f(page_index, Point(*b))
+            if w1 is None or w2 is None or wb is None:
+                return None
+            path.cubicTo(w1, w2, wb)
+        return path
+
+    def pdf_to_widget_f(self, page_index: int, pt: Point) -> QPointF | None:
+        """Like pdf_to_widget, without rounding to whole pixels (smooth thin lines and curves)."""
+        if page_index < 0 or page_index >= len(self._layouts):
+            return None
+        layout = self._layouts[page_index]
+        sx, sy = self._scale(page_index)
+        return QPointF(layout.left() + pt.x * sx, layout.top() + pt.y * sy)
+
+    def pdf_rect_to_widget_f(self, page_index: int, rect: Rect) -> QRectF | None:
+        p0 = self.pdf_to_widget_f(page_index, Point(rect.x, rect.y))
+        p1 = self.pdf_to_widget_f(page_index, Point(rect.x1, rect.y1))
+        if p0 is None or p1 is None:
+            return None
+        return QRectF(p0, p1).normalized()
 
     def _paint_image(self, painter: QPainter, img, wr: QRect) -> None:
         from pathlib import Path
@@ -1452,6 +1632,25 @@ class _CanvasWidget(QWidget):
             painter.setPen(QPen(QColor("#2563eb"), 1))
             painter.drawRect(r)
 
+    @staticmethod
+    def _is_line_shape(obj) -> bool:
+        return getattr(getattr(obj, "kind", None), "value", None) in ("line", "arrow")
+
+    def _line_end_points(self, page_index: int, shape) -> list[QPoint]:
+        out = []
+        for x, y in ((shape.x0, shape.y0), (shape.x1, shape.y1)):
+            p = self.pdf_to_widget(page_index, Point(x, y))
+            if p is not None:
+                out.append(p)
+        return out
+
+    def _hit_line_end(self, pos: QPoint, page_index: int, shape) -> str | None:
+        grab = _HANDLE + 4
+        for name, p in zip(("p0", "p1"), self._line_end_points(page_index, shape)):
+            if abs(pos.x() - p.x()) <= grab and abs(pos.y() - p.y()) <= grab:
+                return name
+        return None
+
     def _handle_points(self, wr: QRect) -> list[tuple[int, int]]:
         return [
             (wr.left(), wr.top()),
@@ -1466,8 +1665,9 @@ class _CanvasWidget(QWidget):
 
     def _hit_handle(self, pos: QPoint, wr: QRect) -> str | None:
         names = ["nw", "n", "ne", "w", "e", "sw", "s", "se"]
+        grab = _HANDLE + 3  # a little larger than drawn: easier to catch with the mouse
         for name, (hx, hy) in zip(names, self._handle_points(wr)):
-            if abs(pos.x() - hx) <= _HANDLE and abs(pos.y() - hy) <= _HANDLE:
+            if abs(pos.x() - hx) <= grab and abs(pos.y() - hy) <= grab:
                 return name
         return None
 
@@ -1991,6 +2191,24 @@ class _CanvasWidget(QWidget):
         box = self._edit.objects.get(self._text_editor_id)
         if box is not None:
             self._style_text_editor(box)  # auto-height boxes grow while typing
+            self._fit_editor_height(box)
+
+    def _fit_editor_height(self, box: TextBox) -> None:
+        """Keep every typed line visible: when the on-screen editor wraps into more lines than the
+        box has room for, the box grows (downwards only, its top-left corner stays where it is)."""
+        from core.editing.text_box import SizeMode
+
+        editor = self._text_editor
+        if editor is None or box.size_mode not in (SizeMode.AUTO_HEIGHT, SizeMode.AUTO_SIZE):
+            return
+        wr = editor.geometry()
+        sx = wr.width() / max(box.rect.w, 1.0)
+        needed_px = editor.document().size().height() + editor.contentsMargins().top() \
+            + editor.contentsMargins().bottom() + 2 * max(0, int(box.style.padding * sx) - 1) + 2
+        if needed_px > wr.height() + 1 and sx > 0:
+            box.rect = box.rect.with_size(box.rect.w, needed_px / sx)
+            self._style_text_editor(box)
+            self.update()
 
     def _discard_text_editor(self) -> None:
         editor = self._text_editor
@@ -2174,6 +2392,7 @@ class _CanvasWidget(QWidget):
         if self._edit is None or event.button() != Qt.MouseButton.LeftButton:
             return super().mousePressEvent(event)
         self.setFocus(Qt.FocusReason.MouseFocusReason)
+        self.close_note_popup()  # a click elsewhere closes an open note (clicking a note reopens it)
         mapped = self.widget_to_pdf(event.position().toPoint())
         if mapped is None:
             # Grey area around the pages: finish typing and deselect (like clicking blank paper)
@@ -2325,7 +2544,13 @@ class _CanvasWidget(QWidget):
             wr = self.pdf_rect_to_widget(page_index, target.rect)
             if wr is None:
                 continue
-            handle = self._hit_handle(event.position().toPoint(), wr)
+            if self._is_line_shape(target):
+                handle = self._hit_line_end(event.position().toPoint(), page_index, target)
+                if handle is None:
+                    continue
+                self._line_before = {k: getattr(target, k) for k in ("x0", "y0", "x1", "y1", "rect")}
+            else:
+                handle = self._hit_handle(event.position().toPoint(), wr)
             if handle:
                 self._mode = "drag_resize"
                 self._resize_handle = handle
@@ -2381,14 +2606,8 @@ class _CanvasWidget(QWidget):
                 self._mode = "annot_move" if found[2] in self.ANNOT_MOVABLE else "idle"
                 self._annot_drag = (0.0, 0.0)
                 self.annotationSelected.emit(found[0], found[1])
-                if found[2] == "Text":  # a sticky note: show what it says right away
-                    tip = self._annotation_tip(found[0], found[1], found[2])
-                    if tip:
-                        from PySide6.QtWidgets import QToolTip
-
-                        anchor = self.pdf_rect_to_widget(found[0], found[3])
-                        at = anchor.bottomRight() if anchor is not None else event.position().toPoint()
-                        QToolTip.showText(self.mapToGlobal(at), tip, self, QRect(), 12000)
+                if found[2] == "Text":  # a sticky note: open it, like a paper note
+                    self.open_note_popup(found[0], found[1], found[3])
             elif self._edit.tool in (EditTool.SELECT, EditTool.FORM_SELECT, EditTool.LAYOUT_SELECT):
                 # Empty paper: a drag draws a selection rectangle (a click just deselects, as before)
                 self._mode = "marquee"
@@ -2509,28 +2728,50 @@ class _CanvasWidget(QWidget):
             )
             if box is None:
                 return
+            if self._resize_handle in ("p0", "p1") and self._is_line_shape(box):
+                from core.editing.shape_box import constrain_line_angle
+
+                ids = [self._resize_oid]
+                before_rects = self._live_dirty_rects(ids)
+                fixed = Point(box.x1, box.y1) if self._resize_handle == "p0" else Point(box.x0, box.y0)
+                pt = self._clamp_to_page(box.page_index, pdf_pt)
+                pt = constrain_line_angle(fixed, pt, snap=bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier))
+                if self._resize_handle == "p0":
+                    box.x0, box.y0 = pt.x, pt.y
+                else:
+                    box.x1, box.y1 = pt.x, pt.y
+                box.sync_rect_from_line()
+                self._live_interaction = True
+                region = QRegion()
+                for r in before_rects + self._live_dirty_rects(ids):
+                    region = region.united(QRegion(r))
+                self._live_region = region
+                self._edit._notify()  # noqa: SLF001
+                self._drag_perf.append((time.perf_counter() - t0) * 1000)
+                return
             base = self._drag_before.get(self._resize_oid, box.rect)
-            x, y, w, h = base.x, base.y, base.w, base.h
-            hx = self._resize_handle
-            if "e" in hx:
-                w = max(8.0, pdf_pt.x - x)
-            if "s" in hx:
-                h = max(8.0, pdf_pt.y - y)
-            if "w" in hx:
-                new_x = pdf_pt.x
-                w = max(8.0, x + w - new_x)
-                x = new_x
-            if "n" in hx:
-                new_y = pdf_pt.y
-                h = max(8.0, y + h - new_y)
-                y = new_y
-            self._shift_constrain = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+            shift = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+            self._shift_constrain = shift
             shape = self._edit.shapes.get(self._resize_oid)
-            if self._shift_constrain or (shape and shape.lock_aspect):
-                side = max(w, h)
-                w = h = side
+            image = self._edit.images.get(self._resize_oid)
+            if image is not None:
+                # Pictures keep their proportions (Shift: stretch freely; or when unlocked, Shift keeps them)
+                keep = bool(getattr(image, "lock_aspect", True)) != shift
+                rect = resize_rect(base, self._resize_handle, pdf_pt, keep_ratio=keep)
+            elif shape is not None and (shift or shape.lock_aspect) and shape.kind.value not in ("line", "arrow", "freehand"):
+                rect = resize_rect(base, self._resize_handle, pdf_pt, keep_ratio=True, square=shift and not shape.lock_aspect)
+            else:
+                rect = resize_rect(base, self._resize_handle, pdf_pt, keep_ratio=False, square=shift)
             self._live_interaction = True
-            self._edit.live_resize(self._resize_oid, Rect(x, y, w, h), notify=True)
+            ids = [self._resize_oid]
+            before = self._live_dirty_rects(ids)
+            self._edit.live_resize(self._resize_oid, rect, notify=False, constrained=True)
+            # repaint only where the box was and is now (not the whole page) — smooth on large pages
+            region = QRegion()
+            for r in before + self._live_dirty_rects(ids):
+                region = region.united(QRegion(r))
+            self._live_region = region
+            self._edit._notify()  # noqa: SLF001
             self._drag_perf.append((time.perf_counter() - t0) * 1000)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
@@ -2582,7 +2823,9 @@ class _CanvasWidget(QWidget):
                         (self._create_origin.x, self._create_origin.y),
                         (self._create_current.x, self._create_current.y),
                     ]
-                    self._edit.create_shape(self._press_page, Rect(0, 0, 1, 1), kind, points=pts)
+                    # about half a screen pixel: jitter goes, the hand's shape stays
+                    self._edit.create_shape(self._press_page, Rect(0, 0, 1, 1), kind, points=pts,
+                                            tolerance=0.6 / max(self._zoom, 0.25))
                 elif kind in ("line", "arrow"):
                     end = constrain_line_angle(
                         self._create_origin, self._create_current, snap=self._shift_constrain
@@ -2604,17 +2847,14 @@ class _CanvasWidget(QWidget):
                     )
                     if click:
                         rect = Rect(self._create_origin.x, self._create_origin.y, 80, 80 if kind == "ellipse" else 120)
-                    lock = bool(
-                        (self._shift_constrain and kind in ("rectangle", "ellipse"))
-                        or getattr(self._edit, "_force_shape_lock", False)
-                    )
+                    circle = bool(getattr(self._edit, "_force_shape_lock", False))
                     self._edit._force_shape_lock = False  # noqa: SLF001
-                    if lock and kind == "ellipse":
+                    if circle and kind == "ellipse":
                         side = max(rect.w, rect.h, 8.0)
                         rect = Rect(rect.x, rect.y, side, side)
-                    self._edit.create_shape(
-                        self._press_page, rect, kind, lock_aspect=lock
-                    )
+                    # Drawn as a circle / square, but free to be reshaped afterwards: drag a side
+                    # handle for an oval (Shift while resizing keeps the proportions)
+                    self._edit.create_shape(self._press_page, rect, kind, lock_aspect=False)
                 self._live_interaction = False
                 self._edit.tool = EditTool.SELECT
                 self.set_tool(EditTool.SELECT)
@@ -2656,6 +2896,8 @@ class _CanvasWidget(QWidget):
                     cur = self._edit.fields[oid].rect
                 elif oid in self._edit.images:
                     cur = self._edit.images[oid].rect
+                elif oid in self._edit.shapes:  # moving a shape was not undoable
+                    cur = self._edit.shapes[oid].rect
                 if cur is not None and (
                     abs(cur.x - before.x) > 0.5
                     or abs(cur.y - before.y) > 0.5
@@ -2671,6 +2913,19 @@ class _CanvasWidget(QWidget):
                 # Click without move on text box → keep editing focus
                 self._end_live_interaction()
             self._write_drag_perf("move")
+        elif self._mode == "drag_resize" and self._resize_handle in ("p0", "p1") and getattr(self, "_line_before", None):
+            # moving a line's end: undo restores both ends exactly (direction included)
+            from core.editing.edit_commands import SetOverlayAttrsCommand
+
+            self._live_interaction = False
+            shape = self._edit.shapes.get(self._resize_oid)
+            before, self._line_before = self._line_before, None
+            if shape is not None:
+                after = {k: getattr(shape, k) for k in ("x0", "y0", "x1", "y1", "rect")}
+                if after != before:
+                    self._edit.commands.push_executed(SetOverlayAttrsCommand(self._edit, shape.object_id, before, after))
+                    self._edit.mark_dirty()
+            self._write_drag_perf("resize")
         elif self._mode == "drag_resize" and self._drag_before:
             self._live_interaction = False
             self._edit.commit_transform(self._drag_before, name="Resize")
@@ -2867,6 +3122,10 @@ class _CanvasWidget(QWidget):
             self._text_before = box.text if box else ""
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+        popup = getattr(self, "_note_popup", None)
+        if event.key() == Qt.Key.Key_Escape and popup is not None and popup.isVisible():
+            popup.close_popup()
+            return
         if self._edit is None:
             return super().keyPressEvent(event)
         mod = event.modifiers()
@@ -3181,6 +3440,18 @@ class PdfCanvas(QScrollArea):
 
     def clear_document(self) -> None:
         self._canvas.clear_document()
+
+    def open_note_popup(self, page_index: int, xref: int) -> bool:
+        return self._canvas.open_note_popup(page_index, xref)
+
+    def refresh_note_popup(self) -> None:
+        self._canvas.refresh_note_popup()
+
+    def close_note_popup(self) -> None:
+        self._canvas.close_note_popup()
+
+    def note_popup(self):
+        return self._canvas.note_popup()
 
     def set_document(self, document: PdfDocument) -> None:
         self._canvas.set_document(document)

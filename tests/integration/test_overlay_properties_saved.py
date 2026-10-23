@@ -97,7 +97,12 @@ def test_shape_opacity_and_dashes_are_saved(blank, tmp_path):
     (d,) = [d for d in page.get_drawings() if d.get("fill")]
     assert d["stroke_opacity"] == pytest.approx(0.5, abs=0.01)
     assert d["fill_opacity"] == pytest.approx(0.25, abs=0.01)
-    assert "3" in str(d.get("dashes")) and "2" in str(d.get("dashes"))
+    # the dash pattern is in proportion to the line width, the same as on screen (shape_box.dash_pattern)
+    from core.editing.shape_box import dash_pattern
+
+    on, off = dash_pattern("dashed", 1.5)
+    nums = [float(v) for v in str(d.get("dashes")).strip("[] 0").replace("]", " ").split()]
+    assert nums[:2] == pytest.approx([on, off], abs=0.02)
 
 
 def test_shape_rotation_is_saved_clockwise(blank, tmp_path):

@@ -167,6 +167,7 @@ class UserPreferences:
     # once installed, OCR > OCR Languages)
     ocr_languages: str = "eng+jpn"
     note_color: str = "#fbbf24"
+    note_icon: str = "Comment"  # sticky note icon for new notes (core/annotations/note_style.NOTE_ICONS)
     squiggly_color: str = "#dc2626"
 
     def path(self) -> Path:

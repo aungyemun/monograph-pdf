@@ -132,6 +132,13 @@ class PdfDocument:
             return []
         return self._backend.search(query, case_sensitive=case_sensitive)
 
+    def search_page(self, index: int, query: str, *, case_sensitive: bool = False, fields: bool = True) -> list[Any]:
+        """Hits of *query* on one page (display rects) — for searching long documents step by step."""
+        self._ensure_open()
+        if not query:
+            return []
+        return self._backend.search_page(index, query, case_sensitive=case_sensitive, fields=fields)
+
     def page_text(self, index: int) -> str:
         self._ensure_open()
         return self._backend.page_text(index)

@@ -792,16 +792,67 @@ def _attach(p, c):
     p.drawPath(path)
 
 
+def _turn_arrow(p: QPainter, c: QColor, *, clockwise: bool) -> None:
+    """A page with a bold curved arrow over its top corner showing the turning direction."""
+    # the page (portrait, folded corner) low and to one side
+    x = 3.0 if clockwise else 8.0
+    _doc(p, x, 7.5, 9, 11)
+    pen = p.pen()
+    bold = QPen(c, 1.9, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+    p.setPen(bold)
+    path = QPainterPath()
+    if clockwise:  # from the page's top-left, over the top, down on the right
+        path.moveTo(QPointF(4.5, 5.5))
+        path.cubicTo(QPointF(7.5, 0.5), QPointF(15.5, 0.8), QPointF(16.6, 7.6))
+        tip, a, b = (16.8, 10.6), (13.9, 6.9), (19.2, 7.2)
+    else:  # mirror image
+        path.moveTo(QPointF(15.5, 5.5))
+        path.cubicTo(QPointF(12.5, 0.5), QPointF(4.5, 0.8), QPointF(3.4, 7.6))
+        tip, a, b = (3.2, 10.6), (6.1, 6.9), (0.8, 7.2)
+    p.drawPath(path)
+    p.setPen(QPen(c, 1.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+    _poly(p, [tip, a, b], fill=c)
+    p.setPen(pen)
+
+
 @icon("rotate_cw")
 def _rot_cw(p, c):
-    p.drawArc(QRectF(3.5, 4, 12, 12), 100 * 16, -280 * 16)
-    _poly(p, [(12.5, 1.5), (15.5, 4.8), (12, 7)], close=False)
+    _turn_arrow(p, c, clockwise=True)
 
 
 @icon("rotate_ccw")
 def _rot_ccw(p, c):
-    p.drawArc(QRectF(4.5, 4, 12, 12), 80 * 16, 280 * 16)
-    _poly(p, [(7.5, 1.5), (4.5, 4.8), (8, 7)], close=False)
+    _turn_arrow(p, c, clockwise=False)
+
+
+@icon("symbol")
+def _symbol(p, c):
+    """Insert ▸ Symbol: a check mark and a small star."""
+    _poly(p, [(2.5, 10.5), (6, 14.5), (12, 5)], close=False)
+    import math
+
+    cx, cy, ro, ri = 14.5, 13.5, 4.2, 1.8
+    pts = []
+    for i in range(10):
+        a = -math.pi / 2 + i * math.pi / 5
+        r = ro if i % 2 == 0 else ri
+        pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+    _poly(p, pts, fill=c)
+
+
+@icon("rotate_pages")
+def _rot_pages(p, c):
+    """Several pages and a full-turn arrow: the Rotate Pages… dialog (choose pages and angle)."""
+    p.drawRect(QRectF(7.5, 6.5, 8, 10.5))
+    p.drawLine(QPointF(5, 9), QPointF(5, 18.5))
+    p.drawLine(QPointF(5, 18.5), QPointF(13, 18.5))
+    bold = QPen(c, 1.7, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+    pen = p.pen()
+    p.setPen(bold)
+    p.drawArc(QRectF(1.5, 0.8, 9, 9), 200 * 16, -250 * 16)
+    p.setPen(QPen(c, 1.0))
+    _poly(p, [(10.9, 3.4), (8.0, 4.0), (10.2, 6.9)], fill=c)
+    p.setPen(pen)
 
 
 @icon("page_add")

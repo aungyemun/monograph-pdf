@@ -647,7 +647,7 @@ def test_rotate_pages_dialog_odd_pages(doc_window, monkeypatch):
 
     def fake_exec(self):
         self.opt_odd.setChecked(True)
-        self.direction.setCurrentIndex(2)  # 180°
+        self._turn_buttons[2].setChecked(True)  # 180°
         return self.DialogCode.Accepted
 
     monkeypatch.setattr(organize_dialogs.RotatePagesDialog, "exec", fake_exec)
@@ -656,6 +656,27 @@ def test_rotate_pages_dialog_odd_pages(doc_window, monkeypatch):
     assert after[0] == (before[0] + 180) % 360
     assert after[1] == before[1]
     assert w._edit.dirty  # noqa: SLF001
+
+
+def test_rotate_pages_dialog_exact_orientation(doc_window, monkeypatch):
+    """"Set an exact orientation" turns each chosen page to that angle, whatever it was before."""
+    from ui import organize_dialogs
+
+    w = doc_window
+    w._rotate_pages([0], 90)  # noqa: SLF001 — page 1 starts turned right, the others upright
+
+    def fake_exec(self):
+        self.opt_all.setChecked(True)
+        self.opt_exact.setChecked(True)
+        self.exact.setCurrentIndex(self.exact.findData(180))
+        assert not self._preview.pixmap().isNull(), "the preview shows the current page"
+        return self.DialogCode.Accepted
+
+    monkeypatch.setattr(organize_dialogs.RotatePagesDialog, "exec", fake_exec)
+    w._rotate_pages_dialog()  # noqa: SLF001
+    assert {p.rotation for p in w._document.pages()} == {180}  # noqa: SLF001
+    w.act_undo.trigger()
+    assert w._document.pages()[0].rotation == 90  # noqa: SLF001 — one undo step restores every page
 
 
 def test_pdf_to_word_from_menu(doc_window, tmp_path, monkeypatch):

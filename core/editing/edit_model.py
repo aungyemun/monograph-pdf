@@ -436,6 +436,9 @@ class EditableDocument:
             z_index=self.next_z(),
             lock_aspect=bool(kwargs.get("lock_aspect", False)),
         )
+        for key in ("start_head", "end_head", "head_size", "stroke_width", "stroke_style", "stroke_color", "fill_color"):
+            if kwargs.get(key) is not None:
+                setattr(shape, key, kwargs[key])
         if sk in (ShapeKind.LINE, ShapeKind.ARROW):
             shape.x0 = float(kwargs.get("x0", rect.x))
             shape.y0 = float(kwargs.get("y0", rect.y))
@@ -443,7 +446,10 @@ class EditableDocument:
             shape.y1 = float(kwargs.get("y1", rect.y1))
             shape.sync_rect_from_line()
         if sk == ShapeKind.FREEHAND:
-            shape.points = list(kwargs.get("points") or [])
+            from core.editing.freehand import simplify
+
+            # the mouse's jitter is removed; the stroke is drawn as smooth curves (core/editing/freehand.py)
+            shape.points = simplify(list(kwargs.get("points") or []), float(kwargs.get("tolerance", 0.5)))
             if shape.points:
                 xs = [p[0] for p in shape.points]
                 ys = [p[1] for p in shape.points]
@@ -524,6 +530,7 @@ class EditableDocument:
             z_index=self.next_z(),
             size_mode=SizeMode.AUTO_HEIGHT,
             style=TextStyle(),
+            min_h=rect.h,  # the drawn size stays while typing; longer text makes it taller
         )
         if auto_match:
             near = auto_match_nearby(self.objects_on_page(page_index), rect)
@@ -706,16 +713,16 @@ class EditableDocument:
         y = new.y1 - h if top_moved else new.y
         return Rect(x, y, w, h)
 
-    def live_resize(self, object_id: str, new_rect: Rect, *, notify: bool = True) -> None:
+    def live_resize(self, object_id: str, new_rect: Rect, *, notify: bool = True, constrained: bool = False) -> None:
+        """Resize an object; ``constrained``: the caller already applied the aspect ratio (from the
+        rectangle at the start of the drag), so it is not adjusted again against the current one."""
         if object_id in self.shapes:
             shape = self.shapes[object_id]
             nr = new_rect.normalized()
-            if shape.lock_aspect and nr.w > 0 and nr.h > 0 and shape.kind.value not in ("line", "arrow", "freehand"):
+            if (not constrained and shape.lock_aspect and nr.w > 0 and nr.h > 0
+                    and shape.kind.value not in ("line", "arrow", "freehand")):
                 nr = self.keep_aspect(shape.rect, nr)
-            shape.rect = nr
-            if shape.kind.value in ("line", "arrow"):
-                shape.x0, shape.y0 = nr.x, nr.y
-                shape.x1, shape.y1 = nr.x1, nr.y1
+            shape.fit_to_rect(nr)  # line ends (keeping the direction) and freehand points follow
             if notify:
                 self._notify()
             return
@@ -729,10 +736,11 @@ class EditableDocument:
                 self._notify()
             return
         nr = new_rect.normalized()
-        if object_id in self.images and getattr(box, "lock_aspect", False):
+        if not constrained and object_id in self.images and getattr(box, "lock_aspect", False):
             nr = self.keep_aspect(box.rect, nr)
         box.rect = nr
         if object_id in self.objects:
+            box.min_h = nr.h  # the size the user chose is kept (it still grows for more text)
             apply_layout_to_box(box)
         if notify:
             self._notify()
@@ -1168,6 +1176,7 @@ class EditableDocument:
         if object_id in self.objects:
             box = self.objects[object_id]
             box.rect = rect.normalized()
+            box.min_h = box.rect.h  # a chosen height (Undo, Properties) is kept, not re-grown to the old one
             apply_layout_to_box(box)
         elif object_id in self.fields:
             self.fields[object_id].rect = rect.normalized()
@@ -1175,10 +1184,7 @@ class EditableDocument:
             self.images[object_id].rect = rect.normalized()
         elif object_id in self.shapes:
             shape = self.shapes[object_id]
-            shape.rect = rect.normalized()
-            if shape.kind.value in ("line", "arrow"):
-                shape.x0, shape.y0 = shape.rect.x, shape.rect.y
-                shape.x1, shape.y1 = shape.rect.x1, shape.rect.y1
+            shape.fit_to_rect(rect)  # line ends (keeping the direction) and freehand points follow
         else:
             return
         if record_dirty:

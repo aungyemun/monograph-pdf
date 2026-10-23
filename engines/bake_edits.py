@@ -233,6 +233,14 @@ def overlays_in_order(edit: EditableDocument) -> list[tuple[str, Any]]:
     return sorted(items, key=lambda it: (int(getattr(it[1], "z_index", 0)), rank[it[0]]))
 
 
+def _symbols_only(text: str) -> bool:
+    """True for text made only of symbols, digits and punctuation (✓ ★ → ① 〒 …), no letters."""
+    import unicodedata
+
+    t = (text or "").strip()
+    return bool(t) and all(unicodedata.category(c)[0] in "SNPZ" for c in t)
+
+
 def _bake_text_box(targets: "_OverlayTargets", box) -> None:
     """Draw one text box overlay (opacity, letter spacing and a turn, as on screen)."""
     page = targets.page(box.page_index)
@@ -247,7 +255,8 @@ def _bake_text_box(targets: "_OverlayTargets", box) -> None:
     wanted = (box.style.font_family or "").strip()
     if wanted and system_fonts.find_font_file(wanted):
         family = wanted
-    elif wanted:
+    elif wanted and not _symbols_only(box.text):
+        # (a symbol from Insert ▸ Symbol is drawn by the built-in font without a notice)
         system_fonts.note_fallback(wanted, f"this font is not installed; saved with {family}")
     fontsize = layout.font_size
     pad = box.style.padding
@@ -356,36 +365,49 @@ def _bake_shape(targets: "_OverlayTargets", shape) -> None:
         if min(angle, 360.0 - angle) > 0.01:
             centre = fitz.Point((shape.rect.x + shape.rect.x1) / 2, (shape.rect.y + shape.rect.y1) / 2)
             morph = (centre, fitz.Matrix(-angle))  # MuPDF turns counter-clockwise on the page
-        dashes = None
-        style = getattr(getattr(shape, "stroke_style", None), "value", "solid")
-        if style == "dashed":
-            dashes = "[3 2] 0"
-        elif style == "dotted":
-            dashes = "[1 2] 0"
+        from core.editing.shape_box import dash_pattern, line_geometry
+
+        pattern = dash_pattern(getattr(shape, "stroke_style", "solid"), width)
+        dashes = ("[" + " ".join(f"{v:.2f}" for v in pattern) + "] 0") if pattern else None
         kind = getattr(getattr(shape, "kind", None), "value", "rectangle")
         if kind in ("line", "arrow"):
-            p0 = fitz.Point(float(shape.x0), float(shape.y0))
-            p1 = fitz.Point(float(shape.x1), float(shape.y1))
-            page.draw_line(p0, p1, color=stroke, width=width, dashes=dashes, morph=morph,
-                           stroke_opacity=ops["stroke_opacity"])
-            if kind == "arrow":
-                import math
-
-                ang = math.atan2(p1.y - p0.y, p1.x - p0.x)
-                ah = 8.0
-                for aoff in (2.6, -2.6):
-                    ax = p1.x - ah * math.cos(ang + aoff)
-                    ay = p1.y - ah * math.sin(ang + aoff)
-                    page.draw_line(p1, fitz.Point(ax, ay), color=stroke, width=width, morph=morph,
-                                   stroke_opacity=ops["stroke_opacity"])
+            # the same geometry as on screen (core.editing.shape_box.line_geometry)
+            start, end = shape.heads() if hasattr(shape, "heads") else ("none", "filled" if kind == "arrow" else "none")
+            a, b, marks = line_geometry(float(shape.x0), float(shape.y0), float(shape.x1), float(shape.y1),
+                                        width=width, start=start, end=end,
+                                        head_size=float(getattr(shape, "head_size", 0.0) or 0.0))
+            draw = page.new_shape()
+            draw.draw_line(fitz.Point(*a), fitz.Point(*b))
+            draw.finish(color=stroke, width=width, dashes=dashes, lineCap=1, closePath=False, morph=morph,
+                        stroke_opacity=ops["stroke_opacity"])
+            for style, pts in marks:
+                if style == "circle":
+                    (cx, cy), (r, _r) = pts
+                    draw.draw_circle(fitz.Point(cx, cy), r)
+                    draw.finish(color=None, fill=stroke, morph=morph, fill_opacity=ops["stroke_opacity"])
+                elif style == "open":
+                    draw.draw_polyline([fitz.Point(x, y) for x, y in pts])
+                    draw.finish(color=stroke, width=width, lineCap=1, lineJoin=1, closePath=False, morph=morph,
+                                stroke_opacity=ops["stroke_opacity"])
+                else:  # filled, stealth, bar
+                    draw.draw_polyline([fitz.Point(x, y) for x, y in pts])
+                    draw.finish(color=stroke, fill=stroke, width=max(0.2, width * 0.35), lineJoin=1, closePath=True,
+                                morph=morph, stroke_opacity=ops["stroke_opacity"], fill_opacity=ops["stroke_opacity"])
+            draw.commit()
         elif kind == "ellipse":
             r = fitz.Rect(shape.rect.x, shape.rect.y, shape.rect.x1, shape.rect.y1)
             page.draw_oval(r, color=stroke, fill=fill, width=width, dashes=dashes, morph=morph, **ops)
         elif kind == "freehand" and getattr(shape, "points", None):
-            pts = [fitz.Point(x, y) for x, y in shape.points]
-            if len(pts) >= 2:
-                page.draw_polyline(pts, color=stroke, width=width, dashes=dashes, morph=morph,
-                                   stroke_opacity=ops["stroke_opacity"])
+            from core.editing.freehand import smooth_segments
+
+            segs = smooth_segments(shape.points)  # the same smooth curves as on screen
+            if segs:
+                draw = page.new_shape()
+                for p0, c1, c2, p3 in segs:
+                    draw.draw_bezier(fitz.Point(*p0), fitz.Point(*c1), fitz.Point(*c2), fitz.Point(*p3))
+                draw.finish(color=stroke, width=width, dashes=dashes, lineCap=1, lineJoin=1, closePath=False,
+                            morph=morph, stroke_opacity=ops["stroke_opacity"])
+                draw.commit()
         else:
             r = fitz.Rect(shape.rect.x, shape.rect.y, shape.rect.x1, shape.rect.y1)
             page.draw_rect(r, color=stroke, fill=fill, width=width, dashes=dashes, morph=morph, **ops)
@@ -420,6 +442,8 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
         from core.forms.fields import FieldType
         from core.tables.model import TableModel
 
+        # (decided before the loop below: creating a widget marks its field as a PDF field)
+        added_fields = any(not f.is_acroform and not f.is_candidate for f in edit.fields.values())
         for field in list(edit.fields.values()):
             if field.is_candidate:
                 continue  # never bake unreviewed candidates
@@ -436,7 +460,22 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
                         label = "[Signature — visual only]"
                     if label:
                         page.insert_textbox(r, label, fontsize=max(8, field.font_size))
-        apply_field_values_to_doc(doc, [f for f in edit.fields.values() if not f.is_candidate])
+        live_fields = [f for f in edit.fields.values() if not f.is_candidate]
+        apply_field_values_to_doc(doc, live_fields)
+
+        # Hybrid AcroForm/XFA forms: Acrobat shows the XFA copy of the fields, so it must carry the
+        # same values (or be removed when that is not safely possible) — see core/forms/xfa_sync.py
+        from core.forms.xfa_sync import sync_xfa
+
+        try:
+            sync_xfa(
+                doc,
+                live_fields,
+                new_fields=added_fields,
+                flattened=bool(edit.flatten_on_save),
+            )
+        except Exception:  # noqa: BLE001 — never lose the save over the XFA copy
+            pass
 
         # Tables: draw reconstructed grid + cell text (layout-preserving bake)
         for table in edit.tables.values():

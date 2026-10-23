@@ -2,6 +2,57 @@
 
 All notable changes to Monograph PDF. Versions follow `VERSION` (see `docs/RELEASE_AND_VERSIONING.md`).
 
+## [0.4.2] — Unreleased
+
+Changes after 0.4.1.
+
+### Fixed
+
+- **Filled forms looked empty in Adobe Acrobat.** Forms made with Adobe LiveCycle Designer (many
+  Japanese government forms) keep every field twice — as ordinary PDF fields and in an Adobe XFA
+  copy that only Acrobat shows. Saving now writes the typed values into the XFA copy as well; when a
+  field cannot be matched with it (or fields were added, or the form is flattened) the XFA copy is
+  removed instead, with a message, so Acrobat shows the same values as other PDF apps.
+- Typing in **Find** no longer makes the zoom and page buttons jump to the left.
+- A **text box** keeps the size it was drawn at while you type (it used to collapse to one line at the
+  first letter and jump); longer text makes it taller downwards, and every typed line stays visible.
+- **Pictures** resize smoothly and keep their proportions (Shift: stretch freely); only the changed
+  area is redrawn, an edge can no longer be dragged across the opposite one, and handles are easier
+  to catch.
+- **Lines and arrows** keep their direction when moved, resized or after Undo (they could flip to point
+  down-right), moving a shape can be undone, and arrow heads look the same on screen and in the saved
+  PDF.
+- The **font list** no longer jumps while it is open (the toolbar refresh waits until it closes), and
+  the font in use is marked also when it is listed under its Japanese name (ＭＳ 明朝 for MS Mincho).
+- **Print**: the paper list is short and scrolls, the settings scroll on small screens, and “Flip on
+  long edge / short edge” are no longer cut off. No text in the dialogs and the Properties panel is
+  cut off at 100–150 % display scaling (checked with `scripts/audit/clipped_text_audit.py`).
+
+### Added
+
+- **Sticky notes** open as a pop-up beside the note when clicked (author, date, text, Edit…); Esc or a
+  click elsewhere closes it. Eight icons (speech bubble, note page, question, insert, key, paragraph,
+  check mark, star) and ten colours, chosen when adding or editing a note, optionally as the default.
+- **Lines and arrows**: round handles on both ends to move each end (Shift: 45° steps); start and end
+  styles (filled, open or sharp arrow, dot, bar or none), head size, **Reverse direction**, and dash
+  styles solid, dashed, dotted, dash-dot and long dash. Circles and squares can be stretched into ovals
+  and oblongs afterwards.
+- **Freehand** strokes are smoothed (mouse jitter removed, drawn as curves) and resize with their box.
+- **Insert ▸ Symbol…**: check marks, stars, arrows, maths and currency signs, circled numbers and
+  Japanese marks, placed as text boxes.
+- **Rotate Pages**: clearer rotate icons with “Left 90°” / “Right 90°” labels and **Rotate…** on the
+  Page bar; the dialog turns 90° left, 90° right or 180°, or sets an exact orientation (0°, 90°, 180°,
+  270°) for all, odd, even, selected or chosen pages, with a preview — one Undo step.
+- **Print ▸ Custom size…**: any paper size in mm, cm, in or ft (values convert when the unit changes).
+- **Find** also finds text typed into form fields, and full-width and half-width forms find each other
+  (２月 / 2月).
+
+### Performance
+
+- Opening a 3000-page document took 3.3 s, now 0.4 s (page contents are analysed only when needed).
+- Searching a long document no longer freezes the window: matches appear while the search continues
+  (3000 pages with a match on every line: the window stays responsive, at most about 0.1 s per step).
+
 ## [0.4.1] — 2026-10-23
 
 Bug-fix release for 0.4.0 that also switches on signed update checks. The sending of problem reports

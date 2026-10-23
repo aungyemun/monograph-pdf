@@ -547,7 +547,11 @@ def add_text_comment(
 ) -> int:
     """Sticky note; returns its xref."""
     page = _page(document, page_index)
-    annot = page.add_text_annot(fitz.Point(point.x, point.y), text, icon=icon)
+    annot = page.add_text_annot(fitz.Point(point.x, point.y), text, icon="Comment")
+    from core.annotations.note_style import NOTE_ICON_NAMES
+
+    # MuPDF knows only some icon names; /Name is set directly (our own appearance draws every icon)
+    document._backend._doc.xref_set_key(int(annot.xref), "Name", f"/{icon if icon in NOTE_ICON_NAMES else 'Comment'}")  # noqa: SLF001
     if color is not None:
         annot.set_colors(stroke=color)
     if author:

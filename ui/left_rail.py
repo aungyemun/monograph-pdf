@@ -258,6 +258,15 @@ class LeftRail(QTabWidget):
         if labels:
             self.setCurrentIndex(self._search_tab)
 
+    def add_search_hits(self, labels: list[tuple[int, str]], *, total: int) -> None:
+        """More results of a search that is still running, added below the listed ones."""
+        for page_index, snippet in labels:
+            item = QListWidgetItem(f"Page {page_index + 1}\n{snippet}")
+            item.setData(Qt.ItemDataRole.UserRole, page_index)
+            item.setToolTip(snippet)
+            self._search_results.addItem(item)
+        self._search_count.setText(f"Found on {total} page{'s' if total != 1 else ''}")
+
     def _emit_search(self) -> None:
         self.searchRequested.emit(self._search.text())
 

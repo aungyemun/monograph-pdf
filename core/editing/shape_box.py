@@ -22,6 +22,98 @@ class StrokeStyle(str, Enum):
     SOLID = "solid"
     DASHED = "dashed"
     DOTTED = "dotted"
+    DASH_DOT = "dash_dot"
+    LONG_DASH = "long_dash"
+
+
+# (value, label) for menus
+STROKE_STYLES: list[tuple[str, str]] = [
+    ("solid", "Solid"), ("dashed", "Dashed"), ("dotted", "Dotted"), ("dash_dot", "Dash-dot"),
+    ("long_dash", "Long dash"),
+]
+# Line end ("arrow head") styles: (value, label)
+HEAD_STYLES: list[tuple[str, str]] = [
+    ("none", "None"), ("filled", "Filled arrow"), ("open", "Open arrow"), ("stealth", "Sharp arrow"),
+    ("circle", "Dot"), ("bar", "Bar"),
+]
+HEAD_STYLE_VALUES = {v for v, _ in HEAD_STYLES}
+
+
+def dash_pattern(style: str, width: float) -> list[float] | None:
+    """Dash pattern in points (on, off, …) for a line ``width`` points thick; None for a solid line.
+    The same numbers are used on screen and in the saved PDF."""
+    w = max(0.5, float(width))
+    patterns = {
+        "dashed": [4 * w, 2.5 * w],
+        "dotted": [0.01, 2 * w],  # round caps make the zero-length dashes dots
+        "dash_dot": [5 * w, 2 * w, 0.01, 2 * w],
+        "long_dash": [9 * w, 3 * w],
+    }
+    p = patterns.get(str(getattr(style, "value", style)))
+    return [max(0.01, v) for v in p] if p else None
+
+
+def head_length(width: float, head_size: float = 0.0) -> float:
+    """Length of an arrow head in points: ``head_size`` when set, else in proportion to the line."""
+    return float(head_size) if head_size and head_size > 0 else max(6.0, 4.0 * float(width) + 3.0)
+
+
+def line_geometry(x0: float, y0: float, x1: float, y1: float, *, width: float, start: str = "none",
+                  end: str = "none", head_size: float = 0.0):
+    """Where to draw a line or arrow: the (possibly shortened) line and each end's mark.
+
+    Returns ``(line_from, line_to, marks)`` with points as (x, y) and marks as
+    ``(style, points)`` — a polygon (filled / stealth / bar: filled; open: polyline) or, for
+    ``circle``, ``[(cx, cy), (r, r)]``. Filled heads shorten the line so it does not show through the
+    tip; the same geometry is used on screen and when saving, so they look the same.
+    """
+    import math
+
+    dx, dy = x1 - x0, y1 - y0
+    length = math.hypot(dx, dy)
+    if length < 1e-6:
+        return (x0, y0), (x1, y1), []
+    ux, uy = dx / length, dy / length
+    hl = min(head_length(width, head_size), length * 0.45 if (start != "none" and end != "none") else length * 0.9)
+    marks = []
+    a, b = [x0, y0], [x1, y1]
+
+    def mark(style: str, tip: tuple[float, float], ox: float, oy: float, line_end: list[float]) -> None:
+        # (ox, oy): unit vector pointing from the tip back along the line
+        px, py = -oy, ox  # perpendicular
+        tx, ty = tip
+        half = hl * 0.42
+        if style in ("filled", "open", "stealth"):
+            bx, by = tx + ox * hl, ty + oy * hl
+            left = (bx + px * half, by + py * half)
+            right = (bx - px * half, by - py * half)
+            if style == "stealth":
+                notch = (tx + ox * hl * 0.65, ty + oy * hl * 0.65)
+                marks.append(("stealth", [tip, left, notch, right]))
+                line_end[0], line_end[1] = notch
+            elif style == "filled":
+                marks.append(("filled", [tip, left, right]))
+                line_end[0], line_end[1] = bx, by
+            else:
+                marks.append(("open", [left, tip, right]))
+                # a thick line would poke out past the open tip
+                line_end[0], line_end[1] = tx + ox * min(hl * 0.5, width * 0.6), ty + oy * min(hl * 0.5, width * 0.6)
+        elif style == "circle":
+            r = max(1.5 * width, hl * 0.28)
+            marks.append(("circle", [(tx, ty), (r, r)]))
+        elif style == "bar":
+            bw = max(0.6 * width, 1.0)
+            h = hl * 0.45
+            c1 = (tx + px * h, ty + py * h)
+            c2 = (tx - px * h, ty - py * h)
+            marks.append(("bar", [(c1[0] + ox * bw / 2, c1[1] + oy * bw / 2), (c2[0] + ox * bw / 2, c2[1] + oy * bw / 2),
+                                  (c2[0] - ox * bw / 2, c2[1] - oy * bw / 2), (c1[0] - ox * bw / 2, c1[1] - oy * bw / 2)]))
+
+    if end in HEAD_STYLE_VALUES and end != "none":
+        mark(end, (x1, y1), -ux, -uy, b)
+    if start in HEAD_STYLE_VALUES and start != "none":
+        mark(start, (x0, y0), ux, uy, a)
+    return (a[0], a[1]), (b[0], b[1]), marks
 
 
 @dataclass
@@ -46,6 +138,61 @@ class ShapeBox:
     points: list[tuple[float, float]] = field(default_factory=list)
     z_index: int = 0
     object_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    # Line ends (lines and arrows): see HEAD_STYLES; head_size 0 = in proportion to the line width
+    start_head: str = "none"
+    end_head: str = ""  # "" = the default: a filled head for an arrow, none for a line
+    head_size: float = 0.0
+
+    def heads(self) -> tuple[str, str]:
+        """(start, end) line-end styles as drawn (an explicit "none" is respected)."""
+        start = self.start_head or "none"
+        end = self.end_head or ("filled" if self.kind == ShapeKind.ARROW else "none")
+        return start, end
+
+    def fit_points_to_rect(self, new_rect: Rect) -> None:
+        """Freehand: scale the stroke's points with its box (resizing used to move only the box)."""
+        new = new_rect.normalized()
+        old = self.rect
+        if self.kind == ShapeKind.FREEHAND and self.points and old.w > 1e-6 and old.h > 1e-6:
+            self.points = [(new.x + (x - old.x) / old.w * new.w, new.y + (y - old.y) / old.h * new.h)
+                           for x, y in self.points]
+        self.rect = new
+
+    def fit_to_rect(self, new_rect: Rect) -> None:
+        """Change the shape's box; line ends and freehand points follow it."""
+        if self.kind in (ShapeKind.LINE, ShapeKind.ARROW):
+            self.fit_line_to_rect(new_rect)
+        elif self.kind == ShapeKind.FREEHAND:
+            self.fit_points_to_rect(new_rect)
+        else:
+            self.rect = new_rect.normalized()
+
+    def fit_line_to_rect(self, new_rect: Rect) -> None:
+        """Move / stretch a line's two ends with its box, keeping its direction (a box resize or a
+        move's undo used to turn every line into top-left → bottom-right)."""
+        if self.kind not in (ShapeKind.LINE, ShapeKind.ARROW):
+            return
+        old = Rect.from_points(Point(self.x0, self.y0), Point(self.x1, self.y1))
+        new = new_rect.normalized()
+        # sync_rect_from_line pads the ends' box by 2 pt on every side; lines saved by earlier versions
+        # may have a box exactly around their ends (no padding)
+        cur = self.rect
+        padded = abs(cur.x - (old.x - 2.0)) < 0.05 and abs(cur.w - (old.w + 4.0)) < 0.1
+        m = 2.0 if padded else 0.0
+        nx, nw = (new.x + m, new.w - 2 * m) if new.w >= 2 * m else (new.x + new.w / 2, 0.0)
+        ny, nh = (new.y + m, new.h - 2 * m) if new.h >= 2 * m else (new.y + new.h / 2, 0.0)
+        if not padded:
+            nx, nw, ny, nh = new.x, new.w, new.y, new.h
+        new = Rect(nx, ny, nw, nh)
+
+        def fx(x: float) -> float:
+            return new.x + ((x - old.x) / old.w * new.w if old.w > 1e-6 else new.w / 2 if new.w > 1e-6 else 0.0)
+
+        def fy(y: float) -> float:
+            return new.y + ((y - old.y) / old.h * new.h if old.h > 1e-6 else new.h / 2 if new.h > 1e-6 else 0.0)
+
+        self.x0, self.y0, self.x1, self.y1 = fx(self.x0), fy(self.y0), fx(self.x1), fy(self.y1)
+        self.rect = new_rect.normalized()
 
     def sync_rect_from_line(self) -> None:
         if self.kind not in (ShapeKind.LINE, ShapeKind.ARROW):
@@ -78,6 +225,9 @@ class ShapeBox:
             points=list(self.points),
             z_index=self.z_index,
             object_id=str(uuid.uuid4()),
+            start_head=self.start_head,
+            end_head=self.end_head,
+            head_size=self.head_size,
         )
         return c
 
@@ -107,6 +257,9 @@ class ShapeBox:
             "y1": self.y1,
             "points": [list(p) for p in self.points],
             "z_index": self.z_index,
+            "start_head": self.start_head,
+            "end_head": self.end_head,
+            "head_size": self.head_size,
         }
 
     @staticmethod
@@ -132,6 +285,10 @@ class ShapeBox:
             y1=float(data.get("y1", 0)),
             points=[(float(p[0]), float(p[1])) for p in pts],
             z_index=int(data.get("z_index", 0)),
+            start_head=str(data.get("start_head") or "none"),
+            # arrows saved before line ends could be chosen had an open head
+            end_head=str(data["end_head"]) if "end_head" in data else ("open" if data.get("kind") == "arrow" else ""),
+            head_size=float(data.get("head_size", 0.0) or 0.0),
         )
 
 

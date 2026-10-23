@@ -82,7 +82,7 @@ def test_editing_and_recolouring_keep_the_look_and_undo_restores(win, monkeypatc
 def test_hover_and_click_show_the_note_text(win, qtbot, monkeypatch):
     from PySide6.QtCore import QEvent, QPointF, Qt
     from PySide6.QtGui import QMouseEvent
-    from PySide6.QtWidgets import QApplication, QToolTip
+    from PySide6.QtWidgets import QApplication
 
     from core.page_space import rect_to_display
 
@@ -98,10 +98,12 @@ def test_hover_and_click_show_the_note_text(win, qtbot, monkeypatch):
                                               Qt.MouseButton.NoButton, Qt.MouseButton.NoButton,
                                               Qt.KeyboardModifier.NoModifier))
     assert "Bring the passport copy" in inner.toolTip() and "Aung" in inner.toolTip()
-    shown = []
-    monkeypatch.setattr(QToolTip, "showText", staticmethod(lambda *a, **k: shown.append(a[1])))
+    # A click opens the note's pop-up next to it (it replaced a tooltip that vanished after 12 s)
     for kind, buttons in ((QEvent.Type.MouseButtonPress, Qt.MouseButton.LeftButton),
                           (QEvent.Type.MouseButtonRelease, Qt.MouseButton.NoButton)):
         QApplication.sendEvent(inner, QMouseEvent(kind, pos, inner.mapToGlobal(pos), Qt.MouseButton.LeftButton,
                                                   buttons, Qt.KeyboardModifier.NoModifier))
-    assert shown and "and two photos" in shown[-1] and "Double-click to edit" in shown[-1]
+    popup = win._canvas.note_popup()  # noqa: SLF001
+    assert popup is not None and popup.isVisible() and popup.key == (0, xref)
+    assert "and two photos" in popup.text.text() and "Aung" in popup.title.text()
+    assert popup.x() >= inner.pdf_to_widget(0, Point(r.x1, r.y0)).x(), "the pop-up opens beside the note"

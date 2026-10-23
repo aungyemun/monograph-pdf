@@ -62,6 +62,35 @@ class _ActiveFontDelegate(QStyledItemDelegate):
         return inner.sizeHint(option, index) if inner is not None else super().sizeHint(option, index)
 
 
+_NAME_CACHE: dict[str, tuple[str, ...]] = {}
+
+
+def font_family_names(family: str) -> tuple[str, ...]:
+    """Every family name (all languages) recorded in the installed font file for *family* (Windows
+    font registry + the font's name table); empty when not found."""
+    key = family.strip().lower()
+    if key in _NAME_CACHE:
+        return _NAME_CACHE[key]
+    names: list[str] = []
+    try:
+        from fontTools.ttLib import TTCollection, TTFont
+
+        from core.editing.system_fonts import find_font_file, is_collection
+
+        path = find_font_file(family)
+        if path is not None:
+            fonts = TTCollection(str(path), lazy=True).fonts if is_collection(str(path)) else [TTFont(str(path), lazy=True)]
+            for tt in fonts:
+                table = tt["name"]
+                fam = {r.toUnicode().strip() for r in table.names if r.nameID in (1, 16)}
+                if any(n.lower() == key for n in fam) or len(fonts) == 1:
+                    names.extend(sorted(fam))
+    except Exception:  # noqa: BLE001 — no file or unreadable: no other names
+        names = []
+    _NAME_CACHE[key] = tuple(dict.fromkeys(names))
+    return _NAME_CACHE[key]
+
+
 class FontPicker(QFontComboBox):
     fontPicked = Signal(str)
 
@@ -91,6 +120,7 @@ class FontPicker(QFontComboBox):
         line.returnPressed.connect(self._commit_typed)
         line.editingFinished.connect(self._commit_typed)
         self._last = self.currentText() or self.currentFont().family()
+        self._pending_family: str | None = None
         # Strong references: the list's own delegate (draws each name in its font) and ours around it.
         # Without them PySide could hand Qt a fresh wrapper without these attributes (a crash in paint).
         self._inner_delegate = self.itemDelegate()
@@ -128,42 +158,98 @@ class FontPicker(QFontComboBox):
     # ------------------------------------------------------------------ public
     def active_row(self) -> int:
         """List row of the font in use, or -1 when it is not an installed font (e.g. an embedded-only
-        PDF font): nothing unrelated is then shown as selected."""
-        return self.findText(self._last or "", Qt.MatchFlag.MatchFixedString) if self._last else -1
+        PDF font): nothing unrelated is then shown as selected.
+
+        Cached: the list asks for it once per painted row while it scrolls. A family saved under its
+        English name ("MS Mincho") is found under the localized list name ("ＭＳ 明朝") too."""
+        key = (self._last, self.count())
+        if getattr(self, "_active_key", None) != key:
+            self._active_key = key
+            self._active_row = self._find_family_row(self._last or "")
+        return self._active_row
+
+    def _find_family_row(self, family: str) -> int:
+        if not family:
+            return -1
+        row = self.findText(family, Qt.MatchFlag.MatchFixedString)
+        if row >= 0:
+            return row
+        import unicodedata
+
+        def norm(name: str) -> str:
+            return unicodedata.normalize("NFKC", name).replace(" ", "").casefold()
+
+        wanted = norm(family)
+        names = {norm(self.itemText(i)): i for i in range(self.count())}
+        if wanted in names:  # full-width / spacing differences
+            return names[wanted]
+        # The same font under another name: a Japanese font saved as "MS Mincho" is listed as "ＭＳ 明朝"
+        # on Japanese Windows. Only names inside the font file itself count, never a look-alike
+        # substitute (Helvetica is not shown as Arial).
+        for other in font_family_names(family):
+            row = names.get(norm(other))
+            if row is not None:
+                return row
+        return -1
 
     def set_family(self, family: str) -> None:
-        """Show ``family`` without emitting fontPicked and without picking a look-alike font."""
+        """Show ``family`` without emitting fontPicked and without picking a look-alike font.
+
+        While the list is open nothing is changed (that made the open list jump and shake when the
+        window refreshed its toolbar); the family is shown when the list closes."""
+        view = self.view()
+        if view is not None and view.isVisible():
+            self._pending_family = family
+            return
+        self._pending_family = None
+        if family and family == self._last and self.lineEdit() is not None and self.lineEdit().text() == family:
+            return  # nothing changes — no repaint, no reselect
         self.blockSignals(True)
         try:
             if family:
-                idx = self.findText(family, Qt.MatchFlag.MatchFixedString)  # exact, case-insensitive
+                idx = self._find_family_row(family)
                 if idx >= 0:
-                    self.setCurrentIndex(idx)
+                    if idx != self.currentIndex():
+                        self.setCurrentIndex(idx)
                     self._last = self.itemText(idx)
+                    if self.lineEdit() is not None and self.lineEdit().text() != self._last:
+                        self.setEditText(self._last)
                 else:  # a PDF font that is not installed: show its name, select nothing
                     self.setCurrentIndex(-1)
                     self.setEditText(family)
                     self._last = family
         finally:
             self.blockSignals(False)
-        view = self.view()
         if view is not None:
             view.viewport().update()
 
     def showPopup(self) -> None:  # noqa: N802
-        """Open with the font in use highlighted and scrolled into view (nothing is applied)."""
+        """Open with the font in use highlighted and in view (nothing is applied). The current row is
+        set before the list opens, so Qt places the list once instead of opening and then jumping."""
+        row = self.active_row()
+        if row >= 0 and row != self.currentIndex():
+            self.blockSignals(True)
+            self.setCurrentIndex(row)
+            self.blockSignals(False)
         super().showPopup()
         view = self.view()
-        row = self.active_row()
         if view is None:
             return
         if row >= 0:
             index = self.model().index(row, 0)
             view.setCurrentIndex(index)
-            view.scrollTo(index, QAbstractItemView.ScrollHint.PositionAtCenter)
+            view.scrollTo(index, QAbstractItemView.ScrollHint.EnsureVisible)
         else:
             view.clearSelection()
         view.viewport().update()
+
+    def hidePopup(self) -> None:  # noqa: N802
+        super().hidePopup()
+        pending = getattr(self, "_pending_family", None)
+        if pending is not None:
+            from PySide6.QtCore import QTimer
+
+            QTimer.singleShot(0, lambda: self.set_family(pending) if getattr(self, "_pending_family", None) == pending else None)
 
     def family(self) -> str:
         return self._last
@@ -203,6 +289,10 @@ class FontPicker(QFontComboBox):
             self.blockSignals(True)
             self.setCurrentIndex(idx)
             self.blockSignals(False)
+        self._pending_family = None  # what the user picked wins over a refresh made while the list was open
         if family != self._last:
             self._last = family
             self.fontPicked.emit(family)
+        view = self.view()
+        if view is not None:
+            view.viewport().update()  # the check mark moves to the picked font

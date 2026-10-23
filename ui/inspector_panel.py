@@ -276,7 +276,8 @@ class InspectorPanel(QScrollArea):
         self._form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._form.setHorizontalSpacing(10)
         self._form.setVerticalSpacing(6)
-        self._form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
+        # a row too wide for the panel puts its label above the field instead of being cut off at the edge
+        self._form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         self._layout.addLayout(self._form)
         self._layout.addStretch(1)
         self.setWidget(self._root)
@@ -830,13 +831,53 @@ class InspectorPanel(QScrollArea):
         line_row.layout().insertWidget(2, self._shape_sw)
         self._form.addRow("Line:", line_row)
 
+        from core.editing.shape_box import HEAD_STYLES, STROKE_STYLES
+
         self._shape_ss = QComboBox()
-        for label, value in (("Solid", "solid"), ("Dashed", "dashed"), ("Dotted", "dotted")):
+        for value, label in STROKE_STYLES:
             self._shape_ss.addItem(label, value)
         self._shape_ss.setCurrentIndex(max(0, self._shape_ss.findData(getattr(shape.stroke_style, "value", "solid"))))
         self._shape_ss.currentIndexChanged.connect(self._apply_shape)
         self._form.addRow("Line style:", self._shape_ss)
 
+        self._shape_is_line = getattr(shape.kind, "value", "") in ("line", "arrow")
+        if self._shape_is_line:
+            start, end = shape.heads()
+            self._shape_start = QComboBox()
+            self._shape_end = QComboBox()
+            for combo, current, name in ((self._shape_start, start, "Start"), (self._shape_end, end, "End")):
+                for value, label in HEAD_STYLES:
+                    combo.addItem(label, value)
+                combo.setCurrentIndex(max(0, combo.findData(current)))
+                combo.setAccessibleName(f"Line {name.lower()}")
+                combo.setToolTip(f"What the line's {name.lower()} looks like (arrow head, dot, bar or nothing)")
+                combo.currentIndexChanged.connect(self._apply_shape)
+            self._form.addRow("Start:", self._shape_start)
+            self._form.addRow("End:", self._shape_end)
+            self._shape_head = QDoubleSpinBox()
+            self._shape_head.setRange(0, 72)
+            self._shape_head.setSingleStep(1)
+            self._shape_head.setSuffix(" pt")
+            self._shape_head.setSpecialValueText("Auto")
+            self._shape_head.setToolTip("Size of the arrow heads (Auto: in proportion to the line width)")
+            self._shape_head.setValue(float(getattr(shape, "head_size", 0.0) or 0.0))
+            self._shape_head.valueChanged.connect(self._apply_shape)
+            reverse = QPushButton("Reverse direction")
+            reverse.setToolTip("Swap the two ends — the arrow points the other way")
+            reverse.clicked.connect(self._reverse_line)
+            self._form.addRow("Head size:", self._shape_head)
+            self._form.addRow("", reverse)  # its own row: the panel stays narrow, nothing is cut off
+
+        if self._shape_is_line:
+            self._shape_fill = QLineEdit(shape.fill_color)  # lines have no fill: kept, not shown
+            self._shape_fo = _percent_spin(shape.fill_opacity, minimum=0)
+            self._shape_fill.hide()
+            self._shape_fo.hide()
+        else:
+            self._build_shape_fill(shape)
+        self._build_shape_position(shape)
+
+    def _build_shape_fill(self, shape) -> None:
         self._shape_fill = QLineEdit(shape.fill_color)
         fill_btn = _color_btn(shape.fill_color, lambda b: self._pick_into(self._shape_fill, b), compact=True)
         wrap = _color_row(self._shape_fill, fill_btn)
@@ -852,6 +893,7 @@ class InspectorPanel(QScrollArea):
         wrap.layout().insertWidget(3, self._shape_fo)
         self._form.addRow("Fill:", wrap)
 
+    def _build_shape_position(self, shape) -> None:
         self._section("Position")
         self._add_geometry_editors(shape.rect, oid=shape.object_id, kind="shape")
         self._shape_rot = _angle_spin(shape.rotation)
@@ -864,9 +906,15 @@ class InspectorPanel(QScrollArea):
         self._shape_lock = QCheckBox("Lock aspect ratio")
         self._shape_lock.setChecked(bool(shape.lock_aspect))
         self._shape_lock.toggled.connect(self._apply_shape)
-        self._form.addRow(self._shape_lock)
+        if self._shape_is_line:
+            self._shape_lock.hide()
+        else:
+            self._form.addRow(self._shape_lock)
 
-        tip = QLabel("Hold Shift while drawing for a square, circle or straight line.")
+        tip = QLabel("Drag a line's round end handles to move its ends (Shift: 45° steps). "
+                     if self._shape_is_line else
+                     "Hold Shift while drawing for a square, circle or straight line. Drag a side handle to "
+                     "make a circle oval or a square oblong; with Shift the proportions stay.")
         tip.setWordWrap(True)
         tip.setObjectName("ContextHint")
         self._form.addRow(tip)
@@ -888,7 +936,18 @@ class InspectorPanel(QScrollArea):
             opacity=float(self._shape_op.value()) / 100.0,
             rotation=float(self._shape_rot.value()),
             lock_aspect=self._shape_lock.isChecked(),
+            **({"start_head": self._shape_start.currentData() or "none",
+                "end_head": self._shape_end.currentData() or "none",
+                "head_size": float(self._shape_head.value())} if getattr(self, "_shape_is_line", False) else {}),
         )
+        self.styleEdited.emit()
+
+    def _reverse_line(self) -> None:
+        """Swap a line's ends (one undo step)."""
+        if self._edit is None or self._shape is None:
+            return
+        sh = self._shape
+        self._edit.update_shape(sh.object_id, x0=sh.x1, y0=sh.y1, x1=sh.x0, y1=sh.y0)
         self.styleEdited.emit()
 
     def _build_image_editors(self, image) -> None:

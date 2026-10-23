@@ -93,6 +93,19 @@ def find_font_file(family: str, bold: bool = False, italic: bool = False) -> Pat
         path = reg.get(name)
         if path is not None and path.is_file():
             return path
+    if not bold and not italic:
+        # the fonts that come with Monograph PDF (Noto Sans, Noto Serif, Noto Sans CJK JP) are offered in
+        # the font list and used for symbols, so they are embedded like installed fonts
+        try:
+            from core.editing.font_resolver import _bundled_family_map
+
+            bundled = _bundled_family_map().get(family.strip().lower())
+            # TrueType ones only: the CJK font is an OpenType/CFF font, and a second text box set in
+            # it lost its characters after subsetting in a check; the built-in CJK font is used for it
+            if bundled and Path(bundled).is_file() and Path(bundled).suffix.lower() == ".ttf":
+                return Path(bundled)
+        except Exception:  # noqa: BLE001
+            pass
     return None
 
 

@@ -591,29 +591,92 @@ class ChangePageSizeDialog(QDialog):
 
 
 class RotatePagesDialog(QDialog):
-    """Rotate all, current, selected, odd, even, or a page range."""
+    """Rotate all, current, selected, odd, even, or a page range — by a quarter / half turn or to an
+    exact orientation — with a preview of the current page.
 
-    def __init__(self, page_count: int, current_page: int, selected: list[int], parent=None) -> None:
+    PDF pages can only be turned in steps of 90° (the page's /Rotate entry); a picture or text box
+    can be turned by any angle in its Properties."""
+
+    TURNS = [(-90, "rotate_ccw", "90° left", "Counterclockwise (anticlockwise) by a quarter turn"),
+             (90, "rotate_cw", "90° right", "Clockwise by a quarter turn"),
+             (180, "rotate_pages", "180°", "Upside down (half turn)")]
+
+    def __init__(self, page_count: int, current_page: int, selected: list[int], parent=None, *,
+                 preview=None, current_rotation: int = 0) -> None:
         super().__init__(parent)
-        from PySide6.QtWidgets import QButtonGroup, QComboBox, QFormLayout, QLabel, QLineEdit, QRadioButton
+        from PySide6.QtCore import QSize
+        from PySide6.QtWidgets import (
+            QButtonGroup,
+            QComboBox,
+            QLabel,
+            QLineEdit,
+            QRadioButton,
+            QToolButton,
+        )
+
+        from ui.toolbar_icons import make_icon
 
         self._count = page_count
         self._current = current_page
         self._selected = list(selected)
+        self._preview_image = preview() if callable(preview) else None
+        self._current_rotation = int(current_rotation) % 360
         self.setWindowTitle("Rotate Pages")
-        self.setMinimumWidth(400)
+        self.setMinimumWidth(520)
         root = QVBoxLayout(self)
         root.setSpacing(10)
         title = QLabel("Rotate pages")
         title.setObjectName("DialogTitle")
         root.addWidget(title)
-        form = QFormLayout()
-        self.direction = QComboBox()
-        self.direction.addItem("90° clockwise", 90)
-        self.direction.addItem("90° counterclockwise", -90)
-        self.direction.addItem("180°", 180)
-        form.addRow("Direction:", self.direction)
-        root.addLayout(form)
+
+        top = QHBoxLayout()
+        left = QVBoxLayout()
+        left.addWidget(QLabel("Turn:"))
+        turns = QHBoxLayout()
+        self._turn_group = QButtonGroup(self)
+        self._turn_buttons = []
+        for i, (deg, icon, label, tip) in enumerate(self.TURNS):
+            b = QToolButton()
+            b.setCheckable(True)
+            b.setIcon(make_icon(icon))
+            b.setIconSize(QSize(28, 28))
+            b.setText(label)
+            b.setToolTip(tip)
+            b.setAccessibleName(tip)
+            b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+            b.setMinimumSize(86, 64)
+            self._turn_group.addButton(b, i)
+            self._turn_buttons.append(b)
+            turns.addWidget(b)
+        self._turn_buttons[1].setChecked(True)
+        turns.addStretch(1)
+        left.addLayout(turns)
+        self.opt_exact = QRadioButton("Or set an exact orientation:")
+        self.exact = QComboBox()
+        for deg, label in ((0, "0° — upright (as created)"), (90, "90° — turned right"),
+                           (180, "180° — upside down"), (270, "270° — turned left")):
+            self.exact.addItem(label, deg)
+        self.exact.setEnabled(False)
+        self.opt_exact.toggled.connect(self.exact.setEnabled)
+        self.opt_exact.toggled.connect(lambda on: [b.setEnabled(not on) for b in self._turn_buttons])
+        left.addWidget(self.opt_exact)
+        left.addWidget(self.exact)
+        hint = QLabel("Pages turn in steps of 90°. To turn a picture or text box by any angle, select it "
+                      "and use Rotation in its Properties.")
+        hint.setWordWrap(True)
+        hint.setObjectName("DialogHint")
+        left.addWidget(hint)
+        left.addStretch(1)
+        top.addLayout(left, 1)
+        self._preview = QLabel()
+        self._preview.setFixedSize(150, 150)
+        self._preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._preview.setToolTip("Preview of the current page")
+        self._preview.setStyleSheet("QLabel { border: 1px solid #9aa3af; border-radius: 4px; }")
+        top.addWidget(self._preview)
+        root.addLayout(top)
+
+        root.addWidget(QLabel("Pages:"))
         self._group = QButtonGroup(self)
         self.opt_all = QRadioButton(f"All pages ({page_count})")
         self.opt_current = QRadioButton(f"Current page ({current_page + 1})")
@@ -635,15 +698,40 @@ class RotatePagesDialog(QDialog):
         row.addWidget(self.opt_range)
         row.addWidget(self.range, 1)
         root.addLayout(row)
-        (self.opt_selected if len(selected) > 1 else self.opt_all).setChecked(True)
+        (self.opt_selected if len(selected) > 1 else self.opt_current).setChecked(True)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Rotate")
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
+        self._turn_group.idClicked.connect(lambda _i: self._update_preview())
+        self.opt_exact.toggled.connect(lambda _on: self._update_preview())
+        self.exact.currentIndexChanged.connect(lambda _i: self._update_preview())
+        self._update_preview()
+
+    def is_exact(self) -> bool:
+        return self.opt_exact.isChecked()
+
+    def exact_rotation(self) -> int:
+        """Target orientation (0, 90, 180, 270) when an exact orientation is chosen."""
+        return int(self.exact.currentData())
+
+    def _update_preview(self) -> None:
+        from PySide6.QtGui import QPixmap, QTransform
+
+        img = self._preview_image
+        if img is None or img.isNull():
+            self._preview.setText("No preview")
+            return
+        turn = (self.exact_rotation() - self._current_rotation) if self.is_exact() else self.degrees()
+        pm = QPixmap.fromImage(img).transformed(QTransform().rotate(turn % 360))
+        self._preview.setPixmap(pm.scaled(140, 140, Qt.AspectRatioMode.KeepAspectRatio,
+                                          Qt.TransformationMode.SmoothTransformation))
 
     def degrees(self) -> int:
-        return int(self.direction.currentData())
+        """Relative turn: -90 (counterclockwise), 90 (clockwise) or 180."""
+        i = max(0, self._turn_group.checkedId())
+        return int(self.TURNS[i][0])
 
     def pages(self) -> list[int]:
         n = self._count

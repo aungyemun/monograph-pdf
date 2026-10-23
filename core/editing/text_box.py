@@ -57,6 +57,9 @@ class TextBox:
     overflow: bool = False
     font_substituted: bool = False
     resolved_font: str = ""
+    # Auto-height boxes never shrink below the height the user drew or resized them to (0 = no
+    # minimum): typing the first letters used to collapse a drawn box to one line, and the box jumped
+    min_h: float = 0.0
 
     def copy(self) -> "TextBox":
         return TextBox(
@@ -75,6 +78,7 @@ class TextBox:
             overflow=self.overflow,
             font_substituted=self.font_substituted,
             resolved_font=self.resolved_font,
+            min_h=self.min_h,
         )
 
     def clone_same_id(self) -> "TextBox":
@@ -100,6 +104,7 @@ class TextBox:
             "overflow": self.overflow,
             "font_substituted": self.font_substituted,
             "resolved_font": self.resolved_font,
+            "min_h": self.min_h,
         }
 
     @staticmethod
@@ -121,4 +126,5 @@ class TextBox:
             overflow=bool(data.get("overflow", False)),
             font_substituted=bool(data.get("font_substituted", False)),
             resolved_font=str(data.get("resolved_font") or ""),
+            min_h=float(data.get("min_h", 0.0) or 0.0),
         )

@@ -9,7 +9,7 @@ import fitz
 
 from core.document import DocumentMetadata, InvalidPdfError, PasswordRequiredError
 from core.page_space import rect_to_display
-from core.page_info import PageContentKind, PageInfo
+from core.page_info import PageContent, PageContentKind, PageInfo
 
 # Heuristic: mostly images + little text => scanned/image page
 _SCAN_TEXT_THRESHOLD = 40
@@ -181,9 +181,19 @@ class MuPdfBackend:
         return False
 
     def analyze_page(self, index: int) -> PageInfo:
+        """Page size at once; text / picture analysis on first use (see PageInfo)."""
         page = self._doc.load_page(index)
         rect = page.rect
-        rotation = int(page.rotation)
+        return PageInfo(
+            index=index,
+            width_pt=float(rect.width),
+            height_pt=float(rect.height),
+            rotation=int(page.rotation),
+            analyze=lambda i=index: self._analyze_content(i),
+        )
+
+    def _analyze_content(self, index: int) -> PageContent:
+        page = self._doc.load_page(index)
         text = page.get_text("text") or ""
         char_count = len(text.strip())
         images = page.get_images(full=True) or []
@@ -202,35 +212,59 @@ class MuPdfBackend:
             kind = PageContentKind.IMAGE_SCANNED
         else:
             kind = PageContentKind.EMPTY
-
-        return PageInfo(
-            index=index,
-            width_pt=float(rect.width),
-            height_pt=float(rect.height),
-            rotation=rotation,
-            content_kind=kind,
-            has_text=has_text,
-            has_images=has_images,
-            char_count=char_count,
-            image_count=image_count,
-        )
+        return PageContent(kind, has_text, has_images, char_count, image_count)
 
     def page_text(self, index: int) -> str:
         return self._doc.load_page(index).get_text("text") or ""
 
-    def search(self, query: str, *, case_sensitive: bool = False) -> list[tuple[int, Any]]:
+    def search(self, query: str, *, case_sensitive: bool = False, cancelled=None) -> list[tuple[int, Any]]:
+        """Hits in page text and in form-field values, as (page index, display rect), in page order.
+        ``cancelled`` (a callable) stops a long search early."""
         hits: list[tuple[int, Any]] = []
         for i in range(self.page_count):
-            page = self._doc.load_page(i)
-            # search_for is case-insensitive by default; optionally require exact casing in page text.
-            rects = list(page.search_for(query) or [])
-            if case_sensitive and rects:
-                text = page.get_text("text") or ""
-                if query not in text:
-                    rects = []
-            for r in rects:
-                hits.append((i, rect_to_display(page, r)))
+            if cancelled is not None and cancelled():
+                break
+            hits.extend((i, r) for r in self.search_page(i, query, case_sensitive=case_sensitive))
         return hits
+
+    def search_page(self, index: int, query: str, *, case_sensitive: bool = False, fields: bool = True) -> list[Any]:
+        """Display rects of *query* on one page: page text and form-field values.
+
+        Letters, digits, symbols and Japanese text are found as typed; full-width and half-width forms
+        (２月 / 2月, ＡＢＣ / ABC) find each other."""
+        variants = search_variants(query)
+        page = self._doc.load_page(index)
+        # search_for is case-insensitive by default; optionally require exact casing in page text.
+        rects: list = []
+        textpage = page.get_textpage() if len(variants) > 1 else None  # extracted once for all forms
+        for q in variants:
+            for r in page.search_for(q, textpage=textpage) or []:
+                if not any(abs(r.x0 - o.x0) < 0.5 and abs(r.y0 - o.y0) < 0.5 for o in rects):
+                    rects.append(r)
+        if case_sensitive and rects:
+            text = page.get_text("text", textpage=textpage) or ""
+            if not any(q in text for q in variants):
+                rects = []
+        out = [rect_to_display(page, r) for r in rects]
+        # Text typed into form fields is not always page text, but users expect Find to find it
+        # (``fields=False``: the window searches the values being edited instead of the saved ones)
+        try:
+            widgets = (page.widgets() or []) if fields else []
+        except Exception:  # noqa: BLE001
+            widgets = []
+        for w in widgets:
+            value = str(getattr(w, "field_value", "") or "")
+            if not value or w.field_type in (fitz.PDF_WIDGET_TYPE_CHECKBOX, fitz.PDF_WIDGET_TYPE_RADIOBUTTON):
+                continue
+            if case_sensitive:
+                found = any(q in value for q in variants)
+            else:
+                found = any(q.casefold() in value.casefold() for q in variants)
+            if found:
+                r = rect_to_display(page, w.rect)
+                if not any(o.intersects(r) for o in out):
+                    out.append(r)
+        return out
 
     def render_png(
         self,
@@ -315,3 +349,28 @@ def restore_bytes(backend: "MuPdfBackend", data: bytes) -> None:
     if doc.needs_pass and backend._password:  # noqa: SLF001
         doc.authenticate(backend._password)  # noqa: SLF001
     backend._doc = doc  # noqa: SLF001
+
+
+_FULLWIDTH = {c: chr(ord(c) + 0xFEE0) for c in map(chr, range(0x21, 0x7F))}
+_FULLWIDTH[" "] = "\u3000"
+
+
+def search_variants(query: str) -> list[str]:
+    """The query as typed plus its half-width and full-width forms, without duplicates.
+
+    Only the width of letters, digits, punctuation, the space and katakana is folded (２月 / 2月,
+    ＡＢＣ / ABC, ｶﾀｶﾅ / カタカナ) — not other compatibility forms, so ① does not find every 1."""
+    import unicodedata
+
+    half = "".join(
+        chr(ord(c) - 0xFEE0) if 0xFF01 <= ord(c) <= 0xFF5E
+        else " " if c == "\u3000"
+        else c
+        for c in query
+    )
+    if any(0xFF61 <= ord(c) <= 0xFF9F for c in query):  # half-width katakana → full-width
+        query_kana = "".join(unicodedata.normalize("NFKC", c) if 0xFF61 <= ord(c) <= 0xFF9F else c for c in query)
+    else:
+        query_kana = query
+    full = "".join(_FULLWIDTH.get(c, c) for c in half)
+    return list(dict.fromkeys(q for q in (query, half, full, query_kana) if q))

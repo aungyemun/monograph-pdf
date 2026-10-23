@@ -12,7 +12,7 @@ import os
 import sys
 from dataclasses import dataclass
 
-from PySide6.QtCore import QPointF, QProcess, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QPointF, QProcess, QRectF, QSize, QSizeF, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPageLayout, QPageSize, QPainter, QPen
 from PySide6.QtPrintSupport import QPrinter, QPrinterInfo
 from PySide6.QtWidgets import (
@@ -21,12 +21,15 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QDoubleSpinBox,
     QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
     QRadioButton,
+    QScrollArea,
     QSizePolicy,
     QSpinBox,
     QToolButton,
@@ -45,6 +48,25 @@ from core.printing import (
     sheet_landscape,
 )
 from core.printing.ops import PAGES_PER_SHEET
+
+# Units offered for a custom paper size: (label, millimetres per unit, decimals, step)
+PAPER_UNITS: list[tuple[str, float, int, float]] = [
+    ("mm", 1.0, 1, 1.0),
+    ("cm", 10.0, 2, 0.1),
+    ("in", 25.4, 3, 0.125),
+    ("ft", 304.8, 4, 0.01),
+]
+CUSTOM_PAPER = "custom"
+CUSTOM_MIN_MM, CUSTOM_MAX_MM = 25.0, 3000.0  # 2.5 cm … 3 m (wide-format printers)
+
+
+def to_mm(value: float, unit: str) -> float:
+    return float(value) * dict((u, k) for u, k, _d, _s in PAPER_UNITS)[unit]
+
+
+def from_mm(mm: float, unit: str) -> float:
+    return float(mm) / dict((u, k) for u, k, _d, _s in PAPER_UNITS)[unit]
+
 
 _FALLBACK_SIZES = (QPageSize.PageSizeId.A4, QPageSize.PageSizeId.Letter, QPageSize.PageSizeId.Legal,
                    QPageSize.PageSizeId.A3, QPageSize.PageSizeId.B5, QPageSize.PageSizeId.A5)
@@ -177,7 +199,7 @@ class PrintDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(f"Print — {doc_name}")
         self.setObjectName("PrintDialog")
-        self.setMinimumSize(860, 600)
+        self.setMinimumSize(760, 520)
         self._doc = document
         self._doc_name = doc_name
         self._n = int(document.page_count)
@@ -282,7 +304,40 @@ class PrintDialog(QDialog):
         form.addRow("Pages:", pw)
 
         self.paper = QComboBox()
+        self.paper.setObjectName("PrintPaper")
+        self.paper.setMaxVisibleItems(14)  # a printer can list 100+ sizes: a short list that scrolls
+        self.paper.setToolTip("Paper size — choose “Custom size…” at the end of the list for any size")
         form.addRow("Paper:", self.paper)
+        # Custom paper: width × height in mm, cm, in or ft (values convert when the unit changes)
+        self.custom_w = QDoubleSpinBox()
+        self.custom_h = QDoubleSpinBox()
+        for box, name in ((self.custom_w, "Custom paper width"), (self.custom_h, "Custom paper height")):
+            box.setAccessibleName(name)
+            box.setKeyboardTracking(False)
+            box.setMinimumWidth(84)
+        self.custom_unit = QComboBox()
+        self.custom_unit.setObjectName("PrintCustomUnit")
+        for unit, _k, _d, _s in PAPER_UNITS:
+            self.custom_unit.addItem(unit, unit)
+        self.custom_unit.setCurrentIndex(self.custom_unit.findData("cm"))
+        self._custom_unit = "cm"
+        self._custom_mm = (210.0, 297.0)
+        crow2 = QHBoxLayout()
+        crow2.setContentsMargins(0, 0, 0, 0)
+        crow2.addWidget(self.custom_w)
+        crow2.addWidget(QLabel("×"))
+        crow2.addWidget(self.custom_h)
+        crow2.addWidget(self.custom_unit)
+        crow2.addStretch(1)
+        self._custom_row = QWidget()
+        self._custom_row.setLayout(crow2)
+        self._custom_label = QLabel("Size:")
+        form.addRow(self._custom_label, self._custom_row)
+        self._custom_hint = QLabel("")
+        self._custom_hint.setObjectName("DialogHint")
+        self._custom_hint.setWordWrap(True)
+        form.addRow("", self._custom_hint)
+        self._apply_custom_unit()
         self.orientation = QComboBox()
         self.orientation.addItem("Auto (match each page)", "auto")
         self.orientation.addItem("Portrait", "portrait")
@@ -344,12 +399,13 @@ class PrintDialog(QDialog):
         sides_box.setContentsMargins(0, 0, 0, 0)
         sides_box.setSpacing(4)
         sides_box.addWidget(self.both_sides)
-        flip_row = QHBoxLayout()
-        flip_row.setContentsMargins(20, 0, 0, 0)
-        flip_row.addWidget(self.flip_long)
-        flip_row.addWidget(self.flip_short)
-        flip_row.addStretch(1)
-        sides_box.addLayout(flip_row)
+        # one below the other: side by side they were cut off ("Flip on long e…") in the narrow column
+        flip_col = QVBoxLayout()
+        flip_col.setContentsMargins(22, 0, 0, 0)
+        flip_col.setSpacing(2)
+        flip_col.addWidget(self.flip_long)
+        flip_col.addWidget(self.flip_short)
+        sides_box.addLayout(flip_col)
         sides_w = QWidget()
         sides_w.setLayout(sides_box)
         form.addRow("Two-sided:", sides_w)
@@ -365,8 +421,15 @@ class PrintDialog(QDialog):
 
         lw = QWidget()
         lw.setLayout(left)
-        lw.setFixedWidth(340)
-        root.addWidget(lw)
+        # the settings scroll when the window is short (small screens, large text) instead of being cut
+        scroll = QScrollArea()
+        scroll.setObjectName("PrintSettingsScroll")
+        scroll.setWidget(lw)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._settings_scroll, self._settings_widget = scroll, lw
+        root.addWidget(scroll)
 
         # --- preview ----------------------------------------------------------------------
         right = QVBoxLayout()
@@ -419,7 +482,80 @@ class PrintDialog(QDialog):
         self.custom.textChanged.connect(self._pages_changed)
         self._prev_btn.clicked.connect(lambda: self._go(-1))
         self._next_btn.clicked.connect(lambda: self._go(1))
+        self.paper.currentIndexChanged.connect(self._sync_custom_visible)
+        self.custom_unit.currentIndexChanged.connect(lambda _i: self._apply_custom_unit())
+        self.custom_w.valueChanged.connect(self._custom_size_edited)
+        self.custom_h.valueChanged.connect(self._custom_size_edited)
         self._printer_changed()
+        self._sync_custom_visible()
+        self._fit_to_screen()
+
+    def _fit_to_screen(self) -> None:
+        """Open at a comfortable size that fits the screen (not larger than 1100 × 780)."""
+        # the settings column is as wide as its widest row (nothing is cut off), plus the scroll bar
+        need = self._settings_widget.minimumSizeHint().width()
+        bar = self._settings_scroll.verticalScrollBar().sizeHint().width()
+        self._settings_scroll.setMinimumWidth(need + bar + 4)
+        self._settings_scroll.setMaximumWidth(need + bar + 40)
+        self.setMinimumWidth(need + bar + 4 + 380 + 50)  # + a usable preview and its three buttons
+        screen = (self.parentWidget().screen() if self.parentWidget() is not None else None) or self.screen()
+        avail = screen.availableGeometry() if screen is not None else None
+        w, h = 1040, 740
+        if avail is not None:
+            w, h = min(w, int(avail.width() * 0.9)), min(h, int(avail.height() * 0.9))
+        self.resize(max(self.minimumWidth(), w), max(self.minimumHeight(), h))
+
+    # --- custom paper size -------------------------------------------------------------------
+    def is_custom_paper(self) -> bool:
+        return self.paper.currentData() == CUSTOM_PAPER
+
+    def custom_size_mm(self) -> tuple[float, float]:
+        return self._custom_mm
+
+    def set_custom_size(self, width: float, height: float, unit: str = "cm") -> None:
+        """Choose a custom paper size (e.g. 21 × 29.7 cm)."""
+        idx = self.custom_unit.findData(unit)
+        if idx >= 0 and idx != self.custom_unit.currentIndex():
+            self.custom_unit.setCurrentIndex(idx)
+        self._custom_mm = (to_mm(width, unit), to_mm(height, unit))
+        self._apply_custom_unit()
+        i = self.paper.findData(CUSTOM_PAPER)
+        if i >= 0:
+            self.paper.setCurrentIndex(i)
+        self._refresh()
+
+    def _apply_custom_unit(self) -> None:
+        """Show the custom size in the chosen unit (the size itself is kept in millimetres)."""
+        unit = self.custom_unit.currentData() or "cm"
+        self._custom_unit = unit
+        _u, _k, decimals, step = next(p for p in PAPER_UNITS if p[0] == unit)
+        for box, mm in ((self.custom_w, self._custom_mm[0]), (self.custom_h, self._custom_mm[1])):
+            box.blockSignals(True)
+            box.setDecimals(decimals)
+            box.setSingleStep(step)
+            box.setRange(round(from_mm(CUSTOM_MIN_MM, unit), decimals), round(from_mm(CUSTOM_MAX_MM, unit), decimals))
+            box.setSuffix(f" {unit}")
+            box.setValue(from_mm(mm, unit))
+            box.blockSignals(False)
+        self._update_custom_hint()
+
+    def _custom_size_edited(self, *_args) -> None:
+        unit = self._custom_unit
+        self._custom_mm = (to_mm(self.custom_w.value(), unit), to_mm(self.custom_h.value(), unit))
+        self._update_custom_hint()
+        if self.is_custom_paper():
+            self._refresh()
+
+    def _update_custom_hint(self) -> None:
+        w, h = self._custom_mm
+        self._custom_hint.setText(
+            f"= {w / 10:.1f} × {h / 10:.1f} cm  ·  {w / 25.4:.2f} × {h / 25.4:.2f} in  ·  "
+            f"{w:.0f} × {h:.0f} mm. The printer must be able to take this size.")
+
+    def _sync_custom_visible(self, *_args) -> None:
+        on = self.is_custom_paper()
+        for widget in (self._custom_label, self._custom_row, self._custom_hint):
+            widget.setVisible(on)
 
     # --- printer & paper ---------------------------------------------------------------------
 
@@ -467,8 +603,10 @@ class PrintDialog(QDialog):
             self.paper.addItem(ps.name(), ps)
         want = None
         idx = -1
-        if current is not None:
+        if isinstance(current, QPageSize):
             want = current.name()
+        elif current == CUSTOM_PAPER:
+            pass
         else:
             idx = self._document_paper_index()  # A4 form → A4 paper, when the printer has it
             if idx < 0 and info is not None:
@@ -480,7 +618,11 @@ class PrintDialog(QDialog):
                     want = None
             if idx < 0 and want is None:
                 want = QPageSize(QPageSize.PageSizeId.A4).name()
-        if idx < 0:
+        self.paper.insertSeparator(self.paper.count())
+        self.paper.addItem("Custom size…", CUSTOM_PAPER)
+        if current == CUSTOM_PAPER:
+            idx = self.paper.findData(CUSTOM_PAPER)
+        elif idx < 0:
             idx = self.paper.findText(want)
         self.paper.setCurrentIndex(max(0, idx))
         self.paper.blockSignals(False)
@@ -630,6 +772,10 @@ class PrintDialog(QDialog):
 
     def _page_size(self) -> QPageSize:
         ps = self.paper.currentData()
+        if ps == CUSTOM_PAPER:
+            w, h = self._custom_mm
+            return QPageSize(QSizeF(w, h), QPageSize.Unit.Millimeter, f"Custom {w:g} × {h:g} mm",
+                             QPageSize.SizeMatchPolicy.ExactMatch)
         return ps if isinstance(ps, QPageSize) and ps.isValid() else QPageSize(QPageSize.PageSizeId.A4)
 
     def _margins_pt(self, landscape: bool) -> tuple[float, float, float, float]:

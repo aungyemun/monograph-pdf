@@ -231,10 +231,11 @@ def apply_layout_to_box(box: TextBox) -> TextBox:
     box.overflow = result.overflow
     box.font_substituted = result.font_substituted
     box.resolved_font = result.resolved_font
+    floor = float(getattr(box, "min_h", 0.0) or 0.0)
     if box.size_mode == SizeMode.AUTO_HEIGHT:
-        box.rect = box.rect.with_size(box.rect.w, result.rect_h)
+        box.rect = box.rect.with_size(box.rect.w, max(result.rect_h, floor))
     elif box.size_mode == SizeMode.AUTO_SIZE:
-        box.rect = box.rect.with_size(max(box.rect.w, result.rect_w), result.rect_h)
+        box.rect = box.rect.with_size(max(box.rect.w, result.rect_w), max(result.rect_h, floor))
     if box.size_mode == SizeMode.SHRINK_TO_FIT and result.font_size >= 6.0:
         box.style.font_size = result.font_size
     return box
