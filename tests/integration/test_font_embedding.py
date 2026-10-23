@@ -149,13 +149,19 @@ def test_japanese_and_mixed_text_keep_content_and_font(tmp_path: Path):
         assert all(ext != "n/a" for _, ext in fonts)
 
 
-def test_font_collection_is_not_embedded_and_the_user_is_told(tmp_path: Path):
+def test_font_from_a_collection_is_embedded_without_a_warning(tmp_path: Path):
+    """MS Mincho is installed as msmincho.ttc. 0.4.0 and earlier replaced it with a built-in font and
+    said "font collections (.ttc) are not embedded"; its face is now embedded (subset)."""
     if system_fonts.find_font_file("MS Mincho") is None:
         pytest.skip("MS Mincho not installed")
+    system_fonts.take_notes()
     out = _bake(tmp_path, "MS Mincho", "日本語 text")
     notes = system_fonts.take_notes()
-    assert "MS Mincho" in notes and ".ttc" in notes["MS Mincho"]
-    assert _fonts(out)[1] == "日本語 text"  # content still correct with the built-in Japanese font
+    assert "MS Mincho" not in notes, notes
+    fonts, text = _fonts(out)
+    assert text == "日本語 text"
+    assert any("msmincho" in n.replace(" ", "").replace("-", "").lower() for n, _ in fonts), fonts
+    assert all(ext != "n/a" for _, ext in fonts)
 
 
 def test_missing_font_is_reported_not_silent(tmp_path: Path):

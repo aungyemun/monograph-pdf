@@ -3,9 +3,10 @@
 A font is embedded only when all of these hold; otherwise the text is saved with the closest built-in PDF
 face and the caller is told (``take_notes``):
 
-* the family (and bold / italic variant) is installed as a single-face TrueType / OpenType file
-  (collections ``.ttc`` are not embedded);
-* the font's OS/2 ``fsType`` allows embedding: installable (0) or editable (8). Restricted-license (2),
+* the family (and bold / italic variant) is installed as a TrueType / OpenType file or as one face of
+  a font collection (``.ttc`` / ``.otc``, e.g. MS Mincho, MS Gothic, Meiryo, Yu Gothic, SimSun); from a
+  collection only the requested face is used;
+* the font's (or that face's) OS/2 ``fsType`` allows embedding: installable (0) or editable (8). Restricted-license (2),
   preview-and-print only (4), bitmap-only (0x200) and no-subsetting (0x100) fonts are never embedded;
 * the font file can be read.
 
@@ -95,21 +96,54 @@ def find_font_file(family: str, bold: bool = False, italic: bool = False) -> Pat
     return None
 
 
-@lru_cache(maxsize=256)
-def embedding_verdict(path: str) -> tuple[bool, str]:
-    """(allowed, reason) from the file type and OS/2 fsType."""
-    if path.lower().endswith((".ttc", ".otc")):
-        return False, "font collections (.ttc) are not embedded"
-    try:
-        from fontTools.ttLib import TTFont
+def is_collection(path: str) -> bool:
+    return str(path).lower().endswith((".ttc", ".otc"))
 
-        font = TTFont(path, lazy=True, fontNumber=0)
-        try:
+
+@lru_cache(maxsize=64)
+def collection_faces(path: str) -> tuple[tuple[frozenset, str, int], ...]:
+    """The faces of a font collection: (all family / full names in lower case, in every language of
+    the font's name table; full name in English, lower case; fsType)."""
+    from fontTools.ttLib import TTCollection
+
+    faces = []
+    coll = TTCollection(path, lazy=True)
+    try:
+        for font in coll.fonts:
+            names, full = set(), ""
+            if "name" in font:
+                for rec in font["name"].names:
+                    if rec.nameID in (1, 4, 16):
+                        try:
+                            text = rec.toUnicode().strip().lower()
+                        except Exception:  # noqa: BLE001
+                            continue
+                        if text:
+                            names.add(text)
+                full = (font["name"].getDebugName(4) or "").strip().lower()
             fs = int(font["OS/2"].fsType) if "OS/2" in font else 0
-        finally:
-            font.close()
-    except Exception as exc:  # noqa: BLE001
-        return False, f"the font file could not be read ({type(exc).__name__})"
+            faces.append((frozenset(names), full, fs))
+    finally:
+        coll.close()
+    return tuple(faces)
+
+
+def collection_index(path: str, family: str, bold: bool = False, italic: bool = False) -> int | None:
+    """Index of the face of ``family`` (and the bold / italic variant) in the collection at ``path``."""
+    fam = family.strip().lower()
+    wanted = set(_candidates(family, bold, italic))
+    faces = collection_faces(path)
+    for i, (names, full, _fs) in enumerate(faces):  # exact full name of the variant first ("meiryo italic")
+        if full in wanted or names & wanted:
+            return i
+    if not bold and not italic:
+        for i, (names, full, _fs) in enumerate(faces):
+            if fam in names and not any(w in full for w in ("bold", "italic", "oblique")):
+                return i
+    return None
+
+
+def _check_fstype(fs: int) -> tuple[bool, str]:
     if fs & 0x0200:
         return False, "the font only allows bitmap embedding"
     if fs & 0x0100:
@@ -119,6 +153,28 @@ def embedding_verdict(path: str) -> tuple[bool, str]:
     return True, ""
 
 
+@lru_cache(maxsize=256)
+def embedding_verdict(path: str, index: int = 0) -> tuple[bool, str]:
+    """(allowed, reason) from the OS/2 fsType of the file (or of face ``index`` of a collection)."""
+    try:
+        if is_collection(path):
+            faces = collection_faces(path)
+            if not 0 <= index < len(faces):
+                return False, "the font was not found in its font collection"
+            fs = faces[index][2]
+        else:
+            from fontTools.ttLib import TTFont
+
+            font = TTFont(path, lazy=True, fontNumber=0)
+            try:
+                fs = int(font["OS/2"].fsType) if "OS/2" in font else 0
+            finally:
+                font.close()
+    except Exception as exc:  # noqa: BLE001
+        return False, f"the font file could not be read ({type(exc).__name__})"
+    return _check_fstype(fs)
+
+
 _SYSTEM_IDS: set[int] = set()
 
 
@@ -126,6 +182,34 @@ _SYSTEM_IDS: set[int] = set()
 def _load(path: str) -> fitz.Font:
     font = fitz.Font(fontfile=path)
     _SYSTEM_IDS.add(id(font))  # cached for the process lifetime, so the id stays valid
+    return font
+
+
+_FACE_CACHE: dict[tuple[str, int], fitz.Font] = {}
+_FACE_CACHE_MAX = 4  # a face of a CJK collection is about 10 MB in memory
+
+
+def _load_face(path: str, index: int) -> fitz.Font:
+    """One face of a font collection as a MuPDF font (only that face; only the glyphs used are
+    embedded later by ``subset_fonts``)."""
+    key = (path, index)
+    font = _FACE_CACHE.get(key)
+    if font is None:
+        import io
+
+        from fontTools.ttLib import TTCollection
+
+        coll = TTCollection(path)
+        try:
+            buf = io.BytesIO()
+            coll.fonts[index].save(buf)
+        finally:
+            coll.close()
+        font = fitz.Font(fontbuffer=buf.getvalue())
+        if len(_FACE_CACHE) >= _FACE_CACHE_MAX:
+            _FACE_CACHE.pop(next(iter(_FACE_CACHE)))  # oldest; kept alive by any document still using it
+        _FACE_CACHE[key] = font
+        _SYSTEM_IDS.add(id(font))
     return font
 
 
@@ -141,12 +225,23 @@ def load(family: str, bold: bool = False, italic: bool = False) -> fitz.Font | N
         else:
             note_fallback(family, "no matching bold / italic file is installed")
         return None
-    ok, reason = embedding_verdict(str(path))
+    index = 0
+    if is_collection(str(path)):
+        try:
+            found = collection_index(str(path), family, bold, italic)
+        except Exception as exc:  # noqa: BLE001
+            note_fallback(family, f"the font collection could not be read ({type(exc).__name__})")
+            return None
+        if found is None:
+            note_fallback(family, "the font was not found in its font collection")
+            return None
+        index = found
+    ok, reason = embedding_verdict(str(path), index)
     if not ok:
         note_fallback(family, reason)
         return None
     try:
-        return _load(str(path))
+        return _load_face(str(path), index) if is_collection(str(path)) else _load(str(path))
     except Exception as exc:  # noqa: BLE001
         note_fallback(family, f"the font file could not be loaded ({type(exc).__name__})")
         return None
