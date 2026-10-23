@@ -117,6 +117,10 @@ Before a release, also install the previous published Setup and upgrade it with 
   (standard PKCS#8 copy, tamper detection, weak-parameter refusal, OpenSSL interoperability; needs
   `cryptography`), `test_update_signing_bundle.py` (stand-alone signing bundle, multi-copy self-test,
   secret scan), `test_update_manifest_release_check.py` (`verify_release.py`'s manifest check).
+* Direct upgrades: `test_update_direct_upgrade.py` (skipped versions, long gaps, expiry, key-rotation
+  bridge, refused paths with the manual option, interrupted downloads and installations) and
+  `test_user_prefs_migration.py` (settings layout migrations, wrong types, newer settings kept,
+  unreadable file kept aside, atomic saving).
 * Problem reports: `test_diagnostics.py` (privacy filtering, schema, consent, offline sending,
   crash and termination records), `test_report_gateway.py` (validation, limits, injection, GitHub
   permission isolation; GitHub mocked).

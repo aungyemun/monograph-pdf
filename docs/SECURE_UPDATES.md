@@ -252,6 +252,58 @@ it turns a lost key (6) into a planned transition (1). A root key or TUF-style r
 complexity a single-maintainer project would have to operate correctly for little practical gain;
 not added.
 
+## Direct upgrades and long-term compatibility
+
+An installed copy reads only the **newest** manifest of its channel and compares it with its own
+version: it never needs the manifests of versions it skipped, however many there are and however long
+it has not checked. Replay protection does not depend on history either: the copy remembers the
+highest sequence number it has accepted and refuses anything lower. So 0.4.1 can go straight to 0.6.0
+or 1.0.0 with one **Update Now** (one download, one Setup run), provided the conditions below hold.
+Every step still requires the user's click; automatic checks stay off by default and only check.
+
+### Supported paths
+
+| From | To | How | Verified |
+|---|---|---|---|
+| 0.3.0, 0.4.0 | 0.4.1 or later | **Setup** (manual): their update checks are switched off and trust no key | Setup upgrade 0.4.0 → 0.4.1: by the maintainer on real computers ([checklist](WINDOWS_RELEASE_TEST_CHECKLIST.md) A3) — **not yet done** |
+| 0.4.1 or later | any newer release whose manifest is signed by a key the installed copy trusts, uses manifest schema 1, and whose `min_upgrade_from` (if any) is not newer than the installed version | **Update Now** (direct, no intermediate versions) | automated tests with synthetic keys (`test_update_direct_upgrade.py`); on real computers **not verified** until a release after 0.4.1 exists |
+| 0.4.1 or later | a release whose manifest the copy cannot verify (only new keys, a newer manifest schema) | refused (*Verification failed*, "nothing was downloaded or installed", **Open Releases Page**); install with **Setup** | automated tests |
+| 0.4.1 or later | a release with `min_upgrade_from` newer than the installed version | the update is shown, **Update Now** is disabled with the reason and a link to the release page; install with **Setup** | automated tests |
+| any | an older version | never offered (downgrade refused) | automated tests |
+| PDF Editor 0.1.5 | Monograph PDF | **Setup** migration | installer test matrix |
+
+Setup itself always works as the manual path: it upgrades any earlier installation in place (same
+AppId and folder) and keeps settings and documents.
+
+### Settings and data across versions
+
+* Settings (`preferences.json`) carry a layout number (`_schema`); each version runs every migration
+  from the file's layout up to its own (`core/user_prefs.py`, `MIGRATIONS`, never removed). Values of
+  the wrong type fall back to defaults; settings written by a newer version are kept unchanged; an
+  unreadable file is copied aside before defaults are used; saving is atomic.
+* Installation layout: Setup deletes and rewrites the program's `_internal` folder and removes files
+  that the previous installation listed as its own (`installed_files.txt`), so files of any skipped
+  version cannot linger; user files and documents are never touched.
+* An interrupted download is deleted; an update handed to the helper whose computer was switched off
+  is cleaned up at a later start; a failed Setup run is reported once and the old version keeps
+  working ([AUTOMATIC_UPGRADE_AND_CLEANUP.md](AUTOMATIC_UPGRADE_AND_CLEANUP.md)).
+
+### Rules for every future release (so that old copies can still upgrade directly)
+
+1. Publish `MonographPDF_update_manifest.json` with **schema 1** under that name in this repository.
+   A future format needs a new asset name, published *in addition* as long as older copies are
+   supported.
+2. Sign with key `27c3b3b23b949c40` — alone or together with newer keys — for as long as copies that
+   trust only that key are supported. A release whose manifest is signed only by a newer key cannot
+   be verified by 0.4.1–era copies: they must upgrade with Setup (see [Key rotation](#key-rotation)).
+3. Sequence numbers grow across all releases of a channel; never reset them.
+4. Keep the Inno Setup AppId, the Setup file name pattern, a Windows x64 Inno Setup installer, and the
+   switches the **old** helper passes (`/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /CURRENTUSER|/ALLUSERS
+   /DIR= /LOG=`): the helper that runs the new Setup is the one installed with the old version.
+5. Add a settings migration for any renamed or reinterpreted setting; never remove one.
+6. Use `min_upgrade_from` only when a direct jump truly cannot work; the manual path is Setup.
+7. Publish a release before the newest manifest expires ([Manifest expiry](#manifest-expiry)).
+
 ## Manifest expiry
 
 Policy: `--expires-days 365` by default; `verify_release.py` requires at least 30 days left.
@@ -343,7 +395,10 @@ network request at start-up), `test_update_signing_key.py` (encrypted key storag
 passphrases, the self-test), `test_update_signing_key_pkcs8.py` (PKCS#8 copy, tamper detection,
 OpenSSL interoperability; needs `cryptography`), `test_update_signing_bundle.py` (signing bundle,
 multi-copy self-test, secret scan), `test_update_manifest_release_check.py` (the release check of the
-manifest), `test_international.py`; the Windows end-to-end upgrade test is described in
+manifest), `test_update_direct_upgrade.py` (skipped versions, years between checks, expired newest
+manifest, clock far behind, key-rotation bridge, refused paths, future manifest format, the switches an
+old helper passes, interrupted downloads and installations), `test_user_prefs_migration.py` (settings
+across versions), `test_international.py`; the Windows end-to-end upgrade test is described in
 [AUTOMATIC_UPGRADE_AND_CLEANUP.md](AUTOMATIC_UPGRADE_AND_CLEANUP.md#testing). All keys in the tests
 are synthetic (`tests/fixtures/update_fixtures.py`). The production key's own self-test
 (`update_manifest.py selftest`, 19 checks on fictional in-memory manifests that name a repository no

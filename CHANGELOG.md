@@ -42,6 +42,11 @@ remains switched off.
   (.ttc) are not embedded". The chosen face is now taken from the collection and embedded (only the
   characters used), after checking that face's embedding permission.
 
+- Settings survive direct upgrades over many versions: `preferences.json` records its layout and is
+  migrated step by step; a value of the wrong type no longer replaces the setting silently later
+  (the default is used); settings of a newer version are kept; an unreadable settings file is copied
+  aside instead of being overwritten; settings and the recent-files list are saved atomically.
+
 ### Changed
 
 - **Compress PDF** is easier to use. It asks one question — *How do you want to compress it?* — with

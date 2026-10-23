@@ -38,8 +38,9 @@ class RecentFiles:
             self._items = []
 
     def save(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self._items, indent=2), encoding="utf-8")
+        from core.user_prefs import _write_atomic
+
+        _write_atomic(self.path, json.dumps(self._items, indent=2))
 
     def add(self, file_path: str | Path) -> None:
         resolved = str(Path(file_path).resolve())

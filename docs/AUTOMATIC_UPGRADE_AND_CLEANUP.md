@@ -2,7 +2,9 @@
 
 Status: **included since 0.3.0; switched on from 0.4.1** with the production update-signing key
 ([SECURE_UPDATES.md](SECURE_UPDATES.md#production-setup)). 0.4.0 and earlier cannot update themselves;
-the first upgrade through this path is from 0.4.1 to a later release. This page describes what happens after
+the first upgrade through this path is from 0.4.1 to a later release. An installed copy can skip any
+number of versions and upgrade directly to the newest release; supported and unsupported paths:
+[SECURE_UPDATES.md](SECURE_UPDATES.md#direct-upgrades-and-long-term-compatibility). This page describes what happens after
 the user clicks **Update Now**, which installation is changed, which files may be replaced or
 removed, how temporary update files are cleaned up and what happens when something fails.
 
