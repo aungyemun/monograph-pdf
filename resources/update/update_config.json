@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "enabled": true,
-  "disabled_reason": "Update checks are not available in this build. Download new versions from the official GitHub Releases page.",
+  "disabled_reason": "Update checks are switched off in this build. Download new versions from the official GitHub Releases page.",
   "repository": "aungyemun/monograph-pdf",
   "manifest_asset": "MonographPDF_update_manifest.json",
   "stable_manifest_url": "https://github.com/aungyemun/monograph-pdf/releases/latest/download/MonographPDF_update_manifest.json",

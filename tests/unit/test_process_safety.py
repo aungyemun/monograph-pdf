@@ -27,11 +27,24 @@ FORBIDDEN = [
 ]
 
 
+def _is_gitignored(path: Path) -> bool:
+    """Local maintainer harnesses under scripts/qa_* are gitignored; do not fail the release gate on them."""
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(ROOT), "check-ignore", "-q", str(path.relative_to(ROOT).as_posix())],
+            capture_output=True,
+        )
+        return r.returncode == 0
+    except OSError:
+        return False
+
+
 def _files():
     for folder in ("scripts", "tests", "app", "core", "ui", "installer", ".github"):
         for path in (ROOT / folder).rglob("*"):
             if path.suffix.lower() in (".py", ".ps1", ".psm1", ".bat", ".cmd", ".cs", ".iss", ".yml") \
-                    and path.resolve() != Path(__file__).resolve():
+                    and path.resolve() != Path(__file__).resolve() \
+                    and not _is_gitignored(path):
                 yield path
 
 

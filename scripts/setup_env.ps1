@@ -62,6 +62,17 @@ if ($WheelCount -gt 0) {
     & $Pip -m pip install --cache-dir "$Root\packages\wheels" -r "$Root\requirements.txt"
 }
 if ($LASTEXITCODE -ne 0) { throw "Installing requirements.txt failed - the environment is incomplete." }
+# Optional CI-only pins (cryptography, etc.) when requirements-ci.txt is present.
+$ReqCi = Join-Path $Root "requirements-ci.txt"
+if (Test-Path $ReqCi) {
+    Write-Host "Installing requirements-ci.txt (test/signing tooling)"
+    if ($WheelCount -gt 0) {
+        & $Pip -m pip install --no-index --find-links "$Root\packages\wheels" --cache-dir "$Root\packages\wheels" -r $ReqCi
+    } else {
+        & $Pip -m pip install --cache-dir "$Root\packages\wheels" -r $ReqCi
+    }
+    if ($LASTEXITCODE -ne 0) { Write-Warning "requirements-ci.txt install failed; core env is still usable." }
+}
 & $Pip -m pip check
 if ($LASTEXITCODE -ne 0) { throw "pip check reports inconsistent dependencies." }
 # Keep flat wheels for offline reinstall (alongside pip's http-v2 cache). Without a network connection
