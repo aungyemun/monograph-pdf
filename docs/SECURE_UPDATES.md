@@ -25,6 +25,14 @@ Related: [AUTOMATIC_UPGRADE_AND_CLEANUP.md](AUTOMATIC_UPGRADE_AND_CLEANUP.md) (w
 * Statuses: *Checking for updates…*, *Up to date*, *Update available*, *Unable to check*,
   *Verification failed*, *Updates not configured*. A server that cannot be reached, a rate limit,
   an invalid certificate or an unverifiable manifest is never reported as *Up to date*.
+* A failed check or update names the situation (`core/updates/messages.py`) — *No internet
+  connection*, *GitHub is temporarily unavailable*, *No compatible release found*, *Invalid digital
+  signature*, *Update information has expired*, *Update information has an invalid date*, *Update is
+  for a different product*, *Unsupported upgrade path*, *Installer integrity verification failed*,
+  *Download interrupted*, *Update canceled* — says that nothing was downloaded or installed, and
+  offers **Open Releases Page** for a manual download. No security detail beyond that is shown.
+  Checking again repeats the complete verification; nothing is ever accepted because the user
+  retried, and an installer that failed verification is deleted, never run.
 * When an update is available: installed version, available version, release date, release notes
   (shown as plain text), download size, and **Update Now** · **Remind Me Later**. The release notes
   can be read without starting anything. *Remind Me Later* postpones that version for one check
@@ -51,8 +59,8 @@ installed only if all of the following hold:
    regional settings). Only a newer version is offered — **downgrades are refused** — and a
    manifest may require a minimum installed version (`min_upgrade_from`).
 4. **Freshness and replay protection.** `issued` and `expires` (UTC) bound the validity; expired
-   manifests fail verification, and a manifest dated more than 24 hours in the future is refused
-   (clock check). Each manifest carries a `sequence` number that must grow with every manifest the
+   manifests fail verification, a validity longer than **730 days** is refused, and a manifest dated
+   more than 24 hours in the future is refused (clock check). Each manifest carries a `sequence` number that must grow with every manifest the
    maintainer signs; the application stores the highest sequence accepted per channel and refuses
    older ones (rollback / replay of outdated metadata).
 5. **Artifact.** The manifest lists the Windows x64 Inno Setup installer with its exact name
@@ -92,7 +100,7 @@ downgrade and replay protection with no new runtime dependency. Its known limits
 
 * **Freeze attacks are bounded only by `expires`.** An attacker who controls the download path and
   replays the latest *valid* manifest can hide a newer release until that manifest expires. The
-  release tool defaults to 365 days (see [Manifest expiry](#manifest-expiry)); published releases are
+  release tool signs for 730 days (see [Manifest expiry](#manifest-expiry)); published releases are
   immutable, so fresh update information requires a new release before the newest manifest expires
   (otherwise clients report *Verification failed*, never *Up to date*).
 * **One key class.** There is no separate root key for rotating the signing key; key rotation
@@ -252,6 +260,28 @@ it turns a lost key (6) into a planned transition (1). A root key or TUF-style r
 complexity a single-maintainer project would have to operate correctly for little practical gain;
 not added.
 
+### Recommendation: a pre-trusted recovery key (future release, not 0.4.1)
+
+A recovery key only helps if installed copies **already trust it** when the primary key is lost:
+a second key kept offline but not listed in `trusted_keys` is useless for recovery, because nothing
+signed with it would be accepted. Recommended for a later release (for example 0.4.2), with
+explicit approval:
+
+1. Generate a separate recovery key on a different medium with a different passphrase; back it up
+   like the primary key; never use it for routine releases.
+2. Ship its public key in `trusted_keys` next to `27c3b3b23b949c40`, **threshold 1**, in a release
+   signed with the primary key. From then on either key alone can sign.
+3. If the primary key is lost: sign the next release with the recovery key (copies that trust it
+   update normally) and introduce a new primary key the same way.
+4. If the primary key is compromised: the recovery key signs a release that trusts only the recovery
+   key and a new primary key (see scenario 5).
+
+Trade-off: with threshold 1, either key can sign alone, so both must be protected equally well;
+threshold 2 would protect against one stolen key but would turn one lost key into a blocked update
+path. 0.4.1 keeps one key and threshold 1; copies installed before a recovery key is added must be
+updated once (with the primary key) to benefit. No unsigned or weaker recovery path exists or will be
+added.
+
 ## Direct upgrades and long-term compatibility
 
 An installed copy reads only the **newest** manifest of its channel and compares it with its own
@@ -306,10 +336,17 @@ AppId and folder) and keeps settings and documents.
 
 ## Manifest expiry
 
-Policy: `--expires-days 365` by default; `verify_release.py` requires at least 30 days left.
+Policy (from 0.4.1): every manifest is valid for **730 days from its `issued` time**. The release
+tool signs for exactly 730 days by default (`--expires-days` accepts 1–730), the application refuses
+any manifest whose `expires − issued` exceeds 730 days (`MAX_VALIDITY` in `core/updates/manifest.py`)
+or whose dates are malformed, out of order or not UTC (`…Z`), and `verify_release.py` requires at
+least 30 days left when a release is published. All times are timezone-aware UTC. The validity
+belongs to the **manifest**, not to the installation: a copy installed in 2026 that first checks in
+2029 updates normally if the newest release's manifest is valid then.
+
 Expiry limits how long a captured manifest can be replayed to hide newer releases (freeze attack) and
-must never affect normal use: an expired manifest only makes the update check report *Verification
-failed*; opening, editing and saving keep working, offline or not. Interactions:
+must never affect normal use: an expired manifest only makes the update check report *Update
+information has expired*; opening, editing and saving keep working, offline or not. Interactions:
 
 * **Immutable releases** are switched on for the repository: after publication a release's assets
   cannot change, so a manifest cannot be renewed in place. Fresh update information always comes with
@@ -319,31 +356,56 @@ failed*; opening, editing and saving keep working, offline or not. Interactions:
   an installation that accepted *N* refuses everything below *N*.
 * Clock checks: a manifest dated more than 24 hours in the future is refused; a computer whose clock
   is far ahead sees valid manifests as expired. Both fail safely.
-* Assessment: 365 days fits a project that releases several times a year. If releases may become
-  less frequent than yearly, sign with a longer validity (e.g. 730 days); the cost is a longer replay
-  window, which matters only to an attacker who can already serve content in place of GitHub over
-  verified HTTPS.
+* Note for future versions: 0.4.1 refuses manifests valid for more than 730 days. A later decision
+  to sign longer-lived manifests would make them unverifiable for 0.4.1-era copies.
+
+### Security assessment of 730 instead of 365 days
+
+A longer validity does **not** make updates more secure; it is a trade-off for a project that may
+release less often than once a year, made because published releases are immutable and a manifest
+can only be renewed by a new release.
+
+| Topic | Effect of 730 days |
+|---|---|
+| Replay of an outdated manifest | Unchanged for copies that have seen a newer one: the sequence check refuses anything older, whatever its expiry. |
+| Freeze attack (hiding a newer release by serving the latest valid old manifest) | The window grows from up to 1 to up to 2 years. It needs an attacker who can serve content in place of GitHub over verified HTTPS (TLS interception with a trusted certificate, or control of the repository); then the copy sees "up to date" or an older version, never an unsigned or forged one. |
+| First check of a new installation | The copy has no sequence history and accepts any valid manifest; with 730 days an attacker in the position above could offer a release up to 2 years old (still a genuine, signed release — never older than the installed version, since downgrades are refused). |
+| Older installed copies | Benefit: they keep updating directly as long as the newest manifest is valid, even after a gap of up to 2 years between releases. |
+| Clock manipulation | Unchanged rules: more than 24 hours in the future is refused; a clock set back can make an expired manifest look valid again, which only helps an attacker who already controls the computer. The 24-hour tolerance is kept (time zones, unsynchronised clocks). |
+| Manifest rollback | Unchanged: sequence numbers. |
+| Key rotation | A manifest signed with a key that is later retired stays valid up to 2 years: after a key **compromise**, publish the replacement release promptly (see [Key rotation](#key-rotation)). |
+| Immutable releases | The reason for the change: a manifest cannot be renewed in place, so its validity must cover the expected time to the next release. |
+
+Stronger design, not added before 0.4.1: TUF-style short-lived **timestamp** metadata (re-signed every
+few days, e.g. by a scheduled job) would bound freeze attacks to days regardless of release
+frequency, but needs an online or scheduled signing key and a mutable hosting location (immutable
+releases cannot hold it). It would be a deliberate future design change, not a last-minute one.
 
 ## GitHub Releases publishing
 
 Signing happens locally; GitHub only hosts the files. For every release with updates switched on:
 
-1. Finish development; the full test suite and Windows CI pass.
-2. Build the release (`scripts\build_release.ps1`).
-3. Test installation, upgrade and the application on real Windows computers
-   ([WINDOWS_RELEASE_TEST_CHECKLIST.md](WINDOWS_RELEASE_TEST_CHECKLIST.md)).
-4. `verify_release.py` passes for the release files.
-5. Sign the manifest locally (`make`, interactive passphrase, next sequence number).
-6. `verify` the manifest; `verify_release.py --dir installer …` reports `PASS update-manifest` (it
-   verifies with the release's own trusted keys exactly as the application does and must name this
-   version, this Setup.exe — URL of tag `v<version>`, size, SHA-256 — and stay valid 30+ days).
-7. Create a **draft** release and attach exactly four files: Setup.exe, the Installer and Source
-   ZIPs and `MonographPDF_update_manifest.json`. The stable channel reads
-   `releases/latest/download/MonographPDF_update_manifest.json`, so the newest stable release must
-   always carry it; prereleases are found through the releases API and need it too.
-8. Publish only after an explicit decision — publication is irreversible (immutable releases).
-9. Download the published assets into an empty folder and verify them again (`verify`,
-   `verify_release.py --dir <folder>`); then **Check for Updates** on an installed copy.
+1. Finalize the source code (everything committed).
+2. Pass the automated tests (full suite, Windows CI).
+3. Complete manual installation testing on real Windows computers
+   ([WINDOWS_RELEASE_TEST_CHECKLIST.md](WINDOWS_RELEASE_TEST_CHECKLIST.md)) with a build of that commit.
+4. Build the final release artifacts (`scripts\build_release.ps1`); `verify_release.py` passes.
+5. Calculate the final installer hashes (the build writes `SHA256SUMS.txt`; `Get-FileHash`).
+6. Generate the 730-day manifest and 7. sign it locally (`make`, interactive passphrase) with the
+   next sequence number — **1** for the first production manifest (0.4.1); never reuse a number for a
+   different manifest (`SEQUENCE_LOG.txt` beside the key).
+8. Verify its Ed25519 signature (`verify`) and 9. confirm the installer hash and size match
+   (`verify_release.py --dir installer …` → `PASS update-manifest`: verified with the release's own
+   trusted keys exactly as the application does; this version; this Setup.exe — URL of tag
+   `v<version>`, size, SHA-256; valid 30+ days).
+10. Prepare a **draft** GitHub release and 11. attach exactly four files: Setup.exe, the Installer
+    and Source ZIPs and `MonographPDF_update_manifest.json`. The stable channel reads
+    `releases/latest/download/MonographPDF_update_manifest.json`, so the newest stable release must
+    always carry it; prereleases are found through the releases API and need it too.
+12. Independently verify the draft assets (download them into an empty folder; `verify`,
+    `verify_release.py --dir <folder>`).
+13. Publish only after explicit authorization — publication is irreversible (immutable releases).
+    Never publish incomplete assets. Afterwards, **Check for Updates** on an installed copy.
 
 ### What the GitHub configuration enforces (checked 2026-10-23)
 
@@ -374,7 +436,7 @@ authentication; keep immutable releases on.
    step (see [Backup](#production-signing-key)).
 2. ✅ Public key in `resources/update/update_config.json` (`trusted_keys`), `enabled` = `true`,
    threshold 1, no `ca_file`. A second key and threshold 2 are not used yet.
-3. ✅ Manifest validity: 365 days by default ([Manifest expiry](#manifest-expiry)).
+3. ✅ Manifest validity: 730 days, enforced as a maximum by the application ([Manifest expiry](#manifest-expiry)).
 4. ✅ `verify_release.py` checks the manifest of every release whose configuration has updates on.
 5. Optional, not done: Authenticode signing and `require_authenticode`.
 6. ❌ Not yet done: installation, 0.4.0 → 0.4.1 upgrade and application tests of the packaged build

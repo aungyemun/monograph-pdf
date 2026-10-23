@@ -42,6 +42,10 @@ def boxes(monkeypatch):
     seen = []
     for name in ("information", "warning", "critical"):
         monkeypatch.setattr(QMessageBox, name, staticmethod(lambda parent, title, text, *a, n=name, **k: seen.append((n, title, text))))
+    icons = {QMessageBox.Icon.Warning: "warning", QMessageBox.Icon.Critical: "critical"}
+    # message boxes built with buttons (e.g. "Open Releases Page") are recorded instead of shown
+    monkeypatch.setattr(QMessageBox, "exec", lambda box: seen.append(
+        (icons.get(box.icon(), "information"), box.windowTitle(), box.text() + "\n" + box.informativeText())) or 0)
     return seen
 
 
@@ -141,7 +145,7 @@ def test_manual_check_never_claims_up_to_date_when_it_could_not_verify(window, b
     assert boxes == [] and len(shown) == 1
     icon, text, informative, buttons = shown[0]
     assert icon == QMessageBox.Icon.Warning and status.label in text and "Up to date" not in text
-    assert "Nothing was downloaded or installed" in informative or "nothing was downloaded or installed" in informative
+    assert "Nothing was downloaded or installed" in text and "official releases page" in informative
     assert "Open Releases Page" in buttons
 
 
@@ -413,3 +417,49 @@ def test_update_result_from_the_helper_is_shown_once(window, boxes):
     boxes.clear()
     window.after_startup()
     assert boxes == []
+
+
+def test_cancelled_update_says_so_quietly_and_nothing_is_installed(window, boxes):
+    from core.updates.manager import UpdateError
+
+    window._updates.show_download_problem(UpdateError("cancelled", "cancelled"))
+    assert boxes == [] and "Nothing was installed" in window.statusBar().currentMessage()
+
+
+@pytest.mark.parametrize("code,title", [("verify", "Installer integrity verification failed"),
+                                        ("network", "Download interrupted"),
+                                        ("not_permitted", "Unsupported upgrade path")])
+def test_download_failures_name_the_problem_and_offer_the_releases_page(window, monkeypatch, code, title):
+    from core.updates.manager import UpdateError
+
+    shown = []
+    monkeypatch.setattr(QMessageBox, "exec", lambda box: shown.append(
+        (box.windowTitle(), box.text(), [b.text() for b in box.buttons()])) or 0)
+    window._updates.show_download_problem(UpdateError("Install it with Setup from the release page.", code))
+    wtitle, text, buttons = shown[0]
+    assert wtitle == "Update not installed" and text.startswith(title) and "Open Releases Page" in buttons
+
+
+@pytest.mark.parametrize("reason,title", [("offline", "No internet connection"), ("http", "GitHub is temporarily unavailable"),
+                                          ("not_found", "No compatible release found"),
+                                          ("signature", "Invalid digital signature"),
+                                          ("expired", "Update information has expired"),
+                                          ("timestamp", "Update information has an invalid date"),
+                                          ("identity", "Update is for a different product")])
+def test_check_failures_are_distinguished_in_the_dialog(window, monkeypatch, reason, title):
+    from core.updates import messages
+
+    shown = []
+    monkeypatch.setattr(QMessageBox, "exec", lambda box: shown.append((box.text(), [b.text() for b in box.buttons()])) or 0)
+    status = UpdateStatus.UNAVAILABLE if reason in ("offline", "http", "not_found") else UpdateStatus.VERIFICATION_FAILED
+    window._updates._checked(CheckResult(status, messages.check_text(reason)[1], "0.4.1", reason=reason), True)
+    text, buttons = shown[0]
+    assert text.startswith(title) and "Nothing was downloaded or installed" in text
+    assert "Open Releases Page" in buttons and "Up to date" not in text
+
+
+def test_no_update_available_wording(window, boxes):
+    rel = parse_and_verify(manifest_bytes(signed_fields("0.4.1")), make_config())
+    window._updates._checked(CheckResult(UpdateStatus.UP_TO_DATE, "Monograph PDF 0.4.1 is the newest version. "
+                                         "No update is available.", "0.4.1", rel), True)
+    assert boxes[-1][0] == "information" and boxes[-1][2].startswith("No update available")

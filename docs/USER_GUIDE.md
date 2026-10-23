@@ -196,6 +196,17 @@ save or discard unsaved changes, closes Monograph PDF, installs the update in th
 restarts it; your settings, shortcuts and file-type choices are kept. **Remind Me Later** postpones
 it. An installation for all users shows Windows' administrator prompt.
 
+* **Skipped versions.** You do not need to install every version: an older copy (0.4.1 or later)
+  updates straight to the newest release, even after months or years.
+* **When a check fails** the message names the reason — for example *No internet connection*,
+  *GitHub is temporarily unavailable*, *Update information has expired* or *Invalid digital
+  signature* — and nothing is downloaded or installed. Try again later or use **Open Releases Page**
+  and run the new Setup yourself; Setup always upgrades in place and keeps your settings and
+  documents. Monograph PDF itself keeps working normally, online or offline.
+* **Expiry.** Each release's update information is valid for two years from its publication. If no
+  newer release appears in that time, checks report that it has expired until the next release; the
+  application is not affected.
+
 ## Problem reports
 
 If something unexpected goes wrong, Monograph PDF can show a problem report — limited technical

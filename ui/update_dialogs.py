@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 
 from core.diagnostics import EventId, diagnostics
 from core.updates import config as update_config
-from core.updates import install_target, manager, staging
+from core.updates import install_target, manager, messages, staging
 from core.updates.manager import CheckResult, UpdateError, UpdateStatus
 from core.updates.state import UpdateState
 from core.versioning import get_version
@@ -240,28 +240,39 @@ class UpdateController(QObject):
             self.show_not_configured(res)
             return
         if res.status == UpdateStatus.UP_TO_DATE:
-            QMessageBox.information(self._window, "Check for Updates", f"{res.status.label}\n\n{res.message}")
+            QMessageBox.information(self._window, "Check for Updates", f"No update available\n\n{res.message}")
             return
         self.show_check_problem(res)
 
     def show_check_problem(self, res: CheckResult) -> None:
-        """Unable to check / verification failed: say plainly that nothing was installed and offer
-        the official download page instead."""
-        extra = ("Nothing was downloaded or installed. Check the internet connection and try again "
-                 "later, or get new versions from the official releases page."
+        """A check that could not reach or could not verify the update information: say what happened,
+        that nothing was installed, and offer the official download page. Checking again repeats the
+        complete verification; nothing is ever accepted without it."""
+        extra = ("You can check again later, or download new versions from the official releases page."
                  if res.status == UpdateStatus.UNAVAILABLE else
-                 "For your safety nothing was downloaded or installed. If this keeps happening, get new "
-                 "versions only from the official releases page.")
-        self._message_with_releases_link(QMessageBox.Icon.Warning, res, extra)
+                 "If this keeps happening, download new versions only from the official releases page.")
+        text = res.message if messages.NOTHING_INSTALLED in res.message else f"{res.message} {messages.NOTHING_INSTALLED}"
+        self._message_with_releases_link(QMessageBox.Icon.Warning, res.title, text, res.installed, extra)
 
     def show_not_configured(self, res: CheckResult) -> None:
         """The message points to GitHub Releases, so offer to open it (in the user's browser, only when
         clicked; Monograph PDF itself contacts nothing)."""
-        self._message_with_releases_link(QMessageBox.Icon.Information, res, "")
+        self._message_with_releases_link(QMessageBox.Icon.Information, res.status.label, res.message, res.installed, "")
 
-    def _message_with_releases_link(self, icon, res: CheckResult, extra: str) -> None:
-        box = QMessageBox(icon, "Check for Updates", f"{res.status.label}\n\n{res.message}", parent=self._window)
-        box.setInformativeText((extra + "\n\n" if extra else "") + f"Installed version: {res.installed}")
+    def show_download_problem(self, err: UpdateError) -> None:
+        if err.code == "cancelled":
+            self._window.statusBar().showMessage("Update canceled. Nothing was installed.", 8000)
+            return
+        title, text = messages.download_text(err.code, str(err))
+        self._message_with_releases_link(QMessageBox.Icon.Warning, title, text, get_version(),
+                                         f"Monograph PDF {get_version()} is unchanged. You can install the "
+                                         "new version with Setup from the official releases page.",
+                                         window_title="Update not installed")
+
+    def _message_with_releases_link(self, icon, title: str, text: str, installed: str, extra: str, *,
+                                    window_title: str = "Check for Updates") -> None:
+        box = QMessageBox(icon, window_title, f"{title}\n\n{text}", parent=self._window)
+        box.setInformativeText((extra + "\n\n" if extra else "") + f"Installed version: {installed}")
         open_page = box.addButton("Open Releases Page", QMessageBox.ButtonRole.ActionRole)
         box.addButton(QMessageBox.StandardButton.Ok)
         box.setDefaultButton(QMessageBox.StandardButton.Ok)
@@ -304,7 +315,7 @@ class UpdateController(QObject):
         target = install_target.detect()
         block = target.reason if not target.ok else manager.install_permitted(res.release, target.version or res.installed)
         if block:
-            QMessageBox.warning(w, "Update", block)
+            self.show_download_problem(UpdateError(block, "not_permitted" if target.ok else "target"))
             return
         lock = staging.UpdateLock()
         if not lock.acquire():
@@ -328,7 +339,7 @@ class UpdateController(QObject):
             err = outcome["error"]
             if err.code != "cancelled":
                 diagnostics.record(EventId.UPDATE_DOWNLOAD_FAILED)
-                QMessageBox.warning(w, "Update not installed", f"{err}\n\nMonograph PDF {get_version()} is unchanged.")
+            self.show_download_problem(err)
             return
         sd = outcome.get("sd")
         if sd is None:
@@ -348,6 +359,6 @@ class UpdateController(QObject):
             diagnostics.record(EventId.UPDATE_INSTALL_FAILED)
             staging.remove_staging(sd.path)
             lock.release()
-            QMessageBox.warning(w, "Update not installed", str(exc))
+            self.show_download_problem(exc)
             return
         w.close_for_update()

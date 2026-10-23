@@ -183,7 +183,7 @@ def test_replayed_older_manifest_is_rejected():
     assert manager.check(make_config(), "stable", "0.3.0", st, fetch=_fetch_returning(newer)).status == UpdateStatus.AVAILABLE
     older = manifest_bytes(signed_fields(version="0.3.1", sequence=10))
     res = manager.check(make_config(), "stable", "0.3.0", st, fetch=_fetch_returning(older))
-    assert res.status == UpdateStatus.VERIFICATION_FAILED and "replay" in res.message
+    assert res.status == UpdateStatus.VERIFICATION_FAILED and res.reason == "rollback"
 
 
 def test_stable_channel_refuses_a_prerelease_manifest():

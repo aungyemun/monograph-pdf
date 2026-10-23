@@ -42,7 +42,7 @@ def setup_bytes(version: str = "0.3.1", size: int = 4096) -> bytes:
 
 
 def signed_fields(version: str = "0.3.1", *, channel: str = "stable", sequence: int = 10, data: bytes | None = None,
-                  base: str = "https://github.com", now: datetime | None = None, expires_days: int = 365,
+                  base: str = "https://github.com", now: datetime | None = None, expires_days: int = 730,
                   **overrides) -> dict:
     data = setup_bytes(version) if data is None else data
     now = now or datetime.now(timezone.utc).replace(microsecond=0)

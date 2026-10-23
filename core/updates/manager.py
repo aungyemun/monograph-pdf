@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from core.updates import authenticode, net, staging
+from core.updates import authenticode, messages, net, staging
 from core.updates.config import UpdateConfig
 from core.updates.install_target import InstallTarget
 from core.updates.manifest import ManifestError, ReleaseInfo, parse_and_verify
@@ -65,6 +65,14 @@ class CheckResult:
     installed: str
     release: ReleaseInfo | None = None
     checked_at: int = 0
+    reason: str = ""   # why a check failed (messages.CHECK_REASONS key); "" otherwise
+    detail: str = ""   # technical detail for diagnostics; not shown in the dialogs
+
+    @property
+    def title(self) -> str:
+        from core.updates import messages
+
+        return messages.check_text(self.reason)[0] if self.reason else self.status.label
 
 
 class UpdateError(Exception):
@@ -115,7 +123,8 @@ def check(config: UpdateConfig, channel: str, installed: str, state: UpdateState
         data = fetch(config, url, config.max_manifest_bytes)
     except net.NetworkError as exc:
         state.last_check, state.last_status = stamp, UpdateStatus.UNAVAILABLE.value
-        return CheckResult(UpdateStatus.UNAVAILABLE, f"Unable to check for updates: {exc}.", installed, checked_at=stamp)
+        return CheckResult(UpdateStatus.UNAVAILABLE, messages.check_text(exc.kind)[1], installed, checked_at=stamp,
+                           reason=exc.kind, detail=str(exc))
     try:
         release = parse_and_verify(data, config, now=now)
         if channel != "prerelease" and release.channel != "stable":
@@ -126,9 +135,8 @@ def check(config: UpdateConfig, channel: str, installed: str, state: UpdateState
                                 "(possible replay of outdated metadata)", "rollback")
     except ManifestError as exc:
         state.last_check, state.last_status = stamp, UpdateStatus.VERIFICATION_FAILED.value
-        return CheckResult(UpdateStatus.VERIFICATION_FAILED,
-                           f"The update information could not be verified: {exc}. Nothing was downloaded.",
-                           installed, checked_at=stamp)
+        return CheckResult(UpdateStatus.VERIFICATION_FAILED, messages.check_text(exc.code)[1], installed,
+                           checked_at=stamp, reason=exc.code, detail=str(exc))
     state.sequence[release.channel] = max(seen, release.sequence)
     state.last_check = state.last_success = stamp
     state.latest_version = str(release.version)
@@ -137,7 +145,8 @@ def check(config: UpdateConfig, channel: str, installed: str, state: UpdateState
         return CheckResult(UpdateStatus.AVAILABLE, f"Monograph PDF {release.version} is available.",
                            installed, release, stamp)
     state.last_status = UpdateStatus.UP_TO_DATE.value
-    return CheckResult(UpdateStatus.UP_TO_DATE, f"Monograph PDF {installed} is up to date.", installed, release, stamp)
+    return CheckResult(UpdateStatus.UP_TO_DATE, f"Monograph PDF {installed} is the newest version. No update is "
+                       "available.", installed, release, stamp)
 
 
 def install_permitted(release: ReleaseInfo, installed: str) -> str:

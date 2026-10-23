@@ -105,6 +105,20 @@ foreach ($i in $found) {
         $c = Get-Content -LiteralPath $cfgPath -Raw | ConvertFrom-Json
         Out-Line ("INFO    update checks enabled: {0}; trusted key ids: {1}" -f $c.enabled, $(if ($c.trusted_keys) { ($c.trusted_keys | ForEach-Object { $_.keyid }) -join ", " } else { "(none)" }))
     }
+    # Windows subsystem from the PE header: 2 = GUI (no console window), 3 = console
+    foreach ($name in @("MonographPDF.exe", "MonographPDFUpdater.exe", "uninstall.exe")) {
+        $exePath = Join-Path $i.Dir $name
+        if (-not (Test-Path -LiteralPath $exePath)) { continue }
+        $fs = [System.IO.File]::Open($exePath, 'Open', 'Read', 'ReadWrite')
+        try {
+            $br = New-Object System.IO.BinaryReader($fs)
+            $fs.Position = 0x3C; $pe = $br.ReadInt32()
+            $fs.Position = $pe + 0x5C; $subsystem = $br.ReadUInt16()
+        } finally { $fs.Dispose() }
+        Out-Line ("{0}    {1} is a {2} program{3}" -f $(if ($subsystem -eq 2) { "PASS" } else { "FAIL" }), $name,
+                  $(if ($subsystem -eq 2) { "Windows GUI" } elseif ($subsystem -eq 3) { "console" } else { "subsystem $subsystem" }),
+                  $(if ($subsystem -eq 2) { " (opens no console window)" } else { "" }))
+    }
 }
 
 # ---------------------------------------------------------------- offline self-check

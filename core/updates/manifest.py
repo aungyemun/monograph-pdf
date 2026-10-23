@@ -33,6 +33,9 @@ _ASSET_NAME = re.compile(r"^MonographPDF_[0-9A-Za-z.-]+_Setup\.exe$")
 _KEYID = re.compile(r"^[0-9a-f]{16}$")
 _TIME = "%Y-%m-%dT%H:%M:%SZ"
 CLOCK_SKEW = timedelta(hours=24)
+# Longest validity a manifest may declare (issued -> expires). The release tool signs for exactly this
+# by default. A longer-lived manifest is refused so a captured one cannot be replayed indefinitely.
+MAX_VALIDITY = timedelta(days=730)
 
 
 class ManifestError(ValueError):
@@ -71,11 +74,11 @@ def _no_duplicates(pairs):
 
 def _time(value, name: str) -> datetime:
     if not isinstance(value, str):
-        raise ManifestError(f"{name} must be a UTC timestamp")
+        raise ManifestError(f"{name} must be a UTC timestamp", "timestamp")
     try:
         return datetime.strptime(value, _TIME).replace(tzinfo=timezone.utc)
     except ValueError:
-        raise ManifestError(f"{name} must look like 2026-01-31T00:00:00Z") from None
+        raise ManifestError(f"{name} must look like 2026-01-31T00:00:00Z", "timestamp") from None
 
 
 @dataclass(frozen=True)
@@ -179,8 +182,12 @@ def parse_and_verify(data: bytes, config: UpdateConfig, *, now: datetime | None 
     issued = _time(s.get("issued"), "issued")
     expires = _time(s.get("expires"), "expires")
     now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        raise ValueError("now must be timezone-aware (UTC)")
     if expires <= issued:
-        raise ManifestError("invalid validity period")
+        raise ManifestError("invalid validity period", "timestamp")
+    if expires - issued > MAX_VALIDITY:
+        raise ManifestError("the validity period of the update information is longer than allowed", "timestamp")
     if now > expires:
         raise ManifestError("the update information has expired (it may be outdated or replayed)", "expired")
     if issued > now + CLOCK_SKEW:

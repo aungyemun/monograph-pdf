@@ -14,8 +14,17 @@ remains switched off.
   when you ask, accepts only update information signed with that key, and downloads or installs
   nothing until you click **Update Now**. Automatic checks are optional and off by default. 0.4.0 and
   earlier cannot update themselves; install 0.4.1 once with Setup.
-- When a check cannot reach GitHub or cannot verify the update information, the message now says that
-  nothing was downloaded or installed and offers **Open Releases Page**.
+- Failed checks and updates name the situation — no internet connection, GitHub temporarily
+  unavailable, no compatible release found, invalid digital signature, expired update information,
+  invalid date, different product, unsupported upgrade path, installer integrity check failed,
+  download interrupted, update canceled — say that nothing was downloaded or installed, and offer
+  **Open Releases Page**. Checking again always repeats the full verification.
+- Update information (the signed manifest of each release) is valid for **730 days** from its
+  publication; the application refuses manifests with a longer validity or invalid dates. Expiry
+  never affects using the application, offline or online.
+- Monograph PDF and its helper programs are checked to never open a console window: every console
+  program it starts runs without a window (test), and the release check script reports the program
+  type of the installed files.
 - Maintainer tooling: the update-signing key is stored encrypted with a passphrase that is only read
   from the console, and additionally as a standard encrypted PKCS#8 file (PBES2 + scrypt +
   AES-256-CBC, decrypted with the maintained `cryptography` library and bound to the known public

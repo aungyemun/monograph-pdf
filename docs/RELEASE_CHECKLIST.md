@@ -95,7 +95,7 @@ Use these sections, in this order, and leave out any that would be empty. Keep s
 
 | # | Item | How |
 |---|---|---|
-| 5c.1 | Sign `installer\MonographPDF_update_manifest.json` locally with the production key and the **next** sequence number from the sequence log; never in CI | manual: `update_manifest.py make` in the signing environment ([Secure updates](SECURE_UPDATES.md#maintainer-tooling)) |
+| 5c.1 | Sign `installer\MonographPDF_update_manifest.json` locally with the production key, valid 730 days (the default and the maximum), with the **next** sequence number from the sequence log (1 for 0.4.1, the first production manifest); never in CI; never reuse a number | manual: `update_manifest.py make` in the signing environment ([Secure updates](SECURE_UPDATES.md#maintainer-tooling)) |
 | 5c.2 | `update_manifest.py verify` passes; `verify_release.py` (step 5.2) prints `PASS update-manifest` | automated |
 | 5c.3 | Add the line to the sequence log and refresh the key backup's copy of it | manual |
 

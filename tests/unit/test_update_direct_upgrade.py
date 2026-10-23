@@ -60,21 +60,21 @@ def test_after_a_direct_upgrade_older_manifests_are_replays():
     assert check(manifest_bytes(version="1.0.0", sequence=57, now=NOW), "0.4.1", state).status == UpdateStatus.AVAILABLE
     old = manifest_bytes(version="0.6.0", sequence=30, now=NOW)  # genuine, still unexpired, but older
     res = check(old, "0.4.1", state)
-    assert res.status == UpdateStatus.VERIFICATION_FAILED and "replay" in res.message
+    assert res.status == UpdateStatus.VERIFICATION_FAILED and res.reason == "rollback"
     assert state.sequence["stable"] == 57
 
 
 def test_newest_manifest_expired_after_a_long_gap_fails_safely():
     issued = NOW - timedelta(days=400)
     res = check(manifest_bytes(version="0.9.0", sequence=20, now=issued, expires_days=365), "0.4.1", UpdateState())
-    assert res.status == UpdateStatus.VERIFICATION_FAILED and "expired" in res.message
-    assert "Nothing was downloaded" in res.message
+    assert res.status == UpdateStatus.VERIFICATION_FAILED and res.reason == "expired"
+    assert "Nothing was downloaded" in res.message and res.title == "Update information has expired"
 
 
 def test_a_computer_clock_years_behind_rejects_a_manifest_from_the_future():
     res = check(manifest_bytes(version="1.0.0", sequence=57, now=NOW), "0.4.1", UpdateState(),
-                now=NOW - timedelta(days=800))
-    assert res.status == UpdateStatus.VERIFICATION_FAILED and "clock" in res.message
+                now=NOW - timedelta(days=2))
+    assert res.status == UpdateStatus.VERIFICATION_FAILED and res.reason == "clock"
 
 
 def test_key_rotation_bridge_old_clients_accept_a_manifest_signed_by_old_and_new_key():
@@ -89,7 +89,7 @@ def test_key_rotation_bridge_old_clients_accept_a_manifest_signed_by_old_and_new
 def test_after_the_old_key_is_dropped_old_clients_cannot_verify_and_say_so():
     data = manifest_bytes(signed_fields("2.0.0", sequence=80, now=NOW), secrets=(OTHER_SECRET,))
     res = check(data, "0.4.1", UpdateState(), cfg=make_config((TEST_SECRET,)))
-    assert res.status == UpdateStatus.VERIFICATION_FAILED and "trusted" in res.message
+    assert res.status == UpdateStatus.VERIFICATION_FAILED and res.reason == "signature"
 
 
 def test_unsupported_path_is_refused_with_a_manual_option():
@@ -118,7 +118,7 @@ def test_update_now_is_disabled_for_an_unsupported_path_and_the_release_page_off
 
 def test_a_future_manifest_format_is_refused_clearly_not_misread():
     res = check(manifest_bytes(signed_fields("3.0.0", sequence=99, now=NOW, schema=2)), "0.4.1", UpdateState())
-    assert res.status == UpdateStatus.VERIFICATION_FAILED and "format" in res.message
+    assert res.status == UpdateStatus.VERIFICATION_FAILED and res.reason == "identity"
 
 
 def test_skipped_prereleases_on_the_prerelease_channel():

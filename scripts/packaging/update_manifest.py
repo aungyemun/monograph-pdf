@@ -6,7 +6,7 @@
         --out <folder>/update-signing.pkcs8.pem
     python scripts/packaging/update_manifest.py make --setup installer/MonographPDF_X.Y.Z_Setup.exe \
         --notes docs/releases/vX.Y.Z.md --channel stable --sequence N --key <secret key file> \
-        --out installer/MonographPDF_update_manifest.json [--expires-days 365] [--min-upgrade-from X.Y.Z]
+        --out installer/MonographPDF_update_manifest.json [--expires-days 730] [--min-upgrade-from X.Y.Z]
     python scripts/packaging/update_manifest.py verify --manifest <file> [--config resources/update/update_config.json]
 
 * ``keygen`` (run it in an interactive console window) asks twice for a new passphrase, writes
@@ -51,6 +51,7 @@ sys.path.insert(0, str(ROOT))
 from core.updates import config as update_config  # noqa: E402
 from core.updates import ed25519  # noqa: E402
 from core.updates.manifest import (  # noqa: E402
+    MAX_VALIDITY,
     ManifestError,
     canonical_bytes,
     format_time,
@@ -216,6 +217,9 @@ def make(a) -> int:
     if (a.channel == "stable") == parse_version(version).is_prerelease:
         print("stable releases need X.Y.Z, prereleases X.Y.Z-label", file=sys.stderr)
         return 2
+    if not 1 <= a.expires_days <= MAX_VALIDITY.days:
+        print(f"--expires-days must be between 1 and {MAX_VALIDITY.days}", file=sys.stderr)
+        return 2
     cfg = update_config.load(a.config)
     repo = cfg.repository
     data = setup.read_bytes()
@@ -305,7 +309,8 @@ def main(argv: list[str] | None = None) -> int:
     m.add_argument("--sequence", type=int, required=True)
     m.add_argument("--key", type=Path, action="append", required=True)
     m.add_argument("--out", type=Path, required=True)
-    m.add_argument("--expires-days", type=int, default=365)
+    m.add_argument("--expires-days", type=int, default=730,
+                   help="validity of the manifest in days (1-730; the application refuses longer ones)")
     m.add_argument("--release-date")
     m.add_argument("--installed-size", type=int, default=0)
     m.add_argument("--min-upgrade-from")

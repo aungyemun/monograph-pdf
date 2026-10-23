@@ -41,6 +41,7 @@ FILES = [
     "core/updates/install_target.py",
     "core/updates/manager.py",
     "core/updates/manifest.py",
+    "core/updates/messages.py",
     "core/updates/net.py",
     "core/updates/semver.py",
     "core/updates/staging.py",

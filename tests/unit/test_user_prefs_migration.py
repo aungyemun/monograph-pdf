@@ -116,3 +116,54 @@ def test_recent_files_save_atomically(data_dir, tmp_path):
     r.add(doc)
     assert json.loads((data_dir / "recent_files.json").read_text(encoding="utf-8")) == [str(doc.resolve())]
     assert not list(data_dir.glob("*.tmp"))
+
+
+def test_unicode_and_japanese_user_folders_and_values(tmp_path, monkeypatch):
+    folder = tmp_path / "ユーザー 青い" / "AppData" / "Roaming" / "Monograph PDF"
+    monkeypatch.setenv("MONOGRAPH_PDF_USER_DATA_DIR", str(folder))
+    p = UserPreferences.load()
+    p.recent_fonts = ["ＭＳ 明朝", "Meiryo UI", "Noto Sans JP"]
+    p.ocr_languages = "jpn+eng"
+    p.page_mark_presets = {"header": "社外秘 – ページ {page}"}
+    p.save()
+    raw = (folder / "preferences.json").read_bytes()
+    raw.decode("utf-8")  # always UTF-8, whatever the Windows code page (e.g. 932 on Japanese Windows)
+    q = UserPreferences.load()
+    assert q.recent_fonts == p.recent_fonts and q.page_mark_presets == p.page_mark_presets and q.ocr_languages == "jpn+eng"
+
+
+def test_leftover_temporary_file_from_an_interrupted_save_is_harmless(data_dir):
+    UserPreferences(theme="dark").save()
+    (data_dir / "preferences.json.tmp").write_text('{"theme": "li', encoding="utf-8")  # power cut mid-write
+    assert UserPreferences.load().theme == "dark"
+    UserPreferences(theme="light").save()
+    assert UserPreferences.load().theme == "light" and not (data_dir / "preferences.json.tmp").exists()
+
+
+def test_an_interrupted_migration_leaves_the_original_file_untouched(data_dir, monkeypatch):
+    original = json.dumps({"theme": "dark", "window_width": 1700})
+    write(data_dir, original)
+
+    def half_done(data):
+        data["theme"] = "half-migrated"
+        raise RuntimeError("interrupted")
+
+    monkeypatch.setitem(user_prefs.MIGRATIONS, 0, half_done)
+    UserPreferences.load()
+    assert (data_dir / "preferences.json").read_text(encoding="utf-8") == original
+    monkeypatch.setitem(user_prefs.MIGRATIONS, 0, user_prefs._migrate_0_to_1)
+    p = UserPreferences.load()  # the next start, with a working migration
+    assert (p.theme, p.window_width) == ("dark", 1700)
+
+
+def test_settings_do_not_depend_on_the_installation_folder(tmp_path, monkeypatch):
+    """Per-user (%LOCALAPPDATA%\\Programs) and all-users (Program Files) installations share the
+    user's settings folder; an upgrade or a move between them keeps the settings."""
+    monkeypatch.setenv("MONOGRAPH_PDF_USER_DATA_DIR", str(tmp_path / "Roaming" / "Monograph PDF"))
+    UserPreferences(theme="dark", recent_limit=20).save()
+    for install in (tmp_path / "Local" / "Programs" / "Monograph PDF", tmp_path / "Program Files" / "Monograph PDF"):
+        install.mkdir(parents=True)
+        monkeypatch.chdir(install)  # as if started from that folder
+        p = UserPreferences.load()
+        assert (p.theme, p.recent_limit) == ("dark", 20)
+
