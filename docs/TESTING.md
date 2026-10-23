@@ -24,6 +24,22 @@ powershell -ExecutionPolicy Bypass -File scripts/run_tests.ps1
 The small sample PDFs in `tests/samples/` are generated, not stored in git: the test session creates
 them (`tests/fixtures/make_samples.py`) when they are missing, so a fresh checkout runs as is.
 
+### Process safety
+
+Tests and tools end only processes they started: through the handle or process ID they hold, or
+through the Windows Job Object containing exactly their process tree. They never end processes by
+program name (all `python.exe`, all PowerShell windows, …), so unrelated programs, scripts and
+analyses keep running. To run the suite (or any long command) with a time limit and guaranteed
+cleanup of just its own processes:
+
+```powershell
+.\env\Scripts\python.exe scripts\run_isolated.py --timeout 1800 -- .\env\Scripts\python.exe -m pytest -q
+```
+
+`tests/unit/test_process_safety.py` fails on any kill-by-name pattern in the repository and checks
+that `run_isolated.py` ends the whole command tree on timeout while an unrelated process survives.
+If a process's ownership cannot be established, it is left running and reported.
+
 ## Test categories
 
 Every test is marked with one or more categories (rules in `tests/conftest.py`), and each run ends

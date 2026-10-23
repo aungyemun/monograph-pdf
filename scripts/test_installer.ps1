@@ -23,6 +23,10 @@ param(
 
 $ErrorActionPreference = "Continue"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+# Processes are only ever ended through handles this script holds, or - in the final cleanup - when
+# they were started after this script began AND run from one of its test folders. Nothing is ever
+# ended by program name alone; anything else is reported and left running.
+$ScriptStart = Get-Date
 if (-not $Setup) {
     $Setup = (Get-ChildItem (Join-Path $Root "installer\MonographPDF_*_Setup.exe") | Sort-Object LastWriteTime | Select-Object -Last 1).FullName
 }
@@ -800,10 +804,18 @@ try {
 finally {
     Section "Restoring this user's Monograph PDF and PDF Editor data"
     $DirBFinally = Join-Path $env:LOCALAPPDATA "MonographPDFInstallTestB"
-    Get-Process MonographPDF -ErrorAction SilentlyContinue | Where-Object {
-        ($_.Path -like "$Dir*") -or ($_.Path -like "$DirBFinally*")
-    } | Stop-Process -Force
-    Get-Process PDF_editor -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$env:LOCALAPPDATA*" } | Stop-Process -Force
+    $testFolders = @($Dir, $DirBFinally, $LegacyDefault, $RenamedDefault,
+                     (Join-Path $env:LOCALAPPDATA "PDFEditorLegacyCustomTest"), (Join-Path $env:LOCALAPPDATA "PDFEditorStaleCopyTest"))
+    foreach ($p in @(Get-Process MonographPDF, PDF_editor -ErrorAction SilentlyContinue)) {
+        $inTestFolder = $p.Path -and @($testFolders | Where-Object { $p.Path -like "$_\*" }).Count -gt 0
+        $startedByThisRun = $false
+        try { $startedByThisRun = $p.StartTime -ge $ScriptStart } catch { }
+        if ($inTestFolder -and $startedByThisRun) {
+            Stop-Process -Id $p.Id -Force
+        } elseif ($inTestFolder) {
+            Write-Host "  [LEFT RUNNING] $($p.ProcessName) (PID $($p.Id)) in a test folder was not started by this test run" -ForegroundColor Yellow
+        }
+    }
     $LegacyCustomFinally = Join-Path $env:LOCALAPPDATA "PDFEditorLegacyCustomTest"
     $StaleFinally = Join-Path $env:LOCALAPPDATA "PDFEditorStaleCopyTest"
     foreach ($cleanDir in @($Dir, $DirBFinally, $LegacyDefault, $RenamedDefault, $LegacyCustomFinally)) {
