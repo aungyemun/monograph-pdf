@@ -133,7 +133,8 @@ def send_request(files: list[str], folder: Path | None = None) -> Path:
     folder = folder or instance_folder()
     inbox = requests_folder(folder)
     inbox.mkdir(parents=True, exist_ok=True)
-    name = f"{int(time.time() * 1000)}-{uuid.uuid4().hex}"
+    # nanosecond time first: requests from separate starts are taken in the order they were made
+    name = f"{time.time_ns():020d}-{uuid.uuid4().hex}"
     tmp = inbox / f"{name}.tmp"
     tmp.write_text(json.dumps({"files": list(files)[:MAX_FILES]}, ensure_ascii=False), encoding="utf-8")
     final = inbox / f"{name}{REQUEST_SUFFIX}"

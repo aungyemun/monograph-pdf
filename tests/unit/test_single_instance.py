@@ -53,7 +53,8 @@ def test_requests_are_validated_consumed_once_and_stale_ones_dropped(tmp_path):
     past = time.time() - si.STALE_SECONDS - 5
     os.utime(old, (past, past))
     got = si.read_requests(tmp_path)
-    assert got == [[str(pdf)], []]
+    # two requests written in the same instant may come in either order (separate starts never do)
+    assert sorted(got) == sorted([[str(pdf)], []])
     assert list(inbox.iterdir()) == [], "every request file is removed after reading"
     assert si.read_requests(tmp_path) == []
 
