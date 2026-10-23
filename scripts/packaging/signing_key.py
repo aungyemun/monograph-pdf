@@ -19,6 +19,15 @@ Encryption uses only the Python standard library (no extra dependency for the ma
   the file is detected before the secret is used);
 * after decryption the public key is recomputed and must equal the stored one.
 
+The same secret can also be stored as a standard encrypted PKCS#8 file (``update-signing.pkcs8.pem``,
+RFC 5958 EncryptedPrivateKeyInfo): PBES2 (RFC 8018) with the scrypt KDF (RFC 7914; N=2^17, r=8, p=1,
+16-byte salt) and AES-256-CBC (16-byte IV), the same passphrase (NFC, UTF-8). It is read with the
+maintained ``cryptography`` library (OpenSSL), so decryption does not depend on code in this project.
+PKCS#8 has no integrity tag: a changed file is detected because the decrypted key must reproduce the
+expected public key (``load_pkcs8``). Writing it needs ``cryptography`` (maintainer tooling only; the
+application never uses it). Note: OpenSSL's ``openssl pkcs8``/``pkey`` commands refuse scrypt
+parameters above 32 MiB of memory, so they cannot open this file; ``cryptography`` can.
+
 The passphrase is read with ``getpass`` from an interactive console only — never from command-line
 arguments, environment variables or files — and is never printed or logged.
 """
@@ -46,7 +55,10 @@ from core.updates.config import key_id  # noqa: E402
 FORMAT = "monograph-pdf-update-signing-key"
 CIPHER = "scrypt-keystream-xor+hmac-sha256"
 KEY_FILE = "update-signing.key"
+PKCS8_FILE = "update-signing.pkcs8.pem"
 PUBLIC_FILE = "update-signing.pub.json"
+PEM_HEADER = "-----BEGIN ENCRYPTED PRIVATE KEY-----"
+PEM_FOOTER = "-----END ENCRYPTED PRIVATE KEY-----"
 SCRYPT_N, SCRYPT_R, SCRYPT_P = 2**17, 8, 1
 MIN_PASSPHRASE = 12
 _HEX32 = re.compile(r"^[0-9a-f]{64}$")
@@ -91,6 +103,161 @@ def encrypt(secret: bytes, passphrase: str, *, created: str | None = None) -> di
 
 def is_encrypted(text: str) -> bool:
     return text.lstrip().startswith("{")
+
+
+# ---------------------------------------------------------------- standard PKCS#8 copy
+
+_OID_PBES2 = "1.2.840.113549.1.5.13"
+_OID_SCRYPT = "1.3.6.1.4.1.11591.4.11"
+_OID_AES256_CBC = "2.16.840.1.101.3.4.1.42"
+
+
+def _der(tag: int, content: bytes) -> bytes:
+    n = len(content)
+    if n < 0x80:
+        length = bytes([n])
+    else:
+        raw = n.to_bytes((n.bit_length() + 7) // 8, "big")
+        length = bytes([0x80 | len(raw)]) + raw
+    return bytes([tag]) + length + content
+
+
+def _der_oid(dotted: str) -> bytes:
+    parts = [int(x) for x in dotted.split(".")]
+    body = bytes([40 * parts[0] + parts[1]])
+    for value in parts[2:]:
+        chunk = [value & 0x7F]
+        value >>= 7
+        while value:
+            chunk.append(0x80 | (value & 0x7F))
+            value >>= 7
+        body += bytes(reversed(chunk))
+    return _der(0x06, body)
+
+
+def _der_int(value: int) -> bytes:
+    # minimal two's-complement encoding of a non-negative integer (a leading 0 byte only when needed)
+    return _der(0x02, value.to_bytes(max(1, (value.bit_length() + 8) // 8), "big"))
+
+
+def _seq(*items: bytes) -> bytes:
+    return _der(0x30, b"".join(items))
+
+
+def _password(passphrase: str) -> bytes:
+    return unicodedata.normalize("NFC", passphrase).encode("utf-8")
+
+
+def export_pkcs8(secret: bytes, passphrase: str, *, n: int = SCRYPT_N, r: int = SCRYPT_R, p: int = SCRYPT_P) -> bytes:
+    """Encrypted PKCS#8 (PBES2 + scrypt + AES-256-CBC) PEM of a 32-byte Ed25519 secret."""
+    from cryptography.hazmat.primitives import padding, serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+    if len(secret) != 32:
+        raise KeyFileError("an Ed25519 secret key has 32 bytes")
+    plain = Ed25519PrivateKey.from_private_bytes(secret).private_bytes(
+        serialization.Encoding.DER, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+    salt, iv = os.urandom(16), os.urandom(16)
+    key = hashlib.scrypt(_password(passphrase), salt=salt, n=n, r=r, p=p, maxmem=512 * 1024 * 1024, dklen=32)
+    padder = padding.PKCS7(128).padder()
+    data = padder.update(plain) + padder.finalize()
+    enc = Cipher(algorithms.AES(key), modes.CBC(iv)).encryptor()
+    ct = enc.update(data) + enc.finalize()
+    kdf = _seq(_der_oid(_OID_SCRYPT), _seq(_der(0x04, salt), _der_int(n), _der_int(r), _der_int(p)))
+    scheme = _seq(_der_oid(_OID_AES256_CBC), _der(0x04, iv))
+    der = _seq(_seq(_der_oid(_OID_PBES2), _seq(kdf, scheme)), _der(0x04, ct))
+    import base64
+
+    b64 = base64.b64encode(der).decode("ascii")
+    lines = [b64[i:i + 64] for i in range(0, len(b64), 64)]
+    return ("\n".join([PEM_HEADER, *lines, PEM_FOOTER]) + "\n").encode("ascii")
+
+
+def describe_pkcs8(pem: bytes) -> dict:
+    """Algorithms and parameters of an encrypted PKCS#8 file (no passphrase needed)."""
+    import base64
+
+    text = pem.decode("ascii").strip()
+    if not (text.startswith(PEM_HEADER) and text.endswith(PEM_FOOTER)):
+        raise KeyFileError("not an encrypted PKCS#8 PEM file")
+    der = base64.b64decode("".join(text.splitlines()[1:-1]), validate=True)
+    found: list = []
+
+    def walk(b: bytes) -> None:
+        i = 0
+        while i < len(b):
+            tag, ln = b[i], b[i + 1]
+            i += 2
+            if ln & 0x80:
+                k = ln & 0x7F
+                ln = int.from_bytes(b[i:i + k], "big")
+                i += k
+            v = b[i:i + ln]
+            i += ln
+            if tag == 0x06:
+                parts, x = [v[0] // 40, v[0] % 40], 0
+                for c in v[1:]:
+                    x = (x << 7) | (c & 0x7F)
+                    if not c & 0x80:
+                        parts.append(x)
+                        x = 0
+                found.append(".".join(map(str, parts)))
+            elif tag == 0x02:
+                found.append(int.from_bytes(v, "big"))
+            elif tag == 0x04:
+                found.append(len(v))
+            elif tag == 0x30:
+                walk(v)
+
+    walk(der)
+    if found[:2] != [_OID_PBES2, _OID_SCRYPT] or found[6:7] != [_OID_AES256_CBC]:
+        raise KeyFileError("unsupported PKCS#8 encryption (expected PBES2 + scrypt + AES-256-CBC)")
+    return {"scheme": "PBES2", "kdf": "scrypt", "salt_bytes": found[2], "n": found[3], "r": found[4],
+            "p": found[5], "cipher": "AES-256-CBC", "iv_bytes": found[7], "ciphertext_bytes": found[8]}
+
+
+def load_pkcs8(pem: bytes, passphrase: str, expected_public: bytes) -> bytes:
+    """Decrypt with ``cryptography``; the key must reproduce ``expected_public`` (integrity check)."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    params = describe_pkcs8(pem)
+    if params["n"] < 2**14 or params["salt_bytes"] < 16:
+        raise KeyFileError("the PKCS#8 file uses weaker scrypt parameters than allowed")
+    try:
+        key = serialization.load_pem_private_key(pem, password=_password(passphrase))
+    except (ValueError, TypeError):
+        raise KeyFileError("wrong passphrase, or the PKCS#8 file is damaged") from None
+    if not isinstance(key, Ed25519PrivateKey):
+        raise KeyFileError("the PKCS#8 file does not hold an Ed25519 key")
+    secret = key.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw,
+                               serialization.NoEncryption())
+    if ed25519.public_key(secret) != expected_public:
+        raise KeyFileError("the decrypted key does not match the expected public key")
+    return secret
+
+
+def expected_public_for(path: Path) -> bytes:
+    """Public key a PKCS#8 file must reproduce: from ``update-signing.pub.json`` beside it."""
+    pub = path.parent / PUBLIC_FILE
+    try:
+        data = json.loads(pub.read_text(encoding="utf-8"))
+        pk = bytes.fromhex(data["public_key"])
+        if len(pk) != 32 or data.get("keyid") != key_id(pk):
+            raise ValueError
+        return pk
+    except (OSError, ValueError, KeyError, TypeError):
+        raise KeyFileError(f"{PUBLIC_FILE} beside the PKCS#8 file is missing or invalid") from None
+
+
+def sign_with_cryptography(secret: bytes, message: bytes) -> bytes | None:
+    """Ed25519 signature from OpenSSL through ``cryptography`` (None when it is not installed)."""
+    try:
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    except ImportError:
+        return None
+    return Ed25519PrivateKey.from_private_bytes(secret).sign(message)
 
 
 def read_public(doc: dict) -> bytes:
@@ -221,20 +388,83 @@ def write_new(path: Path, text: str) -> None:
         fh.write(text)
 
 
+# Passphrases entered in this process (memory only, never written), so that one command can open
+# several copies of the same key (e.g. the original and the PKCS#8 file) with a single prompt.
+_ENTERED: list[str] = []
+
+
+def _with_passphrase(keyid: str, open_with) -> bytes:
+    for pw in _ENTERED:
+        try:
+            return open_with(pw)
+        except KeyFileError:
+            continue
+    pw = ask_passphrase(keyid)
+    secret = open_with(pw)  # raises KeyFileError on a wrong passphrase
+    _ENTERED.append(pw)
+    return secret
+
+
+def forget_passphrases() -> None:
+    _ENTERED.clear()
+
+
 def load_secret(path: Path) -> bytes:
-    """Secret of a key file: an encrypted file asks for its passphrase; a plain 64-hex file (synthetic
-    test keys only) is read directly with a warning."""
+    """Secret of a key file: an encrypted file asks for its passphrase (once per process); a plain
+    64-hex file (synthetic test keys only) is read directly with a warning."""
     if inside_git_checkout(path):
         raise SystemExit("refusing to use a signing key stored inside a Git working copy")
     text = path.read_text(encoding="ascii").strip()
+    if text.startswith(PEM_HEADER):
+        try:
+            expected = expected_public_for(path)
+            pem = text.encode("ascii")
+            return _with_passphrase(key_id(expected), lambda pw: load_pkcs8(pem, pw, expected))
+        except KeyFileError as exc:
+            raise SystemExit(f"cannot use the signing key: {exc}") from None
+        except ImportError:
+            raise SystemExit("reading a PKCS#8 key needs the 'cryptography' package (signing environment)") from None
     if is_encrypted(text):
         try:
             doc = json.loads(text)
             read_public(doc)
-            return decrypt(doc, ask_passphrase(doc["keyid"]))
+            return _with_passphrase(doc["keyid"], lambda pw: decrypt(doc, pw))
         except (ValueError, KeyFileError) as exc:
             raise SystemExit(f"cannot use the signing key: {exc}") from None
     if not re.fullmatch(r"[0-9a-f]{64}", text):
         raise SystemExit("the key file must be an encrypted key file or hold 64 lowercase hex digits")
     print("warning: unencrypted signing key (allowed for synthetic test keys only)", file=sys.stderr)
     return bytes.fromhex(text)
+
+
+def secret_traces(secret: bytes) -> list[bytes]:
+    """Byte patterns that would reveal the secret if found in a file (raw, hex, base64, unencrypted
+    PKCS#8 DER and its base64)."""
+    import base64
+
+    traces = [secret, secret.hex().encode(), secret.hex().upper().encode(), base64.b64encode(secret)]
+    der_prefix = bytes.fromhex("302e020100300506032b657004220420")  # PKCS#8 Ed25519 private key header
+    der = der_prefix + secret
+    traces += [der, base64.b64encode(der)[:40]]
+    return traces
+
+
+def scan_for_secret(folder: Path, secret: bytes) -> list[str]:
+    """Files under ``folder`` that contain the secret in any common unencrypted encoding (also inside
+    ZIP archives)."""
+    import zipfile
+
+    traces = secret_traces(secret)
+    hits = []
+    for f in sorted(folder.rglob("*")):
+        if not f.is_file():
+            continue
+        data = f.read_bytes()
+        if any(t in data for t in traces):
+            hits.append(str(f))
+        if zipfile.is_zipfile(f):
+            with zipfile.ZipFile(f) as z:
+                for name in z.namelist():
+                    if any(t in z.read(name) for t in traces):
+                        hits.append(f"{f}!{name}")
+    return hits
