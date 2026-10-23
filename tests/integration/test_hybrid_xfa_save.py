@@ -120,9 +120,16 @@ def test_filled_values_reach_the_xfa_data(hybrid, tmp_path):
     arr, packets = _xfa(out)
     assert arr is not None, "the XFA copy must be kept when it can be updated"
     data = packets["datasets"]
-    assert "<fill_1>ヤンゴン発、関西空港着 &lt;&amp;&gt; \"x\"</fill_1>" in data
-    assert "<fill_2>東浦町へ移動。\n二行目</fill_2>" in data
-    assert "<check_1>1</check_1>" in data
+    # compare parsed values: how quotes are escaped differs between Python versions (both are valid XML)
+    from xml.dom import minidom
+
+    root = minidom.parseString(data.encode("utf-8"))
+    text = {n.tagName: "".join(c.data for c in n.childNodes if c.nodeType == c.TEXT_NODE)
+            for n in root.getElementsByTagName("topmostSubform")[0].childNodes if n.nodeType == n.ELEMENT_NODE}
+    assert text["fill_1"] == "ヤンゴン発、関西空港着 <&> \"x\""
+    assert text["fill_2"] == "東浦町へ移動。\n二行目"
+    assert text["check_1"] == "1"
+    assert "&lt;&amp;&gt;" in data  # markup characters are escaped
     assert "form" not in packets, "the cached form state would make Acrobat ignore the new data"
     assert {"xdp:xdp", "template", "datasets", "</xdp:xdp>"} <= set(packets)
     values = _values(out)

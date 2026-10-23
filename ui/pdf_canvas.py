@@ -1666,10 +1666,16 @@ class _CanvasWidget(QWidget):
     def _hit_handle(self, pos: QPoint, wr: QRect) -> str | None:
         names = ["nw", "n", "ne", "w", "e", "sw", "s", "se"]
         grab = _HANDLE + 3  # a little larger than drawn: easier to catch with the mouse
-        for name, (hx, hy) in zip(names, self._handle_points(wr)):
-            if abs(pos.x() - hx) <= grab and abs(pos.y() - hy) <= grab:
-                return name
-        return None
+        # the nearest handle wins (on a small object the side and corner handles overlap); corners
+        # win a tie, so a corner drag still resizes both ways
+        best = None
+        for order, (name, (hx, hy)) in enumerate(zip(names, self._handle_points(wr))):
+            dx, dy = abs(pos.x() - hx), abs(pos.y() - hy)
+            if dx <= grab and dy <= grab:
+                key = (dx * dx + dy * dy, 0 if len(name) == 2 else 1, order)
+                if best is None or key < best[0]:
+                    best = (key, name)
+        return best[1] if best else None
 
     def _pdf_rect_to_widget(self, page_index: int, pdf_rect: object) -> QRect | None:
         x0 = float(getattr(pdf_rect, "x0"))
