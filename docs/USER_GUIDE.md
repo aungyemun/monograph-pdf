@@ -182,10 +182,13 @@ All conversions run on your computer.
 automatic checks (off by default), sets how often (every day, every 3 days or every week) and the
 release channel (stable, or prereleases as well), and shows the last successful check and the status.
 
-**In this version updates are switched off.** The check reports "Updates not configured" (never
-"up to date") and contacts nothing. Download new versions from the official GitHub Releases page and
-run their Setup; your settings and documents are kept. The rest of this section describes how updates
-will work once they are switched on in a later version.
+A check contacts only the official GitHub Releases page of Monograph PDF and accepts only update
+information signed with the project's update-signing key. If the check cannot reach GitHub (for
+example offline) or the information cannot be verified, it says so — never "up to date" — nothing is
+downloaded, and **Open Releases Page** takes you to the official download page instead. Automatic
+checks only check: nothing is downloaded or installed until you click **Update Now**. Versions before
+0.4.1 cannot check for updates; install 0.4.1 once with its Setup (your settings and documents are
+kept).
 
 When an update is available you see the installed and available versions, the release date, the
 release notes and the download size. **Update Now** downloads the update, verifies it, asks you to
@@ -223,7 +226,7 @@ Full list: **Help ▸ Keyboard Shortcuts**.
 - Office to PDF needs a local suite; PDF to Word / Excel / PowerPoint is best-effort on complex layouts
 - Signatures are visual only
 - Builds are not code-signed — verify `SHA256SUMS.txt`; SmartScreen may warn
-- Update checks and sending problem reports are switched off in this version
+- Sending problem reports is switched off in this version (reports can be copied and passed on)
 - Optional OCR language packs (other than English and Japanese) have not been tested for recognition quality
 
 ## Troubleshooting

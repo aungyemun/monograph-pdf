@@ -435,7 +435,7 @@ def main(argv: list[str] | None = None) -> int:
 
     keys = Path(tempfile.mkdtemp(prefix="monographpdf-e2e-keys-"))
     py = str(ROOT / "env" / "Scripts" / "python.exe")
-    out = subprocess.run([py, str(ROOT / "scripts" / "packaging" / "update_manifest.py"), "keygen", "--out", str(keys)],
+    out = subprocess.run([py, str(ROOT / "scripts" / "packaging" / "update_manifest.py"), "keygen", "--plaintext-test-key", "--out", str(keys)],
                          capture_output=True, text=True, check=True).stdout
     key_hex = json.loads(out)["public_key"]
     key_file = keys / "update-signing.key"

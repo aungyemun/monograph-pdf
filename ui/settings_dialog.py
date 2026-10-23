@@ -43,6 +43,8 @@ class UpdatesPage(QWidget):
             note.setObjectName("DialogHint")
             lay.addWidget(note)
         self.auto = QCheckBox("Automatically check for updates")
+        self.auto.setToolTip("Only checks. Nothing is downloaded or installed until you click Update Now; "
+                             "a check that cannot reach GitHub (for example offline) fails quietly and is tried again after the check interval.")
         self.auto.setChecked(bool(prefs.update_auto_check))
         lay.addWidget(self.auto)
         form = QFormLayout()

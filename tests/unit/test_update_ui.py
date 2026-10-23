@@ -63,13 +63,34 @@ def test_menus_offer_check_for_updates_and_settings(window):
 def test_settings_defaults_are_private(window):
     from ui.settings_dialog import SettingsDialog
 
+    assert window._updates.configured  # the shipped configuration trusts the production key
     dlg = SettingsDialog(window._prefs, window._updates, window)
     page = dlg.updates
+    # automatic checks are optional and off by default; a manual check is available
     assert not page.auto.isChecked() and page.interval.currentData() == 24 and page.stable.isChecked()
-    assert page.last.text() == "Never"
-    # this build has no production key: the page says so and nothing can be switched on
+    assert page.last.text() == "Never" and page.status.text() == "Not checked yet"
+    assert page.check_now.isEnabled() and page.auto.isEnabled()
+    assert "Nothing is downloaded or installed" in page.auto.toolTip()
+
+
+def test_settings_without_a_usable_configuration_say_so(window, monkeypatch):
+    from ui.settings_dialog import SettingsDialog
+
+    monkeypatch.setattr(window._updates, "_config", make_config(enabled=False))
+    page = SettingsDialog(window._prefs, window._updates, window).updates
     assert not page.check_now.isEnabled() and not page.auto.isEnabled()
     assert page.status.text() == "Not configured for this build"
+
+
+def test_start_up_makes_no_network_request(window, monkeypatch):
+    from core.updates import net
+
+    calls = []
+    monkeypatch.setattr(net, "fetch_bytes", lambda *a, **k: calls.append(a) or b"")
+    monkeypatch.setattr(net, "download", lambda *a, **k: calls.append(a))
+    window.after_startup()
+    window._updates.maybe_auto_check()  # automatic checks are off by default
+    assert calls == [] and window._updates.last is None
 
 
 def test_settings_apply_when_configured(window, monkeypatch):
@@ -112,10 +133,16 @@ def test_update_now_disabled_with_a_reason_when_not_installable(qtbot):
 
 
 @pytest.mark.parametrize("status", [UpdateStatus.UNAVAILABLE, UpdateStatus.VERIFICATION_FAILED])
-def test_manual_check_never_claims_up_to_date_when_it_could_not_verify(window, boxes, status):
+def test_manual_check_never_claims_up_to_date_when_it_could_not_verify(window, boxes, monkeypatch, status):
+    shown = []
+    monkeypatch.setattr(QMessageBox, "exec", lambda box: shown.append(
+        (box.icon(), box.text(), box.informativeText(), [b.text() for b in box.buttons()])) or 0)
     window._updates._checked(CheckResult(status, "simulated", "0.3.0"), True)
-    assert boxes and "Up to date" not in boxes[-1][2]
-    assert status.label in boxes[-1][2]
+    assert boxes == [] and len(shown) == 1
+    icon, text, informative, buttons = shown[0]
+    assert icon == QMessageBox.Icon.Warning and status.label in text and "Up to date" not in text
+    assert "Nothing was downloaded or installed" in informative or "nothing was downloaded or installed" in informative
+    assert "Open Releases Page" in buttons
 
 
 @pytest.mark.parametrize("click_open", [False, True])
@@ -369,7 +396,7 @@ def test_about_shows_build_channel_and_update_status(window):
     dlg = AboutDialog(window, updates=window._updates)
     text = dlg._build_info.text()
     assert "Build:" in text and ("x64" in text or "x86" in text or "ARM64" in text)
-    assert "Release channel: Stable" in text and "Updates: Not configured for this build" in text
+    assert "Release channel: Stable" in text and "Updates: Not checked yet" in text
     assert "Check for Updates…" in [b.text() for b in dlg.findChildren(QPushButton)]
 
 

@@ -96,10 +96,11 @@ silent installation, upgrading and uninstalling are described in [Installation](
 * Monograph PDF is designed to operate offline. It requires no account or cloud service and has no
   telemetry, advertising, online OCR or document upload. Viewing, editing, saving, OCR, conversion and
   printing never use the network.
-* Version 0.4.1 (like 0.3.0 and 0.4.0) contains secure update checks and private problem reports, but **both are switched
-  off in this release**: **Help ▸ Check for Updates…** reports "Updates not configured" and
-  problem reports can only be copied and passed on by you (the app sends nothing). Once enabled in a later release, they contact the network only
-  when you ask (or after you switch on automatic update checks):
+* From 0.4.1, **Help ▸ Check for Updates…** checks the official GitHub Releases page when you ask and
+  accepts only update information signed with the project's update-signing key; nothing is downloaded
+  or installed until you click **Update Now**. Automatic checks are optional and **off by default**.
+  0.4.0 and earlier cannot update themselves: install 0.4.1 once with Setup. Problem reports are still
+  not sent (you can copy and pass them on yourself):
   [Secure updates](docs/SECURE_UPDATES.md) · [Error reporting](docs/ERROR_REPORTING.md).
 * Qt's network and TLS modules are removed from the release build; only the update and problem-report
   code uses Python's HTTPS support. The built-in self-check fails if a network connection is attempted
@@ -152,7 +153,7 @@ passed. Details: [Testing](docs/TESTING.md).
 
 * Windows 10 and 11 (64-bit) only.
 * The installer and program are not code-signed ([Code Signing](docs/CODE_SIGNING.md)).
-* Update checks, automatic upgrades and the sending of problem reports are switched off in 0.4.1;
+* The sending of problem reports is switched off. Versions before 0.4.1 cannot check for updates;
   install new versions from the [Releases](https://github.com/aungyemun/monograph-pdf/releases) page.
 * Signatures are visual only; certificate-based digital signatures are not supported.
 * Converting PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts.

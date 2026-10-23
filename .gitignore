@@ -88,6 +88,9 @@ models/*
 engines/ocr/*
 !engines/ocr/MANIFEST.json
 
+# Private maintainer notes (security audits, signing records); never committed or archived
+/private/
+
 # Secrets, certificates and signing keys never belong in the repository
 .env
 .env.*

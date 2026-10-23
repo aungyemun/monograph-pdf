@@ -4,8 +4,22 @@ All notable changes to Monograph PDF. Versions follow `VERSION` (see `docs/RELEA
 
 ## [0.4.1] — 2026-10-23
 
-Bug-fix release for 0.4.0. Update checks, automatic upgrades and the sending of problem reports remain
-switched off.
+Bug-fix release for 0.4.0 that also switches on signed update checks. The sending of problem reports
+remains switched off.
+
+### Security
+
+- **Update checks are switched on**, trusting one production Ed25519 update-signing key (key id
+  `27c3b3b23b949c40`). **Help ▸ Check for Updates…** contacts only the official GitHub Releases page
+  when you ask, accepts only update information signed with that key, and downloads or installs
+  nothing until you click **Update Now**. Automatic checks are optional and off by default. 0.4.0 and
+  earlier cannot update themselves; install 0.4.1 once with Setup.
+- When a check cannot reach GitHub or cannot verify the update information, the message now says that
+  nothing was downloaded or installed and offers **Open Releases Page**.
+- Maintainer tooling: the update-signing key is stored encrypted with a passphrase that is only read
+  from the console; `update_manifest.py selftest` checks a key against the application's own
+  verification code; `verify_release.py` checks the signed update manifest of every release that has
+  updates switched on.
 
 ### Fixed
 

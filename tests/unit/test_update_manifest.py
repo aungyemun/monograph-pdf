@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from core.updates import config as update_config
-from core.updates import manager, net
+from core.updates import ed25519, manager, net
 from core.updates.manager import UpdateStatus
 from core.updates.manifest import ManifestError, canonical_bytes, parse_and_verify, sign_manifest
 from core.updates.semver import parse as V
@@ -242,14 +242,26 @@ def test_install_permitted_rules():
     assert "cannot be installed automatically" in manager.install_permitted(rel, "0.1.5")
 
 
-def test_shipped_configuration_keeps_updates_disabled_until_production_keys_exist():
+# The production update-signing key (generated offline 2026-10-23; the secret key is encrypted and
+# kept outside every repository). Changing the trusted keys must be a deliberate, reviewed change.
+PRODUCTION_KEYID = "27c3b3b23b949c40"
+PRODUCTION_PUBLIC_KEY = "13a02f80f8b1b009e5bb8ae77b15c766f06bf9ab2b640f91577b300ba552846c"
+
+
+def test_shipped_configuration_trusts_exactly_the_production_key():
+    from tests.fixtures.update_fixtures import TEST_SECRET
+
     cfg = update_config.load(ROOT / "resources" / "update" / "update_config.json")
-    assert cfg.enabled is False and cfg.trusted_keys == {} and not cfg.usable
-    assert cfg.ca_file is None
+    assert cfg.enabled is True and cfg.usable and cfg.threshold == 1
+    assert cfg.trusted_keys == {PRODUCTION_KEYID: bytes.fromhex(PRODUCTION_PUBLIC_KEY)}
+    assert update_config.key_id(bytes.fromhex(PRODUCTION_PUBLIC_KEY)) == PRODUCTION_KEYID
+    assert update_config.key_id(ed25519.public_key(TEST_SECRET)) not in cfg.trusted_keys  # never a test key
+    assert cfg.ca_file is None and cfg.require_authenticode is False
     assert set(cfg.allowed_hosts) <= {"github.com", "api.github.com", "objects.githubusercontent.com",
                                       "release-assets.githubusercontent.com"}
     assert cfg.repository == "aungyemun/monograph-pdf"
-    assert "not enabled" in cfg.disabled_reason
+    assert cfg.stable_manifest_url == ("https://github.com/aungyemun/monograph-pdf/releases/latest/download/"
+                                       "MonographPDF_update_manifest.json")
 
 
 def test_configuration_validation(tmp_path):

@@ -4,11 +4,12 @@ Monograph PDF processes documents on your computer. It has no account, no advert
 and no usage statistics, and it never uploads documents.
 
 **Monograph PDF does not transfer information to other networked systems unless you request it.**
-There are only two such requests, both described below. In versions 0.3.0, 0.4.0 and 0.4.1 both are switched off
-(no production update-signing key, no reporting service), so Monograph PDF itself makes no network
-connections at all; the same holds for earlier versions, which do not have these features.
+There are only two such requests, both described below. Update checks are available from version
+0.4.1 and happen only when you ask (or after you switch on automatic checks, which are off by default).
+Sending problem reports is switched off (no reporting service yet). Versions 0.3.0 and 0.4.0 make no
+network connections at all; the same holds for earlier versions, which do not have these features.
 
-## Update checks (from version 0.3.0)
+## Update checks (built in since 0.3.0, switched on from 0.4.1)
 
 When you choose **Help ▸ Check for Updates…**, **Check Now**, or switch on *Automatically check for
 updates* (off by default; **File ▸ Settings… ▸ Updates**), Monograph PDF connects to GitHub, which

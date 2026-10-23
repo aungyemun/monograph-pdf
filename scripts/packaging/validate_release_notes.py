@@ -136,8 +136,8 @@ def validate(text: str, version: str, *, artifacts: Path | None = None, changelo
         if name not in r.checksums:
             p.append(f"no SHA-256 line for {name}")
     for name in r.checksums:
-        if name not in expected_artifacts(version):
-            p.append(f"checksum for unexpected file {name}")
+        if name not in expected_artifacts(version) and name != "MonographPDF_update_manifest.json":
+            p.append(f"checksum for unexpected file {name}")  # the signed update manifest may be listed
     if artifacts is not None:
         for name, digest in r.checksums.items():
             f = artifacts / name

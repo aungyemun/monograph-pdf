@@ -18,6 +18,10 @@ Checks, each reported as PASS / FAIL:
                 archive's SOURCE_MANIFEST.json, built without uncommitted changes, for this version
   update-trust  (with --layout) the bundled update and reporting configuration is the repository's
                 own (a test build's synthetic keys, mock endpoints or test CA can never be released)
+  update-manifest  when the release's update configuration is enabled: MonographPDF_update_manifest.json
+                is present, verifies with the release's own trusted keys exactly as the application
+                does, names this version on the matching channel and this Setup.exe (GitHub Releases
+                URL of tag v<version>, size, SHA-256), and stays valid for at least 30 more days
   --allow-unreleased  (build_release.ps1) a development build may carry an Unreleased CHANGELOG entry;
                 publishing always needs a dated entry and --notes
   notes         (with --notes) validate_release_notes.py, with checksums verified against the files and
@@ -175,6 +179,56 @@ def _utf8_output() -> None:
             pass
 
 
+MANIFEST_NAME = "MonographPDF_update_manifest.json"
+MIN_VALID_DAYS = 30
+
+
+def manifest_problems(folder: Path, version: str, setup: Path, release_root: Path, now=None) -> tuple[list[str], str]:
+    """Check the signed update manifest of a release against the release's own update configuration."""
+    from datetime import datetime, timedelta, timezone
+
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from core.updates import config as update_config
+    from core.updates.manifest import ManifestError, format_time, parse_and_verify
+
+    cfg_path = release_root / "resources" / "update" / "update_config.json"
+    if not cfg_path.is_file():  # like the application: no configuration means updates are disabled
+        return ([f"{MANIFEST_NAME} is present although the release has no update configuration"]
+                if (folder / MANIFEST_NAME).is_file() else []), "no update configuration in this release"
+    try:
+        cfg = update_config.load(cfg_path)
+    except update_config.ConfigError as exc:
+        return [f"the release's update configuration is invalid: {exc}"], ""
+    manifest = folder / MANIFEST_NAME
+    if not cfg.usable:
+        return ([f"{MANIFEST_NAME} is present although updates are disabled in this release"]
+                if manifest.is_file() else []), "updates disabled in this release; no manifest needed"
+    if not manifest.is_file():
+        return [f"missing {MANIFEST_NAME} (updates are enabled in this release; sign it with "
+                "scripts/packaging/update_manifest.py make)"], ""
+    now = now or datetime.now(timezone.utc)
+    try:
+        rel = parse_and_verify(manifest.read_bytes(), cfg, now=now)
+    except ManifestError as exc:
+        return [f"{MANIFEST_NAME} does not verify: {exc}"], ""
+    problems = []
+    if str(rel.version) != version:
+        problems.append(f"{MANIFEST_NAME} names version {rel.version}, not {version}")
+    if rel.channel != ("prerelease" if "-" in version else "stable"):
+        problems.append(f"{MANIFEST_NAME} is for the {rel.channel} channel")
+    a = rel.artifact
+    expected_url = f"https://github.com/{cfg.repository}/releases/download/v{version}/{setup.name}"
+    if a.name != setup.name or a.url != expected_url:
+        problems.append(f"{MANIFEST_NAME} points to {a.url}, expected {expected_url}")
+    if a.size != setup.stat().st_size or a.sha256 != sha256(setup):
+        problems.append(f"{MANIFEST_NAME} size or SHA-256 differs from {setup.name}")
+    if rel.expires - now < timedelta(days=MIN_VALID_DAYS):
+        problems.append(f"{MANIFEST_NAME} expires {format_time(rel.expires)} (less than {MIN_VALID_DAYS} days)")
+    return problems, (f"sequence {rel.sequence}, signed by {', '.join(rel.key_ids)}, "
+                      f"expires {format_time(rel.expires)}")
+
+
 def main(argv: list[str] | None = None) -> int:
     _utf8_output()
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -240,6 +294,9 @@ def main(argv: list[str] | None = None) -> int:
     rep.check("versions", vp)
 
     rep.check("privacy", scan_zip(inst, source=False) + scan_zip(src, source=True))
+    if members:
+        mp, mdetail = manifest_problems(a.dir, v, setup, release_root)
+        rep.check("update-manifest", mp, mdetail)
 
     if a.layout is not None:
         rep.check("ocr", [f"missing {r}" for r in OCR_REQUIRED if not (a.layout / r).is_file()])

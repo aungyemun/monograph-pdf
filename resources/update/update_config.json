@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "enabled": false,
-  "disabled_reason": "Automatic updates are not enabled in this build: the production update-signing key has not been set up and verified yet. Download new versions from the official GitHub Releases page.",
+  "enabled": true,
+  "disabled_reason": "Update checks are not available in this build. Download new versions from the official GitHub Releases page.",
   "repository": "aungyemun/monograph-pdf",
   "manifest_asset": "MonographPDF_update_manifest.json",
   "stable_manifest_url": "https://github.com/aungyemun/monograph-pdf/releases/latest/download/MonographPDF_update_manifest.json",
@@ -12,7 +12,12 @@
     "objects.githubusercontent.com",
     "release-assets.githubusercontent.com"
   ],
-  "trusted_keys": [],
+  "trusted_keys": [
+    {
+      "keyid": "27c3b3b23b949c40",
+      "public_key": "13a02f80f8b1b009e5bb8ae77b15c766f06bf9ab2b640f91577b300ba552846c"
+    }
+  ],
   "threshold": 1,
   "require_authenticode": false
 }

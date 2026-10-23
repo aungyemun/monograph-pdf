@@ -239,15 +239,29 @@ class UpdateController(QObject):
         if res.status == UpdateStatus.NOT_CONFIGURED:
             self.show_not_configured(res)
             return
-        box = QMessageBox.information if res.status == UpdateStatus.UP_TO_DATE else QMessageBox.warning
-        box(self._window, "Check for Updates", f"{res.status.label}\n\n{res.message}")
+        if res.status == UpdateStatus.UP_TO_DATE:
+            QMessageBox.information(self._window, "Check for Updates", f"{res.status.label}\n\n{res.message}")
+            return
+        self.show_check_problem(res)
+
+    def show_check_problem(self, res: CheckResult) -> None:
+        """Unable to check / verification failed: say plainly that nothing was installed and offer
+        the official download page instead."""
+        extra = ("Nothing was downloaded or installed. Check the internet connection and try again "
+                 "later, or get new versions from the official releases page."
+                 if res.status == UpdateStatus.UNAVAILABLE else
+                 "For your safety nothing was downloaded or installed. If this keeps happening, get new "
+                 "versions only from the official releases page.")
+        self._message_with_releases_link(QMessageBox.Icon.Warning, res, extra)
 
     def show_not_configured(self, res: CheckResult) -> None:
         """The message points to GitHub Releases, so offer to open it (in the user's browser, only when
         clicked; Monograph PDF itself contacts nothing)."""
-        box = QMessageBox(QMessageBox.Icon.Information, "Check for Updates",
-                          f"{res.status.label}\n\n{res.message}", parent=self._window)
-        box.setInformativeText(f"Installed version: {res.installed}")
+        self._message_with_releases_link(QMessageBox.Icon.Information, res, "")
+
+    def _message_with_releases_link(self, icon, res: CheckResult, extra: str) -> None:
+        box = QMessageBox(icon, "Check for Updates", f"{res.status.label}\n\n{res.message}", parent=self._window)
+        box.setInformativeText((extra + "\n\n" if extra else "") + f"Installed version: {res.installed}")
         open_page = box.addButton("Open Releases Page", QMessageBox.ButtonRole.ActionRole)
         box.addButton(QMessageBox.StandardButton.Ok)
         box.setDefaultButton(QMessageBox.StandardButton.Ok)

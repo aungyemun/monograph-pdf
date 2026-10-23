@@ -1,10 +1,15 @@
 # Secure updates
 
-Status: **included since 0.3.0, switched off (also in 0.4.0 and 0.4.1)**. The update system is implemented and tested with synthetic
-keys and local mock servers. It is **switched off** in every build until a production signing key
-exists and the configuration below has been validated (see [Production setup](#production-setup)).
-Until then, **Help ▸ Check for Updates…** reports "Updates not configured" — never "Up to date" —
-and new versions come from the [GitHub Releases page](https://github.com/aungyemun/monograph-pdf/releases).
+Status: **included since 0.3.0; switched on from 0.4.1** with the production update-signing key
+(key id `27c3b3b23b949c40`). 0.3.0 and 0.4.0 ship with updates switched off and no trusted key, so
+they cannot update themselves: users install 0.4.1 once with Setup from the
+[GitHub Releases page](https://github.com/aungyemun/monograph-pdf/releases); the first upgrade through
+the updater is from 0.4.1 to a later release.
+
+Validation status: the signing key, the manifest checks and the user interface are tested (see
+[Testing](#testing)). The packaged 0.4.1 build has **not yet** passed the end-to-end update test
+(`scripts/test_update_e2e.py`) or the 0.4.0 → 0.4.1 Setup upgrade test on a disposable Windows
+installation; 0.4.1 is not published before both pass.
 
 Related: [AUTOMATIC_UPGRADE_AND_CLEANUP.md](AUTOMATIC_UPGRADE_AND_CLEANUP.md) (what happens after
 **Update Now**), [ERROR_REPORTING.md](ERROR_REPORTING.md), [SECURITY_AND_PRIVACY.md](SECURITY_AND_PRIVACY.md).
@@ -129,42 +134,129 @@ time and must never run on a machine exposed to untrusted code.
 
 ## Maintainer tooling
 
-`scripts/packaging/update_manifest.py` (offline; never publishes anything):
+`scripts/packaging/update_manifest.py` (offline; never publishes anything). Commands that use the
+secret key must run in an interactive console window: the passphrase is read with `getpass`, never
+from arguments, environment variables or files, and the secret key is never printed.
 
 ```powershell
-# once, on an offline or encrypted medium — refused inside the project folder
-python scripts\packaging\update_manifest.py keygen --out E:\monograph-signing
-# per release, after the release build
-python scripts\packaging\update_manifest.py make --setup installer\MonographPDF_0.3.1_Setup.exe `
-    --notes docs\releases\v0.3.1.md --channel stable --sequence 7 `
-    --key E:\monograph-signing\update-signing.key --out installer\MonographPDF_update_manifest.json
+# once: a new folder outside every Git working copy (refused otherwise; an existing key is never overwritten)
+python scripts\packaging\update_manifest.py keygen --out <new folder>
+# any time: check a key against the application's verification code (asks for the passphrase)
+python scripts\packaging\update_manifest.py selftest --key <folder>\update-signing.key
+# per release, after the release build (asks for the passphrase)
+python scripts\packaging\update_manifest.py make --setup installer\MonographPDF_0.4.2_Setup.exe `
+    --notes docs\releases\v0.4.2.md --channel stable --sequence <N> `
+    --key <folder>\update-signing.key --out installer\MonographPDF_update_manifest.json
 python scripts\packaging\update_manifest.py verify --manifest installer\MonographPDF_update_manifest.json
 ```
 
-The sequence number must be larger than any sequence used before (keep a record with the key).
+The sequence number must be larger than any sequence used before for that channel (keep a record
+with the key; start at 1). A client that once accepted sequence *N* refuses every manifest below *N*.
+
+## Production signing key
+
+| | |
+|---|---|
+| Algorithm | Ed25519 (RFC 8032), 32-byte keys, 64-byte signatures (base64 in the manifest) |
+| Key id | `27c3b3b23b949c40` (first 16 hex digits of the SHA-256 of the public key) |
+| Public key | `13a02f80f8b1b009e5bb8ae77b15c766f06bf9ab2b640f91577b300ba552846c` |
+| Fingerprint (SHA-256) | `27c3b3b23b949c4035fd8e70617adebc5451d4a5e7232a199da475a92c5d7ad2` |
+| Created | 2026-10-23, offline on the maintainer's computer, from the operating system's CSPRNG |
+| Trusted by | `resources/update/update_config.json` (bundled, read-only in the program folder), threshold 1 |
+
+**Storage.** `keygen` writes two files into a new folder whose permissions it restricts to the
+current Windows user: `update-signing.key` and `update-signing.pub.json` (public key, fingerprint and
+the self-test results; no secret). The secret key is encrypted with the passphrase
+(`scripts/packaging/signing_key.py`): scrypt (N = 2^17, r = 8, p = 1, a new 32-byte salt per file)
+derives 64 bytes; the first 32 are XORed with the secret (used once, because the salt is new for
+every file) and the last 32 key an HMAC-SHA256 over the whole file, so a wrong passphrase or any
+change is detected; the decrypted key must reproduce the stored public key. The construction uses
+only the Python standard library; it is not an established file format such as PKCS#8, which is a
+deliberate trade-off against adding a cryptography library to the maintainer tooling. The key
+is never in the repository, in a build folder, in CI or GitHub secrets, in an installer or in a
+source archive (`*.key` is ignored by Git; `check_release.py` scans release archives for secrets).
+
+**Backup.** Keep at least one offline copy of the *encrypted* `update-signing.key` (and
+`update-signing.pub.json`) on separate removable media stored apart from the computer — for example
+two USB drives in different places — and keep the passphrase separately (e.g. written down, or in a
+password manager that is not on the same drive). Copy the files yourself; the tooling never copies the
+key anywhere. Check a backup with `selftest --key <backup>\update-signing.key`.
+
+**Loss of the key or passphrase.** Installed copies can no longer be updated automatically. Generate
+a new key, ship its public key in a release that users install manually with Setup, and announce
+this on the Releases page. Keep the encrypted backups to avoid this.
+
+**Compromise.** Treat any exposure of the decrypted key, or of the key file together with its
+passphrase, as a compromise. There is no online revocation: an attacker who also controls the
+download path could sign a malicious manifest for installations that trust the key, until they
+install a version that no longer trusts it. Respond with a new key, a release that trusts only the
+new key (installed manually or, if the attacker cannot control the path, through an update signed
+with the old key), a GitHub security advisory and a note on the Releases page.
+
+## Key rotation
+
+What the application implements: several trusted keys (`trusted_keys`, each identified by its key id),
+a signature threshold (`threshold`; signatures by unknown or repeated keys never count, at most 8
+signatures are read), and verification that ignores signatures from keys it does not trust. What it
+does not implement: a separate root key, online revocation, or replacing keys from remote metadata —
+trusted keys change only with the program itself.
+
+Planned rotation: (1) generate the new key; (2) release *N* that trusts both keys (threshold 1) and
+is signed with the old key; (3) once most installations run *N* or later, sign with the new key and,
+in release *N+k*, remove the old key. Raising the threshold to 2 (two keys on separate media)
+protects against one lost or stolen key at the cost of signing every release twice.
+
+## GitHub Releases publishing
+
+Signing happens locally; GitHub only hosts the files. For every release with updates switched on:
+
+1. Build and verify the release as usual.
+2. Sign the manifest locally with `update_manifest.py make` (interactive passphrase) with the next
+   sequence number, then `verify`.
+3. `verify_release.py --dir installer …` checks the manifest (*update-manifest*): it verifies with the
+   release's own trusted keys exactly as the application does and must name this version, this
+   Setup.exe (URL of tag `v<version>`, size, SHA-256) and stay valid for at least 30 more days.
+4. Publish `MonographPDF_update_manifest.json` as a fourth release asset next to Setup.exe and the two
+   ZIP files. The stable channel reads `releases/latest/download/MonographPDF_update_manifest.json`,
+   so the newest stable release must always carry it; prereleases are found through the releases API
+   and must carry it too to be offered.
+5. Before the manifest expires (default 365 days), sign a fresh one for the current release with a
+   higher sequence number and replace the asset; otherwise checks report *Verification failed*.
+
+No GitHub secret or variable is needed for this procedure. The `production-release` environment
+(branch `main`, tags `v*`; no secrets, no variables) is not used by any workflow. Automated signing in
+GitHub Actions would require putting the secret key (or access to a remote signing service) into that
+environment, a workflow that signs and uploads the manifest, and — strongly recommended then —
+required reviewers on the environment; it would also make GitHub part of the trust chain. It is not
+used.
 
 ## Production setup
 
-Production update installation stays disabled until **all** of these are done and reviewed:
+1. ✅ Production Ed25519 key generated locally (2026-10-23), stored encrypted outside every Git
+   working copy in a folder restricted to the maintainer's account; self-test passed. An offline
+   backup is the maintainer's responsibility (see [Backup](#production-signing-key)).
+2. ✅ Public key in `resources/update/update_config.json` (`trusted_keys`), `enabled` = `true`,
+   threshold 1, no `ca_file`. A second key and threshold 2 are not used yet.
+3. ✅ Manifest validity: 365 days by default; re-sign before expiry (see above).
+4. ✅ `verify_release.py` checks the manifest of every release whose configuration has updates on.
+5. Optional, not done: Authenticode signing and `require_authenticode`.
+6. ❌ Not yet done: the end-to-end update test (`scripts/test_update_e2e.py`) of the packaged build
+   and the 0.4.0 → 0.4.1 Setup upgrade on a disposable Windows installation (never on the
+   maintainer's own Windows). Required before 0.4.1 is published.
 
-1. Generate the production Ed25519 key on an offline machine; store the secret key encrypted,
-   with an offline backup; never in the repository, CI secrets, the application or a release.
-2. Put the public key into `resources/update/update_config.json` (`trusted_keys`), set `enabled`
-   to `true`, keep `ca_file` absent, and consider a second key and `threshold`.
-3. Decide the manifest validity (`--expires-days`) and the re-signing routine.
-4. Publish `MonographPDF_update_manifest.json` as an asset of every release (stable and
-   prerelease), and add it to the release checklist and `verify_release.py`.
-5. Optional: sign releases with Authenticode and set `require_authenticode`.
-6. Test the complete path against the real GitHub release of a test repository or a draft
-   prerelease, on a real Windows installation, before the first production release that has updates
-   enabled. `verify_release.py --layout` fails a release whose bundled update or reporting
-   configuration differs from the repository's (so a test build's synthetic key, mock endpoint or
-   test CA can never be released).
+`verify_release.py --layout` also fails a release whose bundled update or reporting configuration
+differs from the repository's (so a test build's synthetic key, mock endpoint or test CA can never be
+released).
 
 ## Testing
 
-`tests/unit/test_update_crypto.py`, `test_update_manifest.py`, `test_update_net.py` (local HTTPS
-mock server with a generated test CA), `test_update_staging.py`, `test_update_install.py`,
-`test_update_ui.py`, `test_international.py`; the Windows end-to-end upgrade test is described in
+`tests/unit/test_update_crypto.py`, `test_update_manifest.py` (also: the shipped configuration trusts
+exactly the production key and never a test key), `test_update_net.py` (local HTTPS mock server with a
+generated test CA), `test_update_staging.py`, `test_update_install.py`, `test_update_ui.py` (also: no
+network request at start-up), `test_update_signing_key.py` (encrypted key storage, console-only
+passphrases, the self-test), `test_update_manifest_release_check.py` (the release check of the
+manifest), `test_international.py`; the Windows end-to-end upgrade test is described in
 [AUTOMATIC_UPGRADE_AND_CLEANUP.md](AUTOMATIC_UPGRADE_AND_CLEANUP.md#testing). All keys in the tests
-are synthetic (`tests/fixtures/update_fixtures.py`).
+are synthetic (`tests/fixtures/update_fixtures.py`). The production key's own self-test
+(`update_manifest.py selftest`, 19 checks on fictional in-memory manifests that name a repository no
+installation accepts) passed when the key was created.
