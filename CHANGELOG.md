@@ -49,7 +49,10 @@ remains switched off.
 - **Fonts installed as collections (.ttc / .otc)** — for example MS Mincho, MS Gothic, Meiryo,
   Yu Gothic, SimSun or Cambria — were replaced by a built-in font with the message "font collections
   (.ttc) are not embedded". The chosen face is now taken from the collection and embedded (only the
-  characters used), after checking that face's embedding permission.
+  characters used), after checking that face's embedding permission. Japanese fonts that declare
+  themselves "fixed pitch" although full-width characters are twice as wide (MS Mincho, MS Gothic)
+  keep each character's own width in the saved PDF; otherwise the saved text would be spaced at half
+  width with overlapping characters.
 
 - Settings survive direct upgrades over many versions: `preferences.json` records its layout and is
   migrated step by step; a value of the wrong type no longer replaces the setting silently later

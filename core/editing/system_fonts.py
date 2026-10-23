@@ -178,9 +178,50 @@ def embedding_verdict(path: str, index: int = 0) -> tuple[bool, str]:
 _SYSTEM_IDS: set[int] = set()
 
 
+def _clear_false_fixed_pitch(tt) -> bool:
+    """Clear the "fixed pitch" flag of a font whose glyphs do not all have the same advance.
+
+    Japanese "monospaced" fonts (MS Mincho, MS Gothic, …) set the flag although full-width
+    characters are twice as wide as half-width ones. MuPDF then writes a single width for every
+    glyph (/W [0 65535 500]) into the PDF, so saved Japanese text is drawn with half-width spacing
+    and the characters overlap. The flag is informational only; clearing it changes no glyph.
+    Returns True when the flag was cleared."""
+    try:
+        if not getattr(tt["post"], "isFixedPitch", 0):
+            return False
+        widths = {w for w, _lsb in tt["hmtx"].metrics.values() if w > 0}
+    except Exception:  # noqa: BLE001 - no post / hmtx table: leave the font as it is
+        return False
+    if len(widths) <= 1:
+        return False  # really fixed pitch (e.g. Courier New): one width is correct
+    tt["post"].isFixedPitch = 0
+    return True
+
+
+def _font_bytes(tt) -> bytes:
+    import io
+
+    buf = io.BytesIO()
+    tt.save(buf)
+    return buf.getvalue()
+
+
 @lru_cache(maxsize=256)
 def _load(path: str) -> fitz.Font:
-    font = fitz.Font(fontfile=path)
+    font = None
+    try:
+        from fontTools.ttLib import TTFont
+
+        tt = TTFont(path, lazy=True)
+        try:
+            if _clear_false_fixed_pitch(tt):
+                font = fitz.Font(fontbuffer=_font_bytes(tt))
+        finally:
+            tt.close()
+    except Exception:  # noqa: BLE001 - fontTools cannot read it: MuPDF reads the file as before
+        font = None
+    if font is None:
+        font = fitz.Font(fontfile=path)
     _SYSTEM_IDS.add(id(font))  # cached for the process lifetime, so the id stays valid
     return font
 
@@ -201,8 +242,10 @@ def _load_face(path: str, index: int) -> fitz.Font:
 
         coll = TTCollection(path)
         try:
+            face = coll.fonts[index]
+            _clear_false_fixed_pitch(face)
             buf = io.BytesIO()
-            coll.fonts[index].save(buf)
+            face.save(buf)
         finally:
             coll.close()
         font = fitz.Font(fontbuffer=buf.getvalue())

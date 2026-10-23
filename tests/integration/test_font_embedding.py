@@ -164,6 +164,22 @@ def test_font_from_a_collection_is_embedded_without_a_warning(tmp_path: Path):
     assert all(ext != "n/a" for _, ext in fonts)
 
 
+@pytest.mark.parametrize("family", ["MS Mincho", "MS Gothic"])
+def test_japanese_text_box_keeps_full_width_spacing_when_saved(tmp_path: Path, family):
+    """0.4.1 RC1: saved MS Mincho / MS Gothic text was spaced at half width (characters overlapped)."""
+    if system_fonts.find_font_file(family) is None:
+        pytest.skip(f"{family} not installed")
+    out = _bake(tmp_path, family, "東浦町大府市", size=10.0, name=family.replace(" ", ""))
+    d = fitz.open(out.as_posix())
+    try:
+        xs = [c[2][0] for span in d[0].get_texttrace() for c in span["chars"]]
+    finally:
+        d.close()
+    assert len(xs) == 6
+    steps = [round(b - a, 2) for a, b in zip(xs, xs[1:])]
+    assert all(abs(st - 10.0) < 0.05 for st in steps), steps
+
+
 def test_missing_font_is_reported_not_silent(tmp_path: Path):
     out = _bake(tmp_path, "Totally Missing Font", "Plain text")
     notes = system_fonts.take_notes()
