@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -188,8 +188,59 @@ class InspectorPanel(QScrollArea):
     hideRequested = Signal()  # the panel's own × button
 
     def show_context(self, *args, **kwargs) -> None:  # noqa: D401 — wrapper adds compaction
+        # While a list of this panel is open (the font list, a drop-down …) the panel is not rebuilt:
+        # rebuilding would delete the box that owns the open list — Monograph PDF then crashed (access
+        # violation) when, for example, text was being edited and a font was chosen here. The latest
+        # request is shown as soon as the list closes.
+        if self._own_popup_open():
+            self._deferred_context = (args, kwargs)
+            self._deferred_timer.start()
+            return
+        self._deferred_context = None
         self._show_context_impl(*args, **kwargs)
         self._compact_fields()
+
+    def _own_popup_open(self) -> bool:
+        from PySide6.QtWidgets import QApplication
+
+        popup = QApplication.activePopupWidget()
+        w = popup.parentWidget() if popup is not None else None
+        while w is not None:  # the popup is a separate window: walk up from its owner
+            if w is self._root:
+                return True
+            w = w.parentWidget()
+        return False
+
+    def _show_deferred_context(self) -> None:
+        if self._deferred_context is None:
+            return
+        if self._own_popup_open():
+            self._deferred_timer.start()
+            return
+        args, kwargs = self._deferred_context
+        self.show_context(*args, **kwargs)
+
+    def _clear_rows(self) -> None:
+        """Remove every row. The widgets are hidden now and deleted later (after the event being
+        handled), never while one of them may still be running its own code (a click, a signal)."""
+        def drop(item) -> None:
+            if item is None:
+                return
+            widget = item.widget()
+            if widget is not None:
+                widget.hide()
+                widget.deleteLater()
+                return
+            layout = item.layout()
+            if layout is not None:
+                while layout.count():
+                    drop(layout.takeAt(0))
+                layout.deleteLater()
+
+        while self._form.rowCount():
+            row = self._form.takeRow(0)
+            drop(row.labelItem)
+            drop(row.fieldItem)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -236,6 +287,11 @@ class InspectorPanel(QScrollArea):
         self._image = None
         self._context_key: str | None = None
         self._updating = False
+        self._deferred_context = None
+        self._deferred_timer = QTimer(self)
+        self._deferred_timer.setSingleShot(True)
+        self._deferred_timer.setInterval(120)
+        self._deferred_timer.timeout.connect(self._show_deferred_context)
         self.clear()
 
     def clear(self) -> None:
@@ -244,8 +300,7 @@ class InspectorPanel(QScrollArea):
         self._shape = None
         self._image = None
         self._context_key = None
-        while self._form.rowCount():
-            self._form.removeRow(0)
+        self._clear_rows()
         empty = QLabel("No document open")
         empty.setObjectName("ContextHint")
         self._form.addRow(empty)
@@ -303,8 +358,7 @@ class InspectorPanel(QScrollArea):
         self._field = field
         self._shape = shape
         self._image = image
-        while self._form.rowCount():
-            self._form.removeRow(0)
+        self._clear_rows()
 
         if text_box is not None:
             self._section("Text")

@@ -2912,8 +2912,31 @@ class MainWindow(QMainWindow):
             shape=selected_shape,
         )
 
+    @staticmethod
+    def _popup_owned_by(container) -> bool:
+        """True while a list or menu that belongs to ``container`` is open (a popup is its own window,
+        so walk up from the widget that opened it)."""
+        popup = QApplication.activePopupWidget()
+        w = popup.parentWidget() if popup is not None else None
+        while w is not None:
+            if w is container:
+                return True
+            w = w.parentWidget()
+        return False
+
     def _update_context_toolbar(self) -> None:
         bar = self._context_bar
+        # Rebuilding hides every control on the bar, which closed a font list (or color menu) the user
+        # had just opened — e.g. the first click on the font box while typing in a text box only
+        # flashed the list. Wait until the list or menu is closed.
+        if self._popup_owned_by(bar):
+            if getattr(self, "_ctx_retry", None) is None:
+                self._ctx_retry = QTimer(self)
+                self._ctx_retry.setSingleShot(True)
+                self._ctx_retry.setInterval(120)
+                self._ctx_retry.timeout.connect(self._update_context_toolbar)
+            self._ctx_retry.start()
+            return
         bar.clear()  # Qt deletes the transient addWidget() actions; font controls are persistent QWidgetActions
         self._context_hint = QLabel("")
         self._context_hint.setObjectName("ContextHint")

@@ -119,6 +119,12 @@ class FontPicker(QFontComboBox):
                 return True
         return super().eventFilter(obj, event)
 
+    def wheelEvent(self, event) -> None:  # noqa: N802
+        """Turning the mouse wheel over the closed box does not change the font (it used to apply a
+        new font at every notch while you scrolled a panel); the panel or page scrolls instead. The
+        open list scrolls as usual."""
+        event.ignore()
+
     # ------------------------------------------------------------------ public
     def active_row(self) -> int:
         """List row of the font in use, or -1 when it is not an installed font (e.g. an embedded-only
