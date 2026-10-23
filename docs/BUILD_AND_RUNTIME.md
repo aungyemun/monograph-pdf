@@ -91,6 +91,11 @@ attributes and compression; the same Python version is assumed for zlib).
 
 Publishing a release is a separate, manual step: see the [Release checklist](RELEASE_CHECKLIST.md).
 
+The update manifest is signed outside this build, in a separate signing environment (Python 3.11 with
+only the hash-pinned packages of a signing bundle made by `scripts/packaging/make_signing_bundle.py`);
+the build environment and the application never contain a signing key or the `cryptography` package.
+See [Secure updates](SECURE_UPDATES.md#maintainer-tooling).
+
 ### Installer and uninstaller design
 
 * Installs for all users or for the current user, with optional Start menu and desktop shortcuts and

@@ -102,7 +102,7 @@ from.
 
 Before a release, also install the previous published Setup and upgrade it with the new one (same test folder): settings, documents and unrelated files must be kept, and the self-check must pass.
 
-**Release validation runs only in a disposable Windows environment** (a fresh virtual machine restored from a clean snapshot, or Windows Sandbox), never on the maintainer's everyday Windows account: the test installs, upgrades and uninstalls, and backs up and restores the Monograph PDF settings folders. Use test settings with recognizable dummy values and compare their SHA-256 before and after each install, upgrade and uninstall. A result is recorded as **BLOCKED** when no such environment is available, never as passed.
+**Release validation is done by the maintainer on real Windows test computers** (no virtual machines), following [WINDOWS_RELEASE_TEST_CHECKLIST.md](WINDOWS_RELEASE_TEST_CHECKLIST.md). `scripts\windows_release_check.ps1` supports it and only reads (release-file hashes, installed copies and their trusted update keys, the installed program's offline self-check with a temporary settings folder, optional copy of the logs). `scripts\test_installer.ps1` installs, upgrades and uninstalls and backs up and restores the Monograph PDF settings folders, so run it only on a test computer, not on the everyday work account; use test settings with recognizable dummy values. An item that was not done is recorded as **NOT TESTED**, never as passed.
 
 ## Updates, problem reports and international tests
 
@@ -112,6 +112,11 @@ Before a release, also install the previous published Setup and upgrade it with 
   generated test CA: TLS, redirects, sizes, rate limits, timeouts, interrupted and cancelled downloads),
   `test_update_staging.py` (cleanup rules, links, disk space, lock), `test_update_install.py`
   (installation detection, hand-off record, Setup arguments, helper source checks), `test_update_ui.py`.
+* Update-signing tools (synthetic keys only): `test_update_signing_key.py` (encrypted key file,
+  console-only passphrases, key generation refusals, self-test), `test_update_signing_key_pkcs8.py`
+  (standard PKCS#8 copy, tamper detection, weak-parameter refusal, OpenSSL interoperability; needs
+  `cryptography`), `test_update_signing_bundle.py` (stand-alone signing bundle, multi-copy self-test,
+  secret scan), `test_update_manifest_release_check.py` (`verify_release.py`'s manifest check).
 * Problem reports: `test_diagnostics.py` (privacy filtering, schema, consent, offline sending,
   crash and termination records), `test_report_gateway.py` (validation, limits, injection, GitHub
   permission isolation; GitHub mocked).

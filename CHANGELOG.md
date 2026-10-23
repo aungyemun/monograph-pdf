@@ -17,9 +17,16 @@ remains switched off.
 - When a check cannot reach GitHub or cannot verify the update information, the message now says that
   nothing was downloaded or installed and offers **Open Releases Page**.
 - Maintainer tooling: the update-signing key is stored encrypted with a passphrase that is only read
-  from the console; `update_manifest.py selftest` checks a key against the application's own
-  verification code; `verify_release.py` checks the signed update manifest of every release that has
-  updates switched on.
+  from the console, and additionally as a standard encrypted PKCS#8 file (PBES2 + scrypt +
+  AES-256-CBC, decrypted with the maintained `cryptography` library and bound to the known public
+  key); `update_manifest.py selftest` checks one or more key copies against the application's own
+  verification code and scans for unencrypted copies; `make` refuses to write a manifest unless two
+  independent Ed25519 implementations agree and it verifies; `make_signing_bundle.py` builds a small
+  stand-alone signing-tool folder with hash-pinned optional dependencies; `verify_release.py` checks
+  the signed update manifest of every release that has updates switched on.
+- Release testing: `docs/WINDOWS_RELEASE_TEST_CHECKLIST.md` and the read-only
+  `scripts/windows_release_check.ps1` for installation, upgrade and update tests on real Windows
+  computers.
 
 ### Fixed
 

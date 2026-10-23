@@ -17,7 +17,7 @@ Custom and Unicode folders are supported in both modes. Microsoft Office or Libr
 
 | Check | Environment | Result |
 |---|---|---|
-| Installer test (`scripts/test_installer.ps1`): per-user install, registrations, shortcuts, self-check, launch, User Guide, uninstall while running, complete uninstall with a locked file, reinstall, upgrade matrix, PDF Editor 0.1.5 migration matrix | development PC, Windows 11 Pro 25H2 (build 26200), en-US, standard (non-elevated) account; 0.3.0 development build 96b6c6f | 262 passed, 0 failed, 1 skipped (the all-users PDF Editor case needs an elevated shell). Not counted as evidence for settings preservation: installer-test runs in this development cycle were started from a terminal inside an app package, where `%APPDATA%` is virtualised (the script now refuses to run there). To be repeated in a disposable Windows environment |
+| Installer test (`scripts/test_installer.ps1`): per-user install, registrations, shortcuts, self-check, launch, User Guide, uninstall while running, complete uninstall with a locked file, reinstall, upgrade matrix, PDF Editor 0.1.5 migration matrix | development PC, Windows 11 Pro 25H2 (build 26200), en-US, standard (non-elevated) account; 0.3.0 development build 96b6c6f | 262 passed, 0 failed, 1 skipped (the all-users PDF Editor case needs an elevated shell). Not counted as evidence for settings preservation: installer-test runs in this development cycle were started from a terminal inside an app package, where `%APPDATA%` is virtualised (the script now refuses to run there). To be repeated on a test computer |
 | Program loads its own VC++ runtime, not the system's | same PC (system-wide VC++ 14.51 present) | verified with a loaded-module listing |
 | No network use in normal PDF work, OCR and the self-check | same PC, connection monitoring of the whole process tree | see the network audit in the release notes |
 | Live use of the installed build (open a PDF with a Japanese file name, edit, compress to a target size, PDF to PowerPoint with mixed page sizes, print to Microsoft Print to PDF in black and white, 4 pages per sheet) | same PC, test installation in a separate folder with separate settings | worked. One defect was found and fixed: File ▸ Save a Copy ▸ Whole Document raised an error from the menu. |
@@ -35,6 +35,10 @@ The following are also not verified:
 0.3.0 (2026-10-22) and 0.4.0 (2026-10-23) were published with these checks, and the installer test, still not verified; their release notes say so. They remain open.
 
 ### How to run the clean-PC test
+
+Releases are validated by the maintainer on real Windows test computers with the
+[Windows release test checklist](WINDOWS_RELEASE_TEST_CHECKLIST.md) (from 0.4.1). The Windows Sandbox
+procedure below is an optional alternative where Sandbox is available (not on Windows Home).
 
 Windows Sandbox (Windows 11 Pro or Enterprise) is a disposable clean Windows. To enable it:
 

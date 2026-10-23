@@ -6,10 +6,11 @@ they cannot update themselves: users install 0.4.1 once with Setup from the
 [GitHub Releases page](https://github.com/aungyemun/monograph-pdf/releases); the first upgrade through
 the updater is from 0.4.1 to a later release.
 
-Validation status: the signing key, the manifest checks and the user interface are tested (see
-[Testing](#testing)). The packaged 0.4.1 build has **not yet** passed the end-to-end update test
-(`scripts/test_update_e2e.py`) or the 0.4.0 → 0.4.1 Setup upgrade test on a disposable Windows
-installation; 0.4.1 is not published before both pass.
+Validation status: the signing key, its backup and restore, the manifest checks and the user
+interface are tested (see [Testing](#testing)). Installation, the 0.4.0 → 0.4.1 Setup upgrade and the
+application on real Windows computers are **not yet** tested
+([WINDOWS_RELEASE_TEST_CHECKLIST.md](WINDOWS_RELEASE_TEST_CHECKLIST.md)); 0.4.1 is not published
+before they pass. 0.4.1 has not been published.
 
 Related: [AUTOMATIC_UPGRADE_AND_CLEANUP.md](AUTOMATIC_UPGRADE_AND_CLEANUP.md) (what happens after
 **Update Now**), [ERROR_REPORTING.md](ERROR_REPORTING.md), [SECURITY_AND_PRIVACY.md](SECURITY_AND_PRIVACY.md).
@@ -91,9 +92,9 @@ downgrade and replay protection with no new runtime dependency. Its known limits
 
 * **Freeze attacks are bounded only by `expires`.** An attacker who controls the download path and
   replays the latest *valid* manifest can hide a newer release until that manifest expires. The
-  release tool defaults to 365 days; publishing a shorter validity means re-signing the manifest of
-  the current release before it expires (otherwise clients report *Verification failed*, never
-  *Up to date*).
+  release tool defaults to 365 days (see [Manifest expiry](#manifest-expiry)); published releases are
+  immutable, so fresh update information requires a new release before the newest manifest expires
+  (otherwise clients report *Verification failed*, never *Up to date*).
 * **One key class.** There is no separate root key for rotating the signing key; key rotation
   ships a new public key in an application update signed by the old key. A compromised signing key
   requires a manual release with a new key and a security advisory.
@@ -136,22 +137,37 @@ time and must never run on a machine exposed to untrusted code.
 
 `scripts/packaging/update_manifest.py` (offline; never publishes anything). Commands that use the
 secret key must run in an interactive console window: the passphrase is read with `getpass`, never
-from arguments, environment variables or files, and the secret key is never printed.
+from arguments, environment variables or files (a console is detected with the Windows console API;
+redirected input is refused rather than risking an echo), and the secret key is never printed.
+
+| Command | Purpose |
+|---|---|
+| `keygen --out <new folder>` | new key (only for rotation or replacement); refuses Git working copies and used folders |
+| `selftest --key <file> [--key <copy>] [--config] [--scan <folder>] [--report <file>]` | opens one or more copies with one prompt; same key in all, trusted by the configuration, OpenSSL and built-in Ed25519 sign identically, 19 verification checks, no unencrypted copy of the secret in the scanned folders (also inside ZIP files) |
+| `export-pkcs8 --key <update-signing.key> --out <new .pem>` | standard PKCS#8 copy of the same key (below) |
+| `make …` | signs a release manifest; refuses to write it unless both Ed25519 implementations agree and it verifies against `--config` |
+| `verify --manifest <file> [--config]` | verifies exactly as the application does |
+
+The application's `core` package loads the PDF engine, so the tools are normally run from a
+**signing bundle**: `scripts/packaging/make_signing_bundle.py --out <new folder>` copies only the
+needed files from a commit (with an empty `core/__init__.py`), `requirements-signing.txt` (the optional
+`cryptography` wheels, pinned with SHA-256 hashes) and a file manifest. It runs in a separate Python
+3.11 environment that contains nothing but those packages — never the build environment and never the
+application. Without `cryptography`, the original key format, `selftest` and `verify` need only the
+Python standard library.
 
 ```powershell
-# once: a new folder outside every Git working copy (refused otherwise; an existing key is never overwritten)
-python scripts\packaging\update_manifest.py keygen --out <new folder>
-# any time: check a key against the application's verification code (asks for the passphrase)
-python scripts\packaging\update_manifest.py selftest --key <folder>\update-signing.key
-# per release, after the release build (asks for the passphrase)
-python scripts\packaging\update_manifest.py make --setup installer\MonographPDF_0.4.2_Setup.exe `
+& $PY -I <bundle>\scripts\packaging\update_manifest.py make --setup installer\MonographPDF_0.4.2_Setup.exe `
     --notes docs\releases\v0.4.2.md --channel stable --sequence <N> `
-    --key <folder>\update-signing.key --out installer\MonographPDF_update_manifest.json
-python scripts\packaging\update_manifest.py verify --manifest installer\MonographPDF_update_manifest.json
+    --key <key folder>\update-signing.pkcs8.pem --config resources\update\update_config.json `
+    --out installer\MonographPDF_update_manifest.json
+& $PY -I <bundle>\scripts\packaging\update_manifest.py verify --manifest installer\MonographPDF_update_manifest.json `
+    --config resources\update\update_config.json
 ```
 
 The sequence number must be larger than any sequence used before for that channel (keep a record
-with the key; start at 1). A client that once accepted sequence *N* refuses every manifest below *N*.
+with the key; start at 1). A client that once accepted sequence *N* refuses every manifest below *N*;
+a reused number would let two different manifests count as equally new.
 
 ## Production signing key
 
@@ -164,23 +180,44 @@ with the key; start at 1). A client that once accepted sequence *N* refuses ever
 | Created | 2026-10-23, offline on the maintainer's computer, from the operating system's CSPRNG |
 | Trusted by | `resources/update/update_config.json` (bundled, read-only in the program folder), threshold 1 |
 
-**Storage.** `keygen` writes two files into a new folder whose permissions it restricts to the
-current Windows user: `update-signing.key` and `update-signing.pub.json` (public key, fingerprint and
-the self-test results; no secret). The secret key is encrypted with the passphrase
-(`scripts/packaging/signing_key.py`): scrypt (N = 2^17, r = 8, p = 1, a new 32-byte salt per file)
-derives 64 bytes; the first 32 are XORed with the secret (used once, because the salt is new for
-every file) and the last 32 key an HMAC-SHA256 over the whole file, so a wrong passphrase or any
-change is detected; the decrypted key must reproduce the stored public key. The construction uses
-only the Python standard library; it is not an established file format such as PKCS#8, which is a
-deliberate trade-off against adding a cryptography library to the maintainer tooling. The key
-is never in the repository, in a build folder, in CI or GitHub secrets, in an installer or in a
-source archive (`*.key` is ignored by Git; `check_release.py` scans release archives for secrets).
+**Storage.** The key folder (outside every Git working copy, readable only by the maintainer's
+Windows account) holds the same secret key in two encrypted files with the same passphrase, plus the
+public `update-signing.pub.json`:
 
-**Backup.** Keep at least one offline copy of the *encrypted* `update-signing.key` (and
-`update-signing.pub.json`) on separate removable media stored apart from the computer — for example
-two USB drives in different places — and keep the passphrase separately (e.g. written down, or in a
-password manager that is not on the same drive). Copy the files yourself; the tooling never copies the
-key anywhere. Check a backup with `selftest --key <backup>\update-signing.key`.
+| File | Format | Status |
+|---|---|---|
+| `update-signing.pkcs8.pem` | Standard encrypted PKCS#8 (RFC 5958): PBES2 (RFC 8018) with scrypt (RFC 7914; N = 2^17, r = 8, p = 1, 16-byte salt) and AES-256-CBC (16-byte IV); password = passphrase in Unicode NFC as UTF-8. Decrypted by the maintained `cryptography` library (OpenSSL). | **current** (signing) |
+| `update-signing.key` | Project format v1 (`signing_key.py`): scrypt (N = 2^17, r = 8, p = 1, 32-byte salt) → 64 bytes; 32 XORed with the secret (one-time key stream, new salt per file), 32 key an HMAC-SHA256 over the file (encrypt-then-MAC). Standard library only. | retained, unchanged (fallback) |
+
+Review (2026-10-23): the original format's design is sound — a memory-hard KDF and authenticated
+encryption — but it is the project's own construction and its decryption code is project code. The
+PKCS#8 copy moves decryption to a maintained, widely used implementation and a standard container
+without weakening the KDF. Findings that shaped it:
+
+* `cryptography`'s `BestAvailableEncryption` for PKCS#8 (checked on 50.0.1) writes **PBKDF2-HMAC-SHA256
+  with only 2048 iterations** — far cheaper to attack than scrypt N = 2^17 — so it is not used; the
+  PKCS#8 file is written by `signing_key.export_pkcs8` with scrypt and AES-256-CBC from `cryptography`,
+  and its encoding is checked against OpenSSL (`openssl pkey` decrypts the same encoding; tests).
+* PBES2/AES-CBC has **no integrity tag**. `load_pkcs8` therefore requires `update-signing.pub.json`
+  and refuses a key that does not reproduce exactly that public key (every tested change to the
+  ciphertext is refused).
+* OpenSSL's command line refuses scrypt parameters above 32 MiB, so it cannot open the production
+  PKCS#8 file (N = 2^17 needs 128 MiB); `cryptography` can. Lowering N for that would weaken the key.
+* Both files use the same passphrase and the same KDF cost, so keeping both does not make guessing
+  easier. Neither file can be used without the passphrase.
+
+Passphrases are read only by `getpass` in a real console, kept in memory for one command (several
+copies open with one prompt), and never written; key files are created with exclusive-create (never
+overwritten) in folders restricted to the current user; no temporary file ever holds the decrypted
+key. The key is never in the repository, a build folder, CI or GitHub secrets, an installer or a
+source archive (`*.key` and `*.pem` are ignored by Git; `check_release.py` scans release archives).
+
+**Backup.** One ZIP holds both encrypted key files, the public key, the signing bundle, restore,
+release-signing and emergency instructions, file checksums and a stand-alone `verify_backup.py`; it
+is kept outside the repository and must be copied to separate offline media, with the passphrase
+kept separately. It was restore-tested (extracted to a new folder, both key files opened from there,
+self-test passed, no unencrypted secret found). No additional ZIP password is used: the keys inside
+are already encrypted, and a second password would add a second thing to lose.
 
 **Loss of the key or passphrase.** Installed copies can no longer be updated automatically. Generate
 a new key, ship its public key in a release that users install manually with Setup, and announce
@@ -198,51 +235,100 @@ with the old key), a GitHub security advisory and a note on the Releases page.
 What the application implements: several trusted keys (`trusted_keys`, each identified by its key id),
 a signature threshold (`threshold`; signatures by unknown or repeated keys never count, at most 8
 signatures are read), and verification that ignores signatures from keys it does not trust. What it
-does not implement: a separate root key, online revocation, or replacing keys from remote metadata —
-trusted keys change only with the program itself.
+does **not** implement: a separate root key, remote revocation, or replacing keys from remote
+metadata — trusted keys change only by installing a new version of the program.
 
-Planned rotation: (1) generate the new key; (2) release *N* that trusts both keys (threshold 1) and
-is signed with the old key; (3) once most installations run *N* or later, sign with the new key and,
-in release *N+k*, remove the old key. Raising the threshold to 2 (two keys on separate media)
-protects against one lost or stolen key at the cost of signing every release twice.
+| Scenario | Procedure | Installations that do not update |
+|---|---|---|
+| 1. Planned transition to a new key | Release *N* trusts old + new (threshold 1), signed with the old key; later releases signed with the new key; release *N+k* drops the old key | keep trusting only the old key until they install *N* |
+| 2. Adding a second trusted key | Add it to `trusted_keys` (threshold 1) in a release signed with a key the installations already trust | — |
+| 3. Requiring two signatures | A release trusting both keys sets `threshold` 2; from then on every manifest needs both signatures (`make --key A --key B`) | an installation with threshold 1 still accepts one signature until it updates |
+| 4. Removing an obsolete key | Release that no longer lists it, signed with a key that stays | — |
+| 5. Compromised key | New key; release *X* trusts **only** the new key. Sign *X*'s manifest with the compromised key *and* the new key: installations still accept the old signature and move to *X* automatically, which adds no risk because whoever holds the key can sign anyway. After *X*, never sign with the old key again. Security advisory and Releases-page notice telling users to install *X* (manually if in doubt) | remain exposed to manifests signed with the compromised key until they install *X* |
+| 6. Key permanently lost | New key; release trusting it, installed **manually** (it cannot be signed for existing installations) | report *Verification failed* (never a false "up to date"); keep working offline |
+
+Assessment: a second key kept on separate media (scenario 2) is the improvement that matters most —
+it turns a lost key (6) into a planned transition (1). A root key or TUF-style roles would add
+complexity a single-maintainer project would have to operate correctly for little practical gain;
+not added.
+
+## Manifest expiry
+
+Policy: `--expires-days 365` by default; `verify_release.py` requires at least 30 days left.
+Expiry limits how long a captured manifest can be replayed to hide newer releases (freeze attack) and
+must never affect normal use: an expired manifest only makes the update check report *Verification
+failed*; opening, editing and saving keep working, offline or not. Interactions:
+
+* **Immutable releases** are switched on for the repository: after publication a release's assets
+  cannot change, so a manifest cannot be renewed in place. Fresh update information always comes with
+  a **new release** (new version, new manifest, next sequence number). If no release is published
+  before the newest manifest expires, checks fail safely until one is.
+* Sequence numbers only grow; a renewal (= the next release) uses the next number. Never reset them —
+  an installation that accepted *N* refuses everything below *N*.
+* Clock checks: a manifest dated more than 24 hours in the future is refused; a computer whose clock
+  is far ahead sees valid manifests as expired. Both fail safely.
+* Assessment: 365 days fits a project that releases several times a year. If releases may become
+  less frequent than yearly, sign with a longer validity (e.g. 730 days); the cost is a longer replay
+  window, which matters only to an attacker who can already serve content in place of GitHub over
+  verified HTTPS.
 
 ## GitHub Releases publishing
 
 Signing happens locally; GitHub only hosts the files. For every release with updates switched on:
 
-1. Build and verify the release as usual.
-2. Sign the manifest locally with `update_manifest.py make` (interactive passphrase) with the next
-   sequence number, then `verify`.
-3. `verify_release.py --dir installer …` checks the manifest (*update-manifest*): it verifies with the
-   release's own trusted keys exactly as the application does and must name this version, this
-   Setup.exe (URL of tag `v<version>`, size, SHA-256) and stay valid for at least 30 more days.
-4. Publish `MonographPDF_update_manifest.json` as a fourth release asset next to Setup.exe and the two
-   ZIP files. The stable channel reads `releases/latest/download/MonographPDF_update_manifest.json`,
-   so the newest stable release must always carry it; prereleases are found through the releases API
-   and must carry it too to be offered.
-5. Before the manifest expires (default 365 days), sign a fresh one for the current release with a
-   higher sequence number and replace the asset; otherwise checks report *Verification failed*.
+1. Finish development; the full test suite and Windows CI pass.
+2. Build the release (`scripts\build_release.ps1`).
+3. Test installation, upgrade and the application on real Windows computers
+   ([WINDOWS_RELEASE_TEST_CHECKLIST.md](WINDOWS_RELEASE_TEST_CHECKLIST.md)).
+4. `verify_release.py` passes for the release files.
+5. Sign the manifest locally (`make`, interactive passphrase, next sequence number).
+6. `verify` the manifest; `verify_release.py --dir installer …` reports `PASS update-manifest` (it
+   verifies with the release's own trusted keys exactly as the application does and must name this
+   version, this Setup.exe — URL of tag `v<version>`, size, SHA-256 — and stay valid 30+ days).
+7. Create a **draft** release and attach exactly four files: Setup.exe, the Installer and Source
+   ZIPs and `MonographPDF_update_manifest.json`. The stable channel reads
+   `releases/latest/download/MonographPDF_update_manifest.json`, so the newest stable release must
+   always carry it; prereleases are found through the releases API and need it too.
+8. Publish only after an explicit decision — publication is irreversible (immutable releases).
+9. Download the published assets into an empty folder and verify them again (`verify`,
+   `verify_release.py --dir <folder>`); then **Check for Updates** on an installed copy.
 
-No GitHub secret or variable is needed for this procedure. The `production-release` environment
-(branch `main`, tags `v*`; no secrets, no variables) is not used by any workflow. Automated signing in
-GitHub Actions would require putting the secret key (or access to a remote signing service) into that
-environment, a workflow that signs and uploads the manifest, and — strongly recommended then —
-required reviewers on the environment; it would also make GitHub part of the trust chain. It is not
-used.
+### What the GitHub configuration enforces (checked 2026-10-23)
+
+* Ruleset *Protect main branch*: `main` cannot be deleted or force-pushed.
+* Ruleset *Protect production release tags* (`refs/tags/v*`): tags cannot be created, moved or deleted
+  except by repository administrators (bypass). It does not check what a tag points to.
+* **Immutable releases** are on: a published release's assets and tag cannot be changed afterwards
+  (drafts can). This also means a manifest can only be renewed with a new release.
+* Workflows have read-only `contents` permission; the only workflow (Windows CI) never builds,
+  signs or publishes.
+* The `production-release` environment (branch `main`, tags `v*`, no reviewers, no secrets, no
+  variables) is **not referenced by any workflow**. Environment rules apply only to workflow jobs that
+  name the environment, so it does **not** protect releases created manually (web page or `gh`): those
+  are limited only by repository permissions and the rulesets above.
+
+No GitHub secret or variable is needed: signing is local. Automated signing in GitHub Actions would
+require putting the secret key (or access to a remote signing service) into that environment, a
+workflow that signs and uploads the manifest, and — then essential — required reviewers on the
+environment; it would also make GitHub part of the trust chain. It is not used. Recommendations:
+keep administrator access to the repository to the maintainer's account with two-factor
+authentication; keep immutable releases on.
 
 ## Production setup
 
 1. ✅ Production Ed25519 key generated locally (2026-10-23), stored encrypted outside every Git
-   working copy in a folder restricted to the maintainer's account; self-test passed. An offline
-   backup is the maintainer's responsibility (see [Backup](#production-signing-key)).
+   working copy in a folder restricted to the maintainer's account; self-test passed; standard PKCS#8
+   copy made; backup ZIP created and restore-tested. Copying it to offline media is the maintainer's
+   step (see [Backup](#production-signing-key)).
 2. ✅ Public key in `resources/update/update_config.json` (`trusted_keys`), `enabled` = `true`,
    threshold 1, no `ca_file`. A second key and threshold 2 are not used yet.
-3. ✅ Manifest validity: 365 days by default; re-sign before expiry (see above).
+3. ✅ Manifest validity: 365 days by default ([Manifest expiry](#manifest-expiry)).
 4. ✅ `verify_release.py` checks the manifest of every release whose configuration has updates on.
 5. Optional, not done: Authenticode signing and `require_authenticode`.
-6. ❌ Not yet done: the end-to-end update test (`scripts/test_update_e2e.py`) of the packaged build
-   and the 0.4.0 → 0.4.1 Setup upgrade on a disposable Windows installation (never on the
-   maintainer's own Windows). Required before 0.4.1 is published.
+6. ❌ Not yet done: installation, 0.4.0 → 0.4.1 upgrade and application tests of the packaged build
+   on real Windows computers ([WINDOWS_RELEASE_TEST_CHECKLIST.md](WINDOWS_RELEASE_TEST_CHECKLIST.md)),
+   done by the maintainer. Required before 0.4.1 is published. The first **Update Now** through the
+   updater can only be tested with the release after 0.4.1.
 
 `verify_release.py --layout` also fails a release whose bundled update or reporting configuration
 differs from the repository's (so a test build's synthetic key, mock endpoint or test CA can never be
@@ -254,7 +340,9 @@ released).
 exactly the production key and never a test key), `test_update_net.py` (local HTTPS mock server with a
 generated test CA), `test_update_staging.py`, `test_update_install.py`, `test_update_ui.py` (also: no
 network request at start-up), `test_update_signing_key.py` (encrypted key storage, console-only
-passphrases, the self-test), `test_update_manifest_release_check.py` (the release check of the
+passphrases, the self-test), `test_update_signing_key_pkcs8.py` (PKCS#8 copy, tamper detection,
+OpenSSL interoperability; needs `cryptography`), `test_update_signing_bundle.py` (signing bundle,
+multi-copy self-test, secret scan), `test_update_manifest_release_check.py` (the release check of the
 manifest), `test_international.py`; the Windows end-to-end upgrade test is described in
 [AUTOMATIC_UPGRADE_AND_CLEANUP.md](AUTOMATIC_UPGRADE_AND_CLEANUP.md#testing). All keys in the tests
 are synthetic (`tests/fixtures/update_fixtures.py`). The production key's own self-test

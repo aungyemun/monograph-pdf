@@ -34,7 +34,8 @@ The build accepts an `Unreleased` CHANGELOG entry (`--allow-unreleased`); publis
 
 | # | Item | How |
 |---|---|---|
-| 3.1 | `scripts\test_installer.ps1` (install, launch, shortcuts, uninstall, reinstall, upgrade) | automated; record `passed / failed / skipped` |
+| 3.1 | `scripts\test_installer.ps1` (install, launch, shortcuts, uninstall, reinstall, upgrade) | automated; record `passed / failed / skipped`. It installs a per-user test copy and backs up / restores the Monograph PDF settings: run it only on a test computer |
+| 3.1a | [Windows release test checklist](WINDOWS_RELEASE_TEST_CHECKLIST.md) on real computers: clean install, upgrade from the previous version (settings kept), functions, update checking, offline use, uninstall/reinstall; `scripts\windows_release_check.ps1` (read-only) | manual; record each item PASS / FAIL / NOT TESTED |
 | 3.2 | Launch the installed app, open a PDF, save, print preview | manual |
 | 3.3 | Physical printing on a real printer | manual; if not done, write **NOT VERIFIED** in the notes |
 | 3.4 | SmartScreen / unsigned-installer warning still described correctly in `INSTALLATION.md` | manual ([CODE_SIGNING.md](CODE_SIGNING.md)) |
@@ -90,14 +91,25 @@ Use these sections, in this order, and leave out any that would be empty. Keep s
 - [ ] `build\installer\MonographPDF_<version>_SBOM.cdx.json` is generated and `make_sbom.py --check` passes.
 - [ ] Signing status decided by the Signing Approver ([CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md)); an unsigned release says so in its notes. A signed release: approval recorded, `Get-AuthenticodeSignature` → `Valid` for every own binary.
 
+## 5c. Signed update manifest (releases with update checks switched on — from 0.4.1)
+
+| # | Item | How |
+|---|---|---|
+| 5c.1 | Sign `installer\MonographPDF_update_manifest.json` locally with the production key and the **next** sequence number from the sequence log; never in CI | manual: `update_manifest.py make` in the signing environment ([Secure updates](SECURE_UPDATES.md#maintainer-tooling)) |
+| 5c.2 | `update_manifest.py verify` passes; `verify_release.py` (step 5.2) prints `PASS update-manifest` | automated |
+| 5c.3 | Add the line to the sequence log and refresh the key backup's copy of it | manual |
+
 ## 6. Publish (maintainer)
+
+Published releases are **immutable** (repository setting): nothing in a release can be changed or
+added after publication. Create it as a draft, check it, then publish.
 
 | # | Item | How |
 |---|---|---|
 | 6.1 | Push the commit and the tag | manual |
-| 6.2 | Create the GitHub release from the tag with **the exact text of `docs/releases/vX.Y.Z.md`** (for example `gh release create vX.Y.Z --notes-file docs/releases/vX.Y.Z.md …`); never paste a template | manual |
-| 6.3 | Upload exactly the three files `MonographPDF_X.Y.Z_Setup.exe`, `_Installer.zip`, `_Source.zip` | manual |
-| 6.4 | Re-check what was published: download the three assets into an empty folder and the published body (`gh release view vX.Y.Z --json body -q .body > published.md`), then run `verify_release.py --dir <folder> --notes published.md` | automated check, manual run |
+| 6.2 | Create a **draft** GitHub release from the tag with **the exact text of `docs/releases/vX.Y.Z.md`** (for example `gh release create vX.Y.Z --draft --verify-tag --notes-file docs/releases/vX.Y.Z.md …`); never paste a template | manual |
+| 6.3 | Attach exactly the files `MonographPDF_X.Y.Z_Setup.exe`, `_Installer.zip`, `_Source.zip` and (5c) `MonographPDF_update_manifest.json`; check the draft; publish (`gh release edit vX.Y.Z --draft=false`) only after an explicit decision | manual |
+| 6.4 | Re-check what was published: download the assets into an empty folder and the published body (`gh release view vX.Y.Z --json body -q .body > published.md`), then run `verify_release.py --dir <folder> --notes published.md` and `update_manifest.py verify --manifest <folder>\MonographPDF_update_manifest.json`; on an installed previous version, **Check for Updates** | automated check, manual run |
 | 6.5 | Archive the frozen release under `releases\MonographPDF_X.Y.Z\` | manual; `guard-frozen` prevents overwriting |
 
 ## 7. After publishing
