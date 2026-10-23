@@ -93,3 +93,16 @@ def test_no_manifest_needed_and_none_allowed_when_updates_are_disabled(release):
     make()
     cfg_file.write_text(json.dumps({**cfg, "enabled": False}), encoding="utf-8")
     assert vr.manifest_problems(out, VERSION, setup, root)[0]
+
+
+def test_build_check_before_signing_reports_the_missing_manifest_as_not_verified():
+    """build_release.ps1 verifies before the manifest exists; publishing (without the option) fails."""
+    import inspect
+
+    src = inspect.getsource(vr.main)
+    assert "before_signing" in src and "NOT VERIFIED  update-manifest" in src
+    build = (ROOT / "scripts" / "build_release.ps1").read_text(encoding="utf-8")
+    assert "--before-signing" in build
+    checklist = (ROOT / "docs" / "RELEASE_CHECKLIST.md").read_text(encoding="utf-8")
+    assert "--before-signing" not in checklist  # the publishing check never uses it
+

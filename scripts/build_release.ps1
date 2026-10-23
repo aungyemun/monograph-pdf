@@ -224,7 +224,8 @@ foreach ($scanned in $Payload, (Join-Path $Root "installer\release")) {
 # Every release file together: names, SHA256SUMS, portable ZIP names, notices, versions, privacy, OCR.
 # Release notes are checked with --notes before publishing (docs/RELEASE_CHECKLIST.md).
 Step "Verifying the release set"
-& $Py (Join-Path $Root "scripts\packaging\verify_release.py") --dir (Join-Path $Root "installer") --version $Version --layout $Payload --allow-unreleased
+# --before-signing: the update manifest is signed only after the acceptance tests of this build
+& $Py (Join-Path $Root "scripts\packaging\verify_release.py") --dir (Join-Path $Root "installer") --version $Version --layout $Payload --allow-unreleased --before-signing
 if ($LASTEXITCODE -ne 0) { throw "Release set verification failed - see above." }
 
 # ---- 5b. SBOM (CycloneDX) and build provenance (not release files; see docs/RELEASE_PROVENANCE.md) ----

@@ -22,6 +22,9 @@ Checks, each reported as PASS / FAIL:
                 is present, verifies with the release's own trusted keys exactly as the application
                 does, names this version on the matching channel and this Setup.exe (GitHub Releases
                 URL of tag v<version>, size, SHA-256), and stays valid for at least 30 more days
+  --before-signing  (build_release.ps1) the manifest is signed after the build and acceptance tests,
+                so a missing manifest is reported NOT VERIFIED instead of failing; a manifest that is
+                present is still checked in full. Publishing always runs without this option.
   --allow-unreleased  (build_release.ps1) a development build may carry an Unreleased CHANGELOG entry;
                 publishing always needs a dated entry and --notes
   notes         (with --notes) validate_release_notes.py, with checksums verified against the files and
@@ -237,6 +240,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--notes", type=Path)
     ap.add_argument("--tests")
     ap.add_argument("--layout", type=Path)
+    ap.add_argument("--before-signing", action="store_true",
+                    help="build check before the manifest is signed: a missing manifest is NOT VERIFIED, not FAIL")
     ap.add_argument("--allow-unreleased", action="store_true",
                     help="build check of a development version: accept a CHANGELOG entry marked Unreleased")
     a = ap.parse_args(argv)
@@ -296,7 +301,11 @@ def main(argv: list[str] | None = None) -> int:
     rep.check("privacy", scan_zip(inst, source=False) + scan_zip(src, source=True))
     if members:
         mp, mdetail = manifest_problems(a.dir, v, setup, release_root)
-        rep.check("update-manifest", mp, mdetail)
+        if a.before_signing and mp and mp[0].startswith(f"missing {MANIFEST_NAME}"):
+            print(f"NOT VERIFIED  update-manifest: not signed yet ({MANIFEST_NAME} is signed after the "
+                  "acceptance tests; publishing requires it)")
+        else:
+            rep.check("update-manifest", mp, mdetail)
 
     if a.layout is not None:
         rep.check("ocr", [f"missing {r}" for r in OCR_REQUIRED if not (a.layout / r).is_file()])
