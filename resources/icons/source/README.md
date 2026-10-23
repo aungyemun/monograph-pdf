@@ -13,4 +13,4 @@ env\Scripts\python.exe scripts\generate_branding_icons.py
 env\Scripts\python.exe scripts\generate_branding_icons.py --check
 ```
 
-Legacy names (`PDF_logo.png`, `pdf_editor*.ico`) must not appear here.
+Logo or icon files of the predecessor product must not be added here (the release branding scan checks this).
