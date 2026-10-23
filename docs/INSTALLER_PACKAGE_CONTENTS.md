@@ -27,7 +27,7 @@ Setup.exe is an Inno Setup 6 installer. It needs no internet access and installs
 
 The release build verifies the following, and stops on any failure (`scripts/build_release.ps1`):
 
-- **Installed-files list.** The build writes the list of every file the installer places, `build\installer\installed_files.json` (500 paths for 0.3.0). It is shipped as `installed_files.txt`; when upgrading, Setup removes only files on that list that the new version no longer has.
+- **Installed-files list.** The build writes the list of every file the installer places, `build\installer\installed_files.json` (500 paths for 0.3.0 and 0.4.0). It is shipped as `installed_files.txt`; when upgrading, Setup removes only files on that list that the new version no longer has.
 - **Release-set check** (`scripts/packaging/check_release.py`):
   - the required components are present;
   - OCR engine and data match the SHA-256 pins, with no extra files;
@@ -41,21 +41,21 @@ The release build verifies the following, and stops on any failure (`scripts/bui
 - **Runtime-dependency check** (`scripts/packaging/runtime_dependencies.py --check`).
 - **`MonographPDF.exe --smoke-test`.**
 
-The package checks of the 0.3.0 release build (tag `v0.3.0`, commit 96c36b9) found the same as the audit of the earlier development build 96b6c6f:
+The package checks of the 0.4.0 release build (tag `v0.4.0`, commit fc411e2) found the same as those of the 0.3.0 release build (tag `v0.3.0`, commit 96c36b9) and the audit of the earlier development build 96b6c6f:
 
 - 485 files in the layout.
 - Present: the program, the Python DLL, the Qt platform plugin, MuPDF, the VC++ and UCRT DLLs, Tesseract, the three language files, the icon and logo, and the update configuration.
 - No test or build-tool files.
 - The `Setup.exe` inside the Installer ZIP is byte-identical to the standalone `Setup.exe`.
 
-`scripts/test_installer.ps1` then installs the real Setup.exe into a test folder and checks the files, registrations, shortcuts and self-check, launches the program, uninstalls, and tests upgrades. The results are in the release notes. For 0.3.0 this test was **not run**; its release notes say so.
+`scripts/test_installer.ps1` then installs the real Setup.exe into a test folder and checks the files, registrations, shortcuts and self-check, launches the program, uninstalls, and tests upgrades. The results are in the release notes. For 0.3.0 and 0.4.0 this test was **not run**; their release notes say so.
 
 ## Installer ZIP
 
-The published `MonographPDF_0.3.0_Installer.zip` contains these 18 entries and nothing else:
+The published `MonographPDF_0.4.0_Installer.zip` (like 0.3.0's) contains these 18 entries and nothing else:
 
 ```
-Setup.exe                     (identical to MonographPDF_0.3.0_Setup.exe)
+Setup.exe                     (identical to MonographPDF_0.4.0_Setup.exe)
 README.md  INSTALLATION.md  CHANGELOG.md  SECURITY.md  CITATION.cff
 LICENSE.md  THIRD_PARTY_NOTICES.md  SHA256SUMS.txt  docs/USER_GUIDE.md
 licenses/GPL-2.0.txt  licenses/GPL-3.0.txt  licenses/LGPL-2.1.txt  licenses/LGPL-3.0.txt

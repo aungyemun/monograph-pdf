@@ -32,6 +32,7 @@ can be attached to a release, but are not part of the three release files checke
 
 | Release | Tag → commit | Evidence |
 | :--- | :--- | :--- |
+| 0.4.0 (2026-10-23) | `v0.4.0` → `fc411e2` | **About** and the provenance record name `fc411e2` with a clean tree; `provenance.py verify --require-published` and `verify_release.py --notes` passed against the files downloaded from the published release |
 | 0.3.0 (2026-10-22) | `v0.3.0` → `96c36b9` | **About** and the provenance record name `96c36b9` with a clean tree; `provenance.py verify --require-published` and `verify_release.py --notes` passed against the files downloaded from the published release |
 
 ## Reproducibility
