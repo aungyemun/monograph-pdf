@@ -889,7 +889,10 @@ class PrintDialog(QDialog):
                     png = self._doc.render_pixmap_png(index, zoom=110 / 72.0, dpr=dpr)
             except Exception:  # noqa: BLE001
                 return None
-            img = QImage.fromData(apply_color_mode(png, mode), "PNG")  # the same conversion as the print job
+            from ui.display_color import to_display
+
+            # the same conversion as the print job; shown in the monitor's colour profile
+            img = to_display(QImage.fromData(apply_color_mode(png, mode), "PNG"))
             if len(self._cache) > 40:
                 self._cache.clear()
             self._cache[key] = img

@@ -43,7 +43,9 @@ class _ThumbJob(QRunnable):
                 self.hub.failed.emit(self.page_index, self.generation, "closed")
                 return
             png = self.document.render_thumbnail_png(self.page_index, max_edge_px=180)
-            image = QImage.fromData(png, "PNG")
+            from ui.display_color import to_display
+
+            image = to_display(QImage.fromData(png, "PNG"))  # monitor colour profile (when not sRGB)
             self.hub.finished.emit(self.page_index, self.generation, image)
         except Exception as exc:  # noqa: BLE001
             self.hub.failed.emit(self.page_index, self.generation, str(exc))

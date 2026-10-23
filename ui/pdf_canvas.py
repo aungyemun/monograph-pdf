@@ -142,6 +142,21 @@ class _AlignedTextEdit(QTextEdit):
         self.update_vertical_offset()
 
 
+def _keep_selection_visible(editor) -> None:
+    """Selected words stay highlighted while the font box or a colour menu has the focus (Windows
+    draws the selection of an unfocused editor in an almost invisible colour)."""
+    from PySide6.QtGui import QPalette
+
+    pal = editor.palette()
+    for role in (QPalette.ColorRole.Highlight, QPalette.ColorRole.HighlightedText):
+        pal.setColor(QPalette.ColorGroup.Inactive, role, pal.color(QPalette.ColorGroup.Active, role))
+    pal.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Highlight, QColor("#b3d4fc"))
+    pal.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Highlight, QColor("#b3d4fc"))
+    pal.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.HighlightedText, QColor("#000000"))
+    pal.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.HighlightedText, QColor("#000000"))
+    editor.setPalette(pal)
+
+
 class _FieldTextEdit(_AlignedTextEdit):
     """In-place editor for a text field — one line or wrapped — that keeps word formatting."""
 
@@ -286,6 +301,12 @@ class _CanvasWidget(QWidget):
         self._text_editor_before: str = ""
 
     # --- document / edit model -------------------------------------------
+
+    def rerender_all(self) -> None:
+        """Draw every page again (after a change of how pixels are shown, e.g. the monitor profile)."""
+        self._cache.clear()
+        self._tiles.clear()
+        self.update()
 
     def clear_document(self) -> None:
         self._annot_sel = None
@@ -744,7 +765,13 @@ class _CanvasWidget(QWidget):
         base_key = (path, st.st_mtime_ns, st.st_size)
         base = self._image_base_cache.get(base_key)
         if base is None:
-            pix = QPixmap(path)
+            from ui.display_color import image_for_screen
+
+            img = QImage(path)
+            if img.isNull():
+                return None
+            # a picture's own colour profile (Adobe RGB …) and the monitor's are taken into account
+            pix = QPixmap.fromImage(image_for_screen(img))
             if pix.isNull():
                 return None
             if max(pix.width(), pix.height()) > 2048:
@@ -830,7 +857,10 @@ class _CanvasWidget(QWidget):
     @staticmethod
     def _to_pixmap(rgb: tuple[bytes, int, int, int], dpr: float) -> QPixmap:
         samples, w, h, stride = rgb
-        image = QImage(samples, w, h, stride, QImage.Format.Format_RGB888).copy()
+        from ui.display_color import to_display
+
+        # sRGB pixels from MuPDF; converted to the monitor's colour profile when it is not sRGB
+        image = to_display(QImage(samples, w, h, stride, QImage.Format.Format_RGB888).copy())
         pix = QPixmap.fromImage(image)
         pix.setDevicePixelRatio(dpr)
         return pix
@@ -1414,9 +1444,11 @@ class _CanvasWidget(QWidget):
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         try:
-            stroke = QColor(shape.stroke_color)
+            from ui.display_color import qcolor
+
+            stroke = qcolor(shape.stroke_color)
             stroke.setAlphaF(min(1.0, float(shape.opacity)) * (stroke.alphaF() if stroke.alpha() else 1.0))
-            fill = QColor(shape.fill_color)
+            fill = qcolor(shape.fill_color)
             if fill.alpha() > 0:
                 fill.setAlphaF(min(1.0, float(shape.fill_opacity) * float(shape.opacity) * fill.alphaF()))
             painter.setPen(self._shape_pen(shape, stroke))
@@ -1545,11 +1577,13 @@ class _CanvasWidget(QWidget):
 
     def _paint_textbox_upright(self, painter: QPainter, box: TextBox, wr: QRect) -> None:
         layout = layout_text_box(box)
-        bg = QColor(box.style.background_color)
+        from ui.display_color import qcolor
+
+        bg = qcolor(box.style.background_color)
         if bg.alpha() > 0:
             bg.setAlphaF(min(1.0, box.style.opacity) * (bg.alphaF() if bg.alpha() else 1.0))
             painter.fillRect(wr, bg)
-        border = QColor(box.style.border_color)
+        border = qcolor(box.style.border_color)
         if border.alpha() > 0 and box.style.border_width > 0:
             border.setAlphaF(border.alphaF() * min(1.0, box.style.opacity))
             painter.setPen(QPen(border, max(1, int(box.style.border_width))))
@@ -1571,7 +1605,7 @@ class _CanvasWidget(QWidget):
         if tracking:
             font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, tracking * sx)
         painter.setFont(font)
-        color = QColor(box.style.text_color)
+        color = qcolor(box.style.text_color)
         color.setAlphaF(min(1.0, box.style.opacity))
         painter.setPen(color)
         align = Qt.AlignmentFlag.AlignLeft
@@ -1588,6 +1622,18 @@ class _CanvasWidget(QWidget):
         flags = int(align) | (int(Qt.TextFlag.TextWordWrap) if getattr(box.style, "wrap", True) else 0)
         if box.object_id == self._text_editor_id:
             return  # the live editor draws the text (with caret + selection)
+        if box.runs:
+            from types import SimpleNamespace
+
+            from ui.rich_field_text import paint_runs
+
+            entry = SimpleNamespace(value=box.text, runs=box.runs, text_color=box.style.text_color or "#000000")
+            painter.save()
+            painter.setOpacity(painter.opacity() * min(1.0, box.style.opacity))
+            paint_runs(painter, entry, QRectF(text_rect), sx, font, align & Qt.AlignmentFlag.AlignHorizontal_Mask,
+                       getattr(box.valign, "value", "top"), bool(getattr(box.style, "wrap", True)))
+            painter.restore()
+            return
         painter.drawText(text_rect, flags, box.text)
         if box.object_id == (self._edit.editing_object_id if self._edit else None):
             # caret hint at end
@@ -1940,7 +1986,10 @@ class _CanvasWidget(QWidget):
         return ed is not None and ed.textCursor().hasSelection()
 
     def format_field_selection(self, **change) -> bool:
-        """Font / size / bold / italic / colour for the selected words only. False = no selection."""
+        """Font / size / bold / italic / colour for the selected words only — in a form field or in
+        a text box being typed in. False = no words selected."""
+        if self._field_editor is None and self._text_editor is not None:
+            return self.format_text_selection(**change)
         ed = self._field_editor
         if ed is None or not ed.textCursor().hasSelection():
             return False
@@ -1957,6 +2006,113 @@ class _CanvasWidget(QWidget):
         ed.setFocus(Qt.FocusReason.OtherFocusReason)
         self._emit_field_editor_format()
         return True
+
+    def format_text_selection(self, **change) -> bool:
+        """Font / size / bold / italic / colour for the words selected in the open text box (the rest
+        keeps the box's style). False = no text box open or nothing selected."""
+        ed = self._text_editor
+        if ed is None or not ed.textCursor().hasSelection():
+            return False
+        from ui.rich_field_text import restyle_range
+
+        cur = ed.textCursor()
+        anchor, pos = cur.anchor(), cur.position()
+        if min(anchor, pos) == 0 and max(anchor, pos) >= len(ed.toPlainText()):
+            return False  # all of the text: the box's own style changes (no separate word formats)
+        px = float(getattr(ed, "px_per_pt", 1.0) or 1.0)
+        base = float(getattr(ed, "base_pt", 11.0) or 11.0)
+        restyle_range(ed.document(), min(anchor, pos), max(anchor, pos), px, lambda: base, **change)
+        cur = ed.textCursor()
+        cur.setPosition(anchor)
+        cur.setPosition(pos, cur.MoveMode.KeepAnchor)
+        ed.setTextCursor(cur)
+        self._on_text_editor_changed()
+        self._live_interaction = False
+        ed.setFocus(Qt.FocusReason.OtherFocusReason)
+        return True
+
+    def text_editor_has_selection(self) -> bool:
+        ed = self._text_editor
+        return bool(ed is not None and ed.textCursor().hasSelection())
+
+    def _apply_editor_runs(self, editor, runs) -> None:
+        """Word formats into the open text box editor (signals blocked: not a text change)."""
+        from ui.rich_field_text import apply_runs
+
+        cur = editor.textCursor()
+        anchor, pos = cur.anchor(), cur.position()
+        editor.blockSignals(True)
+        try:
+            apply_runs(editor.document(), list(runs or []), float(getattr(editor, "px_per_pt", 1.0) or 1.0))
+            cur = editor.textCursor()
+            cur.setPosition(min(anchor, len(editor.toPlainText())))
+            cur.setPosition(min(pos, len(editor.toPlainText())), cur.MoveMode.KeepAnchor)
+            editor.setTextCursor(cur)
+        finally:
+            editor.blockSignals(False)
+
+    # --- keeping the text box open while its words are formatted ---------------------------------
+    @staticmethod
+    def _is_formatting_control(widget) -> bool:
+        """The font box, size box, colour menus, the formatting toolbar or the Properties panel (and
+        their drop-down lists): using them must not close the text box being typed in (its selected
+        words would lose their selection before the change could reach them)."""
+        from PySide6.QtWidgets import QColorDialog, QMenu
+
+        try:
+            if isinstance(widget.window(), QColorDialog):  # Text color… dialog
+                return True
+        except RuntimeError:
+            return False
+        w = widget
+        hops = 0
+        while w is not None and hops < 40:
+            if bool(w.property("keepsTextEditor")) or bool(w.property("keepsInlineEditor")) or isinstance(w, QMenu):
+                return True
+            parent = w.parentWidget()
+            if parent is None and w.isWindow() and (w.windowFlags() & Qt.WindowType.Popup) == Qt.WindowType.Popup:
+                return True  # a drop-down list window
+            w = parent
+            hops += 1
+        return False
+
+    def _watch_focus_for_text_editor(self, on: bool) -> None:
+        app = QApplication.instance()
+        if app is None:
+            return
+        watching = getattr(self, "_focus_watch", False)
+        if on and not watching:
+            app.focusChanged.connect(self._on_app_focus_changed_text)
+            self._focus_watch = True
+        elif not on and watching:
+            try:
+                app.focusChanged.disconnect(self._on_app_focus_changed_text)
+            except (RuntimeError, TypeError):
+                pass
+            self._focus_watch = False
+
+    def _on_app_focus_changed_text(self, _old, new) -> None:
+        """While a text box is open: focus moving from a formatting control to anywhere else (another
+        panel, the page list …) finishes typing, as leaving the box directly does."""
+        ed = self._text_editor
+        if ed is None or new is None or new is ed or new is self:
+            return
+        if self._is_formatting_control(new):
+            return
+        QTimer.singleShot(0, self._close_text_editor_unless_formatting)
+
+    def _close_text_editor_unless_formatting(self) -> None:
+        ed = self._text_editor
+        if ed is None:
+            return
+        fw = QApplication.focusWidget()
+        if fw is ed:
+            return
+        if fw is not None and self._is_formatting_control(fw):
+            return
+        if fw is None and QApplication.activePopupWidget() is not None:
+            return
+        self.close_text_editor(commit=True)
 
     def field_editor_change_case(self, convert) -> bool:
         """UPPER / lower case for the selected words only, keeping their formatting."""
@@ -2091,6 +2247,11 @@ class _CanvasWidget(QWidget):
             font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, tracking * sx)
         if editor.font() != font:
             editor.setFont(font)
+        old_px = getattr(editor, "px_per_pt", None)
+        editor.px_per_pt = sx
+        editor.base_pt = float(layout.font_size)
+        if box.runs and old_px is not None and abs(old_px - sx) > 1e-6:
+            self._apply_editor_runs(editor, box.runs)  # word sizes follow the zoom
         pad = max(0, int(box.style.padding * sx) - 1)
         color = QColor(box.style.text_color or "#000000").name()
         sheet = (
@@ -2100,6 +2261,7 @@ class _CanvasWidget(QWidget):
         )
         if editor.styleSheet() != sheet:
             editor.setStyleSheet(sheet)
+            _keep_selection_visible(editor)
         align = {TextAlign.CENTER: Qt.AlignmentFlag.AlignHCenter, TextAlign.RIGHT: Qt.AlignmentFlag.AlignRight}.get(
             box.align, Qt.AlignmentFlag.AlignLeft
         )
@@ -2137,16 +2299,20 @@ class _CanvasWidget(QWidget):
         editor.viewport().setAutoFillBackground(False)
         editor.document().setDocumentMargin(1)
         editor.setPlainText(box.text)
-        editor.document().clearUndoRedoStacks()
         self._text_editor = editor
         self._text_editor_id = object_id
         self._text_editor_before = box.text
+        self._text_editor_before_runs = [dict(r) for r in (box.runs or [])]
         self._text_before = box.text  # keep legacy paths in sync with the open session
         self._edit.selection = [object_id]
         self._edit.editing_object_id = object_id
         self._style_text_editor(box)
+        if box.runs:
+            self._apply_editor_runs(editor, box.runs)
+        editor.document().clearUndoRedoStacks()
         editor.textChanged.connect(self._on_text_editor_changed)
         editor.installEventFilter(self)
+        self._watch_focus_for_text_editor(True)
         self._mode = "typing"
         editor.show()
         editor.setFocus(Qt.FocusReason.MouseFocusReason)
@@ -2193,7 +2359,10 @@ class _CanvasWidget(QWidget):
         if self._edit is None or self._text_editor is None or self._text_editor_id is None:
             return
         self._live_interaction = True
-        self._edit.live_set_text(self._text_editor_id, self._text_editor.toPlainText(), notify=True)
+        from ui.rich_field_text import runs_from_document
+
+        text, runs = runs_from_document(self._text_editor.document())
+        self._edit.live_set_text(self._text_editor_id, text, notify=True, runs=runs)
         box = self._edit.objects.get(self._text_editor_id)
         if box is not None:
             self._style_text_editor(box)  # auto-height boxes grow while typing
@@ -2220,6 +2389,7 @@ class _CanvasWidget(QWidget):
         editor = self._text_editor
         self._text_editor = None
         self._text_editor_id = None
+        self._watch_focus_for_text_editor(False)
         if editor is not None:
             editor.removeEventFilter(self)
             editor.hide()
@@ -2229,9 +2399,12 @@ class _CanvasWidget(QWidget):
         editor, oid = self._text_editor, self._text_editor_id
         if editor is None or oid is None:
             return
-        text = editor.toPlainText()
+        from ui.rich_field_text import runs_from_document
+
+        text, runs = runs_from_document(editor.document())
         had_focus = editor.hasFocus()
         before = self._text_editor_before
+        before_runs = list(getattr(self, "_text_editor_before_runs", None) or [])
         self._discard_text_editor()
         self._live_interaction = False
         if self._mode == "typing":
@@ -2240,10 +2413,12 @@ class _CanvasWidget(QWidget):
             return
         if oid in self._edit.objects:
             if not commit:
-                self._edit.live_set_text(oid, before, notify=False)
-                text = before
+                self._edit.live_set_text(oid, before, notify=False, runs=before_runs)
+                text, runs = before, before_runs
+            else:
+                self._edit.live_set_text(oid, text, notify=False, runs=runs)
             self._edit.editing_object_id = None
-            self._edit.commit_text_edit(oid, before, text)
+            self._edit.commit_text_edit(oid, before, text, before_runs=before_runs, after_runs=runs)
             # Opened on existing text and closed without a change: leave the original untouched
             self._edit.discard_unchanged_native_edit(oid)
         if had_focus:
@@ -2261,6 +2436,12 @@ class _CanvasWidget(QWidget):
             self._discard_text_editor()
             return
         self._style_text_editor(box)
+        # a whole-box change (font of the box …) also reaches the words given their own value
+        from ui.rich_field_text import runs_from_document
+
+        _text, runs = runs_from_document(self._text_editor.document())
+        if runs != (box.runs or []):
+            self._apply_editor_runs(self._text_editor, box.runs)
 
     def _ensure_widget_visible(self, wr: QRect) -> None:
         area = self.parent()
@@ -2356,7 +2537,7 @@ class _CanvasWidget(QWidget):
             elif et == QEvent.Type.FocusOut:
                 reason = event.reason()
                 if reason not in (Qt.FocusReason.PopupFocusReason, Qt.FocusReason.ActiveWindowFocusReason):
-                    QTimer.singleShot(0, lambda: self.close_text_editor(commit=True))
+                    QTimer.singleShot(0, self._close_text_editor_unless_formatting)
             return super().eventFilter(obj, event)
         if obj is self._field_editor:
             et = event.type()

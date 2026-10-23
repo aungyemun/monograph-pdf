@@ -101,6 +101,8 @@ class MainWindow(QMainWindow):
         self._center_stack.addWidget(self._canvas)
         self._center_stack.setCurrentWidget(self._welcome)
         self._inspector = InspectorPanel()
+        # using its controls keeps the text box being typed in open (its selected words stay selected)
+        self._inspector.setProperty("keepsTextEditor", True)
         self._inspector.setAccessibleName("Properties inspector")
         self._status = AppStatusBar()
         self._page_label = self._status.page_label
@@ -773,6 +775,16 @@ class MainWindow(QMainWindow):
         self.act_toggle_left.setCheckable(True)
         self.act_toggle_left.setChecked(not self._prefs.left_panel_collapsed)
         self.act_toggle_left.triggered.connect(self._toggle_left_panel)
+        from ui import display_color
+
+        display_color.set_enabled(self._prefs.match_monitor_colors)
+        self.act_match_monitor_colors = QAction("&Match Colors to Monitor Profile", self)
+        self.act_match_monitor_colors.setCheckable(True)
+        self.act_match_monitor_colors.setChecked(self._prefs.match_monitor_colors)
+        self.act_match_monitor_colors.setToolTip(
+            "Show pages in the colors of the monitor's color profile (wide-gamut monitors). "
+            "Documents are never changed; on an sRGB monitor nothing is converted.")
+        self.act_match_monitor_colors.toggled.connect(self._toggle_monitor_colors)
         self.act_toggle_right = QAction("Toggle &Inspector", self)
         self.act_toggle_right.setShortcut(QKeySequence("F8"))
         self.act_toggle_right.setCheckable(True)
@@ -1398,6 +1410,7 @@ class MainWindow(QMainWindow):
         view.addAction(self.act_fullscreen)
         view.addSeparator()
         view.addAction(self.act_highlight_fields)
+        view.addAction(self.act_match_monitor_colors)
         view.addSeparator()
         theme_menu = view.addMenu("&Theme")
         set_action_icon(theme_menu.menuAction(), "theme")
@@ -2450,8 +2463,8 @@ class MainWindow(QMainWindow):
         c = QColorDialog.getColor(QColor(current), self, "Text color")
         if not c.isValid():
             return
-        if fields and inner.format_field_selection(color=c.name()):
-            return  # only the selected words
+        if inner.format_field_selection(color=c.name()):
+            return  # only the selected words (form field or the text box being typed in)
         self._restyle_boxes(text_color=c.name())
         if fields:
             self._restyle_field(fields, color=c.name())
@@ -3268,6 +3281,28 @@ class MainWindow(QMainWindow):
         value = max(10.0, min(800.0, value))
         self._canvas.set_manual_zoom(value / 100.0)
 
+    def _toggle_monitor_colors(self, on: bool) -> None:
+        from ui import display_color
+
+        display_color.set_enabled(on)
+        self._prefs.match_monitor_colors = bool(on)
+        try:
+            self._prefs.save()
+        except Exception:  # noqa: BLE001 — the setting still applies to this session
+            pass
+        self._canvas._canvas.rerender_all()  # noqa: SLF001
+        if self._document is not None:
+            try:
+                self._left.thumbs.refresh_pages(range(self._document.page_count))
+            except Exception:  # noqa: BLE001
+                pass
+        name = display_color.monitor_profile_name()
+        if not name:
+            self.statusBar().showMessage("This monitor uses sRGB: pages are shown exactly as rendered.", 5000)
+        else:
+            self.statusBar().showMessage(
+                f"Monitor profile {'used' if on else 'not used'}: {name}", 5000)
+
     def _toggle_highlight_fillable(self, checked: bool) -> None:
         self._prefs.highlight_fillable_fields = bool(checked)
         try:
@@ -3548,8 +3583,8 @@ class MainWindow(QMainWindow):
             return
         on = action.isChecked()
         fields = self._selected_style_fields() if prop in ("bold", "italic") else []
-        if fields and self._canvas._canvas.format_field_selection(**{prop: on}):  # noqa: SLF001
-            return  # only the selected words
+        if prop in ("bold", "italic") and self._canvas._canvas.format_field_selection(**{prop: on}):  # noqa: SLF001
+            return  # only the selected words (form field or the text box being typed in)
         self._restyle_boxes(**{prop: on})
         if fields:
             self._restyle_field(fields, **{prop: on})

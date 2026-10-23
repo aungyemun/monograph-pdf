@@ -107,21 +107,26 @@ class TransformCommand(Command):
 
 
 class SetTextCommand(Command):
-    def __init__(self, model: "EditableDocument", object_id: str, before: str, after: str) -> None:
+    """Text of a text box, with its word formats (runs) when they are given."""
+
+    def __init__(self, model: "EditableDocument", object_id: str, before: str, after: str,
+                 before_runs: list | None = None, after_runs: list | None = None) -> None:
         self.model = model
         self.object_id = object_id
         self.before = before
         self.after = after
+        self.before_runs = None if before_runs is None else [dict(r) for r in before_runs]
+        self.after_runs = None if after_runs is None else [dict(r) for r in after_runs]
 
     @property
     def name(self) -> str:
         return "Edit Text"
 
     def execute(self) -> None:
-        self.model.set_text(self.object_id, self.after, record_dirty=True)
+        self.model.set_text(self.object_id, self.after, record_dirty=True, runs=self.after_runs)
 
     def undo(self) -> None:
-        self.model.set_text(self.object_id, self.before, record_dirty=True)
+        self.model.set_text(self.object_id, self.before, record_dirty=True, runs=self.before_runs)
 
 
 class SetStyleCommand(Command):

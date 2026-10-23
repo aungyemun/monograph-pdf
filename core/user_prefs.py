@@ -169,6 +169,9 @@ class UserPreferences:
     note_color: str = "#fbbf24"
     note_icon: str = "Comment"  # sticky note icon for new notes (core/annotations/note_style.NOTE_ICONS)
     squiggly_color: str = "#dc2626"
+    # Rendered pages are converted from sRGB to the monitor's colour profile when it is not sRGB
+    # (wide-gamut monitors); View > Match Colors to Monitor Profile (ui/display_color.py)
+    match_monitor_colors: bool = True
 
     def path(self) -> Path:
         return user_data_dir() / "preferences.json"

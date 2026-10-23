@@ -116,6 +116,7 @@ def layout_text_box(box: TextBox) -> LayoutResult:
         round(float(box.rect.h), 3),
         str(box.size_mode),
         str(box.writing_mode),
+        tuple(tuple(sorted(r.items())) for r in (getattr(box, "runs", None) or [])),
     )
     hit = _LAYOUT_CACHE.get(key)
     if hit is not None:
@@ -141,6 +142,10 @@ def _layout_text_box(box: TextBox) -> LayoutResult:
     inner_w = max(1.0, box.rect.w - 2 * pad)
     inner_h = max(1.0, box.rect.h - 2 * pad)
     line_h = size * style.line_spacing
+    # Words with a larger size of their own make their lines taller (the box grows to keep them in)
+    run_sizes = [float(r.get("size") or 0) for r in (getattr(box, "runs", None) or [])]
+    tall = max([1.0] + [rs / size for rs in run_sizes if rs > 0 and size > 0])
+    line_h *= tall
 
     def build(sz: float) -> tuple[list[LayoutLine], float]:
         lines: list[LayoutLine] = []
@@ -156,7 +161,7 @@ def _layout_text_box(box: TextBox) -> LayoutResult:
                     style.character_spacing,
                 )
             )
-        height = max(line_h, len(lines) * (sz * style.line_spacing))
+        height = max(line_h, len(lines) * (sz * style.line_spacing * tall))
         return lines, height
 
     overflow = False
@@ -182,7 +187,7 @@ def _layout_text_box(box: TextBox) -> LayoutResult:
                 )
                 lines.append(LayoutLine(para, w))
         max_line_w = max((ln.width for ln in lines), default=0.0)
-        content_h = max(line_h, len(lines) * (size * style.line_spacing))
+        content_h = max(line_h, len(lines) * (size * style.line_spacing * tall))
         rect_w = max(box.rect.w, max_line_w + 2 * pad + 2.0)
         rect_h = content_h + 2 * pad
         overflow = False

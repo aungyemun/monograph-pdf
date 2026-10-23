@@ -96,7 +96,7 @@ def _draw_text_box(page: fitz.Page, rect: fitz.Rect, box, family: str, fontsize:
 
     entry = SimpleNamespace(
         value=box.text,
-        runs=[],
+        runs=[dict(r) for r in (getattr(box, "runs", None) or [])],  # words with their own font / size / colour
         font_family=family or box.style.font_family,
         font_size=float(fontsize),
         bold=bool(box.style.bold),

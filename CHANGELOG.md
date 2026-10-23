@@ -14,6 +14,12 @@ Changes after 0.4.1.
   the same height, the Properties panel keeps one font box instead of creating and deleting one at
   every refresh, and nothing is rebuilt under an open or scrolling list. Fonts without Latin letters
   (symbol and Japanese-only fonts) show their name readably with a sample in the font.
+- **Selected words in a text box** keep their selection (and its highlight) while the font box, size
+  box or a colour is used, and only those words change: a text box can now hold words with their own
+  font, size, bold, italic and colour — shown while typing and on the page, undone and redone with
+  the text, kept in the session and written into the saved PDF. Selecting all of the text changes
+  the box itself. The font box used to close the text box first, so the selection was lost and the
+  font went to the whole box.
 - The **problem report window** no longer opens inside the code that failed (for example in the middle
   of drawing a list); it opens right after, once per burst of the same error. Opening it inside a
   drawing handler could itself end the application.
@@ -38,6 +44,11 @@ Changes after 0.4.1.
   cut off at 100–150 % display scaling (checked with `scripts/audit/clipped_text_audit.py`).
 
 ### Added
+
+- **Colors to the monitor profile**: on a wide-gamut monitor with a non-sRGB color profile, pages,
+  thumbnails, the print preview, edited objects and placed pictures are shown converted to that
+  profile (View ▸ Match Colors to Monitor Profile; nothing changes on an sRGB monitor or in the
+  saved document). Placed pictures with their own color profile are shown with it.
 
 - **Sticky notes** open as a pop-up beside the note when clicked (author, date, text, Edit…); Esc or a
   click elsewhere closes it. Eight icons (speech bubble, note page, question, insert, key, paragraph,

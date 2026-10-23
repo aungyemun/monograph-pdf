@@ -60,6 +60,9 @@ class TextBox:
     # Auto-height boxes never shrink below the height the user drew or resized them to (0 = no
     # minimum): typing the first letters used to collapse a drawn box to one line, and the box jumped
     min_h: float = 0.0
+    # Words with their own font, size, bold, italic or colour (same run format as form fields,
+    # core.forms.rich_text): a run property None follows the box's own style; [] = one style
+    runs: list = field(default_factory=list)
 
     def copy(self) -> "TextBox":
         return TextBox(
@@ -79,6 +82,7 @@ class TextBox:
             font_substituted=self.font_substituted,
             resolved_font=self.resolved_font,
             min_h=self.min_h,
+            runs=[dict(r) for r in (self.runs or [])],
         )
 
     def clone_same_id(self) -> "TextBox":
@@ -105,6 +109,7 @@ class TextBox:
             "font_substituted": self.font_substituted,
             "resolved_font": self.resolved_font,
             "min_h": self.min_h,
+            "runs": [dict(r) for r in (self.runs or [])],
         }
 
     @staticmethod
@@ -127,4 +132,17 @@ class TextBox:
             font_substituted=bool(data.get("font_substituted", False)),
             resolved_font=str(data.get("resolved_font") or ""),
             min_h=float(data.get("min_h", 0.0) or 0.0),
+            runs=_clean_runs(data.get("runs")),
         )
+
+
+def _clean_runs(runs) -> list:
+    """Runs read from a session file: only well-formed entries (anything else is dropped)."""
+    if not isinstance(runs, list):
+        return []
+    from core.forms.rich_text import normalize_runs
+
+    try:
+        return normalize_runs([r for r in runs if isinstance(r, dict)])
+    except Exception:  # noqa: BLE001 — a damaged session keeps the text, loses only word formats
+        return []

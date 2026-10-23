@@ -279,11 +279,22 @@ class EditableDocument:
     def all_objects(self) -> list[TextBox]:
         return sorted(self.objects.values(), key=lambda o: (o.page_index, o.z_index))
 
-    def set_text(self, object_id: str, text: str, *, record_dirty: bool = True) -> None:
+    @staticmethod
+    def _set_box_text(box, text: str, runs: list | None) -> None:
+        """New text; word formats (runs) as given, else kept on the characters that stayed."""
+        from core.forms.rich_text import normalize_runs, reconcile_runs
+
+        if runs is not None:
+            box.runs = normalize_runs([dict(r) for r in runs])
+        elif box.runs:
+            box.runs = reconcile_runs(box.runs, box.text, text)
+        box.text = text
+
+    def set_text(self, object_id: str, text: str, *, record_dirty: bool = True, runs: list | None = None) -> None:
         box = self.objects.get(object_id)
         if box is None:
             return
-        box.text = text
+        self._set_box_text(box, text, runs)
         apply_layout_to_box(box)
         if record_dirty:
             self.mark_dirty()
@@ -306,6 +317,8 @@ class EditableDocument:
             box.valign = VAlign(data["valign"])
         if "size_mode" in data:
             box.size_mode = SizeMode(data["size_mode"])
+        if "runs" in data:
+            box.runs = [dict(r) for r in (data["runs"] or [])]
         apply_layout_to_box(box)
         if record_dirty:
             self.mark_dirty()
@@ -745,19 +758,20 @@ class EditableDocument:
         if notify:
             self._notify()
 
-    def commit_text_edit(self, object_id: str, before: str, after: str) -> None:
-        if before == after:
+    def commit_text_edit(self, object_id: str, before: str, after: str, *,
+                         before_runs: list | None = None, after_runs: list | None = None) -> None:
+        if before == after and (before_runs or []) == (after_runs or []):
             self._notify()
             return
         # Text already applied live — push for undo/redo (execute reapplies on redo).
-        self.commands.push_executed(SetTextCommand(self, object_id, before, after))
+        self.commands.push_executed(SetTextCommand(self, object_id, before, after, before_runs, after_runs))
         self.mark_dirty()
 
-    def live_set_text(self, object_id: str, text: str, *, notify: bool = True) -> None:
+    def live_set_text(self, object_id: str, text: str, *, notify: bool = True, runs: list | None = None) -> None:
         box = self.objects.get(object_id)
         if box is None:
             return
-        box.text = text
+        self._set_box_text(box, text, runs)
         apply_layout_to_box(box)
         if notify:
             self._notify()
@@ -799,7 +813,21 @@ class EditableDocument:
             "align": box.align.value,
             "valign": box.valign.value,
             "size_mode": box.size_mode.value,
+            "runs": [dict(r) for r in (box.runs or [])],
         }
+        if box.runs:
+            # A whole-box change reaches every word again (words given their own value follow the box)
+            from core.forms.rich_text import apply_to_all
+
+            names = {"font_family": "family", "font_size": "size", "bold": "bold", "italic": "italic",
+                     "text_color": "color"}
+            change = {names[k]: v for k, v in kwargs.items() if k in names}
+            if "style" in kwargs and isinstance(kwargs["style"], TextStyle):  # only what actually changed
+                new_style = kwargs["style"]
+                change = {run_key: None for attr, run_key in names.items()
+                          if getattr(new_style, attr, None) != getattr(box.style, attr, None)}
+            if change:
+                box.runs = apply_to_all(box.runs, **change)
         if "style" in kwargs and isinstance(kwargs["style"], TextStyle):
             box.style = kwargs["style"]
         else:
@@ -817,6 +845,7 @@ class EditableDocument:
             "align": box.align.value,
             "valign": box.valign.value,
             "size_mode": box.size_mode.value,
+            "runs": [dict(r) for r in (box.runs or [])],
         }
         return SetStyleCommand(self, object_id, before, after)
 

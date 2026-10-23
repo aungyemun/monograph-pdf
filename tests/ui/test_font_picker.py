@@ -38,7 +38,8 @@ def _row_pixel(picker, row: int, x: int = 1) -> QColor:
     view = picker.view()
     rect = view.visualRect(picker.model().index(row, 0))
     img = view.viewport().grab().toImage()
-    return QColor(img.pixel(x, rect.center().y()))
+    k = img.devicePixelRatio() or 1.0  # a scaled display (150 %) grabs more pixels than logical points
+    return QColor(img.pixel(int(x * k), int(rect.center().y() * k)))
 
 
 def _installed(picker, name: str) -> bool:
