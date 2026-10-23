@@ -4,7 +4,7 @@ Monograph PDF processes documents on your computer. It has no account, no advert
 and no usage statistics, and it never uploads documents.
 
 **Monograph PDF does not transfer information to other networked systems unless you request it.**
-There are only two such requests, both described below. In version 0.3.0 both are switched off
+There are only two such requests, both described below. In versions 0.3.0 and 0.4.0 both are switched off
 (no production update-signing key, no reporting service), so Monograph PDF itself makes no network
 connections at all; the same holds for earlier versions, which do not have these features.
 

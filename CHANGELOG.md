@@ -2,7 +2,7 @@
 
 All notable changes to Monograph PDF. Versions follow `VERSION` (see `docs/RELEASE_AND_VERSIONING.md`).
 
-## [0.4.0] — Unreleased
+## [0.4.0] — 2026-10-23
 
 Feature and reliability release: fixes for problems found in daily use of 0.3.0 (a crash in the font
 list, slow dragging, comments and undo not refreshing the page, an eraser that needed several passes,

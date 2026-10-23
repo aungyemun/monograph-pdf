@@ -5,7 +5,7 @@
 [![Windows CI](https://github.com/aungyemun/monograph-pdf/actions/workflows/windows-ci.yml/badge.svg)](https://github.com/aungyemun/monograph-pdf/actions/workflows/windows-ci.yml)
 
 **A free, open-source PDF editor for Windows 10 and 11, designed for privacy and fully offline
-operation.** Current release: **0.3.0**.
+operation.** Current release: **0.4.0**.
 
 Monograph PDF lets you view, edit, annotate, organize, convert and protect PDF documents on your own
 computer. It needs no account or internet connection and has no function that uploads your files.
@@ -32,7 +32,7 @@ conversions are written to new files.
 
 Complete list: [Features](docs/FEATURES.md) · How to use each tool: [User Guide](docs/USER_GUIDE.md) (also **F1** in the app)
 
-### Feature status in 0.3.0
+### Feature status in 0.4.0
 
 | Status | Features |
 | :--- | :--- |
@@ -69,12 +69,12 @@ Only Windows builds are available.
 
 ## Download and installation
 
-1. Download `MonographPDF_0.3.0_Setup.exe` from the official
+1. Download `MonographPDF_0.4.0_Setup.exe` from the official
    [latest release](https://github.com/aungyemun/monograph-pdf/releases/latest) page only.
 2. Check its SHA-256 checksum in PowerShell and compare it with the value in the release notes:
 
    ```powershell
-   Get-FileHash .\MonographPDF_0.3.0_Setup.exe -Algorithm SHA256
+   Get-FileHash .\MonographPDF_0.4.0_Setup.exe -Algorithm SHA256
    ```
 
 3. Run Setup and choose to install for all users or only for yourself.
@@ -96,7 +96,7 @@ silent installation, upgrading and uninstalling are described in [Installation](
 * Monograph PDF is designed to operate offline. It requires no account or cloud service and has no
   telemetry, advertising, online OCR or document upload. Viewing, editing, saving, OCR, conversion and
   printing never use the network.
-* Version 0.3.0 contains secure update checks and private problem reports, but **both are switched
+* Version 0.4.0 (like 0.3.0) contains secure update checks and private problem reports, but **both are switched
   off in this release**: **Help ▸ Check for Updates…** reports "Updates not configured" and
   problem reports can only be copied and passed on by you (the app sends nothing). Once enabled in a later release, they contact the network only
   when you ask (or after you switch on automatic update checks):
@@ -152,13 +152,13 @@ passed. Details: [Testing](docs/TESTING.md).
 
 * Windows 10 and 11 (64-bit) only.
 * The installer and program are not code-signed ([Code Signing](docs/CODE_SIGNING.md)).
-* Update checks, automatic upgrades and the sending of problem reports are switched off in 0.3.0;
+* Update checks, automatic upgrades and the sending of problem reports are switched off in 0.4.0;
   install new versions from the [Releases](https://github.com/aungyemun/monograph-pdf/releases) page.
 * Signatures are visual only; certificate-based digital signatures are not supported.
 * Converting PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts.
 * Converting Office files to PDF requires Microsoft Office or LibreOffice.
 * OCR recognizes English and Japanese; other languages need an optional language pack supplied by you (verified against a pinned SHA-256).
-* Not verified for 0.3.0: Windows 10, localized (Japanese, Chinese, Korean, German, French) Windows,
+* Not verified for 0.4.0: Windows 10, localized (Japanese, Chinese, Korean, German, French) Windows,
   Office versions other than Microsoft 365 and LibreOffice 24.2, and printing on a physical printer.
 
 More: [User Guide ▸ Current limitations](docs/USER_GUIDE.md#current-limitations)
@@ -182,7 +182,7 @@ contains the corresponding source code of the bundled AGPL, GPL and LGPL compone
 
 If you use Monograph PDF in research, please cite it as described in [CITATION.cff](CITATION.cff):
 
-> Mun AY. *Monograph PDF*. Version 0.3.0. 2026. https://github.com/aungyemun/monograph-pdf
+> Mun AY. *Monograph PDF*. Version 0.4.0. 2026. https://github.com/aungyemun/monograph-pdf
 
 Design, development, testing, documentation and packaging: **Aung Ye Mun**. With thanks to the
 developers of the open-source projects listed in the third-party notices.

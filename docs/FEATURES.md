@@ -14,6 +14,12 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
   `--user-guide`) opens the User Guide.
 - Warns before closing a document with unsaved changes; **Save As**; printing with live preview;
   **Document Properties**.
+- **One window at a time.** Starting Monograph PDF again (Start menu, shortcut, or opening a PDF in
+  Explorer) brings the open window to the front and opens that PDF there; no second copy is started.
+- **Memory saving while minimized.** Page pictures and thumbnails are released and Windows efficiency
+  mode is used (not while OCR or a conversion runs): about 30 MB in the background. Large zooms are
+  drawn as sharp tiles a few at a time, so scrolling stays smooth on ordinary 8 GB PCs
+  (`scripts/perf_check.py` measures speed and memory).
 
 ## Viewing
 
@@ -44,6 +50,11 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
 - **Comments panel.** **View ▸ Comments Panel** lists, selects, edits, moves and deletes notes.
 - **Undo for annotations.** Every annotation change can be undone.
 - **Stamp library.** Ten standard stamps, plus custom text and picture stamps, all real PDF stamp annotations.
+- **Edit Stamp.** Double-click a placed stamp to change its type, text, font, text / border / fill color,
+  border, corners, line thickness, opacity and rotation (live preview). Placed signatures can be
+  changed the same way.
+- **Several boxes at once.** Drag a rectangle or Ctrl+click to select fields and text boxes and change
+  their font, size, color and alignment together; shapes have Line and Fill colors.
 
 ## Forms, tables and layout
 
@@ -64,9 +75,11 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
 ## Organizing and converting
 
 - Insert, delete, rotate, crop, merge and split pages; change the page size.
+- **Exact page positions.** Insert blank pages (several at once) or the pages of another PDF, or move
+  the selected pages, before or after any page, at the beginning or at the end.
 - PDF to Word, Excel and PowerPoint (best-effort); images to PDF and PDF to images; Office files to
   PDF through a locally installed Office suite.
-- **Compress PDF.** Lossless, Balanced, Smallest file, or an exact maximum size in bytes, with an estimate, the measured size and a preview. See [PDF Compression](PDF_COMPRESSION.md).
+- **Compress PDF.** Lossless, Balanced, Smallest file, Custom (picture resolution and JPEG quality), or an exact maximum size in bytes, with an estimate, the measured size and a preview. See [PDF Compression](PDF_COMPRESSION.md).
 - **Batch conversion.** Converts many files to Word, Excel, PowerPoint, text, images, a searchable PDF, or Word via OCR.
 - **Page sizes in conversions.** PowerPoint and Word files keep each page's size and orientation, with policies for mixed sizes. Document properties come from the PDF. See [PDF to Office](PDF_TO_OFFICE_CONVERSION.md) and [Conversion Fidelity](CONVERSION_FIDELITY.md).
 - **Save a Copy ▸ Whole Document** keeps working on the open document. Overwriting files is atomic. See [Save As and Export](SAVE_AS_AND_EXPORT.md).
@@ -95,7 +108,8 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
   values, bookmarks, document properties, attachments) are listed and can be removed.
 - Visual signatures (typed, drawn or from a picture); certificate-based signatures are not supported.
 - Printing with preview, including unsaved changes; odd or even pages, reverse order, and printing
-  without comments.
+  without comments. Two-sided printing (flip on long edge by default); Actual size and All pages are
+  the defaults.
 - **Colour modes.** Colour, grayscale or true black-and-white.
 - **Scaling.** Custom scale, and 2, 4, 6 or 9 pages per sheet.
 - **Save as PDF** from the print dialog, with progress and Cancel. See [Printing](PRINTING_AND_PRINT_PREVIEW.md).

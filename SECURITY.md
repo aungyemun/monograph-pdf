@@ -7,7 +7,8 @@ answer to a security problem in an older version is to upgrade.
 
 | Version | Supported |
 | :--- | :--- |
-| 0.3.0 (latest release) | Yes |
+| 0.4.0 (latest release) | Yes |
+| 0.3.0 | No — please upgrade to 0.4.0, which also fixes the loss of a permissions password on save |
 | 0.2.0 – 0.2.3 | No — please upgrade to the latest release |
 | 0.1.x and earlier internal builds | No |
 
@@ -38,7 +39,7 @@ Fixes are described in the [changelog](CHANGELOG.md) of the release that contain
 Monograph PDF is designed to operate offline: it has no telemetry and never uploads documents.
 From 0.3.0 exactly two modules may use the network — the update checker and the problem-report
 sender — each only for a purpose the user controls (checked by tests). **Both are switched off in
-0.3.0** (no production update-signing key and no reporting service yet), so Monograph PDF itself
+0.3.0 and 0.4.0** (no production update-signing key and no reporting service yet), so Monograph PDF itself
 makes no network connections.
 
 | Area | How it is protected |
@@ -51,8 +52,8 @@ makes no network connections.
 | **Hidden information** | **Protect ▸ Remove Hidden Information** writes a cleaned copy and removes only the categories it lists; content that is part of the pages (including layers that are turned off) is kept. Limits: [Security and Privacy](docs/SECURITY_AND_PRIVACY.md#hidden-information). |
 | **Working files** | Settings and the recent-files list in `%APPDATA%\Monograph PDF`; cache, logs and recovery sessions in `%LOCALAPPDATA%\Monograph PDF`. No recovery copy is kept for password-protected PDFs. |
 | **Offline operation** | Qt's network and TLS modules are removed from the release build; Python's HTTPS support is used only by the update and problem-report code. The built-in self-check (also run by Setup) fails if a network connection is attempted while it runs. |
-| **Updates (switched off in 0.3.0)** | Only Ed25519-signed release manifests verified against built-in keys are accepted; the installer must match the signed SHA-256 and size; downgrades, expired or replayed manifests and foreign hosts are refused; HTTPS with certificate verification; the installed copy is never replaced by the running program. [Secure updates](docs/SECURE_UPDATES.md) |
-| **Problem reports (sending switched off in 0.3.0)** | Approved technical fields only, shown in full before sending; sent only after **Send to Developer**; the reporting gateway can only file issues in one private repository. [Error reporting](docs/ERROR_REPORTING.md) |
+| **Updates (switched off in 0.3.0 and 0.4.0)** | Only Ed25519-signed release manifests verified against built-in keys are accepted; the installer must match the signed SHA-256 and size; downgrades, expired or replayed manifests and foreign hosts are refused; HTTPS with certificate verification; the installed copy is never replaced by the running program. [Secure updates](docs/SECURE_UPDATES.md) |
+| **Problem reports (sending switched off in 0.3.0 and 0.4.0)** | Approved technical fields only, shown in full before sending; sent only after **Send to Developer**; the reporting gateway can only file issues in one private repository. [Error reporting](docs/ERROR_REPORTING.md) |
 | **Office conversion** | Uses the locally installed Microsoft Office (macros force-disabled) or LibreOffice (a temporary profile with macros disabled). These applications run independently and follow their own settings, including network access. |
 | **External programs** | Started only by their full system or installation path, never found through the current folder. |
 

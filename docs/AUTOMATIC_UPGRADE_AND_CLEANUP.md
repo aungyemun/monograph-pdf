@@ -1,6 +1,6 @@
 # Automatic in-place upgrade and update cleanup
 
-Status: **included in 0.3.0, switched off** until production update signing is set up
+Status: **included since 0.3.0, switched off (also in 0.4.0)** until production update signing is set up
 ([SECURE_UPDATES.md](SECURE_UPDATES.md#production-setup)). This page describes what happens after
 the user clicks **Update Now**, which installation is changed, which files may be replaced or
 removed, how temporary update files are cleaned up and what happens when something fails.
@@ -96,7 +96,7 @@ upgrades and are covered by `scripts/test_installer.ps1`:
 * Anything not owned — category B — is never deleted; the installation folder is never deleted
   recursively.
 * Tightly coupled parts (Python runtime, Qt, PyMuPDF, OCR engine) are only ever replaced together,
-  as one signed installer. Selective component updates are not part of 0.3.0.
+  as one signed installer. Selective component updates are not part of 0.3.0 or 0.4.0.
 
 ## Staging folder and cleanup
 

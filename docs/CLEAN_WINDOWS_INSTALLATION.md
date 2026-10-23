@@ -30,9 +30,9 @@ The following are also not verified:
 
 - Japanese, Chinese, Korean, German or French Windows (the Unicode tests are simulated on an English Windows with Unicode folder and file names);
 - Windows 10;
-- an administrator-run all-users installation of 0.3.0.
+- an administrator-run all-users installation of 0.3.0 or 0.4.0.
 
-0.3.0 was published on 2026-10-22 with these checks, and the installer test, still not verified; its release notes say so. They remain open.
+0.3.0 (2026-10-22) and 0.4.0 (2026-10-23) were published with these checks, and the installer test, still not verified; their release notes say so. They remain open.
 
 ### How to run the clean-PC test
 
