@@ -16,6 +16,16 @@ Page** and **Close** instead (see below), and the app sends nothing.
   events, so a later report shows them).
 * Unexpected termination: a tiny session record exists while the application runs and is removed
   at a normal exit; one left behind by a process that no longer runs is reported at the next start.
+* Hard crashes (from 0.4.1): a fatal native error such as an access violation ends the process before
+  any Python code can react. Python's `faulthandler` then writes the stack of the failing thread to
+  `fault-<pid>.log`; at the next start only the kind of fault and Monograph PDF's own
+  `module:function:line` entries are taken from it, and the file is deleted. The Windows Error
+  Reporting record of that process (event 1000 in the local Application log, read as XML with
+  `wevtutil`) gives the file in which the crash happened — named only when it is one of Monograph
+  PDF's own files, otherwise reported as `external`. The report dialog starts with a plain-language
+  summary (for example: "stopped because of a memory access error inside python311.dll … The last
+  step in Monograph PDF's own code was paint in ui.font_picker (line 28). Just before, Monograph PDF
+  was changing fonts or formatting.").
 
 ## What a report contains — and what it never contains
 
@@ -34,6 +44,8 @@ refused, and the gateway enforces the same schema.
 | `exception_type` | `ValueError` or `fitz.FileDataError` (class name only — never the message) |
 | `code_location` | `core.document:save_as:171` (Monograph PDF's own module, function and line; up to 12) |
 | `recent_events` | up to 30 predefined identifiers such as `PDF_OPEN_STARTED` |
+| `fault_kind` | hard crashes only: `ACCESS_VIOLATION`, `STACK_OVERFLOW`, `ILLEGAL_INSTRUCTION`, `INT_DIVIDE_BY_ZERO`, `FLOATING_POINT`, `ABORT`, `FATAL_ERROR` or `OTHER` |
+| `faulting_module` | hard crashes only: the program file in which it happened, such as `python311.dll` or `Qt6Widgets.dll`; `external` for any file that is not part of Monograph PDF |
 | `fingerprint` | 16 hex digits derived from error code, exception type, the last code locations and version — the same software failure gives the same value on every computer |
 
 Never collected: document contents, file or folder names and paths, PDF metadata, user names,
@@ -45,16 +57,21 @@ Predefined event identifiers: `APP_STARTED`, `PDF_OPEN_STARTED/FAILED`, `TEXT_ED
 `PDF_SAVE_STARTED/FAILED`, `PDF_EXPORT_STARTED/FAILED`, `PDF_PRINT_STARTED/FAILED`,
 `CONVERT_STARTED/FAILED`, `OCR_STARTED/FAILED`, `SUBPROCESS_FAILED`, `UPDATE_CHECK_STARTED/FAILED`,
 `UPDATE_DOWNLOAD_STARTED/FAILED`, `UPDATE_INSTALL_STARTED/FAILED`, `QT_CRITICAL`,
-`UNHANDLED_EXCEPTION`, `UNEXPECTED_TERMINATION`.
+`UNHANDLED_EXCEPTION`, `UNEXPECTED_TERMINATION`, `STYLE_CHANGED`, `PAGES_CHANGED`,
+`COMMENT_CHANGED` (a run of the same action is recorded once).
 
 ## Storage
 
-* Recent events live in memory only (a ring buffer of 30 identifiers).
+* Recent events live in a ring buffer of 30 identifiers; a copy is kept in the session record so
+  that it survives a hard crash (identifiers only).
 * A recoverable error's report is built in memory and discarded after the dialog.
-* Only two small files can exist, in `%LOCALAPPDATA%\Monograph PDF\Diagnostics`: `session-<pid>.json`
-  while the application runs (version and start time), and `pending-report.json` — one validated
-  report of a crash that could not be shown, offered at the next start. Both expire after 14 days,
-  are removed once the user has decided, and are removed by the uninstaller. Normal use writes no
+* Only three kinds of small file can exist, in `%LOCALAPPDATA%\Monograph PDF\Diagnostics`:
+  `session-<pid>.json` while the application runs (version, start time and recent event
+  identifiers); `fault-<pid>.log` while it runs (empty unless a hard crash happens; it then holds
+  the stack of the failing thread, including file paths of the program, and is read and deleted at
+  the next start — only the approved fields above are taken from it); and `pending-report.json` —
+  one validated report of a crash that could not be shown, offered at the next start. All expire
+  after 14 days, are removed once the user has decided, and are removed by the uninstaller. Normal use writes no
   report files; nothing is written to document folders.
 
 ## The dialog

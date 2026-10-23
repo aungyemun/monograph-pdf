@@ -57,7 +57,7 @@ The password strength rating in **Protect with Password** is computed locally (l
 | Recent-files list | `%APPDATA%\Monograph PDF` | Always |
 | Cache, runtime files, recovery sessions, logs (including the Setup self-check report) | `%LOCALAPPDATA%\Monograph PDF` | Always |
 | Update status and update downloads waiting to be installed (`Updates`; removed after a successful update) | `%LOCALAPPDATA%\Monograph PDF\Updates` | Always |
-| Problem-report records (`Diagnostics`: a running-session marker, at most one pending crash report; expire after 14 days) | `%LOCALAPPDATA%\Monograph PDF\Diagnostics` | Always |
+| Problem-report records (`Diagnostics`: a running-session marker with recent action identifiers, a crash-stack file that stays empty unless the program crashes and is deleted at the next start, at most one pending crash report; expire after 14 days) | `%LOCALAPPDATA%\Monograph PDF\Diagnostics` | Always |
 | Your documents | Wherever you saved them | Never |
 
 When Monograph PDF is started a second time, that start hands the files it was asked to open to the

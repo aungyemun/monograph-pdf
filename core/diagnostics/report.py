@@ -42,6 +42,8 @@ SCHEMA: dict[str, tuple[re.Pattern, bool]] = {
     "exception_type": (re.compile(r"^(" + _IDENT + r")(\." + _IDENT + r"){0,6}$"), False),
     "code_location": (re.compile(r"^(app|core|ui|engines)(\." + _IDENT + r"){0,6}:" + _IDENT + r":\d{1,6}$"), False),
     "recent_events": (re.compile(r"^[A-Z][A-Z_]{1,40}$"), False),
+    "fault_kind": (re.compile(r"^(ACCESS_VIOLATION|STACK_OVERFLOW|ILLEGAL_INSTRUCTION|INT_DIVIDE_BY_ZERO|FLOATING_POINT|ABORT|FATAL_ERROR|OTHER)$"), False),
+    "faulting_module": (re.compile(r"^([A-Za-z0-9_.+-]{1,64}\.(dll|exe|pyd|DLL|EXE|PYD)|external)$"), False),
     "fingerprint": (re.compile(r"^[0-9a-f]{16}$"), True),
 }
 LIST_FIELDS = {"code_location": 12, "recent_events": 30}
@@ -136,7 +138,7 @@ def exception_type(exc: BaseException) -> str:
 
 
 def build(error: EventId | str, exc: BaseException | None = None, *, report_type: str = "error",
-          events: list[str] | None = None, now: datetime | None = None) -> dict:
+          events: list[str] | None = None, now: datetime | None = None, fault=None) -> dict:
     """A validated report for failure ``error`` (one of the ``*_FAILED`` identifiers)."""
     from core.versioning import get_version
 
@@ -162,6 +164,14 @@ def build(error: EventId | str, exc: BaseException | None = None, *, report_type
     if exc is not None:
         report["exception_type"] = exception_type(exc)
         report["code_location"] = code_location(exc.__traceback__)
+    if fault is not None:  # a native crash of an earlier run (core.diagnostics.crash.Termination)
+        if fault.fault_kind:
+            report["fault_kind"] = fault.fault_kind
+        if fault.faulting_module:
+            report["faulting_module"] = fault.faulting_module
+        locations = [x for x in fault.code_location if _ok("code_location", x)]
+        if locations:
+            report["code_location"] = locations[-LIST_FIELDS["code_location"]:]
     # optional fields that do not match their pattern are dropped rather than sent
     for name in list(report):
         if name in LIST_FIELDS:
@@ -175,8 +185,55 @@ def build(error: EventId | str, exc: BaseException | None = None, *, report_type
 def fingerprint(report: dict) -> str:
     """Groups identical software failures; derived from code, never from the user or the device."""
     basis = "|".join([str(report.get("error_code", "")), str(report.get("exception_type", "")),
-                      ",".join(report.get("code_location", [])[-3:]), str(report.get("app_version", ""))])
+                      ",".join(report.get("code_location", [])[-3:]), str(report.get("app_version", ""))]
+                     + ([str(report.get("fault_kind", "")), str(report.get("faulting_module", ""))]
+                        if "fault_kind" in report else []))
     return hashlib.sha256(basis.encode("ascii", "replace")).hexdigest()[:16]
+
+
+_FAULT_WORDS = {
+    "ACCESS_VIOLATION": "a memory access error (access violation)",
+    "STACK_OVERFLOW": "a stack overflow",
+    "ILLEGAL_INSTRUCTION": "an illegal instruction",
+    "INT_DIVIDE_BY_ZERO": "a division by zero",
+    "FLOATING_POINT": "a floating-point error",
+    "ABORT": "an abort",
+    "FATAL_ERROR": "a fatal error in Python",
+    "OTHER": "a fatal error",
+}
+_EVENT_WORDS = {
+    "PDF_OPEN_STARTED": "opening a PDF", "TEXT_EDIT_STARTED": "editing text", "STYLE_CHANGED": "changing fonts or formatting",
+    "PDF_SAVE_STARTED": "saving", "PDF_EXPORT_STARTED": "exporting", "PDF_PRINT_STARTED": "printing",
+    "CONVERT_STARTED": "converting", "OCR_STARTED": "text recognition (OCR)", "PAGES_CHANGED": "changing pages",
+    "COMMENT_CHANGED": "adding or changing comments",
+}
+
+
+def describe(report: dict) -> str:
+    """A plain-language summary of ``report`` for the person deciding whether to pass it on."""
+    rtype = report.get("report_type")
+    where = ""
+    loc = report.get("code_location") or []
+    if loc:
+        module, func, line = (loc[-1].split(":") + ["", ""])[:3]
+        where = f" The last step in Monograph PDF's own code was {func} in {module} (line {line})."
+    doing = ""
+    events = [e for e in report.get("recent_events", []) if e in _EVENT_WORDS]
+    if events:
+        doing = f" Just before, Monograph PDF was {_EVENT_WORDS[events[-1]]}."
+    if rtype == "termination":
+        kind = report.get("fault_kind")
+        if not kind:
+            return ("Monograph PDF did not close normally last time, but no error was recorded — for example "
+                    "the computer was switched off or the program was ended in Task Manager." + doing)
+        module = report.get("faulting_module")
+        inside = f" inside {module}" if module and module != "external" else (
+            " inside a component of another program" if module == "external" else "")
+        return (f"Monograph PDF stopped unexpectedly last time because of {_FAULT_WORDS.get(kind, 'a fatal error')}"
+                f"{inside}.{where}{doing}")
+    exc = report.get("exception_type")
+    head = f"An unexpected error ({exc}) occurred." if exc else "An unexpected error occurred."
+    return head + where + doing
 
 
 def render(report: dict) -> str:

@@ -17,7 +17,7 @@ EVENT_NAMES = {
     "PDF_PRINT_FAILED", "CONVERT_STARTED", "CONVERT_FAILED", "OCR_STARTED", "OCR_FAILED", "SUBPROCESS_FAILED",
     "UPDATE_CHECK_STARTED", "UPDATE_CHECK_FAILED", "UPDATE_DOWNLOAD_STARTED", "UPDATE_DOWNLOAD_FAILED",
     "UPDATE_INSTALL_STARTED", "UPDATE_INSTALL_FAILED", "QT_CRITICAL", "UNHANDLED_EXCEPTION",
-    "UNEXPECTED_TERMINATION",
+    "UNEXPECTED_TERMINATION", "STYLE_CHANGED", "PAGES_CHANGED", "COMMENT_CHANGED",
 }
 
 SCHEMA: dict[str, tuple[re.Pattern, bool]] = {
@@ -37,6 +37,8 @@ SCHEMA: dict[str, tuple[re.Pattern, bool]] = {
     "exception_type": (re.compile(r"^(" + _IDENT + r")(\." + _IDENT + r"){0,6}$"), False),
     "code_location": (re.compile(r"^(app|core|ui|engines)(\." + _IDENT + r"){0,6}:" + _IDENT + r":\d{1,6}$"), False),
     "recent_events": (re.compile(r"^[A-Z][A-Z_]{1,40}$"), False),
+    "fault_kind": (re.compile(r"^(ACCESS_VIOLATION|STACK_OVERFLOW|ILLEGAL_INSTRUCTION|INT_DIVIDE_BY_ZERO|FLOATING_POINT|ABORT|FATAL_ERROR|OTHER)$"), False),
+    "faulting_module": (re.compile(r"^([A-Za-z0-9_.+-]{1,64}\.(dll|exe|pyd|DLL|EXE|PYD)|external)$"), False),
     "fingerprint": (re.compile(r"^[0-9a-f]{16}$"), True),
 }
 LIST_FIELDS = {"code_location": 12, "recent_events": 30}

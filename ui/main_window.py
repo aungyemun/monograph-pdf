@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import re
 import sys
 from contextlib import contextmanager
@@ -3271,6 +3272,7 @@ class MainWindow(QMainWindow):
 
     def _restyle_boxes(self, **kwargs) -> bool:
         """The same style setting on every selected text box (one undo step). False if none."""
+        diagnostics.record(EventId.STYLE_CHANGED)
         boxes = self._selected_text_boxes()
         if not boxes:
             return False
@@ -3940,6 +3942,7 @@ class MainWindow(QMainWindow):
     def _page_undo_end(self, before, name: str) -> None:
         """Record a finished page operation for Undo/Redo. Without a snapshot the operation cannot be
         undone; the Undo list is then cleared so earlier steps cannot act on the wrong pages."""
+        diagnostics.record(EventId.PAGES_CHANGED)
         from core.organize import page_snapshot
 
         after = page_snapshot.capture(self._document, self._edit) if before is not None else None
@@ -5442,6 +5445,8 @@ class MainWindow(QMainWindow):
     def _run_annot_command(self, page: int, create, name: str):
         from core.editing.annot_commands import AnnotCreateCommand
 
+        diagnostics.record(EventId.COMMENT_CHANGED)
+
         cmd = AnnotCreateCommand(self._document, self._edit, page, create, name)
         self._edit.commands.execute(cmd)
         return cmd
@@ -5469,6 +5474,8 @@ class MainWindow(QMainWindow):
 
     def _comment_change(self, ref, change, name: str) -> None:
         from core.editing.annot_commands import AnnotModifyCommand
+
+        diagnostics.record(EventId.COMMENT_CHANGED)
 
         if self._document is None or self._edit is None:
             return
@@ -6334,13 +6341,20 @@ class MainWindow(QMainWindow):
 
         pending = crash.take_pending()
         if pending is not None:
-            self.offer_report(pending, "<b>Monograph PDF closed unexpectedly last time.</b>")
-        elif crash.previous_terminations():
-            try:
-                rep = reports.build(EventId.UNEXPECTED_TERMINATION, report_type="termination", events=[])
-                self.offer_report(rep, "<b>Monograph PDF did not close normally last time.</b>")
-            except Exception:  # noqa: BLE001
-                pass
+            self.offer_report(pending, "<b>Monograph PDF closed unexpectedly last time.</b><br>"
+                              + html.escape(reports.describe(pending)))
+        else:
+            terminations = crash.take_terminations()
+            if terminations:
+                last = max(terminations, key=lambda t: bool(t.fault_kind))  # one with details, if any
+                try:
+                    rep = reports.build(EventId.UNEXPECTED_TERMINATION, report_type="termination",
+                                        events=last.events, fault=last)
+                    title = ("Monograph PDF stopped unexpectedly last time." if last.fault_kind
+                             else "Monograph PDF did not close normally last time.")
+                    self.offer_report(rep, f"<b>{title}</b><br>{html.escape(reports.describe(rep))}")
+                except Exception:  # noqa: BLE001
+                    pass
         self._updates.maybe_auto_check()
 
     @staticmethod
