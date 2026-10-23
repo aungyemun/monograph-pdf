@@ -125,20 +125,36 @@ def _match(name: str, available: set[str]) -> str | None:
     return None
 
 
+_QT_REGISTERED: set[str] = set()
+
+
 def _register_bundled_with_qt() -> None:
-    """Ensure bundled TTF/OTF are visible to QFontDatabase (idempotent, lazy)."""
+    """Ensure bundled TTF/OTF are visible to QFontDatabase (idempotent, lazy).
+
+    Each file is registered once: this runs for every text box painted, and registering the same
+    file again on every repaint cost several milliseconds per frame while dragging (and Qt may
+    keep a duplicate entry each time)."""
     if not _qt_app_ready():
         return
     try:
         from PySide6.QtGui import QFontDatabase
 
         for path in _bundled_family_map().values():
+            if path in _QT_REGISTERED:
+                continue
             try:
-                QFontDatabase.addApplicationFont(path)
+                if QFontDatabase.addApplicationFont(path) >= 0:
+                    _QT_REGISTERED.add(path)
             except Exception:  # noqa: BLE001
                 continue
     except Exception:  # noqa: BLE001
         pass
+
+
+def register_bundled_fonts() -> None:
+    """Make the bundled fonts (Noto Sans, Noto Serif, Noto Sans CJK JP) available everywhere fonts
+    are listed, next to the fonts installed on the PC. Safe to call more than once."""
+    _register_bundled_with_qt()
 
 
 def resolve_font(requested: str, sample_text: str = "") -> FontResolution:

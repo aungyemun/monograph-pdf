@@ -322,3 +322,72 @@ class SetOverlayAttrsCommand(Command):
     def can_merge(self, other: "SetOverlayAttrsCommand") -> bool:
         return (other.object_id == self.object_id and set(other.after) == set(self.after)
                 and other.stamp - self.stamp <= self.MERGE_SECONDS)
+
+
+class GroupCommand(Command):
+    """Several commands that undo and redo as one step (one change applied to many objects)."""
+
+    def __init__(self, name: str, commands: list[Command]) -> None:
+        self._name = name
+        self.commands = list(commands)
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def execute(self) -> None:
+        for cmd in self.commands:
+            cmd.execute()
+
+    def undo(self) -> None:
+        for cmd in reversed(self.commands):
+            cmd.undo()
+
+
+# What a form field's look consists of (the inspector / toolbar settings and the words' own formats)
+FIELD_STYLE_ATTRS = ("font_family", "font_size", "multiline", "bold", "italic", "align", "valign", "text_color")
+
+
+def field_style_state(field: Any) -> dict[str, Any]:
+    state = {key: getattr(field, key) for key in FIELD_STYLE_ATTRS}
+    state["runs"] = [dict(r) for r in (field.runs or [])]
+    state["appearance_dirty"] = bool(field.appearance_dirty)
+    state["style_dirty"] = bool(field.style_dirty)
+    return state
+
+
+class FieldStyleCommand(Command):
+    """Font, size, wrap, bold, italic, alignment or colour of one or more form fields (one undo step).
+
+    ``before`` / ``after`` map field object ids to :func:`field_style_state`. Undo restores the
+    saved-state flags too, so undoing every change leaves an untouched field's own appearance in
+    the PDF (an entry typed since then still gets a new appearance)."""
+
+    def __init__(self, model: "EditableDocument", before: dict[str, dict], after: dict[str, dict],
+                 name: str = "Change Field Style") -> None:
+        self.model = model
+        self.before = before
+        self.after = after
+        self._name = name
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def _apply(self, states: dict[str, dict]) -> None:
+        for oid, state in states.items():
+            field = self.model.fields.get(oid)
+            if field is None:
+                continue
+            for key in FIELD_STYLE_ATTRS:
+                setattr(field, key, state[key])
+            field.runs = [dict(r) for r in state["runs"]]
+            field.appearance_dirty = bool(state["appearance_dirty"] or field.value_dirty)
+            field.style_dirty = bool(state["style_dirty"])
+        self.model.dirty = True
+
+    def execute(self) -> None:
+        self._apply(self.after)
+
+    def undo(self) -> None:
+        self._apply(self.before)

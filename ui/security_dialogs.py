@@ -335,7 +335,9 @@ SIGNATURE_FONTS = (
     "Bradley Hand ITC",
     "Kristen ITC",
 )
-SIGNATURE_INKS = (("Blue ink", "#0d1f73"), ("Black ink", "#111111"), ("Dark blue ink", "#0a2a55"))
+SIGNATURE_INKS = (("Blue ink", "#0d1f73"), ("Black ink", "#111111"), ("Dark blue ink", "#0a2a55"),
+                  ("Navy ink", "#1f3a5f"), ("Charcoal ink", "#333333"), ("Dark green ink", "#14532d"),
+                  ("Burgundy ink", "#7f1d1d"))
 
 
 def available_signature_fonts() -> list[str]:
@@ -436,6 +438,30 @@ class TypedSignatureDialog(QDialog):
 
     def ink_color(self) -> str:
         return str(self.ink.currentData())
+
+    def set_values(self, text: str, family: str = "", color: str = "") -> None:
+        """Open on a signature placed earlier (to change its text, style or ink)."""
+        self.setWindowTitle("Edit Signature")
+        self._ok.setText("Update Signature")
+        self.name.setText(text)
+        if family:
+            i = self.style.findText(family)
+            if i < 0:  # a style no longer installed: keep it selectable
+                self.style.addItem(family)
+                i = self.style.count() - 1
+            self.style.setCurrentIndex(i)
+        if color:
+            i = self.ink.findData(color.lower())
+            if i < 0:
+                self.ink.addItem(f"Ink {color.upper()}", color.lower())
+                i = self.ink.count() - 1
+            self.ink.setCurrentIndex(i)
+        self._update_preview()
+
+    def spec(self) -> dict:
+        """What the signature is made of — stored with it, so it can be edited after placing."""
+        return {"kind": "typed", "text": self.name.text().strip(), "family": self.style.currentText(),
+                "color": self.ink_color()}
 
     def _update_preview(self) -> None:
         text = self.name.text().strip()

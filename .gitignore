@@ -59,6 +59,7 @@ runtime/cache/*
 runtime/temp/*
 runtime/sessions/*
 runtime/logs/*
+runtime/instance/
 runtime/recent_files.json
 
 # Release outputs (rebuilt by scripts/build_release.ps1)

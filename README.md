@@ -98,7 +98,7 @@ silent installation, upgrading and uninstalling are described in [Installation](
   printing never use the network.
 * Version 0.3.0 contains secure update checks and private problem reports, but **both are switched
   off in this release**: **Help ▸ Check for Updates…** reports "Updates not configured" and
-  **Send to Developer** sends nothing. Once enabled in a later release, they contact the network only
+  problem reports can only be copied and passed on by you (the app sends nothing). Once enabled in a later release, they contact the network only
   when you ask (or after you switch on automatic update checks):
   [Secure updates](docs/SECURE_UPDATES.md) · [Error reporting](docs/ERROR_REPORTING.md).
 * Qt's network and TLS modules are removed from the release build; only the update and problem-report

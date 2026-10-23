@@ -33,6 +33,16 @@ def main(argv: list[str] | None = None) -> int:
         i = argv.index("--update-finished")
         del argv[i : i + 2]
 
+    # One Monograph PDF per session: a second start passes its file to the running window and exits
+    # (before Qt is loaded, so it is quick and uses almost no memory).
+    from app import single_instance
+
+    primary = single_instance.is_disabled(argv) or single_instance.acquire()
+    if not primary:
+        return single_instance.hand_over(argv)
+    if "--new-instance" in argv:
+        argv.remove("--new-instance")
+
     from core.startup_timing import mark, reset, write_log
 
     reset()
@@ -125,6 +135,12 @@ def main(argv: list[str] | None = None) -> int:
     splash.close()
     app.processEvents()
     mark("first_visible")
+    if not single_instance.is_disabled(argv):
+        try:
+            window._instance_server = single_instance.InstanceServer(window)  # noqa: SLF001
+        except Exception:  # noqa: BLE001 — the program works without the handover
+            pass
+    app.aboutToQuit.connect(single_instance.release)
     write_log(tag="startup")
 
     # Defer nonessential probes, temp cleanup, and warm imports

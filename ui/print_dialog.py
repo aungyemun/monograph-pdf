@@ -293,6 +293,7 @@ class PrintDialog(QDialog):
         self.scaling.addItem("Actual size (100 %)", PageScaling.ACTUAL.value)
         self.scaling.addItem("Shrink large pages only", PageScaling.SHRINK.value)
         self.scaling.addItem("Custom scale", PageScaling.CUSTOM.value)
+        self.scaling.setCurrentIndex(self.scaling.findData(PageScaling.ACTUAL.value))  # default: 100 %
         self.percent = QSpinBox()
         self.percent.setObjectName("PrintPercent")
         self.percent.setRange(10, 400)
@@ -325,8 +326,33 @@ class PrintDialog(QDialog):
         self.comments.addItem("Document only", False)
         self.comments.setToolTip("Comments are notes, highlights, shapes and stamps. Form fields always print.")
         form.addRow("Comments:", self.comments)
-        self.duplex = QComboBox()
-        form.addRow("Two-sided:", self.duplex)
+        # Two-sided: on (flip on long edge) by default whenever the printer can print both sides
+        self.both_sides = QCheckBox("Print on both sides of paper")
+        self.both_sides.setObjectName("PrintBothSides")
+        self.flip_long = QRadioButton("Flip on long edge")
+        self.flip_long.setToolTip("Usual for portrait pages: turn the sheet like a book page")
+        self.flip_short = QRadioButton("Flip on short edge")
+        self.flip_short.setToolTip("Usual for landscape pages: turn the sheet like a notepad")
+        flip_group = QButtonGroup(self)
+        flip_group.addButton(self.flip_long)
+        flip_group.addButton(self.flip_short)
+        self.flip_long.setChecked(True)
+        self._duplex_supported = False
+        self._duplex_edges = (False, False)
+        self.both_sides.toggled.connect(self._sync_flip_enabled)
+        sides_box = QVBoxLayout()
+        sides_box.setContentsMargins(0, 0, 0, 0)
+        sides_box.setSpacing(4)
+        sides_box.addWidget(self.both_sides)
+        flip_row = QHBoxLayout()
+        flip_row.setContentsMargins(20, 0, 0, 0)
+        flip_row.addWidget(self.flip_long)
+        flip_row.addWidget(self.flip_short)
+        flip_row.addStretch(1)
+        sides_box.addLayout(flip_row)
+        sides_w = QWidget()
+        sides_w.setLayout(sides_box)
+        form.addRow("Two-sided:", sides_w)
         left.addLayout(form)
         left.addStretch(1)
 
@@ -474,24 +500,13 @@ class PrintDialog(QDialog):
         if not color_ok and self.color.currentIndex() == 0:
             self.color.setCurrentIndex(1)
 
-        self.duplex.blockSignals(True)
-        prev = self.duplex.currentData()
-        self.duplex.clear()
-        self.duplex.addItem("Off", QPrinter.DuplexMode.DuplexNone)
         modes: list = []
         if info is not None:
             try:
                 modes = list(info.supportedDuplexModes())
             except Exception:  # noqa: BLE001
                 modes = []
-        if QPrinter.DuplexMode.DuplexLongSide in modes:
-            self.duplex.addItem("Flip on long edge", QPrinter.DuplexMode.DuplexLongSide)
-        if QPrinter.DuplexMode.DuplexShortSide in modes:
-            self.duplex.addItem("Flip on short edge", QPrinter.DuplexMode.DuplexShortSide)
-        if prev is not None:
-            self.duplex.setCurrentIndex(max(0, self.duplex.findData(prev)))
-        self.duplex.setEnabled(self.duplex.count() > 1)
-        self.duplex.blockSignals(False)
+        self._set_duplex_support(modes)
         self._printer = None
         self._print_btn.setEnabled(info is not None)
         self._refresh()
@@ -556,10 +571,62 @@ class PrintDialog(QDialog):
             self.paper.blockSignals(False)
         gray = printer.colorMode() == QPrinter.ColorMode.GrayScale
         self.color.setCurrentIndex(1 if gray else 0)
-        d = self.duplex.findData(printer.duplex())
-        if d >= 0:
-            self.duplex.setCurrentIndex(d)
+        self._set_duplex_mode(printer.duplex())
         self._refresh()
+
+    # --- two-sided printing ------------------------------------------------------------------
+
+    def _set_duplex_support(self, modes: list) -> None:
+        """Offer two-sided printing as far as the printer driver reports it. A printer that can
+        print both sides starts with it switched on (flip on long edge); a choice made in this
+        dialog is kept when switching between two such printers."""
+        long_ok = QPrinter.DuplexMode.DuplexLongSide in modes
+        short_ok = QPrinter.DuplexMode.DuplexShortSide in modes
+        if QPrinter.DuplexMode.DuplexAuto in modes and not (long_ok or short_ok):
+            long_ok = short_ok = True  # driver says "two-sided" without naming the edges
+        supported = long_ok or short_ok
+        was_supported = self._duplex_supported
+        self._duplex_supported = supported
+        self._duplex_edges = (long_ok, short_ok)
+        self.both_sides.setEnabled(supported)
+        self.both_sides.setToolTip("" if supported else "This printer's driver does not report two-sided printing")
+        if not supported:
+            self.both_sides.setChecked(False)
+        else:
+            if not was_supported:
+                self.both_sides.setChecked(True)
+            if self.flip_long.isChecked() and not long_ok:
+                self.flip_short.setChecked(True)
+            elif self.flip_short.isChecked() and not short_ok:
+                self.flip_long.setChecked(True)
+        self._sync_flip_enabled()
+
+    def _sync_flip_enabled(self, *_args) -> None:
+        long_ok, short_ok = getattr(self, "_duplex_edges", (False, False))
+        on = self._duplex_supported and self.both_sides.isChecked()
+        self.flip_long.setEnabled(on and long_ok)
+        self.flip_short.setEnabled(on and short_ok)
+
+    def duplex_mode(self) -> QPrinter.DuplexMode:
+        """The two-sided setting for the print job (DuplexNone = one side)."""
+        if not (self._duplex_supported and self.both_sides.isChecked()):
+            return QPrinter.DuplexMode.DuplexNone
+        if self.flip_short.isChecked():
+            return QPrinter.DuplexMode.DuplexShortSide
+        return QPrinter.DuplexMode.DuplexLongSide
+
+    def _set_duplex_mode(self, mode) -> None:
+        if not self._duplex_supported:
+            return
+        if mode == QPrinter.DuplexMode.DuplexNone:
+            self.both_sides.setChecked(False)
+            return
+        self.both_sides.setChecked(True)
+        long_ok, short_ok = self._duplex_edges
+        if mode == QPrinter.DuplexMode.DuplexShortSide and short_ok:
+            self.flip_short.setChecked(True)
+        elif mode == QPrinter.DuplexMode.DuplexLongSide and long_ok:
+            self.flip_long.setChecked(True)
 
     def _page_size(self) -> QPageSize:
         ps = self.paper.currentData()
@@ -741,9 +808,7 @@ class PrintDialog(QDialog):
         pr.setCollateCopies(self.collate.isChecked())
         gray = self.color.currentData() != ColorMode.COLOR.value
         pr.setColorMode(QPrinter.ColorMode.GrayScale if gray else QPrinter.ColorMode.Color)
-        duplex = self.duplex.currentData()
-        if duplex is not None:
-            pr.setDuplex(duplex)
+        pr.setDuplex(self.duplex_mode())
         return pr
 
     def _accept(self) -> None:

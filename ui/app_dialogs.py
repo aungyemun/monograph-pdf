@@ -3,11 +3,23 @@ signature pad, page-image export, and go-to-page."""
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QKeySequence, QPainter, QPainterPath, QPen
+from PySide6.QtGui import (
+    QAction,
+    QColor,
+    QFont,
+    QKeySequence,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QTextCharFormat,
+    QTextCursor,
+    QTextDocument,
+)
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
@@ -180,6 +192,38 @@ def find_user_guide() -> Path | None:
     return None
 
 
+def markdown_heading_slug(text: str) -> str:
+    """GitHub-style heading id, the form the guide's in-page links use: 'OCR (text recognition)'
+    -> 'ocr-text-recognition'."""
+    return re.sub(r"[^\w\- ]", "", text.strip().lower()).replace(" ", "-")
+
+
+def add_markdown_heading_anchors(document: QTextDocument) -> list[str]:
+    """Name every heading with its GitHub-style slug.
+
+    Qt's Markdown reader creates no anchors for headings, so links such as ``[Viewing](#viewing)``
+    in the Contents had nothing to scroll to. Repeated headings get ``-1``, ``-2``… as on GitHub.
+    Returns the names added, in document order."""
+    seen: dict[str, int] = {}
+    names: list[str] = []
+    block = document.begin()
+    while block.isValid():
+        if block.blockFormat().headingLevel() > 0 and block.text().strip():
+            base = markdown_heading_slug(block.text())
+            count = seen.get(base, 0)
+            seen[base] = count + 1
+            name = base if count == 0 else f"{base}-{count}"
+            cursor = QTextCursor(block)
+            cursor.movePosition(QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor)
+            fmt = QTextCharFormat()
+            fmt.setAnchor(True)
+            fmt.setAnchorNames([name])
+            cursor.mergeCharFormat(fmt)
+            names.append(name)
+        block = block.next()
+    return names
+
+
 class UserGuideDialog(QDialog):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -207,6 +251,7 @@ class UserGuideDialog(QDialog):
         path = find_user_guide()
         if path is not None:
             view.setMarkdown(path.read_text(encoding="utf-8"))
+            add_markdown_heading_anchors(view.document())
             view.setSearchPaths([str(path.parent)])
         else:
             view.setMarkdown(
@@ -304,8 +349,20 @@ class DocumentPropertiesDialog(QDialog):
         f2.addRow("Fillable form:", ro("Yes" if meta.has_acroform else "No"))
         f2.addRow("Digitally signed:", ro("Yes" if meta.has_digital_signatures else "No"))
         if meta.permissions:
-            allowed = ", ".join(k for k, v in meta.permissions.items() if v) or "none"
-            f2.addRow("Permissions:", ro(allowed))
+            names = {"print": "Printing", "print_hq": "High-quality printing", "copy": "Copying text and images",
+                     "edit": "Changing the document", "modify": "Changing the document",
+                     "annotate": "Adding comments", "fill_forms": "Filling in forms", "form": "Filling in forms",
+                     "assemble": "Inserting, deleting and rotating pages",
+                     "accessibility": "Text access for screen readers"}
+
+            def nice(key: str) -> str:
+                return names.get(key, key.replace("_", " ").capitalize())
+
+            allowed = [nice(k) for k, v in meta.permissions.items() if v]
+            denied = [nice(k) for k, v in meta.permissions.items() if not v]
+            f2.addRow("Allowed:", ro(", ".join(dict.fromkeys(allowed)) or "Nothing"))
+            if denied:
+                f2.addRow("Not allowed:", ro(", ".join(dict.fromkeys(denied))))
         tabs.addTab(adv, "Advanced")
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)

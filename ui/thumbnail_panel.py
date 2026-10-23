@@ -128,6 +128,9 @@ class _ThumbDelegate(QStyledItemDelegate):
         painter.restore()
 
 
+MAX_THUMB_IMAGES = 160  # thumbnails kept in memory; far-away ones are drawn again when scrolled to
+
+
 class ThumbnailPanel(QListWidget):
     pageActivated = Signal(int)
     pagesReordered = Signal(list)  # new order of old indices
@@ -223,6 +226,49 @@ class ThumbnailPanel(QListWidget):
             return
         self.setCurrentRow(index)
 
+    def refresh_pages(self, indices) -> None:
+        """Redraw the thumbnails of ``indices`` (content changed); each keeps its old picture until
+        the new one is ready, and the other thumbnails are left alone."""
+        if self._document is None or self._document.is_closed:
+            return
+        for i in {int(i) for i in indices}:
+            if 0 <= i < self.count() and i not in self._pending:
+                self._pending.add(i)
+                self._pool.start(_ThumbJob(self._document, i, self._generation, self._hub))
+
+    def _visible_rows(self) -> tuple[int, int]:
+        viewport = self.viewport().rect()
+        first = self.indexAt(viewport.topLeft())
+        last = self.indexAt(viewport.bottomLeft())
+        start = first.row() if first.isValid() else 0
+        end = last.row() if last.isValid() else min(self.count() - 1, start + 8)
+        return start, end
+
+    def release_images(self, *, keep_visible: bool = False) -> int:
+        """Forget thumbnail pictures (all, or all but the visible ones); they are drawn again when
+        scrolled to. Returns how many were released."""
+        keep = range(0)
+        if keep_visible:
+            start, end = self._visible_rows()
+            keep = range(max(0, start - 4), end + 9)
+        released = 0
+        for i in range(self.count()):
+            if i in keep:
+                continue
+            item = self.item(i)
+            if item is not None and not item.icon().isNull():
+                item.setIcon(QIcon())
+                released += 1
+        return released
+
+    def restore_images(self) -> None:
+        self._schedule_visible()
+
+    def _limit_images(self) -> None:
+        loaded = sum(1 for i in range(self.count()) if not self.item(i).icon().isNull())
+        if loaded > MAX_THUMB_IMAGES:
+            self.release_images(keep_visible=True)
+
     def selected_page_indices(self) -> list[int]:
         rows = sorted({self.row(i) for i in self.selectedItems()})
         return rows
@@ -282,6 +328,8 @@ class ThumbnailPanel(QListWidget):
         if item is None:
             return
         item.setIcon(QIcon(QPixmap.fromImage(image)))
+        if self.count() > MAX_THUMB_IMAGES and page_index % 16 == 0:  # cheap, occasional check
+            self._limit_images()
 
     @Slot(int, int, str)
     def _on_fail(self, page_index: int, generation: int, _message: str) -> None:

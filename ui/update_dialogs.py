@@ -28,6 +28,15 @@ from core.updates.state import UpdateState
 from core.versioning import get_version
 
 RELEASES_PAGE = "https://github.com/aungyemun/monograph-pdf/releases"
+NOT_CONFIGURED_SHORT = "Not configured for this build"
+
+
+def status_line(status: UpdateStatus) -> str:
+    """Status as shown after "Updates:" (About) or "Update status:" (Settings).
+
+    The full label "Updates not configured" is the headline of the check result; after "Updates:" it
+    would read "Updates: Updates not configured"."""
+    return NOT_CONFIGURED_SHORT if status == UpdateStatus.NOT_CONFIGURED else status.label
 
 
 def fmt_size(n: int) -> str:
@@ -190,11 +199,12 @@ class UpdateController(QObject):
 
     def status_text(self) -> str:
         if not self._config.usable:
-            return "Not configured for this build"
+            return NOT_CONFIGURED_SHORT
         if self.last is not None:
-            return self.last.status.label
+            return status_line(self.last.status)
         st = UpdateState.load()
-        return UpdateStatus(st.last_status).label if st.last_status in {s.value for s in UpdateStatus} else "Not checked yet"
+        return status_line(UpdateStatus(st.last_status)) if st.last_status in {s.value for s in UpdateStatus} \
+            else "Not checked yet"
 
     # ------------------------------------------------------------------ checks
 
@@ -226,9 +236,26 @@ class UpdateController(QObject):
             return
         if not manual:
             return  # automatic checks stay quiet unless there is an update
-        box = QMessageBox.information if res.status in (UpdateStatus.UP_TO_DATE, UpdateStatus.NOT_CONFIGURED) \
-            else QMessageBox.warning
+        if res.status == UpdateStatus.NOT_CONFIGURED:
+            self.show_not_configured(res)
+            return
+        box = QMessageBox.information if res.status == UpdateStatus.UP_TO_DATE else QMessageBox.warning
         box(self._window, "Check for Updates", f"{res.status.label}\n\n{res.message}")
+
+    def show_not_configured(self, res: CheckResult) -> None:
+        """The message points to GitHub Releases, so offer to open it (in the user's browser, only when
+        clicked; Monograph PDF itself contacts nothing)."""
+        box = QMessageBox(QMessageBox.Icon.Information, "Check for Updates",
+                          f"{res.status.label}\n\n{res.message}", parent=self._window)
+        box.setInformativeText(f"Installed version: {res.installed}")
+        open_page = box.addButton("Open Releases Page", QMessageBox.ButtonRole.ActionRole)
+        box.addButton(QMessageBox.StandardButton.Ok)
+        box.setDefaultButton(QMessageBox.StandardButton.Ok)
+        open_page.setToolTip(RELEASES_PAGE)
+        open_page.setAutoDefault(False)
+        box.exec()
+        if box.clickedButton() is open_page:
+            QDesktopServices.openUrl(QUrl(RELEASES_PAGE))
 
     def show_available(self, res: CheckResult) -> None:
         block = self._install_block(res)

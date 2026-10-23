@@ -111,11 +111,53 @@ def test_update_now_disabled_with_a_reason_when_not_installable(qtbot):
     assert not dlg.update_now.isEnabled()
 
 
-@pytest.mark.parametrize("status", [UpdateStatus.UNAVAILABLE, UpdateStatus.VERIFICATION_FAILED, UpdateStatus.NOT_CONFIGURED])
+@pytest.mark.parametrize("status", [UpdateStatus.UNAVAILABLE, UpdateStatus.VERIFICATION_FAILED])
 def test_manual_check_never_claims_up_to_date_when_it_could_not_verify(window, boxes, status):
     window._updates._checked(CheckResult(status, "simulated", "0.3.0"), True)
     assert boxes and "Up to date" not in boxes[-1][2]
     assert status.label in boxes[-1][2]
+
+
+@pytest.mark.parametrize("click_open", [False, True])
+def test_not_configured_offers_the_releases_page_only_when_asked(window, boxes, monkeypatch, click_open):
+    from PySide6.QtGui import QDesktopServices
+
+    from ui import update_dialogs
+
+    shown, opened = [], []
+
+    def fake_exec(box):
+        shown.append((box.windowTitle(), box.text(), box.informativeText(), [b.text() for b in box.buttons()]))
+        if click_open:
+            next(b for b in box.buttons() if b.text() == "Open Releases Page").click()
+        else:
+            box.button(QMessageBox.StandardButton.Ok).click()
+        return 0
+
+    monkeypatch.setattr(QMessageBox, "exec", fake_exec)
+    monkeypatch.setattr(QDesktopServices, "openUrl", staticmethod(lambda url: opened.append(url.toString())))
+    window._updates._checked(CheckResult(UpdateStatus.NOT_CONFIGURED, "Download from GitHub Releases.", "0.3.0"), True)
+    assert boxes == [] and len(shown) == 1
+    title, text, informative, buttons = shown[0]
+    assert title == "Check for Updates" and "Updates not configured" in text and "Up to date" not in text
+    assert "0.3.0" in informative and "Open Releases Page" in buttons
+    # nothing is opened unless the user clicks; then only the official Releases page
+    assert opened == ([update_dialogs.RELEASES_PAGE] if click_open else [])
+
+
+def test_status_after_a_check_does_not_repeat_updates(window, monkeypatch):
+    from ui.about_dialog import AboutDialog
+    from ui.settings_dialog import SettingsDialog
+
+    monkeypatch.setattr(window._updates, "show_not_configured", lambda res: None)
+    about = AboutDialog(window, updates=window._updates)
+    settings = SettingsDialog(window._prefs, window._updates, window)
+    about._updates.status_changed.connect(about._update_status)
+    window._updates._checked(CheckResult(UpdateStatus.NOT_CONFIGURED, "x", "0.3.0"), True)
+    assert about._build_info.text().endswith("Updates: Not configured for this build")
+    assert "Updates: Updates" not in about._build_info.text()
+    assert settings.updates.status.text() == "Not configured for this build"
+    assert window._updates.status_text() == "Not configured for this build"
 
 
 def test_automatic_check_is_quiet_unless_an_update_is_available(window, boxes, monkeypatch):
@@ -238,10 +280,17 @@ def test_failed_download_reports_the_real_reason(window, boxes, monkeypatch, tmp
     assert boxes[-1][1] == "Update not installed" and "does not match" in boxes[-1][2]
 
 
+def _sending_config():
+    from core.diagnostics.client import ReportingConfig
+
+    return ReportingConfig(True, "https://reports.example.invalid/v1")
+
+
 def test_error_report_dialog_has_exactly_two_decision_buttons(qtbot):
     from ui.error_report_dialog import DONT_SEND, SEND, ErrorReportDialog
 
-    dlg = ErrorReportDialog(reports.build(EventId.PDF_SAVE_FAILED, events=[]), summary="Save failed")
+    dlg = ErrorReportDialog(reports.build(EventId.PDF_SAVE_FAILED, events=[]), summary="Save failed",
+                            config=_sending_config())
     qtbot.addWidget(dlg)
     assert sorted(b.text() for b in dlg.findChildren(QPushButton)) == sorted([DONT_SEND, SEND])
     from PySide6.QtWidgets import QPlainTextEdit
@@ -256,7 +305,8 @@ def test_dont_send_transmits_nothing(qtbot, monkeypatch):
 
     sent = []
     monkeypatch.setattr(client, "send", lambda *a, **k: sent.append(a))
-    dlg = ErrorReportDialog(reports.build(EventId.PDF_SAVE_FAILED, events=[]), summary="x")
+    dlg = ErrorReportDialog(reports.build(EventId.PDF_SAVE_FAILED, events=[]), summary="x",
+                            config=_sending_config())
     qtbot.addWidget(dlg)
     dlg.dont_send.click()
     assert sent == [] and dlg.result() == 0
@@ -269,11 +319,32 @@ def test_send_to_developer_sends_exactly_the_shown_report_once(qtbot, monkeypatc
     sent = []
     monkeypatch.setattr(client, "send", lambda rep, cfg=None: sent.append(rep) or client.SendResult(False, "offline"))
     rep = reports.build(EventId.PDF_SAVE_FAILED, events=[])
-    dlg = ErrorReportDialog(rep, summary="x")
+    dlg = ErrorReportDialog(rep, summary="x", config=_sending_config())
     qtbot.addWidget(dlg)
     dlg.send_button.click()
     qtbot.waitUntil(lambda: dlg.sent is not None, timeout=5000)
     assert sent == [rep] and boxes[-1][0] == "warning" and boxes[-1][2] == "offline"  # genuine failure shown
+
+
+def test_build_without_reporting_service_offers_no_send_button(qtbot, monkeypatch):
+    """Regression: a disabled build offered "Send to Developer", showed "Sending…", then failed."""
+    from PySide6.QtGui import QGuiApplication
+
+    from core.diagnostics import client
+    from core.diagnostics.client import ReportingConfig
+    from ui.error_report_dialog import CLOSE, COPY, OPEN_ISSUES, SEND, ErrorReportDialog
+
+    sent = []
+    monkeypatch.setattr(client, "send", lambda *a, **k: sent.append(a))
+    dlg = ErrorReportDialog(reports.build(EventId.PDF_SAVE_FAILED, events=[]), summary="x",
+                            config=ReportingConfig(False, ""))
+    qtbot.addWidget(dlg)
+    texts = sorted(b.text() for b in dlg.findChildren(QPushButton))
+    assert texts == sorted([CLOSE, COPY, OPEN_ISSUES]) and SEND not in texts
+    dlg.copy_button.click()
+    assert "error_code: PDF_SAVE_FAILED" in QGuiApplication.clipboard().text()
+    dlg.dont_send.click()
+    assert sent == [] and dlg.result() == 0
 
 
 def test_unexpected_errors_offer_a_report_but_ordinary_file_problems_do_not(window, monkeypatch, boxes):

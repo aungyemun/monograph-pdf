@@ -76,6 +76,7 @@ class AnnotInfo:
     color: str = ""  # #rrggbb of the stroke colour, if any
     opacity: float = 1.0
     is_reply_or_popup: bool = False
+    marked_text: str = ""  # the words a highlight / underline / strikethrough covers
 
 
 def _page(document: PdfDocument, page_index: int) -> fitz.Page:
@@ -258,6 +259,50 @@ def annotations_at(
             hits.append({"xref": int(annot.xref), "kind": kind, "nm": (annot.info or {}).get("id") or "",
                          "rect": (float(r.x0), float(r.y0), float(r.x1), float(r.y1))})
     return hits
+
+
+def annotations_along(
+    document: PdfDocument, page_index: int, points: list[Point], *, radius_pt: float = 5.0
+) -> list[dict]:
+    """Every erasable markup annotation touched by an eraser drawn through ``points`` (unrotated page
+    space) with a tip of ``radius_pt``; each once, topmost last. One point = everything under it.
+
+    The path is sampled about every 1.5 pt, so a quick stroke that jumps between mouse positions
+    still erases what lies between them."""
+    import math
+
+    if not points:
+        return []
+    samples: list[Point] = [points[0]]
+    for a, b in zip(points, points[1:]):
+        steps = max(1, int(math.hypot(b.x - a.x, b.y - a.y) / 1.5))
+        samples.extend(Point(a.x + (b.x - a.x) * i / steps, a.y + (b.y - a.y) * i / steps) for i in range(1, steps + 1))
+    found: dict[int, dict] = {}
+    order: list[int] = []
+    for pt in samples:
+        for hit in annotations_at(document, page_index, pt, tolerance_pt=radius_pt * 2.0):
+            if hit["xref"] not in found:
+                found[hit["xref"]] = hit
+                order.append(hit["xref"])
+    # quads are tested against the tip's centre; widen the box test by the tip as well
+    if radius_pt > 0.5:
+        page = _page(document, page_index)
+        for annot in page.annots() or []:
+            if annot.type[1] not in ERASABLE or int(annot.xref) in found or annot.type[1] == "Ink":
+                continue
+            v = annot.vertices or []
+            for i in range(0, len(v) - 3, 4):
+                xs = [p[0] for p in v[i: i + 4]]
+                ys = [p[1] for p in v[i: i + 4]]
+                if any(min(xs) - radius_pt <= s.x <= max(xs) + radius_pt and min(ys) - radius_pt <= s.y <= max(ys) + radius_pt
+                       for s in samples):
+                    r = annot.rect
+                    found[int(annot.xref)] = {"xref": int(annot.xref), "kind": annot.type[1],
+                                              "nm": (annot.info or {}).get("id") or "",
+                                              "rect": (float(r.x0), float(r.y0), float(r.x1), float(r.y1))}
+                    order.append(int(annot.xref))
+                    break
+    return [found[x] for x in order]
 
 
 def snapshot_annotation(document: PdfDocument, page_index: int, xref: int) -> dict | None:
@@ -509,6 +554,9 @@ def add_text_comment(
         annot.set_info(title=author)
     annot.update()
     _set_nm(document, int(annot.xref), new_annotation_id())
+    from core.annotations.note_style import style_sticky_note
+
+    style_sticky_note(document, page_index, int(annot.xref))  # clean bubble instead of MuPDF's square icon
     document.invalidate_pages()
     return int(annot.xref)
 
@@ -646,6 +694,17 @@ def list_annotations(document: PdfDocument) -> list[AnnotInfo]:
             color = "#%02x%02x%02x" % tuple(int(max(0, min(1, c)) * 255) for c in stroke[:3]) if len(stroke) >= 3 else ""
             kind = str(annot.type[1] if annot.type else "annot")
             irt = doc.xref_get_key(annot.xref, "IRT")[0] != "null"
+            marked = ""
+            if kind in ("Highlight", "Underline", "StrikeOut", "Squiggly"):
+                try:
+                    v = annot.vertices or []
+                    parts = []
+                    for q in range(0, len(v) - 3, 4):
+                        quad = fitz.Quad(v[q: q + 4])
+                        parts.append(page.get_textbox(quad.rect).strip())
+                    marked = " ".join(" ".join(p.split()) for p in parts if p)
+                except Exception:  # noqa: BLE001 — the label is a convenience only
+                    marked = ""
             out.append(
                 AnnotInfo(
                     page_index=i,
@@ -658,6 +717,7 @@ def list_annotations(document: PdfDocument) -> list[AnnotInfo]:
                     color=color,
                     opacity=float(annot.opacity) if annot.opacity >= 0 else 1.0,
                     is_reply_or_popup=irt or kind == "Popup",
+                    marked_text=marked,
                 )
             )
     return out

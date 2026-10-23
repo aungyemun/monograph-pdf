@@ -31,6 +31,12 @@ class MuPdfBackend:
         # Kept in memory only (never written to disk, logs or session data) so that Save can
         # keep the file's password protection.
         self._password: str | None = None
+        # Any security handler, also a permissions-only (owner) password that MuPDF unlocks on open
+        # (``is_encrypted`` is then False, but the restrictions still apply and must be kept).
+        try:
+            self._has_security = bool(was_encrypted or needs_password or (doc.metadata or {}).get("encryption"))
+        except Exception:  # noqa: BLE001
+            self._has_security = bool(was_encrypted or needs_password)
 
     @classmethod
     def open(cls, path: Path, password: str | None = None) -> "MuPdfBackend":
@@ -85,7 +91,7 @@ class MuPdfBackend:
             creation_date=str(meta.get("creationDate") or ""),
             mod_date=str(meta.get("modDate") or ""),
             page_count=self.page_count,
-            encrypted=bool(self._was_encrypted or self._doc.is_encrypted),
+            encrypted=bool(self._was_encrypted or self._doc.is_encrypted or self._has_security),
             needs_password=bool(self._needs_password),
             permissions=perms,
             has_acroform=self._detect_acroform(),
@@ -100,8 +106,9 @@ class MuPdfBackend:
             p = int(self._doc.permissions)
         except Exception:  # noqa: BLE001
             p = -1
-        # When not encrypted, treat as fully permitted for local viewing.
-        if not self._doc.is_encrypted and p < 0:
+        # Without any security handler every action is allowed. (A negative value is NOT "unknown":
+        # MuPDF returns the signed permission bits, e.g. -3388 for "printing only".)
+        if not getattr(self, "_has_security", False) and not self._doc.is_encrypted:
             return {
                 "print": True,
                 "copy": True,
@@ -275,7 +282,7 @@ class MuPdfBackend:
             # Still a deliberate write; incremental=False rewrites destination only.
             pass
         encrypt = (
-            fitz.PDF_ENCRYPT_KEEP if self._doc.is_encrypted else fitz.PDF_ENCRYPT_NONE
+            fitz.PDF_ENCRYPT_KEEP if (self._doc.is_encrypted or self._has_security) else fitz.PDF_ENCRYPT_NONE
         )
         # Always write a full new file (not an in-place incremental edit of the source).
         self._doc.save(
@@ -296,7 +303,8 @@ def snapshot_bytes(backend: "MuPdfBackend") -> bytes:
     """The live document as PDF bytes with every object number unchanged (no garbage collection) and
     its encryption kept, for undo of page operations."""
     doc = backend._doc  # noqa: SLF001
-    keep = bool(backend._password) and bool((doc.metadata or {}).get("encryption"))  # noqa: SLF001
+    keep = (bool(backend._password) or bool(getattr(backend, "_has_security", False))) \
+        and bool((doc.metadata or {}).get("encryption"))  # noqa: SLF001 — also a permissions-only password
     return doc.tobytes(garbage=0, deflate=False, encryption=fitz.PDF_ENCRYPT_KEEP if keep else fitz.PDF_ENCRYPT_NONE)
 
 

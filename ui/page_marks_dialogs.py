@@ -12,6 +12,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QImage, QPixmap
 from PySide6.QtWidgets import (
+    QAbstractScrollArea,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -25,7 +26,9 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QRadioButton,
+    QScrollArea,
     QSlider,
+    QToolButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -44,7 +47,10 @@ from core.convert.page_marks import (
 )
 
 IMAGE_FILTER = "Pictures (*.png *.jpg *.jpeg *.bmp *.gif *.tif *.tiff *.webp)"
-PREVIEW_W, PREVIEW_H = 240, 300
+PREVIEW_W, PREVIEW_H = 360, 470  # large enough to read header / footer text without zooming
+ZOOMS = (("Fit page", "page"), ("Fit width", "width"), ("100 %", 1.0), ("150 %", 1.5), ("200 %", 2.0),
+         ("300 %", 3.0), ("400 %", 4.0))
+MAX_DPI = 400.0
 
 
 def _title(text: str) -> QLabel:
@@ -101,13 +107,26 @@ def _save_preset(name: str, values: dict) -> None:
 
 
 class ColorButton(QPushButton):
-    def __init__(self, color: str, title: str, parent=None) -> None:
+    """Shows the chosen colour; a click offers curated colours (``palette``: "ink" for text and
+    watermarks, "paper" for backgrounds) and "More colors…" for any other.
+
+    The button's style is scoped to itself and the full picker is parented to the dialog: an
+    unscoped ``background:`` style used to spread into the colour picker it opened, tinting the
+    whole picker grey (watermark) or cream (background)."""
+
+    def __init__(self, color: str, title: str, parent=None, *, palette: str = "ink") -> None:
         super().__init__(parent)
+        from ui.color_swatches import INK_COLORS, PAPER_COLORS, SwatchMenu
+
         self._color = QColor(color)
         self._title = title
-        self.setFixedWidth(90)
-        self.setToolTip(title)
-        self.clicked.connect(self._pick)
+        self.setObjectName("PageMarkColorButton")
+        self.setMinimumWidth(self.fontMetrics().horizontalAdvance("#MMMMMM") + 28)
+        self.setToolTip(f"{title} — choose a color")
+        self.setAccessibleName(title)
+        colors = PAPER_COLORS + INK_COLORS if palette == "paper" else INK_COLORS + PAPER_COLORS[:6]
+        self._menu = SwatchMenu(colors, self.set_name, title=title, current=self.name, parent=self)
+        self.setMenu(self._menu)
         self._sync()
         self.on_change = None
 
@@ -115,14 +134,17 @@ class ColorButton(QPushButton):
         c = self._color
         text = "#ffffff" if c.lightness() < 128 else "#111827"
         self.setText(c.name().upper())
-        self.setStyleSheet(f"background:{c.name()}; color:{text}; border:1px solid #9aa3af;")
+        self.setStyleSheet(
+            f"QPushButton#PageMarkColorButton {{ background:{c.name()}; color:{text}; border:1px solid #9aa3af;"
+            " border-radius: 4px; padding: 4px 10px; }"
+        )
 
     def _pick(self) -> None:
-        from PySide6.QtWidgets import QColorDialog
+        from ui.color_swatches import pick_color_dialog
 
-        c = QColorDialog.getColor(self._color, self, self._title)
-        if c.isValid():
-            self.set_name(c.name())
+        chosen = pick_color_dialog(self, self._color.name(), self._title)
+        if chosen:
+            self.set_name(chosen)
 
     def set_name(self, name: str) -> None:
         c = QColor(name)
@@ -170,24 +192,145 @@ class PageScope(QWidget):
         return None
 
 
-class MarksPreview(QLabel):
-    """Small render of the current page with the marks as they will be written."""
+def _fitz_doc(source):
+    return source if hasattr(source, "load_page") else source._backend._doc  # noqa: SLF001
 
-    def __init__(self, source, page_index: int, parent=None) -> None:
+
+class PreviewView(QWidget):
+    """Page preview with the marks as they will be written: zoom (fit page, fit width, 100–400 %,
+    Ctrl + mouse wheel), scrolling when zoomed, and Previous / Next page. The page is rendered again
+    at the chosen zoom, so text stays sharp instead of being enlarged pixels."""
+
+    def __init__(self, source, page_index: int, parent=None, *, size: tuple[int, int] = (PREVIEW_W, PREVIEW_H)) -> None:
         super().__init__(parent)
         self._source = source
         self._page = page_index
-        self.setFixedSize(PREVIEW_W, PREVIEW_H)
-        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setObjectName("MarksPreview")
-        self.setStyleSheet("#MarksPreview { border: 1px solid #9aa3af; background: #6b7280; }")
+        self._kwargs: dict = {}
+        self.error = ""
+        self._zoom: object = "page"
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(6)
+        self.scroll = QScrollArea()
+        self.scroll.setObjectName("MarksPreview")
+        self.scroll.setStyleSheet("#MarksPreview { border: 1px solid #9aa3af; background: #6b7280; }")
+        self.scroll.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.scroll.setWidgetResizable(False)
+        self.scroll.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustIgnored)
+        self.scroll.setMinimumSize(*size)
+        self._label = QLabel()
+        self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._label.setStyleSheet("background: transparent; color: #ffffff;")
+        self._label.setAccessibleName("Page preview")
+        self.scroll.setWidget(self._label)
+        self.scroll.viewport().installEventFilter(self)
+        lay.addWidget(self.scroll, 1)
+
+        bar = QHBoxLayout()
+        bar.setSpacing(4)
+        self.prev_btn = QToolButton()
+        self.prev_btn.setText("◀")
+        self.prev_btn.setToolTip("Previous page")
+        self.prev_btn.setAccessibleName("Previous page")
+        self.next_btn = QToolButton()
+        self.next_btn.setText("▶")
+        self.next_btn.setToolTip("Next page")
+        self.next_btn.setAccessibleName("Next page")
+        self.page_label = QLabel()
+        self.zoom_out_btn = QToolButton()
+        self.zoom_out_btn.setText("−")
+        self.zoom_out_btn.setToolTip("Zoom out")
+        self.zoom_out_btn.setAccessibleName("Zoom out")
+        self.zoom_in_btn = QToolButton()
+        self.zoom_in_btn.setText("+")
+        self.zoom_in_btn.setToolTip("Zoom in (or Ctrl + mouse wheel)")
+        self.zoom_in_btn.setAccessibleName("Zoom in")
+        self.zoom_box = QComboBox()
+        self.zoom_box.setAccessibleName("Preview zoom")
+        for label, value in ZOOMS:
+            self.zoom_box.addItem(label, value)
+        bar.addWidget(self.prev_btn)
+        bar.addWidget(self.page_label)
+        bar.addWidget(self.next_btn)
+        bar.addStretch(1)
+        bar.addWidget(self.zoom_out_btn)
+        bar.addWidget(self.zoom_box)
+        bar.addWidget(self.zoom_in_btn)
+        lay.addLayout(bar)
+        self.prev_btn.clicked.connect(lambda: self.set_page(self._page - 1))
+        self.next_btn.clicked.connect(lambda: self.set_page(self._page + 1))
+        self.zoom_box.currentIndexChanged.connect(lambda *_: self._zoom_changed())
+        self.zoom_in_btn.clicked.connect(lambda: self.step_zoom(+1))
+        self.zoom_out_btn.clicked.connect(lambda: self.step_zoom(-1))
+
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(150)
         self._timer.timeout.connect(self._render)
-        self._kwargs: dict = {}
-        self.error = ""
+        self._sync_nav()
 
+    # --- compatibility with a plain label -----------------------------------------------------
+    def pixmap(self) -> QPixmap:
+        return self._label.pixmap()
+
+    def setText(self, text: str) -> None:  # noqa: N802
+        self._label.setPixmap(QPixmap())
+        self._label.setText(text)
+        self._label.adjustSize()
+
+    # --- state ----------------------------------------------------------------------------------
+    def page_count(self) -> int:
+        try:
+            return int(_fitz_doc(self._source).page_count) if self._source is not None else 0
+        except Exception:  # noqa: BLE001
+            return 0
+
+    def page(self) -> int:
+        return self._page
+
+    def set_page(self, index: int) -> None:
+        n = self.page_count()
+        if n <= 0:
+            return
+        index = max(0, min(int(index), n - 1))
+        if index != self._page:
+            self._page = index
+            self._sync_nav()
+            self.render_now()
+
+    def set_zoom(self, value) -> None:
+        idx = self.zoom_box.findData(value)
+        if idx >= 0:
+            self.zoom_box.setCurrentIndex(idx)
+
+    def step_zoom(self, step: int) -> None:
+        i = max(0, min(self.zoom_box.count() - 1, self.zoom_box.currentIndex() + step))
+        if i < 2 and step > 0:  # from a "fit" choice, zooming in goes to the first percentage
+            i = 2
+        self.zoom_box.setCurrentIndex(i)
+
+    def _zoom_changed(self) -> None:
+        self._zoom = self.zoom_box.currentData()
+        self.render_now()
+
+    def _sync_nav(self) -> None:
+        n = self.page_count()
+        self.page_label.setText(f"Page {self._page + 1} of {n}" if n else "")
+        self.prev_btn.setEnabled(self._page > 0)
+        self.next_btn.setEnabled(self._page < n - 1)
+
+    def eventFilter(self, obj, event) -> bool:  # noqa: N802
+        from PySide6.QtCore import QEvent
+
+        if obj is self.scroll.viewport():
+            if event.type() == QEvent.Type.Wheel and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                self.step_zoom(+1 if event.angleDelta().y() > 0 else -1)
+                return True
+            if event.type() == QEvent.Type.Resize and isinstance(self._zoom, str):
+                self._timer.start()
+        return super().eventFilter(obj, event)
+
+    # --- rendering ------------------------------------------------------------------------------
     def request(self, **kwargs) -> None:
         self._kwargs = kwargs
         if self._source is None:
@@ -199,22 +342,85 @@ class MarksPreview(QLabel):
         self._timer.stop()
         self._render()
 
+    def _dpi(self, w: float, h: float) -> float:
+        vp = self.scroll.viewport().size()
+        avail_w = max(80, vp.width() - 12)
+        avail_h = max(80, vp.height() - 12)
+        if self._zoom == "page":
+            dpi = 72.0 * min(avail_w / w, avail_h / h)
+        elif self._zoom == "width":
+            dpi = 72.0 * avail_w / w
+        else:
+            dpi = 72.0 * float(self._zoom)
+        return dpi
+
     def _render(self) -> None:
+        if self._source is None:
+            return
         try:
             src = self._source
-            page = src.load_page(self._page) if hasattr(src, "load_page") else src._backend._doc.load_page(self._page)  # noqa: SLF001
+            page = _fitz_doc(src).load_page(self._page)
             w, h = page.rect.width, page.rect.height
-            dpi = 72.0 * min((PREVIEW_W - 8) / w, (PREVIEW_H - 8) / h)
-            pix = render_preview(src, self._page, dpi=dpi, **self._kwargs)
+            dpi = max(4.0, self._dpi(w, h))
+            ratio = max(1.0, float(self.devicePixelRatioF()))
+            rendered = min(MAX_DPI, dpi * ratio)
+            pix = render_preview(src, self._page, dpi=rendered, **self._kwargs)
             img = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGB888).copy()
-            self.setPixmap(QPixmap.fromImage(img))
+            pm = QPixmap.fromImage(img)
+            pm.setDevicePixelRatio(rendered / dpi)  # shown at the zoom's size; sharp on high-DPI screens
+            self._label.setText("")
+            self._label.setWordWrap(False)
+            self._label.setMinimumWidth(0)
+            self._label.setMaximumWidth(16777215)  # undo the width set for an earlier error message
+            self._label.setPixmap(pm)
+            self._label.adjustSize()
             self.error = ""
-            self.setToolTip(f"Preview of page {self._page + 1}")
+            self._label.setToolTip(f"Preview of page {self._page + 1} — Ctrl + mouse wheel zooms")
         except Exception as exc:  # noqa: BLE001 — e.g. an unreadable picture: say so, keep the dialog usable
             self.error = str(exc)
-            self.setPixmap(QPixmap())
+            self._label.setWordWrap(True)
+            self._label.setFixedWidth(max(160, self.scroll.viewport().width() - 16))
             self.setText("Preview unavailable:\n" + str(exc)[:120])
-            self.setWordWrap(True)
+
+
+class MarksPreview(PreviewView):
+    """The preview in each page-design dialog, with a button for a large, resizable preview window."""
+
+    def __init__(self, source, page_index: int, parent=None) -> None:
+        super().__init__(source, page_index, parent)
+        self.large_btn = QPushButton("Larger Preview…")
+        self.large_btn.setToolTip("Open the preview in a large window you can resize or maximise")
+        self.large_btn.clicked.connect(self.open_large)
+        self.layout().addWidget(self.large_btn)
+        self.large_btn.setEnabled(source is not None)
+        self._large: QDialog | None = None
+
+    def request(self, **kwargs) -> None:
+        super().request(**kwargs)
+        if self._large is not None and self._large.isVisible():
+            self._large.view.request(**kwargs)
+
+    def open_large(self) -> None:
+        if self._source is None:
+            return
+        if self._large is None:
+            dlg = QDialog(self.window())
+            dlg.setWindowTitle("Preview")
+            dlg.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
+            lay = QVBoxLayout(dlg)
+            dlg.view = PreviewView(self._source, self._page, dlg, size=(560, 700))
+            lay.addWidget(dlg.view, 1)
+            close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+            close.rejected.connect(dlg.close)
+            lay.addWidget(close)
+            dlg.resize(760, 920)
+            self._large = dlg
+        view = self._large.view
+        view.set_page(self._page)
+        view._kwargs = dict(self._kwargs)  # noqa: SLF001
+        self._large.show()
+        self._large.raise_()
+        view.render_now()
 
 
 class _MarksDialog(QDialog):
@@ -646,7 +852,7 @@ class BackgroundDialog(_MarksDialog):
         crow = QHBoxLayout()
         self.use_color = QCheckBox("Color")
         self.use_color.setChecked(True)
-        self.color = ColorButton("#fff8e1", "Background color")
+        self.color = ColorButton("#fff8e1", "Background color", palette="paper")
         self.color.on_change = self.refresh
         crow.addWidget(self.use_color)
         crow.addWidget(self.color)

@@ -189,6 +189,121 @@ class MainWindow(QMainWindow):
                     QTimer.singleShot(0, lambda p=arg: self.open_path(p))
                     break
 
+    # ------------------------------------------------------------------ memory-saving mode (minimized)
+    ECO_DELAY_MS = 3000  # a quick minimize / restore keeps everything as it was
+
+    def changeEvent(self, event) -> None:  # noqa: N802
+        super().changeEvent(event)
+        if event.type() != QEvent.Type.WindowStateChange:
+            return
+        self._eco_state()
+        if self.isMinimized():
+            self._eco_timer.start(self.ECO_DELAY_MS)
+        else:
+            self._eco_timer.stop()
+            if self._eco_active:
+                self._leave_memory_saving()
+
+    def _eco_state(self) -> QTimer:
+        """The memory-saving timer and flags (made on first use: changeEvent can run during start-up)."""
+        if getattr(self, "_eco_timer", None) is None:
+            self._eco_timer = QTimer(self)
+            self._eco_timer.setSingleShot(True)
+            self._eco_timer.timeout.connect(self._enter_memory_saving)
+            self._eco_active = False
+            self._eco_qos = False
+        return self._eco_timer
+
+    def _enter_memory_saving(self) -> None:
+        """Minimized for a few seconds: release what can be drawn again and let Windows run the
+        program in efficiency mode (unless a background job such as OCR is running)."""
+        if not self.isMinimized():
+            return
+        from core import memory_saver
+
+        self._eco_state()
+        self._eco_active = True
+        try:
+            self._canvas.release_memory()
+            self._left.thumbs.release_images()
+        except Exception:  # noqa: BLE001
+            pass
+        memory_saver.release_library_memory()
+        if not memory_saver.background_work_running():
+            self._eco_qos = memory_saver.set_efficiency_mode(True)
+        else:  # try again later: a job may finish while the window stays minimized
+            self._eco_timer.start(20000)
+
+    def _leave_memory_saving(self) -> None:
+        from core import memory_saver
+
+        self._eco_state()
+        self._eco_active = False
+        if self._eco_qos:
+            memory_saver.set_efficiency_mode(False)
+            self._eco_qos = False
+        try:
+            self._canvas.restore_after_release()
+            self._left.thumbs.restore_images()
+        except Exception:  # noqa: BLE001
+            pass
+
+    # ------------------------------------------------------------------ second start (single instance)
+    def handle_instance_request(self, files: list[str]) -> None:
+        """Monograph PDF was started again: come to the front and open the file it was started with
+        (one document at a time), or say that it is already running."""
+        self.bring_to_front()
+        openable = [f for f in files if is_openable(f) and Path(f).is_file()]
+        if not openable:
+            self._show_already_running()
+            return
+        self._pending_open = openable[0]
+        if len(openable) > 1:
+            self.statusBar().showMessage(
+                f"Opening {Path(openable[0]).name} — Monograph PDF shows one document at a time", 8000)
+        self._open_pending_when_free()
+
+    def _open_pending_when_free(self) -> None:
+        """Open the handed-over file once no dialog is waiting for an answer (never inside one)."""
+        path = getattr(self, "_pending_open", None)
+        if not path:
+            return
+        if QApplication.activeModalWidget() is not None or QApplication.activePopupWidget() is not None:
+            self.statusBar().showMessage(
+                f"{Path(path).name} opens when the open dialog is closed", 4000)
+            QTimer.singleShot(500, self._open_pending_when_free)
+            return
+        self._pending_open = None
+        self.open_path(path)
+
+    def bring_to_front(self) -> None:
+        if self.isMinimized():
+            self.setWindowState((self.windowState() & ~Qt.WindowState.WindowMinimized) | Qt.WindowState.WindowActive)
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        if sys.platform.startswith("win"):
+            try:
+                import ctypes
+
+                ctypes.WinDLL("user32").SetForegroundWindow(int(self.winId()))
+            except Exception:  # noqa: BLE001
+                pass
+
+    def _show_already_running(self) -> None:
+        self.statusBar().showMessage("Monograph PDF is already running — this is the open window", 6000)
+        box = getattr(self, "_running_box", None)
+        if box is not None and box.isVisible():
+            box.raise_()
+            return
+        box = QMessageBox(QMessageBox.Icon.Information, "Monograph PDF",
+                          "Monograph PDF is already running.\n\nThis is the open window — "
+                          "use File ▸ Open to open another PDF.", QMessageBox.StandardButton.Ok, self)
+        box.setWindowModality(Qt.WindowModality.NonModal)
+        self._running_box = box
+        box.open()
+        QTimer.singleShot(8000, box.close)
+
     def _build_actions(self) -> None:
         self.act_open = QAction("&Open…", self)
         self.act_open.setShortcut(QKeySequence.StandardKey.Open)
@@ -351,10 +466,15 @@ class MainWindow(QMainWindow):
         self.act_scan_to_word.triggered.connect(self._scan_to_word)
 
         # Pages / organize
-        self.act_insert_blank = QAction("Insert &Blank Page", self)
-        self.act_insert_blank.triggered.connect(self._insert_blank_page)
-        self.act_insert_pdf = QAction("Insert &PDF Pages…", self)
-        self.act_insert_pdf.triggered.connect(self._insert_pdf_pages)
+        self.act_insert_blank = QAction("Insert &Blank Pages…", self)
+        self.act_insert_blank.setToolTip("Insert one or more blank pages before or after any page")
+        self.act_insert_blank.triggered.connect(lambda: self._insert_blank_page(ask=True))
+        self.act_insert_pdf = QAction("Insert Pages from &PDF…", self)
+        self.act_insert_pdf.setToolTip("Insert the pages of another PDF before or after any page")
+        self.act_insert_pdf.triggered.connect(lambda: self._insert_pdf_pages(ask=True))
+        self.act_move_pages = QAction("&Move Pages…", self)
+        self.act_move_pages.setToolTip("Move the selected pages before or after any page (or drag them in the page list)")
+        self.act_move_pages.triggered.connect(lambda: self._move_selected_pages(ask=True))
         self.act_delete_pages = QAction("&Delete Pages", self)
         self.act_delete_pages.triggered.connect(self._delete_selected_pages)
         self.act_dup_pages = QAction("Du&plicate Pages", self)
@@ -693,7 +813,7 @@ class MainWindow(QMainWindow):
             self.act_text_tool: "Add a text box",
             self.act_image_tool: "Place an image on the current page",
             self.act_annot_highlight: "Highlight — click to toggle on/off; draw over text or any blank area; change colour without leaving the tool; Esc cancels a stroke, Esc again exits",
-            self.act_annot_eraser: "Eraser — click a highlight or ink annotation to remove it; click again or Esc to exit; Undo restores it",
+            self.act_annot_eraser: "Eraser — draw over highlights, underlines, strikethroughs or ink to remove them (a click removes everything under the pointer); click again or Esc to exit; Undo restores them",
             self.act_annot_comment: "Add a sticky-note comment",
             self.act_open: "Open a PDF",
             self.act_save: "Save changes",
@@ -1127,6 +1247,7 @@ class MainWindow(QMainWindow):
             ("col_delete", self.act_table_del_col),
             ("pages_to_doc", self.act_copy_to_doc),
             ("pages_move", self.act_move_to_doc),
+            ("pages_reorder", self.act_move_pages),
             ("redact_pages", self.act_redact_pages),
             ("count", self.act_redact_preview),
             ("about", self.act_about),
@@ -1340,6 +1461,7 @@ class MainWindow(QMainWindow):
         organize.addAction(self.act_insert_blank)
         organize.addAction(self.act_insert_pdf)
         organize.addAction(self.act_replace_page)
+        organize.addAction(self.act_move_pages)
         organize.addSeparator()
         organize.addAction(self.act_dup_pages)
         organize.addAction(self.act_delete_pages)
@@ -1642,7 +1764,8 @@ class MainWindow(QMainWindow):
         self._left.bookmarkRetargetRequested.connect(self._bookmark_retarget)
         self._left.thumbs.set_context_actions([
             self.act_rotate_cw, self.act_rotate_ccw, None,
-            self.act_insert_blank, self.act_insert_pdf, self.act_dup_pages, self.act_replace_page, None,
+            self.act_insert_blank, self.act_insert_pdf, self.act_dup_pages, self.act_replace_page,
+            self.act_move_pages, None,
             self.act_extract_pages, self.act_copy_to_doc, self.act_move_to_doc, None,
             self.act_crop_page, self.act_page_sizes, None,
             self.act_delete_pages,
@@ -1651,6 +1774,7 @@ class MainWindow(QMainWindow):
         self._canvas.annotationMoveRequested.connect(self._annot_move)
         self._canvas.annotationDeleteRequested.connect(lambda page, xref: self._comment_delete(self._annot_ref(page, xref)))
         self._canvas.annotationEditRequested.connect(lambda page, xref: self._comment_edit_text(self._annot_ref(page, xref)))
+        self._canvas.imageEditRequested.connect(self._edit_image_object)
         comments = self._left.comments
         comments.commentActivated.connect(self._comment_go_to)
         comments.editTextRequested.connect(self._comment_edit_text)
@@ -1662,6 +1786,9 @@ class MainWindow(QMainWindow):
         self._canvas.selectionChanged.connect(self._on_selection_changed)
         self._canvas.editModelChanged.connect(self._on_edit_changed)
         self._canvas.requestStatus.connect(self.statusBar().showMessage)
+        self._canvas._canvas.history_handler = (  # noqa: SLF001
+            lambda op: self._undo() if op == "undo" else self._redo()
+        )
         self._canvas.regionPickCancelled.connect(self._on_region_pick_cancelled)
         self._canvas.fieldValueEdited.connect(self._on_field_typed)
         self._canvas.fieldEditorFormatChanged.connect(self._on_field_editor_format)
@@ -2255,22 +2382,23 @@ class MainWindow(QMainWindow):
         from PySide6.QtGui import QColor
         from PySide6.QtWidgets import QColorDialog
 
-        box = self._selected_text_box()
-        if box is None:
-            field = self._selected_style_field()
-            if field is not None:
-                inner = self._canvas._canvas  # noqa: SLF001
-                current = (inner.field_editor_style() or {}).get("color") or field.text_color or "#000000"
-                c = QColorDialog.getColor(QColor(current), self, "Text color")
-                if c.isValid() and not inner.format_field_selection(color=c.name()):
-                    self._restyle_field(field, color=c.name())
+        boxes = self._selected_text_boxes()
+        fields = self._selected_style_fields()
+        if not self._edit or not (boxes or fields):
             return
-        c = QColorDialog.getColor(QColor(box.style.text_color or "#000000"), self, "Text color")
-        if not c.isValid() or not self._edit:
+        inner = self._canvas._canvas  # noqa: SLF001
+        if boxes:
+            current = boxes[0].style.text_color or "#000000"
+        else:
+            current = (inner.field_editor_style() or {}).get("color") or fields[0].text_color or "#000000"
+        c = QColorDialog.getColor(QColor(current), self, "Text color")
+        if not c.isValid():
             return
-        style = box.style.copy()
-        style.text_color = c.name()
-        self._edit.change_style(box.object_id, style=style)
+        if fields and inner.format_field_selection(color=c.name()):
+            return  # only the selected words
+        self._restyle_boxes(text_color=c.name())
+        if fields:
+            self._restyle_field(fields, color=c.name())
 
     def _set_mode(self, mode: WorkspaceMode) -> None:
         if self._edit is None:
@@ -2610,14 +2738,33 @@ class MainWindow(QMainWindow):
             self._on_edit_changed()
             return
         if self._edit:
-            self._edit.undo()
+            page = self._annotation_page(self._edit.commands._undo)  # noqa: SLF001
+            if self._edit.undo() and page is not None:
+                self._refresh_page_view(page)  # the comment / highlight disappears at once
 
     def _redo(self) -> None:
         if self._canvas.try_editor_redo():
             self._on_edit_changed()
             return
         if self._edit:
-            self._edit.redo()
+            page = self._annotation_page(self._edit.commands._redo)  # noqa: SLF001
+            if self._edit.redo() and page is not None:
+                self._refresh_page_view(page)
+
+    @staticmethod
+    def _annotation_page(stack) -> int | None:
+        """The page of the comment / highlight step on top of an undo or redo stack (None otherwise):
+        those steps change the PDF page itself, whose picture has to be drawn again."""
+        from core.editing import annot_commands as ac
+
+        from core.editing.edit_commands import GroupCommand
+
+        cmd = stack[-1] if stack else None
+        if isinstance(cmd, GroupCommand) and cmd.commands:  # e.g. one eraser stroke
+            cmd = cmd.commands[0]
+        kinds = (ac.MarkupAnnotCommand, ac.HighlightStrokeCommand, ac.EraseAnnotCommand,
+                 ac.AnnotCreateCommand, ac.AnnotRemoveCommand, ac.AnnotModifyCommand)
+        return int(cmd.page_index) if isinstance(cmd, kinds) else None
 
     def _copy(self) -> None:
         if self._edit:
@@ -2838,12 +2985,14 @@ class MainWindow(QMainWindow):
             stretch_hint("")
         elif kind == "shape":
             title("Shape")
+            self._add_shape_color_buttons(bar)
+            bar.addSeparator()
             for act in (self.act_bring_front, self.act_bring_forward, self.act_send_backward, self.act_send_back):
                 bar.addAction(act)
             bar.addSeparator()
             bar.addAction(self.act_duplicate)
             bar.addAction(self.act_delete)
-            stretch_hint("Change the line and fill in the Properties panel · hold Shift while drawing to constrain")
+            stretch_hint("Line width, style and opacity: Properties panel · hold Shift while drawing to constrain")
         elif kind == "image":
             title("Image")
             for act in (self.act_replace_image, self.act_export_image):
@@ -3049,6 +3198,62 @@ class MainWindow(QMainWindow):
         objs = self._edit.selected_objects()
         return objs[0] if objs else None
 
+    def _selected_shapes(self) -> list:
+        if not self._edit:
+            return []
+        return [self._edit.shapes[oid] for oid in self._edit.selection if oid in self._edit.shapes]
+
+    def _add_shape_color_buttons(self, bar) -> None:
+        """Line colour and fill colour for every selected shape, right on the context toolbar."""
+        from PySide6.QtWidgets import QToolButton
+
+        from ui.color_swatches import INK_COLORS, PAPER_COLORS, SwatchMenu, swatch_icon
+
+        shapes = self._selected_shapes()
+        if not shapes:
+            return
+        first = shapes[0]
+        closed = any(getattr(s.kind, "value", "") not in ("line", "arrow", "freehand") for s in shapes)
+
+        def apply(**change) -> None:
+            # The toolbar (with this button) is rebuilt by the deferred refresh the change triggers,
+            # never from inside the button's own menu handler
+            self._edit.update_shapes([s.object_id for s in self._selected_shapes()], **change)
+
+        line_btn = QToolButton()
+        line_btn.setObjectName("ShapeLineColor")
+        line_btn.setText("Line")
+        line_btn.setIcon(swatch_icon(first.stroke_color))
+        line_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        line_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        line_btn.setToolTip("Line color of the selected shapes")
+        line_btn.setMenu(SwatchMenu(INK_COLORS, lambda c: apply(stroke_color=c), title="Line color",
+                                    current=lambda: first.stroke_color, parent=line_btn))
+        bar.addWidget(line_btn)
+        if closed:
+            fill_btn = QToolButton()
+            fill_btn.setObjectName("ShapeFillColor")
+            fill_btn.setText("Fill")
+            fill_btn.setIcon(swatch_icon(first.fill_color))
+            fill_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            fill_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+            fill_btn.setToolTip("Fill color of the selected shapes")
+            fill_btn.setMenu(SwatchMenu(PAPER_COLORS + INK_COLORS, lambda c: apply(fill_color=c), title="Fill color",
+                                        current=lambda: first.fill_color, allow_none=True, parent=fill_btn))
+            bar.addWidget(fill_btn)
+
+    def _selected_text_boxes(self) -> list:
+        """Every selected text box (a rectangle drag or Ctrl+click can select several)."""
+        return list(self._edit.selected_objects()) if self._edit else []
+
+    def _restyle_boxes(self, **kwargs) -> bool:
+        """The same style setting on every selected text box (one undo step). False if none."""
+        boxes = self._selected_text_boxes()
+        if not boxes:
+            return False
+        self._edit.change_style_many([b.object_id for b in boxes], **kwargs)
+        return True
+
     def _wire_font_controls(self) -> None:
         if self._font_controls_wired:
             return
@@ -3066,14 +3271,17 @@ class MainWindow(QMainWindow):
         return ftype in ("text", "multiline", "date", "dropdown")
 
     def _selected_style_field(self):
-        """The selected text-like form field (when no text box is selected)."""
+        """The (first) selected text-like form field."""
+        fields = self._selected_style_fields()
+        return fields[0] if fields else None
+
+    def _selected_style_fields(self) -> list:
+        """Every selected text-like form field (a rectangle drag or Ctrl+click can select several)."""
         if not self._edit:
-            return None
-        fid = (self._edit.field_selection or [None])[0] or next(
-            (oid for oid in self._edit.selection if oid in self._edit.fields), None
-        )
-        field = self._edit.fields.get(fid) if fid else None
-        return field if self._is_styleable_field(field) else None
+            return []
+        ids = [*self._edit.field_selection, *(oid for oid in self._edit.selection if oid in self._edit.fields)]
+        fields = (self._edit.fields.get(fid) for fid in dict.fromkeys(ids))
+        return [f for f in fields if self._is_styleable_field(f)]
 
     def _restyle_field(
         self,
@@ -3089,6 +3297,11 @@ class MainWindow(QMainWindow):
         color: str | None = None,
         size_delta: float | None = None,
     ) -> None:
+        """Change the look of one field or a list of fields (one undo step).
+
+        ``size_delta`` without ``size`` (A+ / A−): each field grows or shrinks from its own size."""
+        from core.editing.edit_commands import field_style_state
+        from core.forms.autofit import effective_form_font_size
         from core.forms.rich_text import apply_to_all
 
         def state(f):
@@ -3105,14 +3318,27 @@ class MainWindow(QMainWindow):
             run_change["size_delta"] = size_delta
         elif size is not None:
             run_change["size"] = True
-        changed = False
+        targets: dict[str, object] = {}
         # Every place the same field is shown gets the same look (a PDF keeps one style per field)
-        for f in [field, *self._edit.same_field_widgets(field)]:
+        for chosen in (field if isinstance(field, (list, tuple)) else [field]):
+            for f in [chosen, *self._edit.same_field_widgets(chosen)]:
+                targets.setdefault(f.object_id, f)
+        if not targets:
+            return
+        snapshot = {oid: field_style_state(f) for oid, f in targets.items()}
+        field = next(iter(targets.values()))
+        changed = False
+        for f in targets.values():
             before = state(f)
             if family:
                 f.font_family = family
             if size is not None:
                 f.font_size = size
+            elif size_delta is not None:
+                current = float(f.font_size or 0)
+                if current <= 0:  # Auto: step from the size the text is shown at now
+                    current = float(round(effective_form_font_size(f, f.value or "M")))
+                f.font_size = max(4.0, min(200.0, current + size_delta))
             if wrap is not None:
                 f.multiline = wrap
             if bold is not None:
@@ -3133,6 +3359,7 @@ class MainWindow(QMainWindow):
                 changed = True
         if not changed:
             return
+        self._edit.push_field_style_change(snapshot, {oid: field_style_state(f) for oid, f in targets.items()})
         try:
             from core.editing.font_cache import remember_font
 
@@ -3146,77 +3373,62 @@ class MainWindow(QMainWindow):
     def _apply_font_family(self, family: str) -> None:
         if not family or not self._edit:
             return
-        box = self._selected_text_box()
-        if box is not None:
-            style = box.style.copy()
-            style.font_family = family
-            self._edit.change_style(box.object_id, style=style)
+        # Words selected inside the open box: only those words
+        if self._canvas._canvas.format_field_selection(family=family):  # noqa: SLF001
             return
-        field = self._selected_style_field()
-        if field is not None:
-            if self._canvas._canvas.format_field_selection(family=family):  # noqa: SLF001
-                return  # only the selected words
-            self._restyle_field(field, family=family)
+        # Otherwise every selected text box and form field
+        self._restyle_boxes(font_family=family)
+        fields = self._selected_style_fields()
+        if fields:
+            self._restyle_field(fields, family=family)
 
     def _apply_font_size_value(self, *_args) -> None:
         if not self._edit:
             return
         text = (self._font_size.currentText() or "").replace("pt", "").strip()
-        box = self._selected_text_box()
-        field = None if box is not None else self._selected_style_field()
+        fields = self._selected_style_fields()
         inner = self._canvas._canvas  # noqa: SLF001
-        if field is not None and text.lower() == "auto":
-            if not inner.format_field_selection(size=None):  # selected words follow the field again
-                self._restyle_field(field, size=0.0)
-            return
+        if text.lower() == "auto":
+            if fields and not inner.format_field_selection(size=None):  # selected words follow the field again
+                self._restyle_field(fields, size=0.0)
+            return  # text boxes have no automatic size
         try:
             size = max(4.0, min(200.0, float(text)))
         except ValueError:
             return
-        if box is not None:
-            style = box.style.copy()
-            style.font_size = size
-            self._edit.change_style(box.object_id, style=style)
-        elif field is not None:
-            if inner.format_field_selection(size=size):
-                return
-            self._restyle_field(field, size=size)
+        if inner.format_field_selection(size=size):
+            return
+        self._restyle_boxes(font_size=size)
+        if fields:
+            self._restyle_field(fields, size=size)
 
     def _nudge_font_size(self, delta: float) -> None:
-        box = self._selected_text_box()
-        if box is not None:
-            style = box.style.copy()
-            style.font_size = max(4.0, min(200.0, style.font_size + delta))
-            self._edit.change_style(box.object_id, style=style)
-            self._font_size.setCurrentText(f"{style.font_size:.0f} pt")
+        if not self._edit:
             return
-        field = self._selected_style_field()
-        if field is not None and self._canvas._canvas.format_field_selection(size_delta=delta):  # noqa: SLF001
+        if self._canvas._canvas.format_field_selection(size_delta=delta):  # noqa: SLF001
             return  # each selected word grows / shrinks from its own size
-        if field is not None:
-            current = float(field.font_size or 0)
-            if current <= 0:  # Auto: step from the size the text is shown at now
-                from core.forms.autofit import effective_form_font_size
-
-                current = float(round(effective_form_font_size(field, field.value or "M")))
-            size = max(4.0, min(200.0, current + delta))
-            self._restyle_field(field, size=size, size_delta=delta)
-            self._font_size.setCurrentText(f"{size:.0f} pt")
+        # Each selected box grows / shrinks from its own size (one undo step per kind)
+        boxes = self._selected_text_boxes()
+        if boxes:
+            self._edit.change_styles({
+                b.object_id: {"font_size": max(4.0, min(200.0, b.style.font_size + delta))} for b in boxes
+            })
+        fields = self._selected_style_fields()
+        if fields:
+            self._restyle_field(fields, size_delta=delta)
+        first = boxes[0].style.font_size if boxes else (fields[0].font_size if fields else 0)
+        if first:
+            self._font_size.setCurrentText(f"{first:.0f} pt")
 
     def _apply_wrap_toggle(self, *_args) -> None:
         if not self._edit:
             return
         on = self.act_text_wrap.isChecked()
-        box = self._selected_text_box()
-        if box is not None:
-            style = box.style.copy()
-            style.wrap = on
-            self._edit.change_style(box.object_id, style=style)
+        if self._restyle_boxes(wrap=on):
             self.statusBar().showMessage("Text wraps inside the box" if on else "Text stays on one line", 3000)
-            return
-        field = self._selected_style_field()
-        if field is not None:
-            self._restyle_field(field, wrap=on)
+        fields = self._selected_style_fields()
+        if fields:
+            self._restyle_field(fields, wrap=on)
             self.statusBar().showMessage("Field text wraps (multi-line)" if on else "Field text on one line", 3000)
 
     def _change_case(self, mode: str) -> None:
@@ -3241,38 +3453,33 @@ class MainWindow(QMainWindow):
                 self._canvas._canvas.update()  # noqa: SLF001
 
     def _apply_font_toggle(self, prop: str) -> None:
-        box = self._selected_text_box()
-        if box is None:
-            field = self._selected_style_field()
-            if field is not None and prop in ("bold", "italic"):
-                on = (self.act_font_bold if prop == "bold" else self.act_font_italic).isChecked()
-                if not self._canvas._canvas.format_field_selection(**{prop: on}):  # noqa: SLF001
-                    self._restyle_field(field, **{prop: on})
+        if not self._edit:
             return
-        style = box.style.copy()
-        if prop == "bold":
-            style.bold = self.act_font_bold.isChecked()
-        elif prop == "italic":
-            style.italic = self.act_font_italic.isChecked()
-        elif prop == "underline":
-            style.underline = self.act_font_underline.isChecked()
-        self._edit.change_style(box.object_id, style=style)
+        action = {"bold": self.act_font_bold, "italic": self.act_font_italic,
+                  "underline": self.act_font_underline}.get(prop)
+        if action is None:
+            return
+        on = action.isChecked()
+        fields = self._selected_style_fields() if prop in ("bold", "italic") else []
+        if fields and self._canvas._canvas.format_field_selection(**{prop: on}):  # noqa: SLF001
+            return  # only the selected words
+        self._restyle_boxes(**{prop: on})
+        if fields:
+            self._restyle_field(fields, **{prop: on})
 
     def _apply_text_align(self, align: str) -> None:
         from core.editing.text_box import TextAlign
 
-        box = self._selected_text_box()
-        if box is None:
-            field = self._selected_style_field()
-            if field is not None:
-                if align == "justify" and not field.multiline:
-                    self.statusBar().showMessage("Justify shows once the text wraps — turn on Wrap Text", 4000)
-                self._restyle_field(field, align=align)
-                self._sync_align_checks(align)
+        if not self._edit:
             return
-        if align == "justify":
-            return  # text boxes: left / centre / right
-        self._edit.change_style(box.object_id, align=TextAlign(align))
+        if align != "justify":  # text boxes: left / centre / right
+            self._restyle_boxes(align=TextAlign(align))
+        fields = self._selected_style_fields()
+        if fields:
+            if align == "justify" and not all(f.multiline for f in fields):
+                self.statusBar().showMessage("Justify shows once the text wraps — turn on Wrap Text", 4000)
+            self._restyle_field(fields, align=align)
+            self._sync_align_checks(align)
 
     def _on_field_editor_format(self, style: dict) -> None:
         """While typing in a field, the toolbar shows the look of the text at the caret."""
@@ -3292,14 +3499,13 @@ class MainWindow(QMainWindow):
         """Top / middle / bottom of the selected text box or form field."""
         from core.editing.text_box import VAlign
 
-        box = self._selected_text_box()
-        if box is not None:
-            self._edit.change_style(box.object_id, valign=VAlign(valign))
-            self._sync_valign_checks(valign)
+        if not self._edit:
             return
-        field = self._selected_style_field()
-        if field is not None:
-            self._restyle_field(field, valign=valign)
+        changed = self._restyle_boxes(valign=VAlign(valign))
+        fields = self._selected_style_fields()
+        if fields:
+            self._restyle_field(fields, valign=valign)
+        if changed or fields:
             self._sync_valign_checks(valign)
 
     def _sync_valign_checks(self, valign: str) -> None:
@@ -3595,6 +3801,7 @@ class MainWindow(QMainWindow):
             self.act_scan_to_word,
             self.act_insert_blank,
             self.act_insert_pdf,
+            self.act_move_pages,
             self.act_delete_pages,
             self.act_dup_pages,
             self.act_replace_page,
@@ -3768,7 +3975,24 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Reorder failed", str(exc))
             self._refresh_after_page_ops(focus=self._canvas.focus_page)
 
-    def _insert_blank_page(self) -> None:
+    def _page_position(self, *, title: str, intro: str, ok_text: str, count_label: str | None = None,
+                       page: int | None = None) -> tuple[int, int] | None:
+        """Ask where pages go (before/after page N, beginning, end). (insert index, count) or None."""
+        from ui.page_position_dialog import PagePositionDialog
+
+        n = self._document.page_count
+        ref = self._canvas.focus_page if page is None else page
+        dlg = PagePositionDialog(self, title=title, intro=intro, page_count=n, page=ref,
+                                 ok_text=ok_text, count_label=count_label)
+        if dlg.exec() != dlg.DialogCode.Accepted:
+            return None
+        return dlg.insert_index(), dlg.count()
+
+    def _reference_page(self) -> int:
+        pages = self._left.selected_page_indices()
+        return pages[0] if pages else self._canvas.focus_page
+
+    def _insert_blank_page(self, at: int | None = None, count: int = 1, *, ask: bool = False) -> None:
         if self._document is None or self._edit is None:
             return
         if not self._warn_signatures_if_needed():
@@ -3776,31 +4000,81 @@ class MainWindow(QMainWindow):
         from core.organize.page_ops import insert_blank_page
         from core.organize.remap import map_after_insert
 
-        at = self._canvas.focus_page + 1
+        if at is None and ask and not self._is_headless_ui():
+            choice = self._page_position(title="Insert Blank Pages", ok_text="Insert",
+                                         intro="Where should the blank pages go? They get the size of the page next to them.",
+                                         count_label="Number of blank pages:", page=self._reference_page())
+            if choice is None:
+                return
+            at, count = choice
+        if at is None:
+            at = self._canvas.focus_page + 1
+        count = max(1, int(count))
         old_n = self._document.page_count
-        mapping = map_after_insert(old_n, at, 1)
+        at = max(0, min(int(at), old_n))
+        mapping = map_after_insert(old_n, at, count)
         try:
             before = self._page_undo_begin()
-            insert_blank_page(self._document, at)
+            for k in range(count):
+                insert_blank_page(self._document, at + k)
             self._edit.remap_page_indices(mapping)
             self._refresh_after_page_ops(focus=at)
-            self._page_undo_end(before, "Insert Blank Page")
+            self._page_undo_end(before, "Insert Blank Page" if count == 1 else "Insert Blank Pages")
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(self, "Insert blank", str(exc))
 
-    def _insert_pdf_pages(self) -> None:
+    def _move_selected_pages(self, target: int | None = None, *, ask: bool = False) -> None:
+        """Move the selected pages (kept in their order) to insertion index ``target`` (0-based,
+        counted in the current document)."""
+        if self._document is None or self._edit is None:
+            return
+        pages = sorted(set(self._selected_pages()))
+        n = self._document.page_count
+        if not pages or n < 2:
+            return
+        if target is None:
+            if not ask or self._is_headless_ui():
+                return
+            label = (f"page {pages[0] + 1}" if len(pages) == 1
+                     else f"{len(pages)} selected pages")
+            choice = self._page_position(title="Move Pages", ok_text="Move",
+                                         intro=f"Move {label} to:", page=pages[-1])
+            if choice is None:
+                return
+            target = choice[0]
+        from ui.page_position_dialog import move_order
+
+        order = move_order(n, pages, int(target))
+        if order == list(range(n)):
+            self.statusBar().showMessage("The pages are already there.", 4000)
+            return
+        self._on_thumbs_reordered(order)
+        moved_to = order.index(pages[0])
+        self._canvas.go_to_page(moved_to)
+        self._left.set_current_page(moved_to)
+
+    def _insert_pdf_pages(self, at: int | None = None, *, ask: bool = False) -> None:
         if self._document is None or self._edit is None:
             return
         if not self._warn_signatures_if_needed():
             return
-        path, _ = QFileDialog.getOpenFileName(self, "Insert PDF", self._doc_dir(), "PDF Files (*.pdf)")
+        path, _ = QFileDialog.getOpenFileName(self, "Insert Pages from PDF", self._doc_dir(), "PDF Files (*.pdf)")
         if not path:
             return
         from core.organize.page_ops import insert_pdf_pages
         from core.organize.remap import map_after_insert
 
+        if at is None and ask and not self._is_headless_ui():
+            choice = self._page_position(title="Insert Pages from PDF", ok_text="Insert",
+                                         intro=f"Where should the pages of “{Path(path).name}” go?",
+                                         page=self._reference_page())
+            if choice is None:
+                return
+            at = choice[0]
         password = None
-        at = self._canvas.focus_page + 1
+        if at is None:
+            at = self._canvas.focus_page + 1
+        at = max(0, min(int(at), self._document.page_count))
         old_n = self._document.page_count
         before = self._page_undo_begin()
         try:
@@ -4797,33 +5071,49 @@ class MainWindow(QMainWindow):
     def _arm_eraser(self) -> None:
         if self._document is None or not getattr(self, "_eraser_active", False):
             return
-        from core.annotations import annotations_at
+        from PySide6.QtGui import QColor
+
+        from core.annotations import annotations_along
         from core.editing.annot_commands import EraseAnnotCommand
+        from core.editing.edit_commands import GroupCommand
 
         def apply(page: int, rect) -> None:
             if self._edit is None or self._document is None:
                 return
-            pt = self._to_page_point(page, rect.x, rect.y)
-            hits = annotations_at(self._document, page, pt)
+            # Everything the eraser was drawn over goes in one pass (a click: everything under it).
+            # It used to take only the topmost mark under the press, so overlapping strokes needed
+            # several passes.
+            stroke = self._canvas.take_region_stroke() or []
+            display = [(p.x, p.y) for p in stroke] or [(rect.x, rect.y)]
+            pts = [self._to_page_point(page, x, y) for x, y in display]
+            hits = annotations_along(self._document, page, pts, radius_pt=5.0)
             if not hits:
-                self.statusBar().showMessage("Eraser: no highlight under the pointer — click a mark to remove it", 4000)
+                self.statusBar().showMessage("Eraser: nothing to erase there — draw over a highlight, underline, "
+                                             "strikethrough or ink mark", 4000)
                 return
-            top = hits[-1]
+            done: list = []
             try:
-                self._edit.commands.execute(
-                    EraseAnnotCommand(self._document, self._edit, page, int(top["xref"]))
-                )
+                for hit in reversed(hits):  # topmost first
+                    cmd = EraseAnnotCommand(self._document, self._edit, page, int(hit["xref"]))
+                    cmd.execute()
+                    done.append(cmd)
             except ValueError:
-                self.statusBar().showMessage("Eraser: that annotation could not be removed", 4000)
+                for cmd in reversed(done):
+                    cmd.undo()
+                self.statusBar().showMessage("Eraser: those marks could not be removed", 4000)
+                self._refresh_page_view(page)
                 return
-            kind = top.get("kind") or "annotation"
-            self._after_annotation(page, f"Removed {kind} — click another, or Esc to finish")
+            group = done[0] if len(done) == 1 else GroupCommand("Erase", done)
+            self._edit.commands.push_executed(group)
+            n = len(done)
+            self._after_annotation(page, f"Erased {n} mark{'s' if n != 1 else ''} — keep erasing, or Esc to finish")
 
         self._pick_on_page(
-            "Eraser: click a highlight or ink annotation to remove it",
+            "Eraser: draw over highlights, underlines, strikethroughs or ink to remove them (Esc to finish)",
             apply,
-            kind="erase",
+            kind="erase_stroke",
             default_size=(1.0, 1.0),
+            stroke_color=QColor(100, 116, 139),
         )
 
     def _annot_markup(self, kind: str, *, rearm: bool = False) -> None:
@@ -5052,7 +5342,7 @@ class MainWindow(QMainWindow):
         stroke = [Point(80 + i * 12, y + (8 if i % 2 else -8)) for i in range(12)]
         try:
             add_freehand(self._document, page, [stroke])
-            self._refresh_after_page_ops(focus=page)
+            self._refresh_page_view(page)
             if self._edit:
                 self._edit.mark_dirty()
         except Exception as exc:  # noqa: BLE001
@@ -5074,7 +5364,7 @@ class MainWindow(QMainWindow):
                 Point(info.width_pt - 72, info.height_pt / 2),
                 arrow=arrow,
             )
-            self._refresh_after_page_ops(focus=page)
+            self._refresh_page_view(page)
             if self._edit:
                 self._edit.mark_dirty()
         except Exception as exc:  # noqa: BLE001
@@ -5092,7 +5382,7 @@ class MainWindow(QMainWindow):
                 add_rectangle(self._document, page, rect)
             else:
                 add_ellipse(self._document, page, rect)
-            self._refresh_after_page_ops(focus=page)
+            self._refresh_page_view(page)
             if self._edit:
                 self._edit.mark_dirty()
         except Exception as exc:  # noqa: BLE001
@@ -5136,8 +5426,10 @@ class MainWindow(QMainWindow):
     def _note_color_rgb(self) -> tuple[float, float, float]:
         from PySide6.QtGui import QColor
 
-        c = QColor(getattr(self._prefs, "note_color", None) or "#fbbf24")
-        return (c.redF(), c.greenF(), c.blueF()) if c.isValid() else (0.98, 0.75, 0.14)
+        from core.annotations.note_style import DEFAULT_NOTE_COLOR
+
+        c = QColor(getattr(self._prefs, "note_color", None) or DEFAULT_NOTE_COLOR)
+        return (c.redF(), c.greenF(), c.blueF()) if c.isValid() else (1.0, 0.851, 0.4)
 
     def _show_comments_panel(self) -> None:
         if not self.act_toggle_left.isChecked():
@@ -5157,6 +5449,14 @@ class MainWindow(QMainWindow):
 
         if self._document is None or self._edit is None:
             return
+        if ref.kind == "Text":
+            plain_change = change
+
+            def change() -> None:  # MuPDF redraws its square icon on update: keep the note's own look
+                from core.annotations.note_style import style_sticky_note
+
+                plain_change()
+                style_sticky_note(self._document, ref.page_index, ref.xref)
         try:
             self._edit.commands.execute(AnnotModifyCommand(self._document, self._edit, ref.page_index, ref.xref, change, name))
         except Exception as exc:  # noqa: BLE001
@@ -5213,11 +5513,14 @@ class MainWindow(QMainWindow):
         if found is None:
             return
         _page, annot = found
+        custom = stamp_spec(self._document, ref.xref)
+        if custom is not None and not custom[0].image_path:
+            self._stamp_edit(ref, custom[0])  # text stamps: wording, theme, font, colours, frame …
+            return
         current = (annot.info or {}).get("content") or ""
         text, ok = QInputDialog.getMultiLineText(self, "Edit Comment", "Text:", current)
         if not ok or text == current:
             return
-        custom = stamp_spec(self._document, ref.xref)
 
         def change() -> None:
             if custom is not None:
@@ -5234,6 +5537,21 @@ class MainWindow(QMainWindow):
             live.update()
 
         self._comment_change(ref, change, "Edit Comment")
+
+    def _stamp_edit(self, ref, spec) -> None:
+        """Edit a Monograph PDF text stamp in place (undoable)."""
+        from core.annotations.stamps import update_stamp
+        from ui.stamp_dialog import StampStyleDialog
+
+        dlg = StampStyleDialog(self, spec)
+        if self._is_headless_ui() or dlg.exec() != dlg.DialogCode.Accepted:
+            return
+        new_spec = dlg.spec()
+        if new_spec == spec:
+            return
+        self._comment_change(ref, lambda: update_stamp(self._document, ref.page_index, ref.xref, spec=new_spec),
+                             "Edit Stamp")
+        self._canvas.select_annotation(ref.page_index, ref.xref)
 
     def _comment_color(self, ref) -> None:
         from PySide6.QtGui import QColor
@@ -5374,7 +5692,11 @@ class MainWindow(QMainWindow):
             "fill_forms": "Filling in form fields",
         }
         encrypted = bool(getattr(self._document.metadata(), "encrypted", False))
-        lines = ["Password protection: " + ("yes" if encrypted else "no"), ""]
+        if encrypted and self._open_password() is None:
+            state = "permissions password only (the file opens without a password)"
+        else:
+            state = "yes" if encrypted else "no"
+        lines = ["Password protection: " + state, ""]
         values = p.__dict__
         for key, label in names.items():
             if key in values:
@@ -5710,14 +6032,16 @@ class MainWindow(QMainWindow):
                 note += f" ({unchecked} attachment(s) not checked: their content is never read)"
             self.statusBar().showMessage(note, 12000)
 
-    def _place_signature(self, png_path, message: str) -> None:
-        """Let the user drag where a visual signature goes; it becomes a movable picture overlay."""
+    def _place_signature(self, png_path, message: str, spec: dict | None = None) -> None:
+        """Let the user drag where a visual signature goes; it becomes a movable picture overlay.
+        ``spec`` (how it was made) is kept with it, so a double-click can change it later."""
         from core.signatures.ops import signature_box
 
         def apply(page: int, rect) -> None:
             if self._edit is None:
                 return
             box = signature_box(page, rect, png_path)
+            box.signature = dict(spec or {})
             box.z_index = self._edit.next_z()
             self._edit.add_image(box)  # undoable
             self._edit.selection = [box.object_id]
@@ -5726,6 +6050,80 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(message, 6000)
 
         self._pick_on_page("Signature: drag where it should go (or click)", apply, default_size=(200.0, 60.0))
+
+    def _edit_image_object(self, oid: str) -> None:
+        """Double-click on a placed picture: a typed signature opens with its name, style and ink to
+        change; a drawn signature opens the pad to draw it again; any other picture can be replaced.
+        The new picture takes the old one's place (same centre and height) — one Undo step."""
+        if self._edit is None:
+            return
+        img = self._edit.images.get(oid)
+        if img is None:
+            return
+        from core.annotations.stamp_library import png_bytes_to_library
+
+        spec = dict(getattr(img, "signature", {}) or {})
+        new_path = None
+        new_spec = spec
+        if img.role == "signature" and spec.get("kind") == "typed":
+            from ui.security_dialogs import TypedSignatureDialog
+
+            dlg = TypedSignatureDialog(self)
+            dlg.set_values(spec.get("text", ""), spec.get("family", ""), spec.get("color", ""))
+            if dlg.exec() != dlg.DialogCode.Accepted or not dlg.name.text().strip():
+                return
+            png = dlg.signature_png()
+            if not png:
+                return
+            new_path, new_spec = png_bytes_to_library(png), dlg.spec()
+        elif img.role == "signature" and spec.get("kind") == "drawn":
+            from core.signatures.ops import strokes_to_png
+            from ui.app_dialogs import SignaturePadDialog
+
+            dlg = SignaturePadDialog(self)
+            if dlg.exec() != dlg.DialogCode.Accepted or not dlg.strokes():
+                return
+            new_path = png_bytes_to_library(strokes_to_png(dlg.strokes()))
+        else:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Replace Signature Picture" if img.role == "signature" else "Replace Image", self._doc_dir(),
+                "Images (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.tif *.tiff)")
+            if not path:
+                return
+            from core.annotations.stamp_library import import_picture
+
+            try:
+                new_path = import_picture(Path(path), remove_white=img.role == "signature")
+            except Exception as exc:  # noqa: BLE001
+                QMessageBox.warning(self, "Replace Image", f"The picture could not be read: {type(exc).__name__}")
+                return
+        self._replace_image_picture(oid, new_path, new_spec)
+
+    def _replace_image_picture(self, oid: str, new_path, new_spec: dict) -> None:
+        from PIL import Image
+
+        from core.editing.geometry import Rect
+        from core.editing.image_box import SAFE_IMAGE_FORMATS
+
+        img = self._edit.images.get(oid)
+        if img is None:
+            return
+        try:
+            with Image.open(str(new_path), formats=SAFE_IMAGE_FORMATS) as im:
+                iw, ih = im.size
+        except Exception:  # noqa: BLE001
+            iw, ih = 0, 0
+        r = img.rect
+        rect = r
+        if iw > 0 and ih > 0:
+            h = r.h
+            w = h * iw / ih
+            rect = self._edit.keep_on_page(img.page_index, Rect(r.cx - w / 2, r.cy - h / 2, w, h))
+        self._edit.set_overlay_attrs(oid, source_path=str(new_path), signature=dict(new_spec), rect=rect)
+        self._edit.selection = [oid]
+        self._on_edit_changed()
+        self.statusBar().showMessage("Signature updated — Undo restores the previous one"
+                                     if img.role == "signature" else "Picture replaced — Undo restores it", 5000)
 
     def _sig_typed(self) -> None:
         if self._document is None or not self._confirm_signed():
@@ -5739,7 +6137,7 @@ class MainWindow(QMainWindow):
         png = dlg.signature_png()
         if not png:
             return
-        self._place_signature(png_bytes_to_library(png),
+        self._place_signature(png_bytes_to_library(png), spec=dlg.spec(), message=
                               "Visual signature placed — move or resize it, Delete removes it (a picture, not a digital signature)")
 
     def _sig_image(self) -> None:
@@ -5761,7 +6159,7 @@ class MainWindow(QMainWindow):
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(self, "Signature from Image", f"The picture could not be read: {type(exc).__name__}")
             return
-        self._place_signature(stored, "Signature picture placed — move or resize it, Delete removes it")
+        self._place_signature(stored, spec={"kind": "image"}, message="Signature picture placed — move or resize it, Delete removes it")
 
     def _sig_drawn(self) -> None:
         if self._document is None or not self._confirm_signed():
@@ -5774,7 +6172,7 @@ class MainWindow(QMainWindow):
         if dlg.exec() != dlg.DialogCode.Accepted or not dlg.strokes():
             return
         png = strokes_to_png(dlg.strokes())
-        self._place_signature(png_bytes_to_library(png),
+        self._place_signature(png_bytes_to_library(png), spec={"kind": "drawn"}, message=
                               "Drawn signature placed — move or resize it, Delete removes it (a picture, not a digital signature)")
 
     def _print_document(self) -> None:
@@ -6278,16 +6676,27 @@ class MainWindow(QMainWindow):
             self._arm_eraser()
 
     def _after_annotation(self, page: int, message: str) -> None:
-        vbar = self._canvas.verticalScrollBar()
-        hbar = self._canvas.horizontalScrollBar()
-        v, h = vbar.value(), hbar.value()
-        self._refresh_after_page_ops(focus=page)
-        vbar.setValue(v)
-        hbar.setValue(h)
+        """A comment, highlight, stamp … was added, changed or removed on ``page``.
+
+        Only that page is redrawn, and its new picture replaces the old one when it is ready: the
+        whole document used to be reloaded into the view (every page blanked and re-rendered, the
+        thumbnails rebuilt), which made the page flash after every highlight."""
+        if self._document is None:
+            return
+        self._refresh_page_view(page)
         if self._edit:
             self._edit.mark_dirty()
         self._on_edit_changed()
         self.statusBar().showMessage(message, 4000)
+
+    def _refresh_page_view(self, page: int) -> None:
+        """Redraw one page whose annotations changed, in place (no reload of the whole view)."""
+        if self._document is None:
+            return
+        self._document.refresh_pages([page])
+        self._canvas.clear_annotation_selection()
+        self._canvas.refresh_page_content([page])
+        self._left.thumbs.refresh_pages([page])
 
     # --- Printing -----------------------------------------------------------
 

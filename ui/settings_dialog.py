@@ -89,7 +89,9 @@ class UpdatesPage(QWidget):
             w.setEnabled(controller.configured)
 
     def _status_changed(self, res) -> None:
-        self.status.setText(res.status.label)
+        from ui.update_dialogs import status_line
+
+        self.status.setText(status_line(res.status))
         self.last.setText(_when(UpdateState.load().last_success))
 
     def _check_now(self) -> None:

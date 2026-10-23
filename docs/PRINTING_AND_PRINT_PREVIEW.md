@@ -8,12 +8,12 @@
 |---|---|
 | Printer | the printers Windows reports, including Microsoft Print to PDF; **Save as PDF** (in the application) is always available |
 | Paper and orientation | the printer's paper sizes; Auto picks portrait or landscape per page |
-| Pages | all, current, a range (`1-3, 5`) or the selected pages; printed front to back |
-| Scaling | Fit to printable area · Actual size · Shrink oversized pages · Custom percentage (centred) |
+| Pages | all (default), current, a range (`1-3, 5`) or the selected pages; printed front to back |
+| Scaling | Actual size (default) · Fit to printable area · Shrink oversized pages · Custom percentage (centred) |
 | Pages per sheet | 1, 2, 4, 6, 9, in reading order, each page keeping its proportions |
 | Colour | Color · Grayscale (shades of grey) · Black and white (only black and white pixels, Floyd–Steinberg dithering so photos and charts stay recognisable; text and thin lines stay solid) |
 | Copies | 1–999, collated or not |
-| Two-sided | offered only when the printer driver reports duplex support |
+| Two-sided | **Print on both sides of paper** · Flip on long edge (default) · Flip on short edge. Switched on by default when the printer driver reports duplex support; unavailable (one-sided) when it does not |
 | Comments | include or leave out annotations |
 
 **Colour availability.** Colour is disabled for printers that report only monochrome output.

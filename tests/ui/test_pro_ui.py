@@ -707,7 +707,10 @@ def test_typed_signature_renders_clean_image(doc_window):
     dlg = TypedSignatureDialog()
     dlg.name.setText("Ada Lovelace")
     assert dlg.windowTitle() == "Type a Signature"
-    assert dlg.style.count() >= 1 and dlg.ink.count() == 3
+    from ui.security_dialogs import SIGNATURE_INKS
+
+    assert dlg.style.count() >= 1 and dlg.ink.count() == len(SIGNATURE_INKS) >= 3
+    assert dlg.ink.itemText(0) == "Blue ink"  # the default ink is unchanged
     png = dlg.signature_png()
     assert png[:8] == b"\x89PNG\r\n\x1a\n"
     dlg.close()

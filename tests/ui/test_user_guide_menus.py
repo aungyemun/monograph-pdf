@@ -76,6 +76,57 @@ def test_every_menu_path_in_the_user_guide_exists(window):
     assert not missing, missing
 
 
+def test_markdown_heading_slug_matches_github_ids():
+    from ui.app_dialogs import markdown_heading_slug
+
+    assert markdown_heading_slug("OCR (text recognition)") == "ocr-text-recognition"
+    assert markdown_heading_slug("Forms, tables and layout") == "forms-tables-and-layout"
+    assert markdown_heading_slug("Protect, redact and sign") == "protect-redact-and-sign"
+    assert markdown_heading_slug("Password-protected PDFs") == "password-protected-pdfs"
+
+
+def test_contents_links_scroll_to_their_sections(qtbot):
+    """Qt's Markdown reader adds no heading anchors; every in-page link must still reach its heading."""
+    from PySide6.QtCore import QUrl
+    from PySide6.QtWidgets import QTextBrowser
+
+    from ui.app_dialogs import UserGuideDialog
+
+    dlg = UserGuideDialog()
+    qtbot.addWidget(dlg)
+    dlg.show()
+    qtbot.waitExposed(dlg)
+    view = dlg.findChild(QTextBrowser)
+    doc = view.document()
+
+    anchors: dict[str, int] = {}  # anchor name -> block number of its heading
+    block = doc.begin()
+    while block.isValid():
+        for frag in block.textFormats():
+            fmt = frag.format.toCharFormat()
+            for name in fmt.anchorNames():
+                assert block.blockFormat().headingLevel() > 0, (name, block.text())
+                anchors[name] = block.blockNumber()
+            assert not (fmt.anchorNames() and fmt.anchorHref()), "heading anchors must not become links"
+        block = block.next()
+
+    targets = list(dict.fromkeys(re.findall(r"\]\(#([^)\s]+)\)", GUIDE.read_text(encoding="utf-8"))))
+    assert len(targets) >= 19, targets
+    assert not [t for t in targets if t not in anchors], sorted(set(targets) - set(anchors))
+
+    bar = view.verticalScrollBar()
+    for target in ("getting-started", "ocr-text-recognition", "additional-documentation"):
+        bar.setValue(0)
+        view.setSource(QUrl("#" + target))  # what clicking the link does
+        qtbot.waitUntil(lambda: bar.value() > 0, timeout=2000)
+        # The heading's top is at the top of the view (or, near the end of the guide, fully in view)
+        heading_top = int(doc.documentLayout().blockBoundingRect(doc.findBlockByNumber(anchors[target])).top())
+        if bar.value() < bar.maximum():
+            assert abs(bar.value() - heading_top) <= 2, (target, bar.value(), heading_top)
+        else:
+            assert bar.value() <= heading_top <= bar.value() + view.viewport().height(), target
+
+
 def test_start_menu_user_guide_mode_shows_only_the_guide(qtbot):
     from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication, QMainWindow, QTextBrowser

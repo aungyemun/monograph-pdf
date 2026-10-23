@@ -14,6 +14,8 @@ from core.editing.edit_commands import (
     AddTextBoxCommand,
     DeleteObjectsCommand,
     DuplicateCommand,
+    FieldStyleCommand,
+    GroupCommand,
     LayerCommand,
     ReplaceNativeTextCommand,
     SetStyleCommand,
@@ -460,6 +462,24 @@ class EditableDocument:
         """Change shape properties (undoable)."""
         self.set_overlay_attrs(object_id, **kwargs)
 
+    def update_shapes(self, object_ids: Iterable[str], **kwargs: Any) -> None:
+        """The same change (e.g. line or fill colour) on several shapes — one undo step."""
+        from core.editing.edit_commands import SetOverlayAttrsCommand
+
+        cmds = []
+        for oid in dict.fromkeys(object_ids):
+            found = self.overlay(oid)
+            if found is None:
+                continue
+            obj = found[1]
+            changes = {k: v for k, v in kwargs.items() if hasattr(obj, k) and v is not None and getattr(obj, k) != v}
+            if changes:
+                cmds.append(SetOverlayAttrsCommand(self, oid, {k: copy.deepcopy(getattr(obj, k)) for k in changes},
+                                                   changes))
+        if not cmds:
+            return
+        self.commands.execute(cmds[0] if len(cmds) == 1 else GroupCommand("Change Shapes", cmds))
+
     def set_overlay_attrs(self, object_id: str, **kwargs: Any) -> None:
         """Change properties of a shape or picture as one undoable step (merged with an immediately
         preceding change of the same properties of the same object)."""
@@ -550,6 +570,9 @@ class EditableDocument:
         if not self.selection:
             return
         before = {oid: Rect(*self.objects[oid].rect.as_tuple()) for oid in self.selection}
+        dx, dy = self._move_kept_on_page(list(before), dx, dy)  # arrow keys stop at the page edge too
+        if not dx and not dy:
+            return
         after = {oid: before[oid].translated(dx, dy) for oid in before}
         self.commands.execute(TransformCommand(self, before, after, name="Nudge"))
 
@@ -595,6 +618,10 @@ class EditableDocument:
         snap: bool = True,
         notify: bool = True,
     ) -> None:
+        # Keep what is moved on its page: the PDF page ends at its edge, so a part dragged past it
+        # would neither show in other PDF apps nor print (and the view has nowhere to draw it).
+        # Moved together, the objects keep their arrangement; the move stops at the first edge.
+        dx, dy = self._move_kept_on_page(object_ids, dx, dy)
         for oid in object_ids:
             target = (
                 self.objects.get(oid)
@@ -605,15 +632,6 @@ class EditableDocument:
             if target is None:
                 continue
             rect = target.rect.translated(dx, dy)
-            if oid in self.shapes and getattr(target, "kind", None) is not None:
-                kind = getattr(target.kind, "value", str(target.kind))
-                if kind in ("line", "arrow"):
-                    target.x0 += dx
-                    target.y0 += dy
-                    target.x1 += dx
-                    target.y1 += dy
-                elif kind == "freehand" and getattr(target, "points", None):
-                    target.points = [(px + dx, py + dy) for px, py in target.points]
             if snap and len(object_ids) == 1 and oid in self.objects:
                 page = self.pdf.page(target.page_index)
                 others = [o for o in self.objects_on_page(target.page_index) if o.object_id != oid]
@@ -623,11 +641,53 @@ class EditableDocument:
                     page_height=page.display_height_pt,
                     others=others,
                 )
-                rect = rect.translated(result.dx, result.dy)
+                rect = self.keep_on_page(target.page_index, rect.translated(result.dx, result.dy))
                 self.guides = result.guides
+            elif oid in self.shapes and getattr(target, "kind", None) is not None:
+                kind = getattr(target.kind, "value", str(target.kind))
+                if kind in ("line", "arrow"):
+                    target.x0 += dx
+                    target.y0 += dy
+                    target.x1 += dx
+                    target.y1 += dy
+                elif kind == "freehand" and getattr(target, "points", None):
+                    target.points = [(px + dx, py + dy) for px, py in target.points]
             target.rect = rect
         if notify:
             self._notify()
+
+    def keep_on_page(self, page_index: int, rect: Rect) -> Rect:
+        """``rect`` moved (never resized) so it lies on its page; one larger than the page covers it."""
+        try:
+            page = self.pdf.page(page_index)
+        except Exception:  # noqa: BLE001
+            return rect
+        pw, ph = float(page.display_width_pt), float(page.display_height_pt)
+        r = rect.normalized()
+        x = min(max(r.x, min(0.0, pw - r.w)), max(0.0, pw - r.w))
+        y = min(max(r.y, min(0.0, ph - r.h)), max(0.0, ph - r.h))
+        return rect.translated(x - r.x, y - r.y)
+
+    def _move_kept_on_page(self, object_ids: list[str], dx: float, dy: float) -> tuple[float, float]:
+        """The part of a move (dx, dy) that keeps every moved object on its page."""
+        lo_x, hi_x, lo_y, hi_y = float("-inf"), float("inf"), float("-inf"), float("inf")
+        for oid in object_ids:
+            target = self.objects.get(oid) or self.fields.get(oid) or self.images.get(oid) or self.shapes.get(oid)
+            if target is None:
+                continue
+            try:
+                page = self.pdf.page(target.page_index)
+            except Exception:  # noqa: BLE001
+                continue
+            pw, ph = float(page.display_width_pt), float(page.display_height_pt)
+            r = target.rect.normalized()
+            lo_x, hi_x = max(lo_x, min(0.0, pw - r.w) - r.x), min(hi_x, max(0.0, pw - r.w) - r.x)
+            lo_y, hi_y = max(lo_y, min(0.0, ph - r.h) - r.y), min(hi_y, max(0.0, ph - r.h) - r.y)
+        if lo_x <= hi_x:
+            dx = min(max(dx, lo_x), hi_x)
+        if lo_y <= hi_y:
+            dy = min(max(dy, lo_y), hi_y)
+        return dx, dy
 
     @staticmethod
     def keep_aspect(old: Rect, new: Rect) -> Rect:
@@ -695,9 +755,37 @@ class EditableDocument:
             self._notify()
 
     def change_style(self, object_id: str, **kwargs: Any) -> None:
+        cmd = self._restyle_box(object_id, **kwargs)
+        if cmd is not None:
+            self.commands.push_executed(cmd)
+            self.mark_dirty()
+
+    def change_style_many(self, object_ids: Iterable[str], **kwargs: Any) -> None:
+        """The same style change on several text boxes — one undo step. Pass single settings
+        (``font_family=…``), not a whole ``style``: each box keeps its other settings."""
+        self.change_styles({oid: dict(kwargs) for oid in object_ids})
+
+    def change_styles(self, changes: dict[str, dict[str, Any]]) -> None:
+        """A style change per text box (e.g. each grows from its own size) — one undo step."""
+        cmds = [c for c in (self._restyle_box(oid, **kw) for oid, kw in changes.items()) if c]
+        if not cmds:
+            return
+        self.commands.push_executed(cmds[0] if len(cmds) == 1 else GroupCommand("Change Style", cmds))
+        self.mark_dirty()
+
+    def push_field_style_change(self, before: dict[str, dict], after: dict[str, dict]) -> None:
+        """Record form-field style changes already made (see FieldStyleCommand) as one undo step."""
+        changed = {oid: st for oid, st in after.items() if before.get(oid) != st}
+        if changed:
+            self.commands.push_executed(
+                FieldStyleCommand(self, {oid: before[oid] for oid in changed}, changed)
+            )
+
+    def _restyle_box(self, object_id: str, **kwargs: Any) -> SetStyleCommand | None:
+        """Apply a style change to one text box; the command that undoes it (not yet recorded)."""
         box = self.objects.get(object_id)
         if box is None:
-            return
+            return None
         before = {
             "style": box.style.to_dict(),
             "align": box.align.value,
@@ -722,8 +810,7 @@ class EditableDocument:
             "valign": box.valign.value,
             "size_mode": box.size_mode.value,
         }
-        self.commands.push_executed(SetStyleCommand(self, object_id, before, after))
-        self.mark_dirty()
+        return SetStyleCommand(self, object_id, before, after)
 
     def copy_style_selection(self) -> None:
         objs = self.selected_objects()

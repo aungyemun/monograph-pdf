@@ -8,7 +8,7 @@ font name that exists. Unknown text is reverted to the current font.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, Qt, Signal
+from PySide6.QtCore import QEvent, QPointF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import QAbstractItemView, QComboBox, QCompleter, QFontComboBox, QStyledItemDelegate
 
@@ -23,9 +23,19 @@ class _ActiveFontDelegate(QStyledItemDelegate):
         self._inner = inner
 
     def paint(self, painter: QPainter, option, index) -> None:
-        active = index.row() == self._picker.active_row()
+        # Never raise from a paint handler (an exception here ended the whole app): if the wrapped
+        # delegate or the picker is not reachable, draw the row the standard way.
+        inner = getattr(self, "_inner", None)
+        picker = getattr(self, "_picker", None)
+        if inner is None or picker is None:
+            super().paint(painter, option, index)
+            return
+        try:
+            active = index.row() == picker.active_row()
+        except RuntimeError:
+            active = False
         if not active:
-            self._inner.paint(painter, option, index)
+            inner.paint(painter, option, index)
             return
         from ui.theme import current_palette
 
@@ -36,7 +46,7 @@ class _ActiveFontDelegate(QStyledItemDelegate):
         tint.setAlpha(60)
         painter.fillRect(option.rect, tint)  # visible until the row is hovered / selected
         painter.restore()
-        self._inner.paint(painter, option, index)
+        inner.paint(painter, option, index)
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         r = option.rect
@@ -48,13 +58,20 @@ class _ActiveFontDelegate(QStyledItemDelegate):
         painter.restore()
 
     def sizeHint(self, option, index):
-        return self._inner.sizeHint(option, index)
+        inner = getattr(self, "_inner", None)
+        return inner.sizeHint(option, index) if inner is not None else super().sizeHint(option, index)
 
 
 class FontPicker(QFontComboBox):
     fontPicked = Signal(str)
 
     def __init__(self, parent=None) -> None:
+        try:  # bundled fonts appear in the list together with the installed ones
+            from core.editing.font_resolver import register_bundled_fonts
+
+            register_bundled_fonts()
+        except Exception:  # noqa: BLE001 — the installed fonts still work
+            pass
         super().__init__(parent)
         self.setEditable(True)
         self.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
@@ -74,7 +91,33 @@ class FontPicker(QFontComboBox):
         line.returnPressed.connect(self._commit_typed)
         line.editingFinished.connect(self._commit_typed)
         self._last = self.currentText() or self.currentFont().family()
-        self.setItemDelegate(_ActiveFontDelegate(self, self.itemDelegate()))
+        # Strong references: the list's own delegate (draws each name in its font) and ours around it.
+        # Without them PySide could hand Qt a fresh wrapper without these attributes (a crash in paint).
+        self._inner_delegate = self.itemDelegate()
+        self._font_delegate = _ActiveFontDelegate(self, self._inner_delegate)
+        self.setItemDelegate(self._font_delegate)
+        view = self.view()
+        if view is not None:
+            # Same height for every row and pixel scrolling: no per-row measuring in each font while
+            # scrolling, so the list scrolls evenly
+            if hasattr(view, "setUniformItemSizes"):
+                view.setUniformItemSizes(True)
+            view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+            view.verticalScrollBar().setSingleStep(max(12, self.fontMetrics().height()))
+        # One click on the name opens the list (typing still searches)
+        self.lineEdit().installEventFilter(self)
+
+    def eventFilter(self, obj, event) -> bool:  # noqa: N802
+        # One click on the font name opens the list. While you are typing a search (the box holds
+        # text other than the font in use) or have selected text, a click only places the cursor.
+        if obj is self.lineEdit() and event.type() == QEvent.Type.MouseButtonRelease \
+                and event.button() == Qt.MouseButton.LeftButton:
+            typed = obj.text().strip().lower()
+            untouched = typed == (self._last or "").strip().lower()
+            if untouched and not obj.hasSelectedText() and (self.view() is None or not self.view().isVisible()):
+                self.showPopup()
+                return True
+        return super().eventFilter(obj, event)
 
     # ------------------------------------------------------------------ public
     def active_row(self) -> int:

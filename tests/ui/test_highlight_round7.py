@@ -293,3 +293,20 @@ def test_core_erase_command_roundtrip(tmp_path):
     edit.commands.undo()
     assert len(list(doc._backend._doc[0].annots() or [])) == 2  # noqa: SLF001
     doc.close()
+
+
+def test_one_eraser_stroke_removes_every_mark_it_crosses(window, qtbot, tmp_path):
+    """Drawn across three stacked highlight strokes, the eraser removes all of them at once (it used
+    to take only the topmost mark under the press, needing a pass per mark) — one Undo restores all."""
+    _open(window, tmp_path)
+    window.act_annot_highlight.trigger()
+    for y in (740, 770, 800):
+        _drag(window, qtbot, 0, _line(380, 500, y))
+    _drag(window, qtbot, 0, _line(380, 500, 770))  # a second stroke on top of the middle one
+    assert len(_annots(window)) == 4
+    window.act_annot_eraser.trigger()
+    _drag(window, qtbot, 0, [(440, 730 + i * 8) for i in range(10)])  # one vertical pass over all
+    assert _annots(window) == []
+    assert window._eraser_active and window._canvas.region_pick_active  # noqa: SLF001
+    window._undo()  # noqa: SLF001
+    assert len(_annots(window)) == 4

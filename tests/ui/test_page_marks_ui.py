@@ -198,3 +198,31 @@ def test_new_actions_are_in_the_insert_menu_and_disabled_without_a_document(wind
     assert any(lbl.startswith("Remove Header, Footer, Watermark or Background") for lbl in labels)
     assert not window.act_background.isEnabled()
     assert not window.act_remove_page_design.isEnabled()
+
+
+def test_page_design_preview_is_large_zoomable_and_pages_through(qtbot):
+    import fitz
+
+    from ui.page_marks_dialogs import PREVIEW_H, PREVIEW_W, HeaderFooterDialog
+
+    doc = fitz.open()
+    for i in range(3):
+        doc.new_page(width=595, height=842).insert_text((72, 120), f"Page {i + 1}", fontsize=14)
+    dlg = HeaderFooterDialog(None, page_count=3, current_page=0, source=doc)
+    qtbot.addWidget(dlg)
+    dlg.show()
+    qtbot.waitUntil(lambda: not dlg.preview.pixmap().isNull(), timeout=3000)
+    assert PREVIEW_W >= 340 and PREVIEW_H >= 440, "preview must stay readable"
+    fit = dlg.preview.pixmap().deviceIndependentSize().width()
+    dlg.preview.set_zoom(2.0)
+    assert dlg.preview.pixmap().deviceIndependentSize().width() > fit * 2  # re-rendered larger, not stretched
+    dlg.preview.step_zoom(+1)
+    assert dlg.preview.zoom_box.currentData() == 3.0
+    assert dlg.preview.page_label.text() == "Page 1 of 3" and not dlg.preview.prev_btn.isEnabled()
+    dlg.preview.next_btn.click()
+    assert dlg.preview.page() == 1 and dlg.preview.page_label.text() == "Page 2 of 3"
+    dlg.preview.open_large()
+    large = dlg.preview._large  # noqa: SLF001
+    assert large.isVisible() and large.view.page() == 1 and not large.view.pixmap().isNull()
+    large.close()
+    doc.close()

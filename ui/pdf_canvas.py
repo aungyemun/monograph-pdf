@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import time
+from collections import OrderedDict
 from enum import Enum
 
 from typing import Callable
@@ -16,6 +19,7 @@ from PySide6.QtGui import (
     QPainter,
     QPen,
     QPixmap,
+    QRegion,
     QTextCursor,
     QTextOption,
     QWheelEvent,
@@ -43,9 +47,11 @@ class ZoomMode(str, Enum):
 _PT_TO_CSS = 96.0 / 72.0
 # A page rendered larger than this many device pixels is shown as a low-resolution base plus sharp
 # tiles of the visible part (very large pages — A0 posters — or high zoom on a high-DPI screen).
-MAX_PAGE_PIXELS = 24_000_000
+MAX_PAGE_PIXELS = 8_000_000  # larger pages (high zoom) are drawn as a quick low-resolution page plus sharp tiles
 TILE_PX = 1024
 MAX_TILES = 48
+BASE_PAGE_PIXELS = 1_500_000  # placeholder of a zoomed-in page until its sharp tiles are drawn (fast to make)
+TILE_BUDGET_S = 0.03  # sharp tiles drawn per pass; the rest follow in the next pass (scrolling never waits)
 
 
 def _theme_palette():
@@ -144,6 +150,7 @@ class _CanvasWidget(QWidget):
     annotationMoveRequested = Signal(int, int, float, float)  # page, xref, dx, dy (unrotated page space)
     annotationDeleteRequested = Signal(int, int)
     annotationEditRequested = Signal(int, int)
+    imageEditRequested = Signal(str)  # double-click on a placed picture / signature
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -212,6 +219,23 @@ class _CanvasWidget(QWidget):
         # In-place form-field editor (real text widget: selection, caret, clipboard, undo)
         self._field_editor: QWidget | None = None
         self._field_editor_id: str | None = None
+        # Undo / redo typed on the canvas go through the window (it also redraws a changed page)
+        self.history_handler: Callable[[str], None] | None = None
+        # Press-and-drag in a field selects its words at once (the press opened the editor)
+        self._field_text_drag: bool = False
+        # Smooth dragging: repaint only where moved objects were and are (+ snap guides), skip
+        # objects outside that area, and keep decoded / scaled pictures instead of reading the
+        # image file on every repaint
+        self._live_region: QRegion | None = None
+        self._paint_region: QRegion | None = None
+        self._image_base_cache: OrderedDict = OrderedDict()
+        self._image_scaled_cache: OrderedDict = OrderedDict()
+        # Rubber-band selection: drag over empty page area to select the text boxes / fields inside
+        self._marquee_origin: Point | None = None
+        self._marquee_current: Point | None = None
+        self._marquee_page: int = 0
+        self._marquee_additive: bool = False
+        self._marquee_before: tuple[list[str], list[str]] = ([], [])
         # In-place text-box editor
         self._text_editor: _AlignedTextEdit | None = None
         self._text_editor_id: str | None = None
@@ -242,6 +266,8 @@ class _CanvasWidget(QWidget):
         self._stroke_locked_color = None
         self._region_stroke_aborted = False
         self._last_region_stroke = []
+        self._marquee_origin = self._marquee_current = None
+        self._field_text_drag = False
         self._discard_field_editor()
         self._discard_text_editor()
         self.updateGeometry()
@@ -269,7 +295,11 @@ class _CanvasWidget(QWidget):
             self.restyle_field_editor()  # toolbar change, undo / redo
         # Overlay-only path during interactive drag/type — native PDF cache stays untouched
         if self._live_interaction:
-            self.update()
+            region, self._live_region = self._live_region, None
+            if region is not None and not region.isEmpty():
+                self.update(region)  # a move: only where the moved boxes were and are now
+            else:
+                self.update()
             return
         self.editModelChanged.emit()
         self.selectionChanged.emit()
@@ -352,12 +382,12 @@ class _CanvasWidget(QWidget):
         self._last_region_stroke = []
         if kind == "stroke":
             self.setCursor(self._marker_cursor())
-        elif kind == "erase":
+        elif kind in ("erase", "erase_stroke"):
             self.setCursor(self._eraser_cursor())
         else:
             self.setCursor(Qt.CursorShape.CrossCursor)
         self.setFocus(Qt.FocusReason.OtherFocusReason)
-        tip = "Esc cancels the stroke; Esc again exits" if kind == "stroke" else "Esc to cancel"
+        tip = "Esc cancels the stroke; Esc again exits" if kind in ("stroke", "erase_stroke") else "Esc to cancel"
         self.requestStatus.emit(f"{prompt} — {tip}")
         self.update()
 
@@ -394,7 +424,7 @@ class _CanvasWidget(QWidget):
         kind = self._region_pick[2]
         if kind == "stroke":
             self.setCursor(self._marker_cursor())
-        elif kind == "erase":
+        elif kind in ("erase", "erase_stroke"):
             self.setCursor(self._eraser_cursor())
         self.requestStatus.emit("Stroke cancelled — keep drawing, or Esc to exit")
         self.update()
@@ -548,6 +578,15 @@ class _CanvasWidget(QWidget):
             self.pageChanged.emit(page)
         self._schedule_render()
 
+    def release_memory(self) -> None:
+        """Drop rendered pages, tiles and decoded pictures (memory-saving mode while minimized). The
+        page in view is kept (a few MB) so the window shows it at once when restored; everything
+        else is drawn again when needed."""
+        self._cache.retain_near_pages(self._focus_page, 0, lambda k: k.page_index)
+        self._tiles.clear()
+        self._image_base_cache.clear()
+        self._image_scaled_cache.clear()
+
     def _schedule_render(self) -> None:
         self._render_timer.start()
 
@@ -583,6 +622,132 @@ class _CanvasWidget(QWidget):
         x = (pos.x() - layout.left()) / max(sx, 1e-6)
         y = (pos.y() - layout.top()) / max(sy, 1e-6)
         return page_index, Point(x, y)
+
+    def _widget_to_page_point(self, page_index: int, pos: QPoint) -> Point:
+        """``pos`` in the coordinates of one page, kept on that page (a drag that leaves it)."""
+        layout = self._layouts[page_index]
+        sx, sy = self._scale(page_index)
+        pt = Point((pos.x() - layout.left()) / max(sx, 1e-6), (pos.y() - layout.top()) / max(sy, 1e-6))
+        return self._clamp_to_page(page_index, pt)
+
+    def _live_dirty_rects(self, object_ids: list[str]) -> list[QRect]:
+        """Widget areas the given objects are painted in (with selection handles, stroke, rotation
+        and the overflow mark), plus the snap guides — what a move has to repaint."""
+        out: list[QRect] = []
+        if self._edit is None:
+            return out
+        pages: set[int] = set()
+        for oid in object_ids:
+            obj = (self._edit.objects.get(oid) or self._edit.fields.get(oid)
+                   or self._edit.images.get(oid) or self._edit.shapes.get(oid))
+            if obj is None:
+                continue
+            pages.add(int(obj.page_index))
+            wr = self.pdf_rect_to_widget(obj.page_index, obj.rect.normalized())
+            if wr is None:
+                continue
+            margin = _HANDLE + 6
+            stroke = float(getattr(obj, "stroke_width", 0.0) or 0.0)
+            if stroke:
+                margin += int(stroke * max(self._zoom, 0.5)) + 12  # arrow heads
+            angle = float(getattr(obj, "rotation", 0.0) or getattr(getattr(obj, "style", None), "rotation", 0.0) or 0.0)
+            if abs(angle) % 360.0 > 0.01:
+                half = int((wr.width() ** 2 + wr.height() ** 2) ** 0.5 / 2) + 1
+                c = wr.center()
+                wr = QRect(c.x() - half, c.y() - half, 2 * half, 2 * half)
+            out.append(wr.adjusted(-margin, -margin, margin, margin))
+        # Snap guides are drawn across every page that is painted (_paint_overlays): repaint their
+        # thin bands on every page, or a guide would be left behind on a neighbouring page
+        for g in self._edit.guides:
+            for page_index in range(len(self._layouts)):
+                layout = self._layouts[page_index]
+                sx, sy = self._scale(page_index)
+                if g.orientation == "v":
+                    x = layout.left() + int(g.position * sx)
+                    out.append(QRect(x - 2, layout.top(), 5, layout.height()))
+                else:
+                    y = layout.top() + int(g.position * sy)
+                    out.append(QRect(layout.left(), y - 2, layout.width(), 5))
+        return out
+
+    def _in_paint_region(self, wr: QRect | None, margin: int = _HANDLE + 6) -> bool:
+        """False when a partial repaint (a move) does not touch ``wr``: skip painting it."""
+        region = self._paint_region
+        return region is None or wr is None or region.intersects(wr.adjusted(-margin, -margin, margin, margin))
+
+    def _image_pixmap(self, path: str, target: QSize) -> QPixmap | None:
+        """The picture for an image box, decoded once and kept scaled to its on-screen size.
+
+        Reading and decoding the file on every repaint made dragging a photo slow. While a box is
+        being resized the decoded picture (at most 2048 px) is drawn scaled instead of making a new
+        smooth copy for every intermediate size."""
+        try:
+            st = os.stat(path)
+        except OSError:
+            return None
+        base_key = (path, st.st_mtime_ns, st.st_size)
+        base = self._image_base_cache.get(base_key)
+        if base is None:
+            pix = QPixmap(path)
+            if pix.isNull():
+                return None
+            if max(pix.width(), pix.height()) > 2048:
+                pix = pix.scaled(2048, 2048, Qt.AspectRatioMode.KeepAspectRatio,
+                                 Qt.TransformationMode.SmoothTransformation)
+            base = pix
+            self._image_base_cache[base_key] = base
+            while len(self._image_base_cache) > 12:
+                self._image_base_cache.popitem(last=False)
+        else:
+            self._image_base_cache.move_to_end(base_key)
+        if self._mode == "drag_resize":
+            return base
+        dpr = self._device_pixel_ratio()
+        tw, th = max(1, int(target.width() * dpr)), max(1, int(target.height() * dpr))
+        if tw >= base.width() and th >= base.height():
+            return base
+        key = (base_key, tw, th)
+        scaled = self._image_scaled_cache.get(key)
+        if scaled is None:
+            scaled = base.scaled(tw, th, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            self._image_scaled_cache[key] = scaled
+            while len(self._image_scaled_cache) > 24:
+                self._image_scaled_cache.popitem(last=False)
+        else:
+            self._image_scaled_cache.move_to_end(key)
+        return scaled
+
+    def _finish_marquee(self) -> None:
+        """Select the text boxes and fillable fields the rectangle touches (Ctrl adds to the selection)."""
+        origin, current, page = self._marquee_origin, self._marquee_current, self._marquee_page
+        self._marquee_origin = self._marquee_current = None
+        if self._edit is None or origin is None or current is None:
+            return
+        rect = Rect.from_points(origin, current)
+        if rect.w < 3 and rect.h < 3:
+            return  # a click on empty paper: the selection was already cleared
+        fields = [
+            f.object_id for f in self._edit.fields_on_page(page)
+            if not f.is_candidate and not f.readonly and f.rect.normalized().intersects(rect)
+        ]
+        boxes = [
+            oid for oid, box in self._edit.objects.items()
+            if box.page_index == page and box.rect.normalized().intersects(rect)
+        ]
+        if self._marquee_additive:
+            before_boxes, before_fields = self._marquee_before
+            fields = list(dict.fromkeys([*before_fields, *fields]))
+            boxes = list(dict.fromkeys([*(b for b in before_boxes if b in self._edit.objects), *boxes]))
+        self._edit.field_selection = fields
+        self._edit.selection = boxes
+        self._edit.editing_field_id = None
+        self._edit.editing_object_id = None
+        self._edit._notify()  # noqa: SLF001
+        count = len(fields) + len(boxes)
+        if count:
+            self.requestStatus.emit(
+                f"{count} box{'es' if count != 1 else ''} selected — choose a font, size, style or colour on the toolbar"
+            )
 
     def pdf_rect_to_widget(self, page_index: int, rect: Rect) -> QRect | None:
         if page_index < 0 or page_index >= len(self._layouts):
@@ -625,6 +790,9 @@ class _CanvasWidget(QWidget):
         last = self.page_at_y(visible.bottom())
         dpr = self._device_pixel_ratio()
         scale = self._render_scale(dpr)
+        self._tile_deadline = time.perf_counter() + TILE_BUDGET_S
+        self._tiles_pending = False
+        self._tiles_this_pass = 0
         for i in range(max(0, first - 1), min(len(self._layouts), last + 2)):
             page = self._pages[i]
             full_px = page.display_width_pt * scale * page.display_height_pt * scale
@@ -635,7 +803,7 @@ class _CanvasWidget(QWidget):
                         self._cache.put(key, self._to_pixmap(self._document.render_rgb(i, scale=scale), dpr))
                     else:
                         # low-resolution base for the whole page (shown while tiles are missing)
-                        base = scale * (MAX_PAGE_PIXELS / 4 / full_px) ** 0.5
+                        base = scale * (BASE_PAGE_PIXELS / full_px) ** 0.5
                         pix = self._to_pixmap(self._document.render_rgb(i, scale=base), 1.0)
                         self._cache.put(key, pix)
                 if full_px > MAX_PAGE_PIXELS and first <= i <= last:
@@ -644,6 +812,51 @@ class _CanvasWidget(QWidget):
                 continue
         self._cache.retain_near_pages(self._focus_page, self._retain_radius, lambda k: k.page_index)
         self.update()
+        if self._tiles_pending:  # more sharp tiles to draw: continue after this frame is shown
+            QTimer.singleShot(0, self._render_visible)
+
+    def refresh_page_content(self, pages) -> None:
+        """Show what changed on ``pages`` (a highlight, comment or stamp added or removed) without
+        resetting the view: the new picture of each visible page is rendered first and then replaces
+        the old one, so the page never goes blank, nothing else is re-read and the scroll position,
+        zoom and selection stay as they are."""
+        if self._document is None or self._document.is_closed or not self._layouts:
+            return
+        wanted = {int(p) for p in pages if 0 <= int(p) < len(self._layouts)}
+        if not wanted:
+            return
+        dpr = self._device_pixel_ratio()
+        scale = self._render_scale(dpr)
+        visible = self.visibleRegion().boundingRect()
+        for key in [k for k in self._cache.keys() if k.page_index in wanted]:
+            if key != RenderKey.make(key.page_index, self._zoom, self._pages[key.page_index].rotation, dpr):
+                self._cache.discard(key)  # other zooms: re-rendered when needed
+        for i in wanted:
+            page = self._pages[i]
+            key = RenderKey.make(i, self._zoom, page.rotation, dpr)
+            on_screen = not visible.isNull() and self._layouts[i].intersects(visible.adjusted(0, -400, 0, 400))
+            full_px = page.display_width_pt * scale * page.display_height_pt * scale
+            stale_tiles = [k for k in self._tiles if k[0] == i]
+            if not on_screen:
+                self._cache.discard(key)
+                for k in stale_tiles:
+                    self._tiles.pop(k, None)
+                continue
+            try:
+                if full_px <= MAX_PAGE_PIXELS:
+                    self._cache.put(key, self._to_pixmap(self._document.render_rgb(i, scale=scale), dpr))
+                else:
+                    base = scale * (BASE_PAGE_PIXELS / full_px) ** 0.5
+                    self._cache.put(key, self._to_pixmap(self._document.render_rgb(i, scale=base), 1.0))
+                    old = {k: self._tiles.pop(k) for k in stale_tiles}
+                    self._render_tiles(i, visible, scale, dpr)
+                    del old  # kept until the new tiles exist
+            except Exception:  # noqa: BLE001
+                self._cache.discard(key)
+                for k in stale_tiles:
+                    self._tiles.pop(k, None)
+            self.update(self._layouts[i])
+        self._schedule_render()  # pages just off screen follow in the background
 
     def _render_tiles(self, i: int, visible: QRect, scale: float, dpr: float) -> None:
         """Render the visible part of page ``i`` as sharp device-pixel tiles."""
@@ -662,8 +875,13 @@ class _CanvasWidget(QWidget):
                 if key in self._tiles:
                     self._tiles.move_to_end(key)
                     continue
+                # at least one tile per pass, so the work always moves forward
+                if getattr(self, "_tiles_this_pass", 0) and time.perf_counter() > getattr(self, "_tile_deadline", float("inf")):
+                    self._tiles_pending = True  # the low-resolution page shows here meanwhile
+                    return
                 clip = (tx * TILE_PX / scale, ty * TILE_PX / scale, (tx + 1) * TILE_PX / scale, (ty + 1) * TILE_PX / scale)
                 self._tiles[key] = self._to_pixmap(self._document.render_rgb(i, scale=scale, clip=clip), dpr)
+                self._tiles_this_pass = getattr(self, "_tiles_this_pass", 0) + 1
                 while len(self._tiles) > MAX_TILES:
                     self._tiles.popitem(last=False)
 
@@ -692,6 +910,16 @@ class _CanvasWidget(QWidget):
             return
         dpr = self._device_pixel_ratio()
         clip = event.rect()
+        # A partial repaint (moving a box) only needs the objects it touches
+        self._paint_region = QRegion(event.region()) if clip != self.rect() else None
+        try:
+            self._paint_pages(painter, clip, dpr, pal)
+        finally:
+            self._paint_region = None
+        self._paint_interaction(painter)
+        painter.end()
+
+    def _paint_pages(self, painter: QPainter, clip: QRect, dpr: float, pal) -> None:
         for i, rect in enumerate(self._layouts):
             if not rect.intersects(clip):
                 continue
@@ -717,6 +945,9 @@ class _CanvasWidget(QWidget):
                 self._paint_overlays(painter, i)
                 self._paint_forms(painter, i)
                 self._paint_tables(painter, i)
+
+    def _paint_interaction(self, painter: QPainter) -> None:
+        """Previews of what is being drawn or picked (on top of every page)."""
         if self._mode == "drag_create" and self._create_origin and self._create_current:
             from core.editing.shape_box import constrain_line_angle, constrain_rect_aspect
 
@@ -754,9 +985,15 @@ class _CanvasWidget(QWidget):
                 wr = self.pdf_rect_to_widget(self._press_page, r)
                 if wr:
                     painter.drawRect(wr)
+        if self._mode == "marquee" and self._marquee_origin and self._marquee_current:
+            mr = self.pdf_rect_to_widget(self._marquee_page, Rect.from_points(self._marquee_origin, self._marquee_current))
+            if mr:
+                painter.setPen(QPen(QColor("#2563eb"), 1, Qt.PenStyle.DashLine))
+                painter.setBrush(QColor(37, 99, 235, 28))
+                painter.drawRect(mr)
         if self._region_pick is not None and self._region_origin and self._region_current:
             kind = self._region_pick[2]
-            if kind == "stroke" and len(self._region_stroke) >= 2:
+            if kind in ("stroke", "erase_stroke") and len(self._region_stroke) >= 2:
                 from PySide6.QtGui import QPainterPath
 
                 path = QPainterPath()
@@ -789,7 +1026,6 @@ class _CanvasWidget(QWidget):
                     painter.setPen(pen)
                     painter.setBrush(QColor(217, 119, 6, 38))
                     painter.drawRect(wr)
-        painter.end()
 
     def _paint_forms(self, painter: QPainter, page_index: int) -> None:
         """
@@ -804,7 +1040,7 @@ class _CanvasWidget(QWidget):
         highlight = bool(getattr(self._edit, "highlight_fillable_fields", False))
         for field in self._edit.fields_on_page(page_index):
             wr = self.pdf_rect_to_widget(page_index, field.rect)
-            if wr is None:
+            if wr is None or not self._in_paint_region(wr):
                 continue
             policy = should_paint_field_overlay(
                 field, forms_mode=forms_mode, highlight_fillable=highlight
@@ -979,6 +1215,14 @@ class _CanvasWidget(QWidget):
         items.sort(key=lambda it: (int(getattr(it[1], "z_index", 0)), rank[it[0]]))
         for kind, obj in items:
             wr = self.pdf_rect_to_widget(page_index, obj.rect)
+            if self._paint_region is not None and wr is not None:
+                # Skip what a partial repaint does not touch (stroke, arrow heads, turned boxes)
+                reach = _HANDLE + 18 + int(float(getattr(obj, "stroke_width", 0.0) or 0.0) * max(self._zoom, 0.5))
+                if abs(float(getattr(obj, "rotation", 0.0) or getattr(getattr(obj, "style", None), "rotation", 0.0)
+                             or 0.0)) % 360.0 > 0.01:
+                    reach += max(wr.width(), wr.height())
+                if not self._in_paint_region(wr.normalized(), reach):
+                    continue
             if kind == "shape":
                 self._paint_shape(painter, page_index, obj)
             elif wr is None:
@@ -1085,10 +1329,10 @@ class _CanvasWidget(QWidget):
     def _paint_image(self, painter: QPainter, img, wr: QRect) -> None:
         from pathlib import Path
 
-        path = Path(getattr(img, "source_path", "") or "")
-        if path.is_file():
-            pix = QPixmap(str(path))
-            if not pix.isNull():
+        source = str(getattr(img, "source_path", "") or "")
+        if source:
+            pix = self._image_pixmap(str(Path(source)), wr.size())
+            if pix is not None and not pix.isNull():
                 painter.save()
                 painter.setOpacity(max(0.05, min(1.0, float(getattr(img, "opacity", 1.0)))))
                 if abs(float(getattr(img, "rotation", 0.0))) > 0.01:
@@ -1397,6 +1641,37 @@ class _CanvasWidget(QWidget):
             if rect.inflate(2.0).contains(pt):
                 return (page_index, int(annot.xref), kind, rect)
         return None
+
+    def _annotation_tip(self, page_index: int, xref: int, kind: str) -> str:
+        """Rich-text tooltip showing a comment's author and text (empty when it has no text)."""
+        from html import escape
+
+        try:
+            page = self._document._backend._doc.load_page(page_index)  # noqa: SLF001
+            annot = next((a for a in page.annots() or [] if int(a.xref) == int(xref)), None)
+        except Exception:  # noqa: BLE001
+            return ""
+        if annot is None:
+            return ""
+        info = annot.info or {}
+        text = (info.get("content") or "").strip()
+        if not text:
+            return ""
+        label = {"Text": "Note", "FreeText": "Callout"}.get(kind, kind)
+        author = (info.get("title") or "").strip()
+        head = f"<b>{escape(label)}</b>" + (f" — {escape(author)}" if author else "")
+        body = escape(text[:1200]).replace("\n", "<br>")
+        return (f"<div style='max-width:340px'>{head}<br>{body}"
+                f"<br><span style='color:#6b7280'>Double-click to edit</span></div>")
+
+    def _update_annotation_hover(self, page_index: int, pdf_pt: Point) -> None:
+        """Hovering a sticky note (or another comment with text) shows its text as a tooltip."""
+        found = self._annotation_at(page_index, pdf_pt)
+        key = (found[0], found[1]) if found else None
+        if key == getattr(self, "_hover_annot_key", None):
+            return
+        self._hover_annot_key = key
+        self.setToolTip(self._annotation_tip(found[0], found[1], found[2]) if found else "")
 
     def select_annotation(self, page_index: int, xref: int) -> bool:
         """Select the annotation ``xref`` on ``page_index`` (e.g. again after it was moved)."""
@@ -1920,6 +2195,9 @@ class _CanvasWidget(QWidget):
         self._press_pos = event.position().toPoint()
         self._press_pdf = pdf_pt
         self._press_page = page_index
+        self._field_text_drag = False
+        ctrl = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
+        self._marquee_before = (list(self._edit.selection), list(self._edit.field_selection))
 
         if self._text_editor is not None:
             self.close_text_editor(commit=True)
@@ -1990,7 +2268,22 @@ class _CanvasWidget(QWidget):
         if self._edit.tool == EditTool.SELECT:
             field = self._hit_form_field(page_index, pdf_pt)
             if field is not None and not field.is_candidate:
+                if ctrl and not field.readonly:
+                    # Ctrl+click adds / removes boxes without typing, e.g. to change their font together
+                    sel_boxes, sel_fields = self._marquee_before
+                    if field.object_id in sel_fields:
+                        sel_fields = [i for i in sel_fields if i != field.object_id]
+                    else:
+                        sel_fields = [*sel_fields, field.object_id]
+                    self._edit.field_selection = sel_fields
+                    self._edit.selection = [o for o in sel_boxes if o in self._edit.objects]
+                    self._edit.editing_field_id = None
+                    self._edit._notify()  # noqa: SLF001
+                    self.update()
+                    return
                 self._activate_form_fill(field)
+                if self._field_editor is not None and self._field_editor_id == field.object_id:
+                    self._field_text_drag = True  # keep dragging: select words in the box
                 return
 
         # Forms / Layout design: select + move/resize fields
@@ -2088,6 +2381,20 @@ class _CanvasWidget(QWidget):
                 self._mode = "annot_move" if found[2] in self.ANNOT_MOVABLE else "idle"
                 self._annot_drag = (0.0, 0.0)
                 self.annotationSelected.emit(found[0], found[1])
+                if found[2] == "Text":  # a sticky note: show what it says right away
+                    tip = self._annotation_tip(found[0], found[1], found[2])
+                    if tip:
+                        from PySide6.QtWidgets import QToolTip
+
+                        anchor = self.pdf_rect_to_widget(found[0], found[3])
+                        at = anchor.bottomRight() if anchor is not None else event.position().toPoint()
+                        QToolTip.showText(self.mapToGlobal(at), tip, self, QRect(), 12000)
+            elif self._edit.tool in (EditTool.SELECT, EditTool.FORM_SELECT, EditTool.LAYOUT_SELECT):
+                # Empty paper: a drag draws a selection rectangle (a click just deselects, as before)
+                self._mode = "marquee"
+                self._marquee_page = page_index
+                self._marquee_origin = self._marquee_current = pdf_pt
+                self._marquee_additive = ctrl
         if hit:
             self.clear_annotation_selection()
         self.update()
@@ -2097,6 +2404,22 @@ class _CanvasWidget(QWidget):
 
         if self._edit is None:
             return super().mouseMoveEvent(event)
+        if self._field_text_drag:
+            ed = self._field_editor
+            if ed is not None and event.buttons() & Qt.MouseButton.LeftButton:
+                from PySide6.QtGui import QTextCursor
+
+                spot = ed.viewport().mapFrom(self, event.position().toPoint())
+                cur = ed.textCursor()
+                cur.setPosition(ed.cursorForPosition(spot).position(), QTextCursor.MoveMode.KeepAnchor)
+                ed.setTextCursor(cur)
+                return
+            self._field_text_drag = False
+        if self._mode == "marquee" and self._marquee_origin is not None:
+            if event.buttons() & Qt.MouseButton.LeftButton:
+                self._marquee_current = self._widget_to_page_point(self._marquee_page, event.position().toPoint())
+                self.update()
+            return
         mapped = self.widget_to_pdf(event.position().toPoint())
         if mapped is None:
             return
@@ -2112,7 +2435,7 @@ class _CanvasWidget(QWidget):
             if self._region_origin is not None:
                 pt = self._clamp_to_page(self._region_page, pdf_pt)
                 self._region_current = pt
-                if self._region_pick[2] == "stroke":
+                if self._region_pick[2] in ("stroke", "erase_stroke"):
                     if not self._region_stroke or (
                         abs(pt.x - self._region_stroke[-1].x) > 0.4
                         or abs(pt.y - self._region_stroke[-1].y) > 0.4
@@ -2132,7 +2455,10 @@ class _CanvasWidget(QWidget):
                 else:
                     self.setCursor(Qt.CursorShape.ArrowCursor)
                 self.setToolTip(self._field_overflow_tip(field) if hid else "")
+                self._hover_annot_key = None
                 self.update()
+            if not hid:
+                self._update_annotation_hover(page_index, pdf_pt)
 
         if self._mode == "drag_create" and self._create_origin is not None:
             self._shift_constrain = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
@@ -2147,6 +2473,8 @@ class _CanvasWidget(QWidget):
             t0 = time.perf_counter()
             dx = pdf_pt.x - self._press_pdf.x
             dy = pdf_pt.y - self._press_pdf.y
+            ids = list(self._drag_before.keys())
+            before = self._live_dirty_rects(ids)  # where they are drawn now (the previous move)
             for oid, rect in self._drag_before.items():
                 if oid in self._edit.objects:
                     self._edit.objects[oid].rect = rect
@@ -2163,9 +2491,12 @@ class _CanvasWidget(QWidget):
                     if oid in self._drag_shape_points:
                         shape.points = list(self._drag_shape_points[oid])
             self._live_interaction = True
-            self._edit.live_translate(
-                list(self._drag_before.keys()), dx, dy, snap=True, notify=True
-            )
+            self._edit.live_translate(ids, dx, dy, snap=True, notify=False)
+            region = QRegion()
+            for r in before + self._live_dirty_rects(ids):
+                region = region.united(QRegion(r))
+            self._live_region = region
+            self._edit._notify()  # noqa: SLF001
             self._drag_perf.append((time.perf_counter() - t0) * 1000)
             return
         if self._mode == "drag_resize" and self._resize_oid and self._resize_handle:
@@ -2215,6 +2546,12 @@ class _CanvasWidget(QWidget):
                 self.update()
                 return
             self._finish_region_pick()
+            return
+        self._field_text_drag = False
+        if self._mode == "marquee":
+            self._mode = "idle"
+            self._finish_marquee()
+            self.update()
             return
         if self._mode == "annot_move" and self._annot_sel is not None:
             self._mode = "idle"
@@ -2366,7 +2703,7 @@ class _CanvasWidget(QWidget):
         if kind in ("point", "erase"):
             rect = Rect(origin.x, origin.y, 0, 0)
             was_click = True
-        if kind == "stroke":
+        if kind in ("stroke", "erase_stroke"):
             stroke = list(self._region_stroke) if self._region_stroke else [origin, current]
             self._last_region_stroke = stroke
             if len(stroke) >= 2:
@@ -2471,6 +2808,33 @@ class _CanvasWidget(QWidget):
             self._edit.select([own])
             self.open_text_editor(own, click_pos=event.position().toPoint())
             return
+        if own and own in self._edit.images:  # a signature: change its text / style / ink; a picture: replace it
+            self._edit.select([own])
+            self._mode = "idle"
+            self._live_interaction = False
+            self.imageEditRequested.emit(own)
+            return
+        # A fillable field — also one just added in Forms mode, where a click selects / moves it:
+        # double-click fills it (type, tick, choose). Never falls through to editing the page text
+        # printed underneath the field.
+        field = self._hit_form_field(page_index, pdf_pt)
+        if field is not None and not field.is_candidate:
+            if self._field_editor is not None and self._field_editor_id == field.object_id:
+                return  # already typing here: the editor selects the word itself
+            if field.readonly:
+                self.requestStatus.emit("This field is read-only")
+                return
+            if field.field_type == FieldType.SIGNATURE:
+                self.requestStatus.emit("Signature field: use Sign ▸ Type / Draw a Signature to sign it")
+                return
+            if field.field_type in (FieldType.CHECKBOX, FieldType.RADIO):
+                return  # the first click of the double-click already ticked it; a second toggle would undo it
+            self._press_pos = event.position().toPoint()
+            self._mode = "idle"
+            self._live_interaction = False
+            self._activate_form_fill(field)
+            self.update()
+            return
         # A comment (sticky note, callout, stamp ...) on top of the page: edit its text
         if not own and self._edit.tool == EditTool.SELECT:
             found = self._annotation_at(page_index, pdf_pt)
@@ -2540,12 +2904,18 @@ class _CanvasWidget(QWidget):
             if key == Qt.Key.Key_Z and not (mod & Qt.KeyboardModifier.ShiftModifier):
                 if self.try_editor_undo():
                     return
-                self._edit.undo()
+                if self.history_handler is not None:
+                    self.history_handler("undo")  # the window also redraws a changed page
+                else:
+                    self._edit.undo()
                 return
             if key == Qt.Key.Key_Y or (key == Qt.Key.Key_Z and (mod & Qt.KeyboardModifier.ShiftModifier)):
                 if self.try_editor_redo():
                     return
-                self._edit.redo()
+                if self.history_handler is not None:
+                    self.history_handler("redo")
+                else:
+                    self._edit.redo()
                 return
             if key == Qt.Key.Key_C:
                 self._object_clipboard = self._edit.clipboard_copy()
@@ -2785,6 +3155,7 @@ class PdfCanvas(QScrollArea):
     annotationMoveRequested = Signal(int, int, float, float)  # page, xref, dx, dy (unrotated page space)
     annotationDeleteRequested = Signal(int, int)
     annotationEditRequested = Signal(int, int)
+    imageEditRequested = Signal(str)  # double-click on a placed picture / signature
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -2804,6 +3175,7 @@ class PdfCanvas(QScrollArea):
         self._canvas.annotationMoveRequested.connect(self.annotationMoveRequested.emit)
         self._canvas.annotationDeleteRequested.connect(self.annotationDeleteRequested.emit)
         self._canvas.annotationEditRequested.connect(self.annotationEditRequested.emit)
+        self._canvas.imageEditRequested.connect(self.imageEditRequested.emit)
         self.verticalScrollBar().valueChanged.connect(self._on_scroll)
         self.horizontalScrollBar().valueChanged.connect(self._on_scroll)
 
@@ -2847,6 +3219,18 @@ class PdfCanvas(QScrollArea):
 
     def take_region_stroke(self) -> list:
         return self._canvas.take_region_stroke()
+
+    def refresh_page_content(self, pages) -> None:
+        self._canvas.refresh_page_content(pages)
+
+    def clear_annotation_selection(self) -> None:
+        self._canvas.clear_annotation_selection()
+
+    def release_memory(self) -> None:
+        self._canvas.release_memory()
+
+    def restore_after_release(self) -> None:
+        self._canvas._schedule_render()  # noqa: SLF001
 
     def take_stroke_locked_color(self):
         return self._canvas.take_stroke_locked_color()

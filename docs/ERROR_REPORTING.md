@@ -2,8 +2,9 @@
 
 Status: **included in 0.3.0, sending switched off**. Problem reports are detected, built and shown to the user;
 **sending is disabled** until the reporting gateway described below is deployed and verified
-(`resources/diagnostics/reporting.json` has `"enabled": false` and no endpoint). Choosing
-**Send to Developer** in this build says so truthfully and sends nothing.
+(`resources/diagnostics/reporting.json` has `"enabled": false` and no endpoint). In such a build
+the dialog does not offer **Send to Developer** at all; it offers **Copy Report**, **Open Issues
+Page** and **Close** instead (see below), and the app sends nothing.
 
 ## What is detected
 
@@ -58,10 +59,15 @@ Predefined event identifiers: `APP_STARTED`, `PDF_OPEN_STARTED/FAILED`, `TEXT_ED
 
 ## The dialog
 
-Exactly two decision buttons: **Don't Send** (default) and **Send to Developer**. The complete
+When a reporting gateway is configured: exactly two decision buttons, **Don't Send** (default)
+and **Send to Developer**. The complete
 report is shown read-only above them, with an explanation that it holds limited technical
 information and is sent only with approval. Recoverable errors are offered without closing the
 application; crashes are offered at the next successful start.
+
+When no gateway is configured (0.3.x): **Copy Report** puts the report, exactly as shown, on the
+clipboard; **Open Issues Page** opens the project's GitHub issues page in the browser so the user
+can paste it into a new issue themselves; **Close** (default) discards it. The app transmits nothing.
 
 * **Don't Send**: nothing is transmitted; the dialog closes; the report is discarded.
 * **Send to Developer**: the report exactly as shown is sent once over HTTPS to the configured

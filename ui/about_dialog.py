@@ -416,8 +416,10 @@ class AboutDialog(QDialog):
         self._updates.check(manual=True)
 
     def _update_status(self, res) -> None:
+        from ui.update_dialogs import status_line
+
         text = self._build_info.text().rsplit("Updates:", 1)[0]
-        self._build_info.setText(f"{text}Updates: {res.status.label}")
+        self._build_info.setText(f"{text}Updates: {status_line(res.status)}")
 
     def _on_tab_changed(self, index: int) -> None:
         if self._tabs.tabText(index) != "Office Integration":

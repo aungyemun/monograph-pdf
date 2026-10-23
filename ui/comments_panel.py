@@ -158,12 +158,21 @@ class CommentsPanel(QWidget):
             self.tree.addTopLevelItem(group)
             for a in sorted(by_page[page], key=lambda a: (round(a.rect[1]), a.rect[0])):
                 label = KIND_LABELS.get(a.kind, a.kind)
+                if a.kind == "Ink" and a.opacity < 0.95:
+                    label = "Highlight"  # a free-area highlight stroke (see-through ink), not a drawing
                 text = " ".join(a.content.split())
+                marked = getattr(a, "marked_text", "")
+                if not text and marked:
+                    text = f"“{marked}”"
                 preview = (text[:80] + "…") if len(text) > 80 else text
                 line = label + (f" — {preview}" if preview else "")
                 if a.author:
                     line += f"   ({a.author})"
                 item = QTreeWidgetItem([line])
+                if a.color:
+                    from ui.color_swatches import swatch_icon
+
+                    item.setIcon(0, swatch_icon(a.color, 14))
                 ref = CommentRef(a.page_index, a.xref, a.kind, a.rect)
                 item.setData(0, ROLE, ref)
                 tip = label + (f"\n{a.content}" if a.content else "") + (f"\nAuthor: {a.author}" if a.author else "")

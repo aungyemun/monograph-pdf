@@ -203,3 +203,54 @@ def test_toolbar_picker_follows_selected_text_box(qtbot, tmp_path, monkeypatch):
     finally:
         win.close_document(save_session=False)
         win.close()
+
+
+def test_delegate_never_raises_when_inner_is_missing(picker, qtbot):
+    """Regression: an AttributeError in the row painter ended the whole app (font_picker:28)."""
+    from PySide6.QtGui import QImage, QPainter
+    from PySide6.QtWidgets import QStyleOptionViewItem
+
+    delegate = picker.itemDelegate()
+    assert delegate is picker._font_delegate
+    img = QImage(200, 30, QImage.Format.Format_ARGB32)
+    painter = QPainter(img)
+    try:
+        option = QStyleOptionViewItem()
+        option.rect = img.rect()
+        index = picker.model().index(0, 0)
+        del delegate._inner  # the failure mode reported: the wrapped delegate is not reachable
+        delegate.paint(painter, option, index)
+        assert delegate.sizeHint(option, index).height() > 0
+        picker.set_family(picker.itemText(0))  # active row path as well
+        delegate.paint(painter, option, index)
+    finally:
+        painter.end()
+
+
+def test_one_click_opens_the_list_but_not_while_typing_a_search(picker, qtbot):
+    picker.set_family(picker.itemText(1))
+    QTest.mouseClick(picker.lineEdit(), Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: picker.view().isVisible(), timeout=2000)
+    assert picker.family() == picker.itemText(1), "opening the list must not change the font"
+    picker.hidePopup()
+    qtbot.waitUntil(lambda: not picker.view().isVisible(), timeout=2000)
+    picker.lineEdit().setText("ti")  # the user is typing a search
+    QTest.mouseClick(picker.lineEdit(), Qt.MouseButton.LeftButton)
+    qtbot.wait(50)
+    assert not picker.view().isVisible(), "a click while typing must only place the cursor"
+
+
+def test_font_list_scrolls_evenly(picker):
+    from PySide6.QtWidgets import QAbstractItemView
+
+    view = picker.view()
+    assert view.verticalScrollMode() == QAbstractItemView.ScrollMode.ScrollPerPixel
+    if hasattr(view, "uniformItemSizes"):
+        assert view.uniformItemSizes()
+
+def test_bundled_fonts_are_listed_with_installed_fonts(picker):
+    from core.editing.font_resolver import _QT_REGISTERED
+
+    assert _QT_REGISTERED, "bundled fonts were not registered"
+    for family in ("Noto Sans", "Noto Serif"):
+        assert picker.findText(family, Qt.MatchFlag.MatchFixedString) >= 0, family

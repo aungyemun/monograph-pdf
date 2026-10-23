@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
 
 from core.editing.font_resolver import measure_text_width, resolve_font
@@ -93,8 +94,41 @@ def wrap_paragraph(
     return lines
 
 
+_LAYOUT_CACHE: "OrderedDict[tuple, LayoutResult]" = OrderedDict()
+_LAYOUT_CACHE_MAX = 512
+
+
+def clear_layout_cache() -> None:
+    """Forget cached layouts (memory-saving mode); they are measured again when needed."""
+    _LAYOUT_CACHE.clear()
+
+
 def layout_text_box(box: TextBox) -> LayoutResult:
-    """Compute wrapped lines and overflow; may suggest height for AUTO_HEIGHT."""
+    """Compute wrapped lines and overflow; may suggest height for AUTO_HEIGHT.
+
+    The result depends only on the text, style, box size and sizing / writing mode — not on the
+    box's position — so it is cached: moving a box (every mouse move repaints it) re-uses the
+    layout instead of measuring every word again. Callers must not modify the returned result."""
+    key = (
+        box.text,
+        tuple(sorted(box.style.to_dict().items())),
+        round(float(box.rect.w), 3),
+        round(float(box.rect.h), 3),
+        str(box.size_mode),
+        str(box.writing_mode),
+    )
+    hit = _LAYOUT_CACHE.get(key)
+    if hit is not None:
+        _LAYOUT_CACHE.move_to_end(key)
+        return hit
+    result = _layout_text_box(box)
+    _LAYOUT_CACHE[key] = result
+    if len(_LAYOUT_CACHE) > _LAYOUT_CACHE_MAX:
+        _LAYOUT_CACHE.popitem(last=False)
+    return result
+
+
+def _layout_text_box(box: TextBox) -> LayoutResult:
     # Vertical writing: architectural stub — still layout horizontally for now
     # but flag writing_mode for future glyph rotation path.
     _ = box.writing_mode == WritingMode.VERTICAL_RL

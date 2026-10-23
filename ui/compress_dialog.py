@@ -38,7 +38,11 @@ PROFILES: tuple[tuple[str, str, int | None], ...] = (
     ("Email attachment — at most 10 MB", "target", 10 * cz.MB),
     ("Online form upload — at most 2 MB", "target", 2 * cz.MB),
     ("Custom maximum size", "target", None),
+    ("Custom resolution and quality", "custom", None),
 )
+# The "Custom maximum size" entry (found by name, so adding profiles never shifts it)
+CUSTOM_TARGET_INDEX = next(i for i, p in enumerate(PROFILES) if p[0] == "Custom maximum size")
+CUSTOM_QUALITY_INDEX = next(i for i, p in enumerate(PROFILES) if p[1] == "custom")
 UNIT_NAMES = ("KB", "MB", "GB")
 SLIDER_STEPS = 1000
 
@@ -132,7 +136,7 @@ class CompressDialog(QDialog):
         from ui.toolbar_icons import make_icon
 
         for key, icon in (("lossless", "quality_high"), ("balanced", "quality_balanced"),
-                          ("smallest", "quality_smallest"), ("target", "target_size")):
+                          ("smallest", "quality_smallest"), ("custom", "quality_balanced"), ("target", "target_size")):
             b = QRadioButton(cz.MODE_LABELS[key])
             b.setIcon(make_icon(icon))
             b.setMinimumWidth(b.sizeHint().width())  # never squeezed so the label is cut
@@ -141,6 +145,32 @@ class CompressDialog(QDialog):
             mrow.addWidget(b)
         mrow.addStretch(1)
         form.addRow("Mode:", modes)
+
+        # Custom: choose the picture resolution and JPEG quality yourself
+        custom = QWidget()
+        crow = QHBoxLayout(custom)
+        crow.setContentsMargins(0, 0, 0, 0)
+        self.ppi_spin = QSpinBox()
+        self.ppi_spin.setObjectName("CompressPpi")
+        self.ppi_spin.setRange(*cz.CUSTOM_PPI_RANGE)
+        self.ppi_spin.setSingleStep(10)
+        self.ppi_spin.setValue(200)
+        self.ppi_spin.setSuffix(" ppi")
+        self.ppi_spin.setToolTip("Picture resolution (pixels per inch at the size shown on the page). Pictures "
+                                 "already below it are not enlarged. 300 ppi = print quality, 150 ppi = screen.")
+        self.quality_spin = QSpinBox()
+        self.quality_spin.setObjectName("CompressQuality")
+        self.quality_spin.setRange(*cz.CUSTOM_QUALITY_RANGE)
+        self.quality_spin.setValue(80)
+        self.quality_spin.setToolTip("JPEG quality of reduced pictures: higher = sharper and larger "
+                                     "(85–95 very good, 70–80 good, below 60 visible artefacts)")
+        crow.addWidget(QLabel("Resolution"))
+        crow.addWidget(self.ppi_spin)
+        crow.addSpacing(12)
+        crow.addWidget(QLabel("JPEG quality"))
+        crow.addWidget(self.quality_spin)
+        crow.addStretch(1)
+        form.addRow("Pictures:", custom)
 
         target = QWidget()
         trow = QHBoxLayout(target)
@@ -235,6 +265,8 @@ class CompressDialog(QDialog):
         self.unit.currentIndexChanged.connect(self._unit_changed)
         self.slider.valueChanged.connect(self._slider_changed)
         self.margin.valueChanged.connect(lambda *_: self._sync())
+        self.ppi_spin.valueChanged.connect(lambda *_: self._sync())
+        self.quality_spin.valueChanged.connect(lambda *_: self._sync())
         self.page_spin.valueChanged.connect(lambda *_: self._show_preview())
         self._unit_name = "KB"
         default_target = max(self.min_bytes(), int(len(data) * 0.5))
@@ -318,7 +350,7 @@ class CompressDialog(QDialog):
     def _choose_custom(self) -> None:
         if not self.mode_buttons["target"].isChecked():
             self.mode_buttons["target"].setChecked(True)
-        last = len(PROFILES) - 1
+        last = CUSTOM_TARGET_INDEX
         if self.profile_combo.currentIndex() != last and PROFILES[self.profile_combo.currentIndex()][2] != self.target_bytes():
             self.profile_combo.blockSignals(True)
             self.profile_combo.setCurrentIndex(last)
@@ -347,7 +379,8 @@ class CompressDialog(QDialog):
             mode = self.mode()
             current = PROFILES[self.profile_combo.currentIndex()][1]
             if current != mode:
-                index = {"lossless": 0, "balanced": 1, "smallest": 2, "target": len(PROFILES) - 1}[mode]
+                index = {"lossless": 0, "balanced": 1, "smallest": 2, "custom": CUSTOM_QUALITY_INDEX,
+                         "target": CUSTOM_TARGET_INDEX}[mode]
                 self.profile_combo.blockSignals(True)
                 self.profile_combo.setCurrentIndex(index)
                 self.profile_combo.blockSignals(False)
@@ -357,18 +390,25 @@ class CompressDialog(QDialog):
         mode = self.mode()
         if mode == "target":
             return (mode, self.target_bytes(), self.margin.value())
+        if mode == "custom":
+            return (mode, self.ppi_spin.value(), self.quality_spin.value())
         return (mode,)
 
     def _sync(self) -> None:
         mode = self.mode()
         for w in (self.size_spin, self.unit, self.slider, self.margin):
             w.setEnabled(mode == "target")
+        for w in (self.ppi_spin, self.quality_spin):
+            w.setEnabled(mode == "custom")
         notes = {
             "lossless": "Lossless: no picture, text or drawing is changed; only the way the file is stored.",
             "balanced": "Balanced (lossy for pictures): pictures above 150 ppi are reduced and re-encoded "
                         "(JPEG quality 75). Text, fonts, drawings, annotations and forms are not changed.",
             "smallest": "Smallest file (lossy for pictures): pictures reduced to 110 ppi (scanned pages 150 ppi), "
                         "JPEG quality 55. Text stays sharp — it is never turned into a picture.",
+            "custom": f"Custom (lossy for pictures): pictures above {self.ppi_spin.value()} ppi are reduced to it "
+                      f"and re-encoded at JPEG quality {self.quality_spin.value()} (scanned pages stay at 150 ppi or "
+                      "more). Text, fonts, drawings, annotations and forms are not changed.",
             "target": "Target size: lossless first; pictures are reduced only as far as needed, best quality "
                       "first, never below 100 ppi (scanned pages 150 ppi) or JPEG quality 40.",
         }
@@ -380,8 +420,9 @@ class CompressDialog(QDialog):
             est = cz.estimate_size(self.profile, None, None)
             self.estimate_label.setText("Estimated size: about the same or smaller (lossless — the gain depends on "
                                         "how the file was written; measure with Preview).")
-        elif mode in cz.MODE_SETTINGS:
-            est = cz.estimate_size(self.profile, *cz.MODE_SETTINGS[mode])
+        elif mode in cz.MODE_SETTINGS or mode == "custom":
+            settings = cz.MODE_SETTINGS.get(mode) or (self.ppi_spin.value(), self.quality_spin.value())
+            est = cz.estimate_size(self.profile, *settings)
             self.estimate_label.setText(f"Estimated size: about {cz.format_size(est)} "
                                         f"({_pct(est, len(self._data))}) — an estimate; Preview measures it.")
         else:
@@ -414,6 +455,9 @@ class CompressDialog(QDialog):
                     return
             self._signed_ok = True
         kwargs: dict[str, Any] = {"mode": self.mode(), "password": self._password}
+        if self.mode() == "custom":
+            kwargs["ppi"] = float(self.ppi_spin.value())
+            kwargs["quality"] = int(self.quality_spin.value())
         if self.mode() == "target":
             kwargs["target_bytes"] = self.target_bytes()
             kwargs["safety_margin"] = self.margin.value() / 100.0
@@ -439,7 +483,7 @@ class CompressDialog(QDialog):
         self.bar.setVisible(on)
         self.bar.setValue(0)
         for w in (self.profile_combo, self.preview_btn, self.ok_btn, *self.mode_buttons.values(), self.size_spin,
-                  self.unit, self.slider, self.margin):
+                  self.unit, self.slider, self.margin, self.ppi_spin, self.quality_spin):
             w.setEnabled(not on)
         self.cancel_btn.setText("Stop" if on else "Cancel")
         self.status.setText("Working…" if on else "")

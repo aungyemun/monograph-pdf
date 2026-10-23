@@ -54,6 +54,16 @@ class StampSpec:
     rotation: float = 0.0  # degrees, clockwise as on screen
     image_path: str = ""
     extra: dict = field(default_factory=dict)
+    # Look (text stamps). Empty colours follow ``color``; older stamps without these keys keep
+    # exactly the look they were made with.
+    font: str = "Helvetica"  # Helvetica (sans), Times (serif) or Courier (typewriter)
+    bold: bool = True
+    text_color: str = ""
+    border_color: str = ""
+    fill_color: str = ""  # "" = no fill (see-through)
+    frame: str = "double"  # double, single, none
+    corners: str = "rounded"  # rounded, square, pill
+    line_scale: float = 1.0  # border thickness, 0.5 (thin) … 3 (very thick)
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False, sort_keys=True)
@@ -72,10 +82,18 @@ def _rgb(hex_color: str) -> tuple[float, float, float]:
     return tuple(int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))  # type: ignore[return-value]
 
 
-def _draw_label(page: fitz.Page, rect: fitz.Rect, text: str, color: str, *, bold: bool = True) -> None:
+FONTS = ("Helvetica", "Times", "Courier")
+FRAMES = ("double", "single", "none")
+CORNERS = ("rounded", "square", "pill")
+_RADIUS = {"rounded": 0.18, "square": 0.0, "pill": 0.5}
+
+
+def _draw_label(page: fitz.Page, rect: fitz.Rect, text: str, color: str, *, bold: bool = True,
+                font: str = "Helvetica") -> None:
     from core.forms.appearance import draw_text
 
-    entry = SimpleNamespace(value=text, runs=[], font_family="Helvetica", font_size=0.0, bold=bold, italic=False,
+    entry = SimpleNamespace(value=text, runs=[], font_family=font if font in FONTS else "Helvetica", font_size=0.0,
+                            bold=bold, italic=False,
                             text_color=color, align="center", valign="middle", multiline=False)
     draw_text(page, rect, entry, pad=0.0, multiline=False)
 
@@ -87,21 +105,34 @@ def draw_appearance(spec: StampSpec, width: float, height: float) -> fitz.Docume
     if spec.image_path:
         page.insert_image(page.rect, filename=str(spec.image_path), keep_proportion=True)
     else:
-        rgb = _rgb(spec.color)
-        line = max(1.0, min(width, height) * 0.06)
+        border = _rgb(spec.border_color or spec.color)
+        ink = spec.text_color or spec.color
+        frame = spec.frame if spec.frame in FRAMES else "double"
+        radius = _RADIUS.get(spec.corners, 0.18)
+        scale = max(0.5, min(3.0, float(spec.line_scale or 1.0)))
+        line = max(1.0, min(width, height) * 0.06) * scale
+        base_line = max(1.0, min(width, height) * 0.06)
         outer = fitz.Rect(line / 2, line / 2, width - line / 2, height - line / 2)
-        page.draw_rect(outer, color=rgb, width=line, radius=0.18)
+        if spec.fill_color:
+            page.draw_rect(outer, color=None, fill=_rgb(spec.fill_color), width=0, radius=radius or None)
+        if frame != "none":
+            page.draw_rect(outer, color=border, width=line, radius=radius or None)
         inner = outer + (line * 1.4, line * 1.4, -line * 1.4, -line * 1.4)
-        if inner.width > 4 and inner.height > 4:
-            page.draw_rect(inner, color=rgb, width=max(0.5, line * 0.35), radius=0.12)
-        text_area = inner + (line, line * 0.3, -line, -line * 0.3)
+        if frame == "double" and inner.width > 4 and inner.height > 4:
+            page.draw_rect(inner, color=border, width=max(0.5, line * 0.35),
+                           radius={"rounded": 0.12, "pill": 0.5}.get(spec.corners if spec.corners in CORNERS else "rounded"))
+        text_area = (inner + (base_line, base_line * 0.3, -base_line, -base_line * 0.3) if frame == "double"
+                     else outer + (line + base_line, line * 0.5, -line - base_line, -line * 0.5))
+        if spec.corners == "pill":  # keep the words clear of the round ends
+            text_area = text_area + (text_area.height * 0.25, 0, -text_area.height * 0.25, 0)
         if spec.subtitle and text_area.height > 14:
             split = text_area.y0 + text_area.height * 0.68
-            _draw_label(page, fitz.Rect(text_area.x0, text_area.y0, text_area.x1, split), spec.text, spec.color)
+            _draw_label(page, fitz.Rect(text_area.x0, text_area.y0, text_area.x1, split), spec.text, ink,
+                        bold=spec.bold, font=spec.font)
             _draw_label(page, fitz.Rect(text_area.x0, split, text_area.x1, text_area.y1), spec.subtitle,
-                        spec.color, bold=False)
+                        ink, bold=False, font=spec.font)
         else:
-            _draw_label(page, text_area, spec.text, spec.color)
+            _draw_label(page, text_area, spec.text, ink, bold=spec.bold, font=spec.font)
     scratch.subset_fonts()
     return scratch
 

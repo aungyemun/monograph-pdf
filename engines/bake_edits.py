@@ -58,11 +58,13 @@ def _working_copy(edit: EditableDocument, *, keep_encryption: bool = True) -> fi
     live = getattr(backend, "_doc", None) if backend is not None else None
     password = getattr(backend, "_password", None) if backend is not None else None
     if live is not None and not getattr(live, "is_closed", True):
-        if keep_encryption and password and _is_protected(live):
+        # Also a PDF with only a permissions (owner) password: it opens without a password, but
+        # saving must keep its owner password and restrictions instead of silently removing them.
+        if keep_encryption and _is_protected(live):
             try:
                 data = live.tobytes(garbage=0, deflate=False, encryption=fitz.PDF_ENCRYPT_KEEP)
                 doc = fitz.open("pdf", data)
-                if doc.authenticate(password):
+                if not doc.needs_pass or (password and doc.authenticate(password)):
                     return doc
                 doc.close()
             except Exception:  # noqa: BLE001

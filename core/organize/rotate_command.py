@@ -40,18 +40,37 @@ def _turn_centered(r: Rect, w: float, h: float, degrees: int) -> Rect:
     return Rect(cx - r.w / 2.0, cy - r.h / 2.0, r.w, r.h)
 
 
+def _keep_inside(r: Rect, page_w: float, page_h: float, *, shown_w: float | None = None,
+                 shown_h: float | None = None) -> Rect:
+    """``r`` moved (same size) so what is shown of it (``shown_w`` × ``shown_h`` about its centre,
+    e.g. a picture turned a quarter) lies on a page_w × page_h page, as far as it fits."""
+    sw = r.w if shown_w is None else shown_w
+    sh = r.h if shown_h is None else shown_h
+    cx = min(max(r.cx, min(sw / 2.0, page_w / 2.0)), max(page_w - sw / 2.0, page_w / 2.0))
+    cy = min(max(r.cy, min(sh / 2.0, page_h / 2.0)), max(page_h - sh / 2.0, page_h / 2.0))
+    return Rect(cx - r.w / 2.0, cy - r.h / 2.0, r.w, r.h)
+
+
 def turn_overlays(edit: Any, page_index: int, w: float, h: float, degrees: int) -> None:
-    """Move every overlay of ``page_index`` for a clockwise page turn (w × h = size before)."""
+    """Move every overlay of ``page_index`` for a clockwise page turn (w × h = size before).
+
+    Text boxes, pictures and tables keep their size, and the page's width and height swap on a
+    quarter turn, so one near an edge could end up partly off the page (cut off on screen, in other
+    PDF apps and on paper): those are kept on the page."""
     d = degrees % 360
     if d == 0:
         return
+    new_w, new_h = (h, w) if d in (90, 270) else (w, h)
     for box in edit.objects.values():
         if box.page_index == page_index:
-            box.rect = _turn_centered(box.rect, w, h, d)
+            box.rect = _keep_inside(_turn_centered(box.rect, w, h, d), new_w, new_h)
     for img in getattr(edit, "images", {}).values():
         if img.page_index == page_index:
-            img.rect = _turn_centered(img.rect, w, h, d)
             img.rotation = (float(getattr(img, "rotation", 0.0)) + d) % 360.0
+            r = _turn_centered(img.rect, w, h, d)
+            quarter = round(img.rotation / 90.0) % 2 == 1  # shown turned: width and height swap
+            img.rect = _keep_inside(r, new_w, new_h, shown_w=r.h if quarter else r.w,
+                                    shown_h=r.w if quarter else r.h)
     for shape in getattr(edit, "shapes", {}).values():
         if shape.page_index != page_index:
             continue
@@ -64,7 +83,7 @@ def turn_overlays(edit: Any, page_index: int, w: float, h: float, degrees: int) 
             field.rect = _turn_rect(field.rect, w, h, d)
     for table in edit.tables.values():
         if getattr(table, "page_index", None) == page_index:
-            table.bounds = _turn_centered(table.bounds, w, h, d)
+            table.bounds = _keep_inside(_turn_centered(table.bounds, w, h, d), new_w, new_h)
     for sid, plan in list(edit._native_replacements.items()):  # noqa: SLF001
         rect = plan.get("rect")
         if not rect or not str(sid).startswith(f"p{page_index}-"):

@@ -60,6 +60,12 @@ The password strength rating in **Protect with Password** is computed locally (l
 | Problem-report records (`Diagnostics`: a running-session marker, at most one pending crash report; expire after 14 days) | `%LOCALAPPDATA%\Monograph PDF\Diagnostics` | Always |
 | Your documents | Wherever you saved them | Never |
 
+When Monograph PDF is started a second time, that start hands the files it was asked to open to the
+running window through a small request file in `%LOCALAPPDATA%\Monograph PDF\runtime\instance\requests`
+(only the file paths; the running window deletes it at once, and requests older than two minutes are
+discarded). `runtime\instance\primary.json` holds only the running process number. No network or
+inter-process service is used for this: Windows' own named mutex detects the running copy.
+
 Nothing is written into the install folder at runtime. No startup tasks, services, or extra registry beyond Setup’s registrations.
 
 Diagnostics: each launch keeps a small startup-timing file in the runtime `logs` folder (phase durations only — no document names or content); only the 20 newest are kept. An installed copy writes no other diagnostics unless `MONOGRAPH_PDF_PERF_LOG=1` is set.

@@ -54,9 +54,13 @@ LADDER: tuple[tuple[float, int], ...] = (
     (130, 60), (120, 55), (110, 50), (100, 45), (100, 40),
 )
 REFINE_STEPS = 3
-MODES = ("lossless", "balanced", "smallest", "target")
+MODES = ("lossless", "balanced", "smallest", "custom", "target")
 MODE_SETTINGS = {"balanced": (150, 75), "smallest": (110, 55)}
-MODE_LABELS = {"lossless": "Lossless", "balanced": "Balanced", "smallest": "Smallest file", "target": "Target size"}
+MODE_LABELS = {"lossless": "Lossless", "balanced": "Balanced", "smallest": "Smallest file", "custom": "Custom",
+               "target": "Target size"}
+# Custom mode: the picture resolution and JPEG quality the user chooses (the floors below still apply)
+CUSTOM_PPI_RANGE = (100, 600)
+CUSTOM_QUALITY_RANGE = (40, 95)
 
 
 class CompressCancelled(Exception):
@@ -444,6 +448,8 @@ def compress(
     password: str | None = None,
     cancel: Callable[[], bool] | None = None,
     progress: Callable[[str, float], None] | None = None,
+    ppi: float | None = None,
+    quality: int | None = None,
 ) -> CompressResult:
     """Compress ``source`` (PDF bytes, a fitz.Document or a PdfDocument) in memory; nothing is written.
     Use :func:`write_result` to save. ``safety_margin`` (0–0.2) aims that fraction below the target."""
@@ -462,6 +468,18 @@ def compress(
         tried.append((f"{ppi:.0f} ppi / JPEG {q}", cand.size))
         best = cand if cand.size < lossless.size else lossless
         result = CompressResult(mode, len(data), best, work.profile, tried=tried)
+    elif mode == "custom":
+        lo_p, hi_p = CUSTOM_PPI_RANGE
+        lo_q, hi_q = CUSTOM_QUALITY_RANGE
+        p = float(min(max(float(ppi or 200), lo_p), hi_p))
+        q = int(min(max(int(quality or 80), lo_q), hi_q))
+        cand = work.run(p, q, f"{p:.0f} ppi / JPEG {q}")
+        tried.append((f"{p:.0f} ppi / JPEG {q}", cand.size))
+        best = cand if cand.size < lossless.size else lossless
+        result = CompressResult(mode, len(data), best, work.profile, tried=tried)
+        if any(i.scanned and i.eligible for i in work.profile.images) and p < MIN_PPI_SCAN:
+            result.notes.append(f"Scanned pages are kept at {MIN_PPI_SCAN:.0f} ppi or more so small print "
+                                "stays readable.")
     else:
         if not target_bytes or target_bytes <= 0:
             raise ValueError("target size mode needs target_bytes")

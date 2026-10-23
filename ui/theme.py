@@ -575,7 +575,68 @@ def apply_theme(app: QApplication, preference: str = "system") -> str:
     app.setPalette(qpal)
     app.setStyleSheet(stylesheet_for(theme))
     app.setProperty("monograph_pdf_theme", theme)
+    install_spin_box_widths(app)
     return theme
+
+
+# Space the theme gives a spin box besides its text: left padding + border, the arrow column
+# (``padding-right: 20px`` in the stylesheet), and a little slack for the caret
+_SPIN_CHROME_PX = 8 + 20 + 10
+
+
+def spin_box_min_width(box) -> int:
+    """Width that shows the longest value a spin box can hold, with its prefix, suffix and arrows."""
+    from PySide6.QtWidgets import QDoubleSpinBox, QSpinBox
+
+    fm = box.fontMetrics()
+    if isinstance(box, (QSpinBox, QDoubleSpinBox)):
+        texts = [box.textFromValue(box.maximum()), box.textFromValue(box.minimum())]
+        widest = max(fm.horizontalAdvance(box.prefix() + t + box.suffix()) for t in texts)
+        special = box.specialValueText()
+        if special:
+            widest = max(widest, fm.horizontalAdvance(special))
+    else:
+        widest = fm.horizontalAdvance(box.text() or "00")
+    return int(widest) + _SPIN_CHROME_PX
+
+
+class _SpinBoxWidthFilter:
+    """Gives every spin box room for its longest value before it is first shown.
+
+    Qt's size hint for a spin box does not include the stylesheet's arrow padding, so a spin box
+    squeezed to its hint (next to a colour button, in a row of margins …) hid part of its number:
+    "100" showed as "10" or "00" under the arrows. Fixed here once for every dialog."""
+
+    def __init__(self) -> None:
+        from PySide6.QtCore import QEvent, QObject
+
+        class _Filter(QObject):
+            def eventFilter(self, obj, event):  # noqa: N802
+                if event.type() in (QEvent.Type.Polish, QEvent.Type.Show):
+                    from PySide6.QtWidgets import QAbstractSpinBox
+
+                    if isinstance(obj, QAbstractSpinBox):
+                        try:
+                            need = spin_box_min_width(obj)
+                            if obj.minimumWidth() < need:
+                                if obj.maximumWidth() < need:  # a fixed width too small for the value
+                                    obj.setMaximumWidth(need)
+                                obj.setMinimumWidth(need)
+                        except Exception:  # noqa: BLE001 — sizing is cosmetic
+                            pass
+                return False
+
+        self.filter = _Filter()
+
+
+_spin_filter: _SpinBoxWidthFilter | None = None
+
+
+def install_spin_box_widths(app: QApplication) -> None:
+    global _spin_filter
+    if _spin_filter is None:
+        _spin_filter = _SpinBoxWidthFilter()
+        app.installEventFilter(_spin_filter.filter)
 
 
 def write_reference_stylesheets() -> list[Path]:

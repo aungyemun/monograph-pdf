@@ -2,6 +2,90 @@
 
 All notable changes to Monograph PDF. Versions follow `VERSION` (see `docs/RELEASE_AND_VERSIONING.md`).
 
+## [0.4.0] — Unreleased
+
+Feature and reliability release: fixes for problems found in daily use of 0.3.0 (a crash in the font
+list, slow dragging, comments and undo not refreshing the page, an eraser that needed several passes,
+sticky notes that could not be opened, fields that could not be typed into after adding them, pictures
+pushed half off the page) and new editing options for stamps, signatures, pages, printing and
+compression. Update checks, automatic upgrades and the sending of problem reports remain switched off.
+
+### Security
+
+- A PDF protected only with a permissions (owner) password — it opens without a password but forbids,
+  for example, copying or changing — lost its owner password and all its restrictions when saved:
+  Monograph PDF wrote an unprotected file. Saving (also after undoing page operations) now keeps the
+  protection exactly as it was. **Document Properties** and **Protect ▸ View Permissions** showed such
+  files as "not encrypted, every action allowed"; they now show the real restrictions.
+
+### Added
+
+- **One window at a time** — starting Monograph PDF again while it runs (Start menu, shortcut, or
+  opening a PDF in Explorer) no longer starts a second copy: the open window comes to the front and
+  opens that PDF (asking first about unsaved changes), or says it is already running. Uses a Windows
+  named mutex and a local request file; no network.
+- **Memory saving while minimized** — a few seconds after minimizing, page pictures, tiles and
+  thumbnails are released, MuPDF's cache is emptied, the working set is trimmed and Windows efficiency
+  mode is switched on (not while OCR or a conversion runs). Measured: about 30 MB while minimized
+  (from 340–470 MB); the page reappears at once when restored.
+- `scripts/perf_check.py` measures start-up, scrolling, zooming, thumbnails and memory on the real
+  window with generated documents (300 text pages; 40 scanned pages).
+
+- **Edit Stamp** — double-click a placed stamp to switch its type (Approved, Rejected, Draft …), change
+  its text and second line, font, text / border / fill color, border (double, single or none), corners
+  (rounded, square or round ends), line thickness, opacity and rotation, with a live preview.
+  **Customize Look…** in the stamp library sets the same before placing. Stamps made with 0.3.0 keep
+  exactly their look. Undoable.
+- **Edit a placed signature** by double-clicking it: a typed signature reopens with its name, style and
+  ink; a drawn one can be drawn again; a picture can be replaced. Four more ink colors.
+- **Exact page position** — **Insert Blank Pages…** (several at once), **Insert Pages from PDF…** and the
+  new **Move Pages…** ask for before / after page N, the beginning or the end. Also on the thumbnails'
+  right-click menu; undoable.
+- **Several boxes at once** — drag a rectangle from empty paper, or Ctrl+click, to select form fields and
+  text boxes; font, size, bold, italic, color and alignment then apply to all of them (one Undo step).
+  Press in a field and drag to select some of its words.
+- **Shape colors** — **Line** and **Fill** color buttons on the context toolbar for rectangles, ellipses,
+  lines and arrows, with a palette of professional colors.
+- **Two-sided printing** — **Print on both sides of paper** (flip on long edge by default, or short
+  edge) when the printer supports it. **Actual size** and **All pages** are now the defaults.
+- **Compress PDF ▸ Custom** — choose the picture resolution (100–600 ppi) and JPEG quality (40–95).
+- **Page-design previews** (header / footer, watermark, background) are larger, page through the
+  document, zoom (Fit page, Fit width, 100–400 %, Ctrl + mouse wheel, re-rendered sharp) and open in a
+  resizable **Larger Preview…** window.
+- The font list includes the fonts that come with Monograph PDF (Noto Sans, Noto Serif, Noto Sans CJK JP)
+  next to the fonts installed on the PC.
+
+### Fixed
+
+- Zooming in on scanned pages stuttered and used much memory: at 400 % each page was drawn whole
+  (about 110 ms and 57 MB per page). Large zooms now show a quick preview of the page and draw sharp
+  tiles a few at a time. Measured on a 40-page scan: zoom to 400 % 835 → 131 ms, slowest scroll step
+  144 → 33 ms; peak memory of the whole check 605 → 353 MB. Very long documents no longer keep every
+  thumbnail in memory.
+
+- A crash (AttributeError in the font list's row drawing) that could close the program; the font list
+  now opens with one click and scrolls evenly.
+- Dragging text boxes and pictures was slow (about 27 ms per frame on a large form); only the changed
+  area is now redrawn, text layout and pictures are cached, and fonts are registered once (about 4 ms).
+- Highlights and other comments now appear at once without the page flashing; **Undo** / **Redo** of
+  comments now update the page and thumbnail (they did not before).
+- The eraser removes everything it crosses in one pass (it needed three or four) and one Undo restores it.
+- Sticky notes: shown as a clean speech bubble, the note text appears when pointing at or clicking it,
+  and a double-click edits it.
+- A field or text box just added can be typed into by double-clicking it (every field kind); the page
+  text underneath is never edited by mistake.
+- Pictures, text boxes, shapes and fields stay on the page while dragged, nudged or after rotating the
+  page (they could end half outside it and not show in other apps or print).
+- Number boxes were too narrow for their values (for example "100" showed as "00" in the watermark size).
+- User Guide: the Contents links now scroll to their section.
+- About / Check for Updates: "Updates not configured" is explained, with a button to the Releases page.
+- **Protect ▸ View Permissions** lists allowed and not-allowed actions in plain words.
+- Problem reports: a build without a reporting service no longer offers **Send to Developer** (it could
+  only fail after showing "Sending…"); it offers **Copy Report**, **Open Issues Page** and **Close**
+  instead. The program still sends nothing.
+- Page background and color choices use a curated palette, and the color picker is no longer tinted by
+  the button's own color.
+
 ## [0.3.0] — 2026-10-22
 
 Feature release: new editing, comment, stamp, signature, OCR, conversion, printing and compression

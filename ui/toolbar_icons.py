@@ -1303,6 +1303,15 @@ def _pages_move(p, c):
     _poly(p, [(8, 12.8), (9.7, 14.5), (8, 16.2)], close=False)
 
 
+@icon("pages_reorder")
+def _pages_reorder(p, c):
+    """A page with an up and a down arrow beside it: move pages within the document."""
+    _doc(p, 2.5, 2.5, 10, 15)
+    p.drawLine(QPointF(16, 3.5), QPointF(16, 16.5))
+    _poly(p, [(13.5, 6), (16, 3.5), (18.5, 6)], close=False)
+    _poly(p, [(13.5, 14), (16, 16.5), (18.5, 14)], close=False)
+
+
 @icon("redact_pages")
 def _redact_pages(p, c):
     p.drawRoundedRect(QRectF(4, 2.5, 12, 15), 1, 1)

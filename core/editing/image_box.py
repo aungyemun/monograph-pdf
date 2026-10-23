@@ -27,6 +27,9 @@ class ImageBox:
     object_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     # "signature" for a visual signature (a picture of a signature — not a certificate-based one)
     role: str = ""
+    # How a visual signature was made, so it can be opened again and changed after placing:
+    # {"kind": "typed", "text", "family", "color"} or {"kind": "drawn"} / {"kind": "image"}
+    signature: dict = field(default_factory=dict)
 
     def copy(self) -> "ImageBox":
         return ImageBox(
@@ -40,6 +43,7 @@ class ImageBox:
             z_index=self.z_index,
             object_id=str(uuid.uuid4()),
             role=self.role,
+            signature=dict(self.signature),
         )
 
     def clone_same_id(self) -> "ImageBox":
@@ -60,6 +64,7 @@ class ImageBox:
             "crop": list(self.crop),
             "z_index": self.z_index,
             "role": self.role,
+            "signature": dict(self.signature),
         }
 
     @staticmethod
@@ -76,6 +81,7 @@ class ImageBox:
             z_index=int(data.get("z_index", 0)),
             object_id=str(data.get("object_id") or uuid.uuid4()),
             role=str(data.get("role") or ""),
+            signature=dict(data.get("signature") or {}),
         )
 
 
