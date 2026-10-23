@@ -14,4 +14,9 @@ def create_application(argv: list[str]) -> QApplication:
             Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
         )
         app = QApplication(argv)
+        # Drop-down lists, menus and tooltips appear at once: Windows' slide / fade animations made
+        # them flicker and lag (a list could be redrawn several times while it slid open)
+        for effect in (Qt.UIEffect.UI_AnimateCombo, Qt.UIEffect.UI_AnimateMenu, Qt.UIEffect.UI_FadeMenu,
+                       Qt.UIEffect.UI_AnimateTooltip, Qt.UIEffect.UI_FadeTooltip):
+            QApplication.setEffectEnabled(effect, False)
     return app  # type: ignore[return-value]

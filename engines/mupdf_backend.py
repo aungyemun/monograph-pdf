@@ -237,6 +237,10 @@ class MuPdfBackend:
         # search_for is case-insensitive by default; optionally require exact casing in page text.
         rects: list = []
         textpage = page.get_textpage() if len(variants) > 1 else None  # extracted once for all forms
+        if len(variants) > 2 and textpage is not None:
+            # look only for the forms that occur on the page at all (a quick text test first)
+            plain = " ".join((page.get_text("text", textpage=textpage) or "").split()).casefold()
+            variants = [variants[0]] + [v for v in variants[1:] if v.casefold() in plain]
         for q in variants:
             for r in page.search_for(q, textpage=textpage) or []:
                 if not any(abs(r.x0 - o.x0) < 0.5 and abs(r.y0 - o.y0) < 0.5 for o in rects):
@@ -355,22 +359,98 @@ _FULLWIDTH = {c: chr(ord(c) + 0xFEE0) for c in map(chr, range(0x21, 0x7F))}
 _FULLWIDTH[" "] = "\u3000"
 
 
-def search_variants(query: str) -> list[str]:
-    """The query as typed plus its half-width and full-width forms, without duplicates.
+_LIGATURES = {"ﬀ": "ff", "ﬁ": "fi", "ﬂ": "fl", "ﬃ": "ffi", "ﬄ": "ffl", "ﬅ": "st",
+              "ﬆ": "st"}
+_GREEK = {"alpha": "α", "beta": "β", "gamma": "γ", "delta": "δ", "epsilon": "ε", "zeta": "ζ", "eta": "η",
+          "theta": "θ", "iota": "ι", "kappa": "κ", "lambda": "λ", "mu": "μ", "nu": "ν", "xi": "ξ",
+          "omicron": "ο", "pi": "π", "rho": "ρ", "sigma": "σ", "tau": "τ", "upsilon": "υ", "phi": "φ",
+          "chi": "χ", "psi": "ψ", "omega": "ω"}
+# characters PDFs use interchangeably for the same thing (each group: every member finds the others)
+_SAME = [
+    ("µ", "μ"),  # micro sign / Greek mu (µM, μm)
+    ("Ω", "Ω"),  # ohm sign / Greek capital omega
+    ("Å", "Å"),  # angstrom sign / A with ring
+    ("-", "−", "–", "‐", "‑"),  # hyphen, minus sign, en dash, hyphen, no-break hyphen
+    ("°", "º", "˚"),  # degree, ordinal, ring above
+    ("'", "’", "‘", "′"),
+    ('"', "“", "”", "″"),
+    ("×", "⨯"),
+]
+_SUPER = str.maketrans("0123456789-+", "⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺")
+_UNSUPER = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺", "0123456789-+")
+MAX_SEARCH_VARIANTS = 24
 
-    Only the width of letters, digits, punctuation, the space and katakana is folded (２月 / 2月,
-    ＡＢＣ / ABC, ｶﾀｶﾅ / カタカナ) — not other compatibility forms, so ① does not find every 1."""
+
+def search_variants(query: str) -> list[str]:
+    """Every form of *query* worth looking for, the typed one first, without duplicates (at most
+    ``MAX_SEARCH_VARIANTS``).
+
+    * spaces and line breaks in the query (pasted text) count as one space; MuPDF finds a phrase
+      across line breaks
+    * full-width / half-width letters, digits, punctuation and katakana (２月 / 2月, ＡＢＣ / ABC)
+    * ligatures (ﬁ → fi: MuPDF extracts ligatures as letters)
+    * scientific writing: Greek letters and their names (TNF-alpha / TNF-α, IL-1beta / IL-1β),
+      micro sign and Greek mu (µM / μM), ohm / omega, angstrom, minus sign / en dash / hyphen
+      (−20 / -20), degree signs, typographic quotes, unit exponents (cm2 / cm², s-1 / s⁻¹)
+    * upper and lower case of non-Latin letters (MuPDF folds the case of ASCII letters only:
+      Α / α, Β / β, Ü / ü)
+
+    Not folded: other compatibility forms (① does not find every 1) and number formats (1,000 vs
+    1000) — they would find unrelated text."""
+    import re
     import unicodedata
 
+    q0 = " ".join(str(query or "").split())
+    if not q0:
+        return []
+    q0 = "".join(_LIGATURES.get(c, c) for c in q0)
     half = "".join(
         chr(ord(c) - 0xFEE0) if 0xFF01 <= ord(c) <= 0xFF5E
-        else " " if c == "\u3000"
+        else " " if c == "　"
         else c
-        for c in query
+        for c in q0
     )
-    if any(0xFF61 <= ord(c) <= 0xFF9F for c in query):  # half-width katakana → full-width
-        query_kana = "".join(unicodedata.normalize("NFKC", c) if 0xFF61 <= ord(c) <= 0xFF9F else c for c in query)
+    if any(0xFF61 <= ord(c) <= 0xFF9F for c in q0):  # half-width katakana → full-width
+        kana = "".join(unicodedata.normalize("NFKC", c) if 0xFF61 <= ord(c) <= 0xFF9F else c for c in q0)
     else:
-        query_kana = query
+        kana = q0
     full = "".join(_FULLWIDTH.get(c, c) for c in half)
-    return list(dict.fromkeys(q for q in (query, half, full, query_kana) if q))
+    out = list(dict.fromkeys(v for v in (q0, half, full, kana) if v))
+    wide = {full} - {q0}  # the full-width form is not varied further (it would only multiply forms)
+
+    def add(v: str) -> None:
+        if v and v not in out and len(out) < MAX_SEARCH_VARIANTS:
+            out.append(v)
+
+    def spread(fn) -> None:
+        for v in list(out):
+            if v in wide:
+                continue
+            for w in fn(v):
+                add(w)
+
+    # Greek letters ⇄ their names (whole words or after a hyphen / digit, as in TNF-alpha, IL1beta)
+    names = re.compile(r"(?i)(?<![a-z])(" + "|".join(sorted(_GREEK, key=len, reverse=True)) + r")(?![a-z])")
+    letters = {v: k for k, v in _GREEK.items()}
+    spread(lambda v: [names.sub(lambda m: _GREEK[m.group(1).lower()], v)] if names.search(v) else [])
+    spread(lambda v: ["".join(letters.get(c.lower(), c) for c in v)] if any(c.lower() in letters for c in v) else [])
+    for group in _SAME:
+        present = [c for c in group if any(c in v for v in out)]
+        for v in list(out):
+            if v in wide:
+                continue
+            for src in present:
+                if src in v:
+                    for dst in group:
+                        if dst != src:
+                            add(v.replace(src, dst))
+    # unit exponents: digits right after a letter ⇄ superscript digits
+    exp = re.compile(r"(?<=[A-Za-zµμ])(-?[0-9]+)\b")
+    spread(lambda v: [exp.sub(lambda m: m.group(1).translate(_SUPER), v)] if exp.search(v) else [])
+    spread(lambda v: [v.translate(_UNSUPER)] if any(c in "⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺" for c in v) else [])
+    # case of non-ASCII letters (Greek, Cyrillic, accented Latin)
+    def cased(c: str) -> bool:
+        return ord(c) > 127 and c.isalpha() and not 0xFF00 <= ord(c) <= 0xFFEF and c.lower() != c.upper()
+
+    spread(lambda v: [v.lower(), v.upper()] if any(cased(c) for c in v) else [])
+    return out

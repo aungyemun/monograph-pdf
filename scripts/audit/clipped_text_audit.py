@@ -74,6 +74,35 @@ def clipped_widgets(root) -> list[dict]:
     return found
 
 
+def dropdown_problems(root) -> list[dict]:
+    """Drop-down lists whose entries would be cut off (list narrower than its longest entry) or that
+    would open taller than the screen allows."""
+    from PySide6.QtWidgets import QComboBox
+
+    found: list[dict] = []
+    for combo in root.findChildren(QComboBox):
+        try:
+            if not combo.isVisibleTo(root) or combo.count() == 0:
+                continue
+            view = combo.view()
+            fm = view.fontMetrics()
+            widest = max(fm.horizontalAdvance(combo.itemText(i)) for i in range(combo.count()))
+            icon = combo.iconSize().width() + 6 if any(not combo.itemIcon(i).isNull() for i in range(combo.count())) else 0
+            need = widest + icon + 34  # item padding, check mark and the scroll bar
+            have = max(combo.width(), view.minimumWidth())
+            if need > have + 1:
+                found.append({"class": "QComboBox popup", "name": combo.objectName(),
+                              "text": combo.currentText()[:60], "width": have, "needs": need,
+                              "window": root.windowTitle() or type(root).__name__})
+            if combo.maxVisibleItems() > 24:
+                found.append({"class": "QComboBox popup", "name": combo.objectName(), "text": "too many rows at once",
+                              "width": combo.maxVisibleItems(), "needs": 24,
+                              "window": root.windowTitle() or type(root).__name__})
+        except RuntimeError:
+            continue
+    return found
+
+
 def _inspector_states(win, app) -> list[dict]:
     """The Properties panel for a text box, each kind of shape and a sticky note: nothing may be wider
     than the panel (a too-wide row pushes every row past the panel's right edge)."""
@@ -99,6 +128,7 @@ def _inspector_states(win, app) -> list[dict]:
             found.append({"class": "InspectorPanel", "text": f"properties of a {label}", "width": have,
                           "needs": need, "window": "Properties panel"})
         found.extend(clipped_widgets(panel))
+        found.extend(dropdown_problems(panel))
     return found
 
 
@@ -138,6 +168,7 @@ def main() -> int:
             title = self.windowTitle() or type(self).__name__
             seen_dialogs.append(title)
             report.extend(clipped_widgets(self))
+            report.extend(dropdown_problems(self))
         finally:
             self.hide()
         return QDialog.DialogCode.Rejected
@@ -201,6 +232,7 @@ def main() -> int:
                 if win._document is None:  # noqa: SLF001 — a command closed it: open again
                     win.open_path(str(src))
     report.extend(clipped_widgets(win))
+    report.extend(dropdown_problems(win))
     report.extend(_inspector_states(win, app))
     unique = {json.dumps(r, sort_keys=True): r for r in report}
     result = {"dialogs_checked": sorted(set(seen_dialogs)), "clipped": list(unique.values())}

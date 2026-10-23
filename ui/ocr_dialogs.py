@@ -268,65 +268,170 @@ class OcrScopeDialog(QDialog):
 
     def __init__(self, *, page_count: int, current_page: int, selected: list[int], languages: str,
                  title: str = "Recognize Text", parent=None) -> None:
+        from PySide6.QtWidgets import QLineEdit
+
         super().__init__(parent)
         self.setWindowTitle(title)
+        self.setMinimumWidth(440)
         self._page_count = page_count
         self._current = current_page
         self._selected = sorted(set(selected))
         layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        layout.setContentsMargins(16, 14, 16, 12)
+        intro = QLabel("Turns the pictures of scanned pages into text you can read, copy and search. "
+                       "Nothing leaves this computer.")
+        intro.setObjectName("DialogHint")
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
         box = QGroupBox("Pages")
         bl = QVBoxLayout(box)
+        bl.setSpacing(6)
         self.group = QButtonGroup(self)
         self.r_current = QRadioButton(f"Current page ({current_page + 1})")
         self.r_selected = QRadioButton(f"Selected pages ({len(self._selected)})")
         self.r_all = QRadioButton(f"All pages ({page_count})")
+        self.r_range = QRadioButton("Pages:")
+        self.range_edit = QLineEdit()
+        self.range_edit.setPlaceholderText(f"e.g. 1-3, 7  (1–{page_count})")
+        self.range_edit.setAccessibleName("Page range")
+        self.range_edit.textEdited.connect(lambda _t: self.r_range.setChecked(True))
         self.r_selected.setEnabled(len(self._selected) > 1)
-        for i, r in enumerate((self.r_current, self.r_selected, self.r_all)):
+        for i, r in enumerate((self.r_current, self.r_selected, self.r_all, self.r_range)):
             self.group.addButton(r, i)
+        for r in (self.r_current, self.r_selected, self.r_all):
             bl.addWidget(r)
+        rng = QHBoxLayout()
+        rng.addWidget(self.r_range)
+        rng.addWidget(self.range_edit, 1)
+        bl.addLayout(rng)
+        self.range_error = QLabel("")
+        self.range_error.setObjectName("InspectorError")
+        self.range_error.hide()
+        bl.addWidget(self.range_error)
         self.r_current.setChecked(True)
         self.skip_text = QCheckBox("Skip pages that already contain text")
         self.skip_text.setChecked(True)
         bl.addWidget(self.skip_text)
         layout.addWidget(box)
         self.languages = LanguagePicker(languages)
-        layout.addWidget(self.languages)
+        layout.addWidget(self.languages, 1)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Recognize")
-        buttons.accepted.connect(self.accept)
+        buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def _range_pages(self) -> list[int] | None:
+        from core.organize.page_ops import parse_page_ranges
+
+        try:
+            pages = parse_page_ranges(self.range_edit.text(), self._page_count)
+        except ValueError as exc:
+            self.range_error.setText(str(exc))
+            self.range_error.show()
+            return None
+        if not pages:
+            self.range_error.setText("Type the pages to recognize, e.g. 1-3, 7")
+            self.range_error.show()
+            return None
+        self.range_error.hide()
+        return pages
+
+    def _accept(self) -> None:
+        if self.r_range.isChecked() and self._range_pages() is None:
+            self.range_edit.setFocus()
+            return
+        self.accept()
 
     def pages(self) -> list[int]:
         if self.r_all.isChecked():
             return list(range(self._page_count))
         if self.r_selected.isChecked():
             return list(self._selected)
+        if self.r_range.isChecked():
+            return self._range_pages() or [self._current]
         return [self._current]
 
 
 class LanguagePicker(QGroupBox):
-    """Check the OCR languages to use (bundled and installed optional ones)."""
+    """Check the OCR languages to use (bundled and installed optional ones).
+
+    Built for many languages: a search box filters the list (from 7 languages on), the chosen ones
+    are listed under it, every row shows the language's name and its Tesseract code, and at least
+    one language always stays chosen."""
+
+    SEARCH_FROM = 7
 
     def __init__(self, selected: str, parent=None) -> None:
+        from PySide6.QtWidgets import QLineEdit
+
         from core.ocr.language_packs import available_languages
 
         super().__init__("Languages", parent)
         layout = QVBoxLayout(self)
+        layout.setSpacing(6)
+        langs = available_languages()
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Find a language…")
+        self.search.setClearButtonEnabled(True)
+        self.search.setAccessibleName("Find a language")
+        self.search.textChanged.connect(self._filter)
+        self.search.setVisible(len(langs) >= self.SEARCH_FROM)
+        layout.addWidget(self.search)
         self.list = QListWidget()
-        self.list.setMaximumHeight(120)
+        self.list.setObjectName("OcrLanguageList")
+        self.list.setUniformItemSizes(True)
+        self.list.setSpacing(1)
+        self.list.setAccessibleName("OCR languages")
         chosen = set(selected.split("+"))
-        for code, name in available_languages().items():
-            item = QListWidgetItem(name)
+        for code, name in sorted(langs.items(), key=lambda kv: (kv[0] not in chosen, kv[1].casefold())):
+            item = QListWidgetItem(f"{name}   ·   {code}")
             item.setData(Qt.ItemDataRole.UserRole, code)
+            item.setToolTip(f"{name} (Tesseract language code {code})")
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(Qt.CheckState.Checked if code in chosen else Qt.CheckState.Unchecked)
             self.list.addItem(item)
-        layout.addWidget(self.list)
-        note = QLabel("More languages: OCR ▸ OCR Languages. Fewer languages recognize faster and more accurately.")
+        if not any(self.list.item(i).checkState() == Qt.CheckState.Checked for i in range(self.list.count())) \
+                and self.list.count():
+            self.list.item(0).setCheckState(Qt.CheckState.Checked)
+        rows = max(2, min(7, self.list.count()))
+        row_h = max(24, self.list.sizeHintForRow(0) if self.list.count() else 24) + 2
+        self.list.setMinimumHeight(rows * row_h + 8)
+        if self.list.count() <= 7:  # a short list: no empty space under it
+            self.list.setMaximumHeight(rows * row_h + 8)
+        self.list.itemChanged.connect(self._changed)
+        layout.addWidget(self.list, 1)
+        self.summary = QLabel("")
+        self.summary.setObjectName("DialogHint")
+        self.summary.setWordWrap(True)
+        layout.addWidget(self.summary)
+        note = QLabel("More languages: OCR ▸ OCR Languages. Choose only the languages on the pages: "
+                      "fewer languages recognize faster and more accurately.")
         note.setObjectName("ContextHint")
         note.setWordWrap(True)
         layout.addWidget(note)
+        self._changed()
+
+    def _filter(self, text: str) -> None:
+        t = text.strip().casefold()
+        for i in range(self.list.count()):
+            item = self.list.item(i)
+            item.setHidden(bool(t) and t not in item.text().casefold())
+
+    def _changed(self, item=None) -> None:
+        checked = [self.list.item(i) for i in range(self.list.count())
+                   if self.list.item(i).checkState() == Qt.CheckState.Checked]
+        if not checked and item is not None:  # the last language cannot be unticked
+            self.list.blockSignals(True)
+            item.setCheckState(Qt.CheckState.Checked)
+            self.list.blockSignals(False)
+            checked = [item]
+        names = [c.text().split("   ·")[0] for c in checked]
+        text = "Recognize: " + ", ".join(names)
+        if len(names) > 3:
+            text += " — many languages: slower, and similar letters may be mixed up"
+        self.summary.setText(text)
 
     def value(self) -> str:
         codes = [self.list.item(i).data(Qt.ItemDataRole.UserRole) for i in range(self.list.count())

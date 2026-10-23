@@ -64,10 +64,11 @@ def _show_strength(label: QLabel, password: str) -> None:
 
 
 class PasswordProtectDialog(QDialog):
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, *, watermark_pages: int = 0) -> None:
         super().__init__(parent)
+        self._watermark_pages = int(watermark_pages)
         self.setWindowTitle("Protect with Password")
-        self.setMinimumWidth(460)
+        self.setMinimumWidth(640)
         root = QVBoxLayout(self)
         root.setSpacing(10)
         root.addWidget(_title("Encrypt with a password"))
@@ -115,23 +116,51 @@ class PasswordProtectDialog(QDialog):
         self.perm_annotate.setChecked(True)
         self.perm_forms = QCheckBox("Allow filling in form fields")
         self.perm_forms.setChecked(True)
-        for w in (
-            self.perm_print,
-            self.perm_print_hq,
-            self.perm_copy,
-            self.perm_modify,
-            self.perm_assemble,
-            self.perm_annotate,
-            self.perm_forms,
-        ):
-            perm_layout.addWidget(w)
+        # two columns: the dialog stays short enough for a 768-pixel-high screen
+        from PySide6.QtWidgets import QGridLayout
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(18)
+        grid.setVerticalSpacing(4)
+        left = (self.perm_print, self.perm_print_hq, self.perm_copy, self.perm_forms)
+        right = (self.perm_annotate, self.perm_modify, self.perm_assemble)
+        for r, w in enumerate(left):
+            grid.addWidget(w, r, 0)
+        for r, w in enumerate(right):
+            grid.addWidget(w, r, 1)
+        self.perm_assemble.setText("Allow inserting, rotating, deleting pages")
+        perm_layout.addLayout(grid)
         self.perm_print_hq.setContentsMargins(22, 0, 0, 0)
         root.addWidget(perm_box)
 
+        info_box = QGroupBox("Document information and watermark")
+        info_layout = QVBoxLayout(info_box)
+        info_layout.setSpacing(6)
+        self.meta_status = _hint("")
+        info_layout.addWidget(self.meta_status)
+        self.strip_meta = QCheckBox("Remove the document information (title, author, keywords …)")
+        self.strip_meta.setToolTip("The protected copy carries no document information or XMP metadata at all")
+        info_layout.addWidget(self.strip_meta)
+        self.lock_wm = QCheckBox("Lock the watermark")
+        if self._watermark_pages:
+            self.lock_wm.setText(f"Lock the watermark ({self._watermark_pages} page"
+                                 f"{'s' if self._watermark_pages != 1 else ''})")
+            self.lock_wm.setChecked(True)
+            self.lock_wm.setToolTip("The watermark becomes part of the pages: it can no longer be hidden as a "
+                                    "layer or removed with Remove Watermark. Changes stay disallowed.")
+        else:
+            self.lock_wm.setEnabled(False)
+            self.lock_wm.setToolTip("This document has no watermark added by Monograph PDF")
+        self.lock_wm.toggled.connect(self._watermark_toggled)
+        info_layout.addWidget(self.lock_wm)
+        root.addWidget(info_box)
+
         row = QFormLayout()
         self.algo = QComboBox()
-        self.algo.addItem("AES-256 (recommended)", "AES-256")
-        self.algo.addItem("AES-128 (compatible with older PDF readers)", "AES-128")
+        self.algo.addItem("AES-256 — strongest, recommended (PDF 2.0; Acrobat X and later)", "AES-256")
+        self.algo.addItem("AES-128 — only for very old PDF readers", "AES-128")
+        self.algo.setToolTip("AES-256 with SHA-256 based password checks is the strongest encryption PDF "
+                             "defines; every current PDF reader opens it.")
         row.addRow("Encryption:", self.algo)
         self.show_pw = QCheckBox("Show passwords")
         self.show_pw.toggled.connect(self._toggle_echo)
@@ -152,8 +181,28 @@ class PasswordProtectDialog(QDialog):
         root.addWidget(buttons)
         for w in (self.user_pw, self.user_pw_confirm, self.owner_pw):
             w.textChanged.connect(self._validate)
+        self.user_pw.textChanged.connect(lambda _t: self._update_meta_status())
+        self.strip_meta.toggled.connect(lambda _on: self._update_meta_status())
+        self._update_meta_status()
+        self._watermark_toggled(self.lock_wm.isChecked())
         self.user_pw.textChanged.connect(lambda t: _show_strength(self.user_strength, t))
         self.owner_pw.textChanged.connect(lambda t: _show_strength(self.owner_strength, t))
+        self._validate()
+
+    def _update_meta_status(self) -> None:
+        if self.strip_meta.isChecked():
+            text = "The protected copy will contain no document information."
+        elif self.user_pw.text():
+            text = ("Title, author and other document information are encrypted together with the pages "
+                    "(only the open password reveals them).")
+        else:
+            text = ("Without an open password anyone can open the file and read its title, author and other "
+                    "document information. Set an open password or remove the information.")
+        self.meta_status.setText(text)
+
+    def _watermark_toggled(self, on: bool) -> None:
+        if on:
+            self.perm_modify.setChecked(False)  # a locked watermark is meant to stay
         self._validate()
 
     def _toggle_echo(self, on: bool) -> None:
@@ -178,6 +227,9 @@ class PasswordProtectDialog(QDialog):
         elif same:
             text = ("The permissions password is the same as the open password, so anyone who can open "
                     "the file can also lift the restrictions. Use a different one.")
+        elif self.lock_wm.isChecked() and not self.owner_pw.text():
+            text = ("To keep the watermark, also set a permissions password: without one, anyone who can "
+                    "open the file may change it.")
         else:
             text = ""
         self._error.setText(text)
@@ -192,6 +244,8 @@ class PasswordProtectDialog(QDialog):
             user_password=self.user_pw.text(),
             owner_password=self.owner_pw.text(),
             algorithm=self.algo.currentData(),
+            strip_metadata=self.strip_meta.isChecked(),
+            lock_watermarks=self.lock_wm.isEnabled() and self.lock_wm.isChecked(),
             permissions=PermissionFlags(
                 print=self.perm_print.isChecked(),
                 copy=self.perm_copy.isChecked(),

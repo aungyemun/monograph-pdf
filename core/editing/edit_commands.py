@@ -350,7 +350,8 @@ class GroupCommand(Command):
 
 
 # What a form field's look consists of (the inspector / toolbar settings and the words' own formats)
-FIELD_STYLE_ATTRS = ("font_family", "font_size", "multiline", "bold", "italic", "align", "valign", "text_color")
+FIELD_STYLE_ATTRS = ("font_family", "font_size", "multiline", "bold", "italic", "align", "valign", "text_color",
+                     "fill_color", "border_color", "border_width")
 
 
 def field_style_state(field: Any) -> dict[str, Any]:

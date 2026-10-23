@@ -310,6 +310,8 @@ class _CanvasWidget(QWidget):
 
     def clear_document(self) -> None:
         self._annot_sel = None
+        self.invalidate_annotation_boxes()
+        self.drop_stale()
         if self._edit is not None:
             self._edit.remove_listener(self._on_edit_changed)
         self._cache.clear()
@@ -569,14 +571,41 @@ class _CanvasWidget(QWidget):
         """The page a later Fit Width / Fit Page refit (window or panel resize) is measured on."""
         self._fit_ref_page = index
 
+    def _stash_for_zoom(self) -> None:
+        """Keep the current picture of each page near the view: while zooming it is drawn scaled
+        (instead of a blank page) until the sharp page at the new zoom is ready."""
+        stale = getattr(self, "_stale_pix", None)
+        if stale is None:
+            stale = self._stale_pix = {}
+        for key in list(self._cache.keys()):
+            if abs(key.page_index - self._focus_page) <= 4:
+                pix = self._cache.get(key)
+                if pix is not None:
+                    stale[key.page_index] = pix
+        for k in [k for k in stale if abs(k - self._focus_page) > 4]:
+            stale.pop(k, None)
+
+    def drop_stale(self, pages=None) -> None:
+        stale = getattr(self, "_stale_pix", None)
+        if not stale:
+            return
+        if pages is None:
+            stale.clear()
+        else:
+            for p in pages:
+                stale.pop(int(p), None)
+
     def set_manual_zoom(self, zoom: float, viewport_size: QSize) -> None:
         self._zoom_mode = ZoomMode.MANUAL
         self._zoom = max(0.1, min(8.0, zoom))
+        self._stash_for_zoom()
         self._recompute_layout()
         self._cache.clear()
         self._tiles.clear()
         self.zoomChanged.emit(self._zoom)
-        self._schedule_render()
+        # a burst of zoom steps (mouse wheel) renders once, after the last step; the scaled
+        # pictures are shown meanwhile
+        self._render_timer.start(90)
         _ = viewport_size
 
     def apply_zoom_for_viewport(self, viewport_size: QSize) -> None:
@@ -600,10 +629,14 @@ class _CanvasWidget(QWidget):
             z = min(avail_w / page_w, avail_h / page_h)
         else:
             z = self._zoom
+        changed = abs(self._zoom - max(0.1, min(8.0, z))) > 1e-9
+        if changed:
+            self._stash_for_zoom()
         self._zoom = max(0.1, min(8.0, z))
         self._recompute_layout()
-        self._cache.clear()
-        self._tiles.clear()
+        if changed or not self._cache.keys():
+            self._cache.clear()
+            self._tiles.clear()
         self.zoomChanged.emit(self._zoom)
         self._schedule_render()
 
@@ -661,7 +694,9 @@ class _CanvasWidget(QWidget):
         self._image_scaled_cache.clear()
 
     def _schedule_render(self) -> None:
-        self._render_timer.start()
+        if self._render_timer.isActive() and self._render_timer.remainingTime() > 16:
+            return  # a zoom burst is waiting to render; do not render each step
+        self._render_timer.start(16)
 
     def _device_pixel_ratio(self) -> float:
         window = self.window()
@@ -911,6 +946,8 @@ class _CanvasWidget(QWidget):
         wanted = {int(p) for p in pages if 0 <= int(p) < len(self._layouts)}
         if not wanted:
             return
+        self.invalidate_annotation_boxes(wanted)
+        self.drop_stale(wanted)
         dpr = self._device_pixel_ratio()
         scale = self._render_scale(dpr)
         visible = self.visibleRegion().boundingRect()
@@ -1082,8 +1119,17 @@ class _CanvasWidget(QWidget):
             painter.drawRect(rect.adjusted(0, 0, -1, -1))
             key = RenderKey.make(i, self._zoom, self._pages[i].rotation, dpr)
             pix = self._cache.get(key)
+            stale = getattr(self, "_stale_pix", None)
             if pix is not None:
                 painter.drawPixmap(rect, pix)
+                if stale:
+                    stale.pop(i, None)
+            elif stale and i in stale:
+                # zooming: the previous picture, scaled, until the sharp one is rendered
+                painter.save()
+                painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+                painter.drawPixmap(rect, stale[i])
+                painter.restore()
             self._paint_tiles(painter, i, dpr)
             for pdf_rect in getattr(self, "_highlights_by_page", {}).get(i, ()):
                 hr = self._pdf_rect_to_widget(i, pdf_rect)
@@ -1402,6 +1448,18 @@ class _CanvasWidget(QWidget):
         if self._annot_sel is not None and self._annot_sel[0] == page_index:
             dx, dy = self._annot_drag or (0.0, 0.0)
             ar = self.pdf_rect_to_widget(page_index, self._annot_sel[3].translated(dx, dy))
+            pix = getattr(self, "_annot_drag_pix", None)
+            if ar is not None and pix is not None and (abs(dx) >= 0.5 or abs(dy) >= 0.5):
+                # the note follows the pointer at once (the page itself is redrawn on release)
+                src = self.pdf_rect_to_widget(page_index, self._annot_sel[3])
+                if src is not None:
+                    painter.save()
+                    painter.setOpacity(0.35)
+                    painter.setPen(QPen(QColor("#64748b"), 1, Qt.PenStyle.DotLine))
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawRect(src)
+                    painter.restore()
+                painter.drawPixmap(ar, pix)
             if ar is not None:
                 pen = QPen(QColor("#2563eb"), 1, Qt.PenStyle.DashLine)
                 painter.setPen(pen)
@@ -1873,25 +1931,86 @@ class _CanvasWidget(QWidget):
     ANNOT_MOVABLE = ("Stamp", "Text", "FreeText", "Square", "Circle", "FileAttachment")
     ANNOT_IGNORED = ("Popup", "Link", "Widget")
 
+    def _annot_drag_widget_rect(self):
+        if self._annot_sel is None:
+            return None
+        dx, dy = self._annot_drag or (0.0, 0.0)
+        return self.pdf_rect_to_widget(self._annot_sel[0], self._annot_sel[3].translated(dx, dy))
+
+    def _annotation_pixmap(self, page_index: int, xref: int):
+        """The annotation's own appearance at the current zoom (drawn under the pointer while it is
+        dragged); None when it cannot be drawn."""
+        try:
+            import fitz
+
+            page = self._document._backend._doc.load_page(page_index)  # noqa: SLF001
+            annot = page.load_annot(int(xref))
+            if annot is None:
+                return None
+            dpr = self._device_pixel_ratio()
+            z = self._zoom * _PT_TO_CSS * dpr
+            pm = annot.get_pixmap(matrix=fitz.Matrix(z, z), alpha=True)
+            img = QImage(pm.samples, pm.width, pm.height, pm.stride,
+                         QImage.Format.Format_RGBA8888 if pm.alpha else QImage.Format.Format_RGB888).copy()
+            from ui.display_color import to_display
+
+            pix = QPixmap.fromImage(to_display(img))
+            pix.setDevicePixelRatio(dpr)
+            return pix
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _annotation_boxes(self, page_index: int) -> list[tuple[int, str, Rect]]:
+        """(xref, kind, display rect) of the page's comment-type annotations, bottom to top.
+
+        Cached per page: pointing at the page (every mouse move) used to load every annotation of
+        the page again. The cache is checked against the page's /Annots array (annotations added or
+        removed) and cleared when a page's content is refreshed (an annotation moved or edited)."""
+        doc = self._document._backend._doc  # noqa: SLF001
+        try:
+            page_xref = doc.page_xref(page_index)
+            sig = doc.xref_get_key(page_xref, "Annots")
+        except Exception:  # noqa: BLE001
+            sig = None
+        cache = getattr(self, "_annot_box_cache", None)
+        if cache is None:
+            cache = self._annot_box_cache = {}
+        hit = cache.get(page_index)
+        if hit is not None and hit[0] == sig:
+            return hit[1]
+        from core.page_space import rect_to_display
+
+        boxes: list[tuple[int, str, Rect]] = []
+        try:
+            page = doc.load_page(page_index)
+            for annot in page.annots() or []:
+                kind = annot.type[1]
+                if kind in self.ANNOT_IGNORED:
+                    continue
+                r = rect_to_display(page, annot.rect)
+                boxes.append((int(annot.xref), kind, Rect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0)))
+        except Exception:  # noqa: BLE001
+            return []
+        cache[page_index] = (sig, boxes)
+        return boxes
+
+    def invalidate_annotation_boxes(self, pages=None) -> None:
+        cache = getattr(self, "_annot_box_cache", None)
+        if not cache:
+            return
+        if pages is None:
+            cache.clear()
+        else:
+            for p in pages:
+                cache.pop(int(p), None)
+
     def _annotation_at(self, page_index: int, pt: Point) -> tuple[int, int, str, Rect] | None:
         """Topmost comment-type annotation under ``pt`` (display space), as (page, xref, kind, rect)."""
         if self._document is None:
             return None
-        from core.page_space import rect_to_display
-
-        try:
-            page = self._document._backend._doc.load_page(page_index)  # noqa: SLF001
-            annots = list(page.annots() or [])
-        except Exception:  # noqa: BLE001
-            return None
-        for annot in reversed(annots):
-            kind = annot.type[1]
-            if kind in self.ANNOT_IGNORED:
-                continue
-            r = rect_to_display(page, annot.rect)
-            rect = Rect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0)
+        for xref, kind, rect in reversed(self._annotation_boxes(page_index)):
             if rect.inflate(2.0).contains(pt):
-                return (page_index, int(annot.xref), kind, rect)
+                return (page_index, xref, kind, rect)
         return None
 
     def _annotation_tip(self, page_index: int, xref: int, kind: str) -> str:
@@ -1923,6 +2042,10 @@ class _CanvasWidget(QWidget):
         if key == getattr(self, "_hover_annot_key", None):
             return
         self._hover_annot_key = key
+        if found is not None and found[2] == "Text":
+            # a sticky note keeps its text to itself until clicked (a click opens it, a double-click edits)
+            self.setToolTip("Note — click to read, double-click to edit, drag to move")
+            return
         self.setToolTip(self._annotation_tip(found[0], found[1], found[2]) if found else "")
 
     def select_annotation(self, page_index: int, xref: int) -> bool:
@@ -2312,6 +2435,8 @@ class _CanvasWidget(QWidget):
         editor.document().clearUndoRedoStacks()
         editor.textChanged.connect(self._on_text_editor_changed)
         editor.installEventFilter(self)
+        # the handles sit on the box edge, half inside the editor: presses there resize the box
+        editor.viewport().installEventFilter(self)
         self._watch_focus_for_text_editor(True)
         self._mode = "typing"
         editor.show()
@@ -2521,7 +2646,64 @@ class _CanvasWidget(QWidget):
                 self._ensure_widget_visible(wr)
             self._edit._notify()  # noqa: SLF001
 
+    def _forward_mouse(self, src, event, kind) -> None:
+        from PySide6.QtGui import QMouseEvent
+
+        try:
+            pc = src.mapTo(self, event.position().toPoint())
+        except RuntimeError:
+            return
+        ev = QMouseEvent(kind, QPointF(pc), event.globalPosition(), event.button(), event.buttons(), event.modifiers())
+        if kind == QEvent.Type.MouseButtonPress:
+            self.mousePressEvent(ev)
+        elif kind == QEvent.Type.MouseMove:
+            self.mouseMoveEvent(ev)
+        else:
+            self.mouseReleaseEvent(ev)
+
+    def _editor_handle_event(self, obj, event) -> bool:
+        """A press on a resize handle of the box being typed in (the handles lie half inside the
+        editor) resizes the box instead of placing the caret; the drag continues on the canvas."""
+        et = event.type()
+        if getattr(self, "_editor_handle_drag", False):
+            if et == QEvent.Type.MouseMove:
+                self._forward_mouse(obj, event, QEvent.Type.MouseMove)
+                return True
+            if et == QEvent.Type.MouseButtonRelease:
+                self._editor_handle_drag = False
+                self._forward_mouse(obj, event, QEvent.Type.MouseButtonRelease)
+                return True
+            return False
+        if et != QEvent.Type.MouseButtonPress or event.button() != Qt.MouseButton.LeftButton:
+            return False
+        if self._edit is None or self._text_editor_id is None:
+            return False
+        box = self._edit.objects.get(self._text_editor_id)
+        if box is None:
+            return False
+        wr = self.pdf_rect_to_widget(box.page_index, box.rect)
+        if wr is None:
+            return False
+        try:
+            pc = obj.mapTo(self, event.position().toPoint())
+        except RuntimeError:
+            return False
+        if not self._hit_handle(pc, wr):
+            return False
+        self._editor_handle_drag = True
+        self._forward_mouse(obj, event, QEvent.Type.MouseButtonPress)
+        return True
+
     def eventFilter(self, obj, event) -> bool:  # noqa: N802
+        ed = self._text_editor
+        if getattr(self, "_editor_handle_drag", False) or (ed is not None and obj is ed.viewport()):
+            try:
+                if event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseMove,
+                                    QEvent.Type.MouseButtonRelease) and isinstance(obj, QWidget) \
+                        and self._editor_handle_event(obj, event):
+                    return True
+            except RuntimeError:
+                pass
         if obj is self._text_editor:
             et = event.type()
             if et == QEvent.Type.KeyPress:
@@ -2579,8 +2761,15 @@ class _CanvasWidget(QWidget):
         if self._edit is None or event.button() != Qt.MouseButton.LeftButton:
             return super().mousePressEvent(event)
         self.setFocus(Qt.FocusReason.MouseFocusReason)
-        self.close_note_popup()  # a click elsewhere closes an open note (clicking a note reopens it)
         mapped = self.widget_to_pdf(event.position().toPoint())
+        popup = getattr(self, "_note_popup", None)
+        if popup is not None and popup.isVisible():
+            on_open_note = False
+            if mapped is not None and popup.key is not None and mapped[0] == popup.key[0]:
+                found = self._annotation_at(mapped[0], mapped[1])
+                on_open_note = found is not None and int(found[1]) == popup.key[1]
+            if not on_open_note:
+                self.close_note_popup()  # a click elsewhere closes an open note (its own note toggles it on release)
         if mapped is None:
             # Grey area around the pages: finish typing and deselect (like clicking blank paper)
             if self._region_pick is None:
@@ -2792,9 +2981,11 @@ class _CanvasWidget(QWidget):
             if found is not None:
                 self._mode = "annot_move" if found[2] in self.ANNOT_MOVABLE else "idle"
                 self._annot_drag = (0.0, 0.0)
+                self._annot_drag_pix = self._annotation_pixmap(found[0], found[1]) if self._mode == "annot_move" else None
                 self.annotationSelected.emit(found[0], found[1])
-                if found[2] == "Text":  # a sticky note: open it, like a paper note
-                    self.open_note_popup(found[0], found[1], found[3])
+                if found[2] != "Text":
+                    self.close_note_popup()
+                # a sticky note opens on release when it was clicked, not dragged
             elif self._edit.tool in (EditTool.SELECT, EditTool.FORM_SELECT, EditTool.LAYOUT_SELECT):
                 # Empty paper: a drag draws a selection rectangle (a click just deselects, as before)
                 self._mode = "marquee"
@@ -2833,8 +3024,16 @@ class _CanvasWidget(QWidget):
 
         if self._mode == "annot_move" and self._annot_sel is not None and self._press_pdf is not None \
                 and event.buttons() & Qt.MouseButton.LeftButton and page_index == self._annot_sel[0]:
+            old = self._annot_drag_widget_rect()
             self._annot_drag = (pdf_pt.x - self._press_pdf.x, pdf_pt.y - self._press_pdf.y)
-            self.update()
+            new = self._annot_drag_widget_rect()
+            popup = getattr(self, "_note_popup", None)
+            if popup is not None and popup.isVisible() and (abs(self._annot_drag[0]) >= 1 or abs(self._annot_drag[1]) >= 1):
+                self.close_note_popup()
+            if old is not None and new is not None:
+                self.update(old.united(new).adjusted(-6, -6, 6, 6))  # only where the note was and is
+            else:
+                self.update()
             return
 
         if self._region_pick is not None:
@@ -2847,6 +3046,15 @@ class _CanvasWidget(QWidget):
                         or abs(pt.y - self._region_stroke[-1].y) > 0.4
                     ):
                         self._region_stroke.append(pt)
+                        # repaint only the newest piece of the stroke (the whole page was redrawn on
+                        # every mouse move, which made long strokes lag)
+                        if len(self._region_stroke) >= 2:
+                            a = self.pdf_to_widget(self._region_page, self._region_stroke[-2])
+                            b = self.pdf_to_widget(self._region_page, self._region_stroke[-1])
+                            if a is not None and b is not None:
+                                w = int(max(4.0, 11.0 * self._zoom)) + 4
+                                self.update(QRect(a, b).normalized().adjusted(-w, -w, w, w))
+                                return
                 self.update()
             return
 
@@ -2962,6 +3170,7 @@ class _CanvasWidget(QWidget):
             self._drag_perf.append((time.perf_counter() - t0) * 1000)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        self._editor_handle_drag = False  # a handle drag that began inside the text editor ends here
         if self._edit is None or event.button() != Qt.MouseButton.LeftButton:
             return super().mouseReleaseEvent(event)
         if self._region_pick is not None:
@@ -2985,6 +3194,17 @@ class _CanvasWidget(QWidget):
             self._mode = "idle"
             dx, dy = self._annot_drag or (0.0, 0.0)
             self._annot_drag = None
+            self._annot_drag_pix = None
+            if abs(dx) < 1.0 and abs(dy) < 1.0 and self._annot_sel[2] == "Text":
+                # a click on a sticky note: open it (a second click closes it)
+                popup = getattr(self, "_note_popup", None)
+                key = (self._annot_sel[0], int(self._annot_sel[1]))
+                if popup is not None and popup.isVisible() and popup.key == key:
+                    self.close_note_popup()
+                else:
+                    self.open_note_popup(self._annot_sel[0], self._annot_sel[1], self._annot_sel[3])
+                self.update()
+                return
             if abs(dx) >= 1.0 or abs(dy) >= 1.0:
                 page_index, xref, kind, rect = self._annot_sel
                 from core.page_space import point_to_page
@@ -3282,6 +3502,7 @@ class _CanvasWidget(QWidget):
             found = self._annotation_at(page_index, pdf_pt)
             if found is not None and found[2] not in ("Highlight", "Underline", "StrikeOut", "Squiggly", "Ink"):
                 self._annot_sel = found
+                self.close_note_popup()  # the first click of the double-click opened it
                 self.annotationEditRequested.emit(found[0], found[1])
                 return
         # Try native span edit
@@ -3781,14 +4002,32 @@ class PdfCanvas(QScrollArea):
         bar = self.horizontalScrollBar()
         bar.setValue(max(bar.minimum(), min(bar.maximum(), rect.center().x() - self.viewport().width() // 2)))
 
-    def set_manual_zoom(self, zoom: float) -> None:
-        self._canvas.set_manual_zoom(zoom, self.viewport().size())
+    def set_manual_zoom(self, zoom: float, anchor: QPoint | None = None) -> None:
+        """Zoom keeping the point under ``anchor`` (viewport coordinates; default: the centre of
+        the view) where it is, so the text being read does not jump away."""
+        inner = self._canvas
+        vp = self.viewport()
+        if anchor is None:
+            anchor = QPoint(vp.width() // 2, vp.height() // 2)
+        hb, vb = self.horizontalScrollBar(), self.verticalScrollBar()
+        content = QPoint(hb.value() + anchor.x(), vb.value() + anchor.y())
+        page = inner.page_at_y(content.y())
+        old = inner._layouts[page] if 0 <= page < len(inner._layouts) else None  # noqa: SLF001
+        fx = fy = None
+        if old is not None and old.width() > 0 and old.height() > 0:
+            fx = (content.x() - old.left()) / old.width()
+            fy = (content.y() - old.top()) / old.height()
+        inner.set_manual_zoom(zoom, vp.size())
+        new = inner._layouts[page] if 0 <= page < len(inner._layouts) else None  # noqa: SLF001
+        if new is not None and fx is not None:
+            hb.setValue(int(round(new.left() + fx * new.width() - anchor.x())))
+            vb.setValue(int(round(new.top() + fy * new.height() - anchor.y())))
 
-    def zoom_in(self) -> None:
-        self.set_manual_zoom(self.zoom * 1.15)
+    def zoom_in(self, anchor: QPoint | None = None) -> None:
+        self.set_manual_zoom(self.zoom * 1.15, anchor)
 
-    def zoom_out(self) -> None:
-        self.set_manual_zoom(self.zoom / 1.15)
+    def zoom_out(self, anchor: QPoint | None = None) -> None:
+        self.set_manual_zoom(self.zoom / 1.15, anchor)
 
     def _on_scroll(self) -> None:
         visible = QRect(
@@ -3820,10 +4059,12 @@ class PdfCanvas(QScrollArea):
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             delta = event.angleDelta().y()
-            if delta > 0:
-                self.zoom_in()
-            elif delta < 0:
-                self.zoom_out()
+            at = event.position().toPoint()  # viewport coordinates: the wheel event comes from the viewport
+            # smooth for touchpads (small deltas) and one 15 % step per wheel notch
+            steps = delta / 120.0
+            if abs(steps) > 0:
+                factor = 1.15 ** max(-3.0, min(3.0, steps))
+                self.set_manual_zoom(self.zoom * factor, at)
             event.accept()
             return
         super().wheelEvent(event)

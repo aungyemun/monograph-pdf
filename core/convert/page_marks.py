@@ -332,6 +332,37 @@ def _page_marks(page: fitz.Page) -> list[tuple[int, str, int, str]]:
     return out
 
 
+def lock_page_marks(doc: fitz.Document, kinds: set[str] | None = None) -> int:
+    """Make identifiable Monograph PDF marks of ``kinds`` (watermarks by default) ordinary page
+    content: they leave their layer (a viewer can no longer hide them by switching the layer off)
+    and lose their identifying key (Remove Watermark no longer finds them). Used when a watermarked
+    document is protected; works on a working copy. Returns the number of pages changed."""
+    kinds = set(kinds or {KIND_WATERMARK})
+    pages = 0
+    for page in doc:
+        marks = [m for m in _page_marks(page) if m[1] in kinds]
+        for _cx, _kind, xo, _name in marks:
+            doc.xref_set_key(xo, "OC", "null")
+            doc.xref_set_key(xo, MARK_KEY, "null")
+        if marks:
+            pages += 1
+    if pages:  # drop the now empty layers from the layer list
+        try:
+            names = {LAYER_NAMES[k] for k in kinds if k in LAYER_NAMES}
+            empty = [x for x, info in (doc.get_ocgs() or {}).items() if info.get("name") in names]
+            cat = doc.pdf_catalog()
+            for key in ("OCProperties/OCGs", "OCProperties/D/ON", "OCProperties/D/OFF", "OCProperties/D/Order"):
+                kind, val = doc.xref_get_key(cat, key)
+                if kind != "array":
+                    continue
+                for x in empty:
+                    val = re.sub(rf"(?<!\d){x} 0 R", "", val)
+                doc.xref_set_key(cat, key, " ".join(val.split()))
+        except Exception:  # noqa: BLE001 — an unused layer entry is harmless
+            pass
+    return pages
+
+
 def count_marks(document: PdfDocument | fitz.Document) -> dict[str, int]:
     """Number of pages carrying each kind of identifiable Monograph PDF mark."""
     doc = document if isinstance(document, fitz.Document) else document._backend._doc  # noqa: SLF001

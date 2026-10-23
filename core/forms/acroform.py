@@ -403,6 +403,34 @@ def pdf_base_font(family: str) -> str:
     return "Helv"
 
 
+def _hex_rgb(value: str | None):
+    """'#rrggbb' / '#aarrggbb' → (r, g, b) 0–1; None for no colour (empty or fully transparent)."""
+    v = str(value or "").strip().lstrip("#")
+    try:
+        if len(v) == 8:
+            if int(v[0:2], 16) == 0:
+                return None
+            v = v[2:]
+        if len(v) != 6:
+            return None
+        return (int(v[0:2], 16) / 255, int(v[2:4], 16) / 255, int(v[4:6], 16) / 255)
+    except ValueError:
+        return None
+
+
+def apply_box_colors(w, model: FormField) -> None:
+    """The field's background and border (none = transparent / no frame) on the widget (/MK)."""
+    fill = _hex_rgb(getattr(model, "fill_color", None))
+    border = _hex_rgb(getattr(model, "border_color", None))
+    width = float(getattr(model, "border_width", 0) or 0)
+    try:
+        w.fill_color = fill  # None: no background
+        w.border_color = border if width > 0 else None
+        w.border_width = width if border is not None else 0
+    except Exception:  # noqa: BLE001 — colours are cosmetic; the value is still saved
+        pass
+
+
 def _apply_text_style(doc: fitz.Document, w, model: FormField) -> None:
     """Font family, colour, alignment (/Q) and multi-line flag from the inspector."""
     from core.forms.appearance import is_cjk_family
@@ -417,6 +445,7 @@ def _apply_text_style(doc: fitz.Document, w, model: FormField) -> None:
         w.text_color = (int(c[0:2], 16) / 255, int(c[2:4], 16) / 255, int(c[4:6], 16) / 255)
     except Exception:  # noqa: BLE001
         pass
+    apply_box_colors(w, model)
     if model.field_type not in (FieldType.CHECKBOX, FieldType.RADIO, FieldType.SIGNATURE):
         flag = int(getattr(fitz, "PDF_TX_FIELD_IS_MULTILINE", 1 << 12))
         flags = int(getattr(w, "field_flags", 0) or 0)
@@ -487,6 +516,7 @@ def create_widget_on_page(
         w.field_flags = getattr(fitz, "PDF_TX_FIELD_IS_MULTILINE", 1 << 12)
     if field.field_type == FieldType.DROPDOWN and field.options:
         w.choice_values = field.options
+    apply_box_colors(w, field)  # background / border chosen for the new field (none = transparent)
     page.add_widget(w)
     if page.rotation:
         try:  # /MK /R: the entry reads upright on a turned page

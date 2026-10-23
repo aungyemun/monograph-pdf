@@ -546,6 +546,8 @@ class InspectorPanel(QScrollArea):
             self._field_value.editingFinished.connect(self._apply_field_value)
         self._field_value.setEnabled(not readonly and ftype != "signature")
         self._form.addRow("Value:", self._field_value)
+        if not readonly:
+            self._add_field_box_editors(field)
 
         if ftype == "signature":
             hint = "Visual placeholder — use Sign ▸ … to place a visual signature."
@@ -563,6 +565,62 @@ class InspectorPanel(QScrollArea):
         tip.setObjectName("ContextHint")
         self._form.addRow(tip)
         self._updating = False
+
+    def _add_field_box_editors(self, field) -> None:
+        """Background and border of a field (None = transparent / no frame); saved into the PDF
+        field itself, so every PDF reader shows them."""
+        self._ffill = QLineEdit(str(getattr(field, "fill_color", "") or "#00000000"))
+        ffbtn = _color_btn(self._ffill.text(), lambda b: self._pick_into(self._ffill, b), compact=True)
+        fill_row = _color_row(self._ffill, ffbtn)
+        no_fill = QPushButton("None")
+        no_fill.setToolTip("No background (the page shows through)")
+        no_fill.clicked.connect(lambda: (self._ffill.setText("#00000000"), set_swatch(ffbtn, "#00000000"),
+                                         self._apply_field_box()))
+        fill_row.layout().insertWidget(2, no_fill)
+        self._form.addRow("Background:", fill_row)
+
+        self._fborder = QLineEdit(str(getattr(field, "border_color", "") or "#00000000"))
+        fbbtn = _color_btn(self._fborder.text(), lambda b: self._pick_into(self._fborder, b), compact=True)
+        self._fbw = QDoubleSpinBox()
+        self._fbw.setRange(0, 6)
+        self._fbw.setSingleStep(0.5)
+        self._fbw.setSuffix(" pt")
+        self._fbw.setToolTip("Border width (0 = no border)")
+        self._fbw.setKeyboardTracking(False)
+        self._fbw.setValue(float(getattr(field, "border_width", 0) or 0))
+        self._fbw.valueChanged.connect(lambda _v: self._apply_field_box())
+        border_row = _color_row(self._fborder, fbbtn)
+        border_row.layout().insertWidget(2, self._fbw)
+        no_border = QPushButton("None")
+        no_border.setToolTip("No border")
+        no_border.clicked.connect(lambda: (self._fbw.setValue(0.0), self._apply_field_box()))
+        border_row.layout().insertWidget(3, no_border)
+        self._form.addRow("Border:", border_row)
+
+    def _apply_field_box(self) -> None:
+        if self._updating or self._edit is None or self._field is None or not hasattr(self, "_ffill"):
+            return
+        from core.editing.edit_commands import field_style_state
+
+        fill = self._ffill.text().strip() or "#00000000"
+        border = self._fborder.text().strip() or "#00000000"
+        width = float(self._fbw.value())
+        targets = {}
+        for f in [self._field, *self._edit.same_field_widgets(self._field)]:
+            targets.setdefault(f.object_id, f)
+        before = {oid: field_style_state(f) for oid, f in targets.items()}
+        changed = False
+        for f in targets.values():
+            if (f.fill_color, f.border_color, float(f.border_width or 0)) != (fill, border, width):
+                f.fill_color, f.border_color, f.border_width = fill, border, width
+                f.style_dirty = True
+                f.appearance_dirty = True
+                changed = True
+        if not changed:
+            return
+        self._edit.push_field_style_change(before, {oid: field_style_state(f) for oid, f in targets.items()})
+        self._edit.mark_dirty()
+        self.styleEdited.emit()
 
     def sync_field_value(self, field_id: str, text: str) -> None:
         """Mirror live on-page typing into the Value box without rebuilding the panel."""
@@ -595,6 +653,12 @@ class InspectorPanel(QScrollArea):
                 self._apply()
             elif self._shape is not None:
                 self._apply_shape()
+            elif self._field is not None and edit in (getattr(self, "_ffill", None), getattr(self, "_fborder", None)):
+                if edit is getattr(self, "_fborder", None) and self._fbw.value() <= 0:
+                    self._fbw.blockSignals(True)
+                    self._fbw.setValue(1.0)  # a border colour picked: show the border
+                    self._fbw.blockSignals(False)
+                self._apply_field_box()
 
     def _apply_field_value(self, *_args) -> None:
         if self._updating or self._edit is None or self._field is None:

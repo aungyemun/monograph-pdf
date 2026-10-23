@@ -64,14 +64,43 @@ class NoteDialog(QDialog):
         self._icon = icon if icon in {n for n, _ in NOTE_ICONS} else "Comment"
         self._color = QColor(color).name() if QColor(color).isValid() else "#fbbf24"
 
+        from ui.theme import current_palette
+
+        pal = current_palette()
         lay = QVBoxLayout(self)
-        lay.addWidget(QLabel("Comment:"))
+        lay.setSpacing(8)
+        lay.setContentsMargins(16, 14, 16, 12)
+        head = QHBoxLayout()
+        head.setSpacing(10)
+        self._preview = QLabel()
+        self._preview.setFixedSize(36, 36)
+        self._preview.setAccessibleName("Note icon preview")
+        head.addWidget(self._preview)
+        heading = QLabel("Note text")
+        heading.setObjectName("NoteDialogHeading")
+        head.addWidget(heading, 1)
+        lay.addLayout(head)
         self.text = QPlainTextEdit(text)
         self.text.setAccessibleName("Comment text")
-        self.text.setMinimumHeight(120)
+        self.text.setPlaceholderText("Write your comment…")
+        self.text.setMinimumHeight(90)
+        self.text.setMaximumHeight(160)
         lay.addWidget(self.text)
 
-        lay.addWidget(QLabel("Icon:"))
+        def section(title: str) -> None:
+            lab = QLabel(title)
+            lab.setObjectName("NoteDialogSection")
+            lay.addWidget(lab)
+
+        self.setStyleSheet(
+            f"QLabel#NoteDialogHeading {{ font-weight: 600; color: {pal.text}; }}"
+            f"QLabel#NoteDialogSection {{ color: {pal.text_subtle}; margin-top: 4px; }}"
+            f"QToolButton#NoteIconButton {{ border: 1px solid {pal.border}; border-radius: 6px; background: {pal.surface}; }}"
+            f"QToolButton#NoteIconButton:hover {{ background: {pal.hover}; }}"
+            f"QToolButton#NoteIconButton:checked {{ border: 2px solid {pal.accent}; background: {pal.accent_soft}; }}"
+        )
+        self._ring = pal.accent
+        section("Icon")
         icons = QWidget()
         grid = QGridLayout(icons)
         grid.setContentsMargins(0, 0, 0, 0)
@@ -79,11 +108,12 @@ class NoteDialog(QDialog):
         self._icon_buttons: dict[str, QToolButton] = {}
         for i, (name, label) in enumerate(NOTE_ICONS):
             b = QToolButton()
+            b.setObjectName("NoteIconButton")
             b.setCheckable(True)
             b.setToolTip(label)
             b.setAccessibleName(f"Icon: {label}")
-            b.setIconSize(QSize(28, 28))
-            b.setFixedSize(40, 40)
+            b.setIconSize(QSize(24, 24))
+            b.setFixedSize(38, 38)
             b.setChecked(name == self._icon)
             b.clicked.connect(lambda _=False, n=name: self._set_icon(n))
             self._icon_group.addButton(b)
@@ -92,7 +122,7 @@ class NoteDialog(QDialog):
         grid.setColumnStretch(len(NOTE_ICONS), 1)
         lay.addWidget(icons)
 
-        lay.addWidget(QLabel("Color:"))
+        section("Color")
         colors = QWidget()
         row = QHBoxLayout(colors)
         row.setContentsMargins(0, 0, 0, 0)
@@ -102,10 +132,11 @@ class NoteDialog(QDialog):
             b = QToolButton()
             b.setToolTip(label)
             b.setAccessibleName(f"Color: {label}")
-            b.setFixedSize(26, 26)
+            b.setFixedSize(24, 24)
             b.setCheckable(True)
-            b.setStyleSheet(f"QToolButton {{ background: {hex_}; border: 1px solid #9aa3af; border-radius: 4px; }}"
-                            "QToolButton:checked { border: 2px solid #111827; }")
+            # round swatches; the chosen one gets a ring in the accent colour (visible in both themes)
+            b.setStyleSheet(f"QToolButton {{ background: {hex_}; border: 1px solid rgba(0,0,0,60); border-radius: 12px; }}"
+                            f"QToolButton:checked {{ border: 3px solid {self._ring}; }}")
             b.clicked.connect(lambda _=False, h=hex_: self._set_color(h))
             row.addWidget(b)
             self._color_buttons[hex_.lower()] = b
@@ -122,6 +153,7 @@ class NoteDialog(QDialog):
         lay.addWidget(self.remember)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Save Note")
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         lay.addWidget(buttons)
@@ -160,5 +192,8 @@ class NoteDialog(QDialog):
         for name, b in self._icon_buttons.items():
             b.setIcon(QIcon(QPixmap.fromImage(note_icon_image(name, self._color, 56))))
             b.setChecked(name == self._icon)
+        pm = QPixmap.fromImage(note_icon_image(self._icon, self._color, 72))
+        pm.setDevicePixelRatio(2.0)
+        self._preview.setPixmap(pm)
         for hex_, b in self._color_buttons.items():
             b.setChecked(hex_ == self._color.lower())

@@ -61,26 +61,30 @@ def style_of(fmt: QTextCharFormat) -> tuple:
 
 def runs_from_document(doc: QTextDocument) -> tuple[str, list[dict]]:
     """(plain text, runs) of a document; paragraphs are joined with "\\n"."""
-    text_parts: list[str] = []
-    styles: list[tuple] = []
+    plain = (None,) * len(STYLE_KEYS)
+    pieces: list[tuple[str, tuple]] = []  # (text, style) per fragment, "\n" between paragraphs
     block = doc.begin()
     first = True
+    styled = False
     while block.isValid():
         if not first:
-            text_parts.append("\n")
-            styles.append(styles[-1] if styles else (None,) * len(STYLE_KEYS))
+            pieces.append(("\n", pieces[-1][1] if pieces else plain))
         first = False
         it = block.begin()
         while not it.atEnd():
             frag = it.fragment()
             if frag.isValid():
-                t = frag.text()
                 st = style_of(frag.charFormat())
-                text_parts.append(t)
-                styles.extend([st] * len(t))
+                styled = styled or st != plain
+                pieces.append((frag.text(), st))
             it += 1
         block = block.next()
-    text = "".join(text_parts)
+    text = "".join(t for t, _ in pieces)
+    if not styled:
+        return text, []  # one style throughout (typing plain text: no per-character work)
+    styles: list[tuple] = []
+    for t, st in pieces:
+        styles.extend([st] * len(t))
     return text, runs_from_char_styles(text, styles)
 
 

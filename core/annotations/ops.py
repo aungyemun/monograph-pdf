@@ -268,41 +268,68 @@ def annotations_along(
     space) with a tip of ``radius_pt``; each once, topmost last. One point = everything under it.
 
     The path is sampled about every 1.5 pt, so a quick stroke that jumps between mouse positions
-    still erases what lies between them."""
+    still erases what lies between them. A text markup is touched when the tip reaches one of its
+    quads; an ink mark when the tip reaches its line (half its width plus the tip).
+
+    Fast: every annotation of the page is read once (geometry only) and tested against the stroke
+    within its bounding box, instead of reading all annotations again for every sample."""
     import math
 
     if not points:
         return []
-    samples: list[Point] = [points[0]]
+    samples: list[tuple[float, float]] = [(float(points[0].x), float(points[0].y))]
     for a, b in zip(points, points[1:]):
         steps = max(1, int(math.hypot(b.x - a.x, b.y - a.y) / 1.5))
-        samples.extend(Point(a.x + (b.x - a.x) * i / steps, a.y + (b.y - a.y) * i / steps) for i in range(1, steps + 1))
-    found: dict[int, dict] = {}
-    order: list[int] = []
-    for pt in samples:
-        for hit in annotations_at(document, page_index, pt, tolerance_pt=radius_pt * 2.0):
-            if hit["xref"] not in found:
-                found[hit["xref"]] = hit
-                order.append(hit["xref"])
-    # quads are tested against the tip's centre; widen the box test by the tip as well
-    if radius_pt > 0.5:
-        page = _page(document, page_index)
-        for annot in page.annots() or []:
-            if annot.type[1] not in ERASABLE or int(annot.xref) in found or annot.type[1] == "Ink":
-                continue
+        samples.extend((a.x + (b.x - a.x) * i / steps, a.y + (b.y - a.y) * i / steps) for i in range(1, steps + 1))
+    sx0 = min(x for x, _ in samples) - radius_pt
+    sx1 = max(x for x, _ in samples) + radius_pt
+    sy0 = min(y for _, y in samples) - radius_pt
+    sy1 = max(y for _, y in samples) + radius_pt
+    page = _page(document, page_index)
+    out: list[dict] = []
+    for annot in page.annots() or []:
+        kind = annot.type[1]
+        if kind not in ERASABLE:
+            continue
+        r = annot.rect
+        if r.x1 + 8 < sx0 or r.x0 - 8 > sx1 or r.y1 + 8 < sy0 or r.y0 - 8 > sy1:
+            continue  # nowhere near the stroke
+        near = [(x, y) for x, y in samples if r.x0 - radius_pt - 8 <= x <= r.x1 + radius_pt + 8
+                and r.y0 - radius_pt - 8 <= y <= r.y1 + radius_pt + 8]
+        if not near:
+            continue
+        hit = False
+        if kind == "Ink":
+            half = max(0.5, float((annot.border or {}).get("width") or 1.0)) / 2.0 + radius_pt
+            for stroke in annot.vertices or []:
+                pts = [(float(p[0]), float(p[1])) for p in stroke]
+                segs = list(zip(pts, pts[1:])) if len(pts) > 1 else [(pts[0], pts[0])]
+                for (x0, y0), (x1, y1) in segs:
+                    dx, dy = x1 - x0, y1 - y0
+                    seg = dx * dx + dy * dy
+                    for px, py in near:
+                        t = 0.0 if seg == 0 else max(0.0, min(1.0, ((px - x0) * dx + (py - y0) * dy) / seg))
+                        if math.hypot(px - (x0 + t * dx), py - (y0 + t * dy)) <= half:
+                            hit = True
+                            break
+                    if hit:
+                        break
+                if hit:
+                    break
+        else:
             v = annot.vertices or []
             for i in range(0, len(v) - 3, 4):
                 xs = [p[0] for p in v[i: i + 4]]
                 ys = [p[1] for p in v[i: i + 4]]
-                if any(min(xs) - radius_pt <= s.x <= max(xs) + radius_pt and min(ys) - radius_pt <= s.y <= max(ys) + radius_pt
-                       for s in samples):
-                    r = annot.rect
-                    found[int(annot.xref)] = {"xref": int(annot.xref), "kind": annot.type[1],
-                                              "nm": (annot.info or {}).get("id") or "",
-                                              "rect": (float(r.x0), float(r.y0), float(r.x1), float(r.y1))}
-                    order.append(int(annot.xref))
+                qx0, qx1 = min(xs) - radius_pt, max(xs) + radius_pt
+                qy0, qy1 = min(ys) - radius_pt, max(ys) + radius_pt
+                if any(qx0 <= x <= qx1 and qy0 <= y <= qy1 for x, y in near):
+                    hit = True
                     break
-    return [found[x] for x in order]
+        if hit:
+            out.append({"xref": int(annot.xref), "kind": kind, "nm": (annot.info or {}).get("id") or "",
+                        "rect": (float(r.x0), float(r.y0), float(r.x1), float(r.y1))})
+    return out
 
 
 def snapshot_annotation(document: PdfDocument, page_index: int, xref: int) -> dict | None:
@@ -373,6 +400,47 @@ def delete_annotation_by_xref(document: PdfDocument, page_index: int, xref: int)
     return False
 
 
+_LINES_CACHE = None  # OrderedDict, created on first use
+
+
+def _page_text_lines(document: PdfDocument, page_index: int) -> list[tuple[tuple, list[tuple[str, float, float]]]]:
+    """The page's text lines with characters: [((x0, y0, x1, y1), [(char, cx0, cx1), …]), …].
+
+    Extracted once and kept (a highlight stroke used to extract the page's text twice for every
+    stroke). The cache key includes the page's content streams and their lengths, so editing the
+    page's text invalidates it; annotations (highlights themselves) do not change the text."""
+    global _LINES_CACHE
+    from collections import OrderedDict
+
+    if _LINES_CACHE is None:
+        _LINES_CACHE = OrderedDict()
+    page = _page(document, page_index)
+    doc = page.parent
+    try:
+        contents = tuple((x, doc.xref_get_key(x, "Length")[1]) for x in page.get_contents())
+    except Exception:  # noqa: BLE001
+        contents = None
+    key = (id(doc), page_index, contents, tuple(page.rect))
+    hit = _LINES_CACHE.get(key) if contents is not None else None
+    if hit is not None:
+        _LINES_CACHE.move_to_end(key)
+        return hit
+    lines: list = []
+    for block in page.get_text("rawdict").get("blocks", []):
+        if block.get("type") != 0:
+            continue
+        for line in block.get("lines", []):
+            chars = [(c["c"], float(c["bbox"][0]), float(c["bbox"][2]))
+                     for span in line.get("spans", []) for c in span.get("chars", [])]
+            if any(ch.strip() for ch, _, _ in chars):
+                lines.append((tuple(float(v) for v in line["bbox"]), chars))
+    if contents is not None:
+        _LINES_CACHE[key] = lines
+        while len(_LINES_CACHE) > 8:
+            _LINES_CACHE.popitem(last=False)
+    return lines
+
+
 def text_rects_along_stroke(
     document: PdfDocument,
     page_index: int,
@@ -383,39 +451,37 @@ def text_rects_along_stroke(
     """Text the pen actually passed over: per text line, from the first to the last character
     the stroke touches (within ``radius_pt``), so a partial word is highlighted as drawn and a
     stroke across one line never picks up the line above or below."""
+    import bisect
+
     if len(points) < 1:
         return []
-    page = _page(document, page_index)
     pts = _densify([(float(p.x), float(p.y)) for p in points])
     out: list[Rect] = []
-    raw = page.get_text("rawdict")
-    for block in raw.get("blocks", []):
-        if block.get("type") != 0:
+    for (lx0, ly0, lx1, ly1), chars in _page_text_lines(document, page_index):
+        # only the part of the stroke inside this line's band can select anything on it
+        xs = sorted(x for x, y in pts if ly0 - radius_pt <= y <= ly1 + radius_pt
+                    and lx0 - radius_pt <= x <= lx1 + radius_pt)
+        if not xs:
             continue
-        for line in block.get("lines", []):
-            lx0, ly0, lx1, ly1 = line["bbox"]
-            # Only strokes that reach this line's band can select anything on it.
-            if not any(ly0 - radius_pt <= y <= ly1 + radius_pt and lx0 - radius_pt <= x <= lx1 + radius_pt
-                       for x, y in pts):
-                continue
-            chars = [c for span in line.get("spans", []) for c in span.get("chars", [])]
-            hit = [
-                i for i, c in enumerate(chars)
-                if _char_touched(c["bbox"], ly0, ly1, pts, radius_pt)
-            ]
-            if not hit:
-                continue
-            first, last = hit[0], hit[-1]
-            while first < last and chars[first]["c"].isspace():
-                first += 1
-            while last > first and chars[last]["c"].isspace():
-                last -= 1
-            if chars[first]["c"].isspace():
-                continue
-            x0 = chars[first]["bbox"][0]
-            x1 = chars[last]["bbox"][2]
-            if x1 - x0 > 0.5:
-                out.append(Rect(x0, ly0, x1 - x0, ly1 - ly0))
+
+        def touched(cx0: float, cx1: float) -> bool:
+            k = bisect.bisect_left(xs, cx0 - radius_pt)
+            return k < len(xs) and xs[k] <= cx1 + radius_pt
+
+        hit = [i for i, (_c, cx0, cx1) in enumerate(chars) if touched(cx0, cx1)]
+        if not hit:
+            continue
+        first, last = hit[0], hit[-1]
+        while first < last and chars[first][0].isspace():
+            first += 1
+        while last > first and chars[last][0].isspace():
+            last -= 1
+        if chars[first][0].isspace():
+            continue
+        x0 = chars[first][1]
+        x1 = chars[last][2]
+        if x1 - x0 > 0.5:
+            out.append(Rect(x0, ly0, x1 - x0, ly1 - ly0))
     return out
 
 
@@ -439,15 +505,8 @@ def classify_stroke(
     becomes a free run for an ink-style highlight. A stroke may produce both."""
     if not points:
         return [], []
-    page = _page(document, page_index)
     dense = _densify([(float(p.x), float(p.y)) for p in points], step=1.0)
-    bands: list[tuple[float, float, float, float]] = []
-    for block in page.get_text("dict").get("blocks", []):
-        if block.get("type") != 0:
-            continue
-        for line in block.get("lines", []):
-            if any(s.get("text", "").strip() for s in line.get("spans", [])):
-                bands.append(tuple(line["bbox"]))
+    bands = [bbox for bbox, _chars in _page_text_lines(document, page_index)]
 
     def on_text(x: float, y: float) -> bool:
         return any(x0 - radius_pt <= x <= x1 + radius_pt and y0 - radius_pt <= y <= y1 + radius_pt
@@ -535,6 +594,9 @@ def _char_touched(bbox, ly0: float, ly1: float, pts, radius: float) -> bool:
     return False
 
 
+NOTE_ICON_PT = 15.0  # size of a new sticky-note icon on the page
+
+
 def add_text_comment(
     document: PdfDocument,
     page_index: int,
@@ -557,6 +619,14 @@ def add_text_comment(
     if author:
         annot.set_info(title=author)
     annot.update()
+    # A smaller icon than MuPDF's (about 18 pt): still easy to see and click, but covers less of the
+    # text. Set on the dictionary itself: MuPDF's update() would put its own icon size back.
+    r = annot.rect
+    x0, y0 = float(r.x0), float(r.y0)
+    p2 = page.transformation_matrix  # display → PDF user space (unrotated pages: a y flip)
+    q = fitz.Rect(x0, y0, x0 + NOTE_ICON_PT, y0 + NOTE_ICON_PT) * p2
+    document._backend._doc.xref_set_key(int(annot.xref), "Rect",  # noqa: SLF001
+                                        f"[{q.x0:.2f} {q.y0:.2f} {q.x1:.2f} {q.y1:.2f}]")
     _set_nm(document, int(annot.xref), new_annotation_id())
     from core.annotations.note_style import style_sticky_note
 

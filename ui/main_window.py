@@ -3087,7 +3087,7 @@ class MainWindow(QMainWindow):
             bar.addSeparator()
             bar.addAction(self.act_duplicate)
             bar.addAction(self.act_delete)
-            stretch_hint("Line width, style and opacity: Properties panel · hold Shift while drawing to constrain")
+            stretch_hint("More (rotation, size, fill opacity): Properties panel")
         elif kind == "image":
             title("Image")
             for act in (self.act_replace_image, self.act_export_image):
@@ -3362,6 +3362,81 @@ class MainWindow(QMainWindow):
             fill_btn.setMenu(SwatchMenu(PAPER_COLORS + INK_COLORS, lambda c: apply(fill_color=c), title="Fill color",
                                         current=lambda: first.fill_color, allow_none=True, parent=fill_btn))
             bar.addWidget(fill_btn)
+        self._add_shape_line_controls(bar, shapes, apply)
+
+    def _add_shape_line_controls(self, bar, shapes, apply) -> None:
+        """Line thickness, line style, opacity and (lines / arrows) the end styles of the selected
+        shapes, on the context toolbar. Values apply on Enter, when the box is left, or with its
+        arrows / wheel (not at every key typed, so a number can be typed in full)."""
+        from PySide6.QtWidgets import QComboBox, QDoubleSpinBox, QLabel, QSpinBox
+
+        from core.editing.shape_box import HEAD_STYLES, STROKE_STYLES, StrokeStyle
+
+        first = shapes[0]
+        bar.addSeparator()
+
+        def label(text: str) -> None:
+            lab = QLabel(text)
+            lab.setObjectName("ContextLabel")
+            bar.addWidget(lab)
+
+        label("Width")
+        width = QDoubleSpinBox()
+        width.setObjectName("ShapeLineWidth")
+        width.setRange(0.25, 36.0)
+        width.setDecimals(2)
+        width.setSingleStep(0.5)
+        width.setSuffix(" pt")
+        width.setKeyboardTracking(False)
+        width.setValue(float(first.stroke_width))
+        width.setToolTip("Line thickness of the selected shapes")
+        width.setAccessibleName("Line width")
+        width.valueChanged.connect(lambda v: apply(stroke_width=float(v)))
+        from ui.theme import spin_box_min_width
+
+        width.setMinimumWidth(spin_box_min_width(width) + 18)  # "36.00 pt" fully visible
+        bar.addWidget(width)
+
+        style = QComboBox()
+        style.setObjectName("ShapeLineStyle")
+        for value, text in STROKE_STYLES:
+            style.addItem(text, value)
+        current = getattr(first.stroke_style, "value", str(first.stroke_style))
+        style.setCurrentIndex(max(0, style.findData(current)))
+        style.setToolTip("Line style: solid, dashed, dotted …")
+        style.setAccessibleName("Line style")
+        style.activated.connect(lambda i: apply(stroke_style=StrokeStyle(style.itemData(i))))
+        bar.addWidget(style)
+
+        label("Opacity")
+        opacity = QSpinBox()
+        opacity.setObjectName("ShapeOpacity")
+        opacity.setRange(5, 100)
+        opacity.setSingleStep(5)
+        opacity.setSuffix(" %")
+        opacity.setKeyboardTracking(False)
+        opacity.setValue(int(round(float(first.opacity) * 100)))
+        opacity.setToolTip("Opacity of the selected shapes")
+        opacity.setAccessibleName("Opacity")
+        opacity.valueChanged.connect(lambda v: apply(opacity=v / 100.0))
+        opacity.setMinimumWidth(spin_box_min_width(opacity) + 18)
+        bar.addWidget(opacity)
+
+        lines = [s for s in shapes if getattr(s.kind, "value", "") in ("line", "arrow")]
+        if lines and len(lines) == len(shapes):
+            start_now, end_now = lines[0].heads()
+            for which, now in (("Start", start_now), ("End", end_now)):
+                combo = QComboBox()
+                combo.setObjectName(f"ShapeHead{which}")
+                for value, text in HEAD_STYLES:
+                    combo.addItem(text, value)
+                combo.setCurrentIndex(max(0, combo.findData(now)))
+                combo.setToolTip(f"{which} of the line: arrow head, dot, bar or none")
+                combo.setAccessibleName(f"Line {which.lower()}")
+                key = "start_head" if which == "Start" else "end_head"
+                combo.activated.connect(lambda i, c=combo, k=key: apply(**{k: c.itemData(i)}))
+                label(which)
+                bar.addWidget(combo)
 
     def _selected_text_boxes(self) -> list:
         """Every selected text box (a rectangle drag or Ctrl+click can select several)."""
@@ -5285,7 +5360,7 @@ class MainWindow(QMainWindow):
             stroke = self._canvas.take_region_stroke() or []
             display = [(p.x, p.y) for p in stroke] or [(rect.x, rect.y)]
             pts = [self._to_page_point(page, x, y) for x, y in display]
-            hits = annotations_along(self._document, page, pts, radius_pt=5.0)
+            hits = annotations_along(self._document, page, pts, radius_pt=5.5)  # half the drawn eraser stroke (11 pt)
             if not hits:
                 self.statusBar().showMessage("Eraser: nothing to erase there — draw over a highlight, underline, "
                                              "strikethrough or ink mark", 4000)
@@ -5931,7 +6006,13 @@ class MainWindow(QMainWindow):
         from ui.convert_dialogs import choose_save
         from ui.security_dialogs import PasswordProtectDialog
 
-        dlg = PasswordProtectDialog(self)
+        try:
+            from core.convert.page_marks import KIND_WATERMARK, count_marks
+
+            wm_pages = count_marks(self._document).get(KIND_WATERMARK, 0)
+        except Exception:  # noqa: BLE001
+            wm_pages = 0
+        dlg = PasswordProtectDialog(self, watermark_pages=wm_pages)
         if dlg.exec() != dlg.DialogCode.Accepted:
             return
         settings = dlg.settings()

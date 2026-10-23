@@ -8,6 +8,22 @@ Changes after 0.4.1.
 
 ### Fixed
 
+- **A text box just placed could not be resized**: its handles lie half inside the box being typed in,
+  which took the click. Every handle now resizes the box, while typing and afterwards.
+- **Eraser** about 200 times faster on pages with many marks (it read every annotation of the page
+  again for every 1.5 pt of the stroke: over a second for a long stroke); its reach matches the drawn
+  stroke. **Highlighter** strokes reuse the page's text instead of extracting it twice per stroke, and
+  only the newest piece of a stroke is redrawn while drawing.
+- **Sticky notes**: dragging a note moves its icon with the pointer at once (it used to jump only
+  after the drop); pointing at a note no longer reveals its text — one click opens it, a second click
+  closes it, a double-click edits it, and a drag never opens it. New notes have a smaller icon
+  (15 pt). The note card and the note dialog have a cleaner look in both themes.
+- **Zoom**: Ctrl + mouse wheel zooms around the pointer (the text being read stays under it), a burst
+  of wheel steps renders once, and pages are shown scaled instead of blank until the sharp picture is
+  ready. Touchpad pinch / small wheel steps zoom smoothly.
+- **Drop-down lists, menus and tooltips** open at once (Windows' slide and fade animations made them
+  flicker); every drop-down list is at least as wide as its longest entry.
+- Typing in a text box does less work per key (plain text skips the per-character format pass).
 - **Crash while scrolling the font list** after placing a text box and typing (access violation).
   The font box was rebuilt: Monograph PDF's own font list and row painter instead of wrapping the
   painter of Qt's font box (which Qt may replace or delete), one font list per session, every row
@@ -45,6 +61,20 @@ Changes after 0.4.1.
 
 ### Added
 
+- **Find** understands scientific writing: Greek letters and their names (TNF-alpha finds TNF-α,
+  IL-1beta finds IL-1β), micro sign and Greek mu (µM / μM), minus sign, en dash and hyphen, degree
+  signs, typographic quotes, unit exponents (cm2 / cm², s-1 / s⁻¹), ligatures, capitals of
+  non-Latin letters (Α / α, Ü / ü), and pasted text with line breaks.
+- **Shape toolbar**: line thickness, line style, opacity, and the start and end of lines and arrows
+  (arrow head, dot, bar or none), right above the page.
+- **Form fields**: background and border of a field (or none) in the Properties panel, saved into the
+  PDF field itself.
+- **Recognize Text**: a page range (e.g. 1-3, 7), and a language list ready for many languages
+  (search box, the chosen languages listed, at least one always kept).
+- **Protect with Password**: AES-256 stays the default (the strongest PDF encryption); a line tells
+  whether the document information is encrypted (with an open password) or readable by anyone; it
+  can be removed from the protected copy; a watermark added by Monograph PDF can be locked into the
+  pages (no layer to hide, not removable with Remove Watermark) while changes stay disallowed.
 - **Colors to the monitor profile**: on a wide-gamut monitor with a non-sRGB color profile, pages,
   thumbnails, the print preview, edited objects and placed pictures are shown converted to that
   profile (View ▸ Match Colors to Monitor Profile; nothing changes on an sRGB monitor or in the

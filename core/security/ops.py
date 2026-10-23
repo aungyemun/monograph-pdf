@@ -60,6 +60,13 @@ class EncryptionSettings:
     owner_password: str = ""
     algorithm: str = "AES-256"  # only redistributable MuPDF path we ship
     permissions: PermissionFlags = field(default_factory=PermissionFlags)
+    # Remove the document information (title, author, subject, keywords, creator, dates) and the
+    # XMP metadata from the protected copy. With an open password they are encrypted anyway; without
+    # one anybody can read them.
+    strip_metadata: bool = False
+    # Watermarks added by Monograph PDF become ordinary page content (no layer to hide, not
+    # removable by Remove Watermark); combine with a permissions password that disallows changes.
+    lock_watermarks: bool = False
 
     def encryption_constant(self) -> int:
         if self.algorithm.upper() in ("AES-256", "AES256", "AES"):
@@ -134,6 +141,16 @@ def apply_password_protection(
     # form fields, bookmarks, links, metadata, attachments — is carried over.
     doc = fitz.open("pdf", src.tobytes(garbage=1, deflate=True, encryption=fitz.PDF_ENCRYPT_NONE))
     try:
+        if settings.lock_watermarks:
+            from core.convert.page_marks import lock_page_marks
+
+            lock_page_marks(doc)
+        if settings.strip_metadata:
+            doc.set_metadata({})
+            try:
+                doc.del_xml_metadata()
+            except Exception:  # noqa: BLE001 — no XMP metadata
+                pass
         # Only a permissions password: the file opens without a password but stays restricted.
         # Only an open password: that password also grants full rights.
         owner = settings.owner_password or settings.user_password

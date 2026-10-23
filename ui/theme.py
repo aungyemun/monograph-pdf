@@ -337,6 +337,7 @@ QToolButton#FormatButton { min-width: 18px; font-weight: 600; }
 
 QLabel#ContextHint { color: $text_muted; padding: 2px 8px; }
 QLabel#ContextTitle { color: $text_muted; font-weight: 600; padding: 0 10px 0 4px; }
+QLabel#ContextLabel { color: $text_subtle; padding: 0 4px 0 8px; }
 QLabel#ToolbarPageTotal { color: $text_muted; padding: 0 6px 0 2px; }
 QLineEdit#ToolbarPageEdit { min-width: 34px; max-width: 46px; padding: 2px 4px; qproperty-alignment: AlignCenter; }
 QComboBox#ToolbarZoomValue { min-width: 64px; }
@@ -600,6 +601,30 @@ def spin_box_min_width(box) -> int:
     return int(widest) + _SPIN_CHROME_PX
 
 
+def fit_combo_popup(combo) -> None:
+    """A drop-down list at least as wide as its longest entry (never cut off), at most 60 % of the
+    screen, and never more than 18 rows tall at once (the rest scrolls)."""
+    try:
+        view = combo.view()
+        if view is None or combo.count() == 0:
+            return
+        if combo.count() > 600:  # e.g. the font list: sized by its own code, measuring would be slow
+            return
+        fm = view.fontMetrics()
+        widest = max(fm.horizontalAdvance(combo.itemText(i)) for i in range(combo.count()))
+        icon = combo.iconSize().width() + 6 if any(not combo.itemIcon(i).isNull() for i in range(combo.count())) else 0
+        bar = view.style().pixelMetric(view.style().PixelMetric.PM_ScrollBarExtent)
+        need = widest + icon + 24 + (bar if combo.count() > combo.maxVisibleItems() else 0)
+        screen = combo.screen()
+        cap = int(screen.availableGeometry().width() * 0.6) if screen is not None else 900
+        if view.minimumWidth() < min(need, cap):
+            view.setMinimumWidth(min(need, cap))
+        if combo.maxVisibleItems() > 18:
+            combo.setMaxVisibleItems(18)
+    except Exception:  # noqa: BLE001 — sizing is cosmetic
+        pass
+
+
 class _SpinBoxWidthFilter:
     """Gives every spin box room for its longest value before it is first shown.
 
@@ -624,6 +649,11 @@ class _SpinBoxWidthFilter:
                                 obj.setMinimumWidth(need)
                         except Exception:  # noqa: BLE001 — sizing is cosmetic
                             pass
+                    elif event.type() == QEvent.Type.Show:
+                        from PySide6.QtWidgets import QComboBox
+
+                        if isinstance(obj, QComboBox):
+                            fit_combo_popup(obj)
                 return False
 
         self.filter = _Filter()
