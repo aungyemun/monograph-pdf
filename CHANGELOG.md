@@ -8,6 +8,15 @@ Changes after 0.4.1.
 
 ### Fixed
 
+- **Crash while scrolling the font list** after placing a text box and typing (access violation).
+  The font box was rebuilt: Monograph PDF's own font list and row painter instead of wrapping the
+  painter of Qt's font box (which Qt may replace or delete), one font list per session, every row
+  the same height, the Properties panel keeps one font box instead of creating and deleting one at
+  every refresh, and nothing is rebuilt under an open or scrolling list. Fonts without Latin letters
+  (symbol and Japanese-only fonts) show their name readably with a sample in the font.
+- The **problem report window** no longer opens inside the code that failed (for example in the middle
+  of drawing a list); it opens right after, once per burst of the same error. Opening it inside a
+  drawing handler could itself end the application.
 - **Filled forms looked empty in Adobe Acrobat.** Forms made with Adobe LiveCycle Designer (many
   Japanese government forms) keep every field twice — as ordinary PDF fields and in an Adobe XFA
   copy that only Acrobat shows. Saving now writes the typed values into the XFA copy as well; when a

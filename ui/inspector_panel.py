@@ -203,6 +203,9 @@ class InspectorPanel(QScrollArea):
     def _own_popup_open(self) -> bool:
         from PySide6.QtWidgets import QApplication
 
+        picker = getattr(self, "_font_picker", None)
+        if picker is not None and picker.popup_open():
+            return True
         popup = QApplication.activePopupWidget()
         w = popup.parentWidget() if popup is not None else None
         while w is not None:  # the popup is a separate window: walk up from its owner
@@ -229,6 +232,9 @@ class InspectorPanel(QScrollArea):
             widget = item.widget()
             if widget is not None:
                 widget.hide()
+                if widget is getattr(self, "_font_picker", None):
+                    widget.setParent(self)  # kept for the next text box (hidden until then)
+                    return
                 widget.deleteLater()
                 return
             layout = item.layout()
@@ -456,12 +462,24 @@ class InspectorPanel(QScrollArea):
         finally:
             self._updating = False
 
+    def _on_font_picked(self, _family: str) -> None:
+        if self._box is not None and not self._updating:
+            self._apply()
+
     def _font_combo(self, current: str):
         """Font box — type a few letters to list matching fonts."""
         from ui.font_picker import FontPicker
 
-        combo = FontPicker()
+        # One font box for the panel's whole life: it is moved into each new row instead of being
+        # created and deleted at every refresh (deleting a font box while its list was open or
+        # scrolling ended the application).
+        combo = getattr(self, "_font_picker", None)
+        if combo is None:
+            combo = FontPicker()
+            combo.fontPicked.connect(self._on_font_picked)
+            self._font_picker = combo
         combo.set_family(current or "Segoe UI")
+        combo.show()
         # Warm cache in background for search helpers (no UI cost on every rebuild)
         try:
             cached_font_families()
@@ -602,7 +620,6 @@ class InspectorPanel(QScrollArea):
     def _build_textbox_editors(self, box: TextBox) -> None:
         self._updating = True
         self._font = self._font_combo(box.style.font_family)
-        self._font.fontPicked.connect(lambda _f: self._apply())
         self._form.addRow("Font:", self._font)
 
         try:

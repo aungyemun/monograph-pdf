@@ -205,24 +205,29 @@ def test_toolbar_picker_follows_selected_text_box(qtbot, tmp_path, monkeypatch):
         win.close()
 
 
-def test_delegate_never_raises_when_inner_is_missing(picker, qtbot):
-    """Regression: an AttributeError in the row painter ended the whole app (font_picker:28)."""
+def test_row_painter_never_raises(picker, qtbot):
+    """Regression: an exception in the row painter ended the whole app (font_picker:28). The painter is
+    Monograph PDF's own (it no longer wraps Qt's, which Qt may delete) and falls back on any error."""
+    from PySide6.QtCore import QModelIndex
     from PySide6.QtGui import QImage, QPainter
     from PySide6.QtWidgets import QStyleOptionViewItem
 
+    from ui.font_picker import FontRowDelegate
+
     delegate = picker.itemDelegate()
-    assert delegate is picker._font_delegate
+    assert delegate is picker._font_delegate and isinstance(delegate, FontRowDelegate)  # noqa: SLF001
     img = QImage(200, 30, QImage.Format.Format_ARGB32)
     painter = QPainter(img)
     try:
         option = QStyleOptionViewItem()
         option.rect = img.rect()
-        index = picker.model().index(0, 0)
-        del delegate._inner  # the failure mode reported: the wrapped delegate is not reachable
-        delegate.paint(painter, option, index)
-        assert delegate.sizeHint(option, index).height() > 0
+        for index in (picker.model().index(0, 0), QModelIndex()):  # a real row and an invalid one
+            delegate.paint(painter, option, index)
+            assert delegate.sizeHint(option, index).height() > 0
         picker.set_family(picker.itemText(0))  # active row path as well
-        delegate.paint(painter, option, index)
+        delegate.paint(painter, option, picker.model().index(0, 0))
+        delegate._picker = None  # noqa: SLF001 — picker not reachable
+        delegate.paint(painter, option, picker.model().index(0, 0))
     finally:
         painter.end()
 

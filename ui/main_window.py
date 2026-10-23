@@ -2344,10 +2344,33 @@ class MainWindow(QMainWindow):
         can show it right now (it is then kept for the next start)."""
         if self._is_headless_ui() or not self.isVisible():
             return False
+        # Never open the window inside the code that failed: an error in a paint or mouse handler
+        # (for example while a list was scrolling) used to open this modal window from inside that
+        # handler; the half-finished event, an open list and further errors from the same handler
+        # then ended the application (access violation). The window opens from the main event loop
+        # instead, one at a time (repeats of the same burst are not shown again).
+        if getattr(self, "_report_pending", False):
+            return True
+        self._report_pending = True
+        QTimer.singleShot(0, self, lambda: self._show_report(report, summary))
+        return True
+
+    def _show_report(self, report: dict, summary: str) -> None:
         from ui.error_report_dialog import ErrorReportDialog
 
-        ErrorReportDialog(report, summary=summary, parent=self).exec()
-        return True
+        try:
+            for _ in range(5):  # close open lists and menus first (they hold the mouse)
+                popup = QApplication.activePopupWidget()
+                if popup is None:
+                    break
+                popup.close()
+            ErrorReportDialog(report, summary=summary, parent=self).exec()
+        except Exception:  # noqa: BLE001 — never fail while reporting a failure
+            from core.diagnostics import crash
+
+            crash.save_pending(report)
+        finally:
+            self._report_pending = False
 
     def _autosave_session(self) -> None:
         if self._edit is None or self._document is None or not self._edit.dirty:
@@ -2964,7 +2987,8 @@ class MainWindow(QMainWindow):
         # Rebuilding hides every control on the bar, which closed a font list (or color menu) the user
         # had just opened — e.g. the first click on the font box while typing in a text box only
         # flashed the list. Wait until the list or menu is closed.
-        if self._popup_owned_by(bar):
+        picker = getattr(self, "_font_family", None)
+        if self._popup_owned_by(bar) or (picker is not None and picker.popup_open()):
             if getattr(self, "_ctx_retry", None) is None:
                 self._ctx_retry = QTimer(self)
                 self._ctx_retry.setSingleShot(True)
