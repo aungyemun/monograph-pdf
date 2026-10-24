@@ -2,7 +2,7 @@
 
 All notable changes to Monograph PDF. Versions follow `VERSION` (see `docs/RELEASE_AND_VERSIONING.md`).
 
-## [0.5.0] — 2026-10-24
+## [0.5.0] — Unreleased
 
 Changes after 0.4.1. Version 0.4.2 was built for testing but never released; its changes are part of
 0.5.0.
@@ -28,6 +28,9 @@ Changes after 0.4.1. Version 0.4.2 was built for testing but never released; its
   does nothing instead of rewriting the file; Save with changes over a signed PDF asks first, because
   the signatures become invalid. Word and PowerPoint exports say that the signature is shown as it looks
   but the exported file is not digitally signed.
+- **Temporary copies of protected PDFs**: a temporary copy made for an export or print from a protected
+  PDF is removed also when the operation fails, and one left behind by a crash is removed at the next
+  start (it used to stay up to a day in Monograph PDF's temporary folder).
 - **OCR language downloads** happen only when you click **Download and Install** (see Added), over
   HTTPS with certificate checks to github.com / raw.githubusercontent.com only, and the file is
   installed only if its size and SHA-256 match the pin shipped with Monograph PDF.
@@ -60,6 +63,8 @@ Changes after 0.4.1. Version 0.4.2 was built for testing but never released; its
   File…** (several files at once), language files already in the Downloads folder offered for
   installation, and **Copy Address**. An installed language is ready at once and is ticked for
   recognition. Every download address and SHA-256 was checked against the official Tesseract release.
+  When Tesseract's automatic page layout finds no text (seen with Burmese), the page is read again as
+  one block of text.
 
 ### Changed
 

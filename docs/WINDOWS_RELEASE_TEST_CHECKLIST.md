@@ -18,13 +18,13 @@ Monograph PDF and keep a copy of your documents first. Write down for every comp
 and version (`winver`), display language, regional format / system locale (e.g. Japanese), display
 scaling, and whether another Monograph PDF version was installed and for which users.
 
-## A. Tests you can do now (0.4.1 release candidate)
+## A. Tests you can do now (0.5.0 release candidate)
 
 ### A1. Download and file checks
 
 | # | Step | Expected |
 |---|---|---|
-| 1 | Copy `MonographPDF_0.4.1_Setup.exe`, `_Installer.zip`, `_Source.zip` (and, once signed, `MonographPDF_update_manifest.json`) into an empty folder | — |
+| 1 | Copy `MonographPDF_0.5.0_Setup.exe`, `_Installer.zip`, `_Source.zip` (and, once signed, `MonographPDF_update_manifest.json`) into an empty folder | — |
 | 2 | `powershell -NoProfile -ExecutionPolicy Bypass -File windows_release_check.ps1 -ReleaseDir <folder>` | `PASS` for both SHA256SUMS entries; Authenticode `NotSigned`; with a manifest: `PASS` manifest names this Setup.exe |
 | 3 | Compare the printed SHA-256 of Setup.exe with the release notes | identical |
 
@@ -33,11 +33,11 @@ scaling, and whether another Monograph PDF version was installed and for which u
 | # | Step | Expected |
 |---|---|---|
 | 1 | Run Setup; note the SmartScreen warning text | the unsigned-installer warning described in INSTALLATION.md; Setup offers per-user / all-users |
-| 2 | Finish Setup with **Launch** checked | Monograph PDF opens; **Help ▸ About** shows 0.4.1 |
+| 2 | Finish Setup with **Launch** checked | Monograph PDF opens; **Help ▸ About** shows 0.5.0 |
 | 3 | `windows_release_check.ps1 -SelfTest` | `PASS self-check`, every line `ok`; update checks enabled `True`, trusted key id `27c3b3b23b949c40`; `MonographPDF.exe`, `MonographPDFUpdater.exe`, `uninstall.exe` reported as **Windows GUI** programs |
 | 4 | Start menu entry, desktop shortcut (if chosen), "Open with" for a PDF | all open Monograph PDF |
 
-### A3. Manual upgrade 0.4.0 → 0.4.1 and settings preservation
+### A3. Manual upgrade 0.4.0 → 0.5.0 and settings preservation
 
 0.4.0 cannot update itself (its update checks are switched off and it trusts no signing key); the
 upgrade is done with Setup.
@@ -45,9 +45,9 @@ upgrade is done with Setup.
 | # | Step | Expected |
 |---|---|---|
 | 1 | In 0.4.0: change settings you can recognise (theme, **File ▸ Settings… ▸ Updates** interval, OCR languages, window size, a recent font), open two PDFs so they appear in the recent-files list; close it | — |
-| 2 | Run the 0.4.1 Setup **for the same users** (an all-users 0.4.0 needs the administrator prompt) | Setup upgrades in place, same folder |
-| 3 | Start 0.4.1 | About shows 0.4.1; every setting and recent file of step 1 is still there |
-| 4 | `windows_release_check.ps1 -SelfTest` | one installation listed, version 0.4.1, self-check `PASS` |
+| 2 | Run the 0.5.0 Setup **for the same users** (an all-users 0.4.0 needs the administrator prompt) | Setup upgrades in place, same folder |
+| 3 | Start 0.5.0 | About shows 0.5.0; every setting and recent file of step 1 is still there |
+| 4 | `windows_release_check.ps1 -SelfTest` | one installation listed, version 0.5.0, self-check `PASS` |
 
 ### A4. Startup, shutdown and the application
 
@@ -60,7 +60,11 @@ upgrade is done with Setup.
 | 5 | Compression | **File ▸ Compress PDF…**: each of the five choices, **Preview**, **Compress and Save As…** | dialog fits the screen; text, fonts, comments unchanged; size as previewed |
 | 6 | Conversion | PDF → Word, Word/Excel → PDF (if Office/LibreOffice installed), images → PDF | output opens in the target application |
 | 7 | Printing | print preview; one real print if possible | correct pages; a real print not done = NOT TESTED |
-| 8 | Problem reports | only if something fails: the report dialog | shows the report in full; **Copy** and **Close** offered, no **Send** (sending is switched off) |
+| 8 | Scroll button (real mouse) | press the **mouse wheel button** on a page, move the pointer above / below the marker, click to stop; hold the button and release; **View ▸ Automatic Scrolling** (Ctrl+Shift+L), ↓ / ↑, Esc | marker appears where pressed; scrolls towards the pointer, faster further away; any click or Esc stops it without editing the page; automatic scrolling stops at the end |
+| 9 | Zoom | **View ▸ Zoom In / Zoom Out**, toolbar buttons, Ctrl+= / Ctrl+-, Ctrl + mouse wheel (and touchpad pinch, if available) | the zoom changes every time; Ctrl + wheel keeps the text under the pointer |
+| 10 | Colours and pictures | text colour → the colour picker (Hex, swatches, **Pick from Screen**); insert a picture, **Behind Text**, resize it with Lock aspect ratio off, save, reopen | the chosen colour is applied; the text shows through the picture; the saved picture has the size shown on screen |
+| 11 | Protected PDFs | open a PDF with only its open password whose permissions forbid copying: **Convert ▸ PDF to Word** asks for the permissions password; Watermark / Save a Copy, reopen the result | without the permissions password nothing is converted; every PDF written keeps the open password and restrictions |
+| 12 | Problem reports | only if something fails: the report dialog | shows the report in full; **Copy** and **Close** offered, no **Send** (sending is switched off) |
 
 ### A5. Japanese and Unicode paths
 
@@ -68,10 +72,11 @@ upgrade is done with Setup.
 |---|---|---|
 | 1 | Folder `C:\テスト\資料 2026\` with `見積書（最終）.pdf` and `Café – Ünïcode.pdf`: open, edit, save, Save As into the same folder | works; names shown correctly; recent-files list shows them after a restart |
 | 2 | OCR (Japanese) on a scanned page in that folder | text recognised; saved PDF searchable |
+| 2a | **OCR ▸ OCR Languages**: select a language (e.g. Burmese or German), **Download and Install**; then Recognize Text on a page in that language | downloads only after the click, shows *Installed*; usable at once without restarting |
 | 3 | On a computer whose Windows user name contains Japanese characters (if available) | settings saved and kept across restarts |
 | 4 | Per-user installation into a custom folder with Japanese characters | installs, starts, self-check `PASS` |
 
-### A6. Update checking (before 0.4.1 is published)
+### A6. Update checking (before 0.5.0 is published)
 
 | # | Step | Expected now |
 |---|---|---|
@@ -92,17 +97,17 @@ upgrade is done with Setup.
 | # | Step | Expected |
 |---|---|---|
 | 1 | Uninstall from Windows Settings ▸ Apps (answer the settings question as you like) | program folder and Start menu entry removed; documents untouched; settings removed only if you chose so |
-| 2 | Reinstall 0.4.1 | installs and starts; settings kept unless removed in step 1 |
+| 2 | Reinstall 0.5.0 | installs and starts; settings kept unless removed in step 1 |
 
 ## B. Needs a published signed release (cannot be tested before publication)
 
 | # | Test | When |
 |---|---|---|
-| B1 | After 0.4.1 is published **with** its signed manifest: **Check for Updates** on 0.4.1 reports **No update available** | right after publication |
+| B1 | After 0.5.0 is published **with** its signed manifest: **Check for Updates** on 0.5.0 reports **No update available** | right after publication |
 | B2 | Optional automatic check (switch on, wait for the interval): stays quiet when up to date | after publication |
-| B3 | **Update Now** from 0.4.1 to the next release (0.5.0): download, verify, close, install in place, restart, settings kept; all-users install shows the administrator prompt; **Cancel** during the download says "Update canceled. Nothing was installed." | when 0.4.2 is published |
+| B3 | **Update Now** from 0.5.0 to the next release: download, verify, close, install in place, restart, settings kept; all-users install shows the administrator prompt; **Cancel** during the download says "Update canceled. Nothing was installed." | when the next release is published |
 | B4 | A tampered or unsigned manifest is refused (*Invalid digital signature*) | covered by automated tests; on real computers only with a test release |
-| B5 | **Skipped versions:** keep one test computer on 0.4.1 without updating; when a later release (e.g. 0.6.0) is out, **Check for Updates** offers it directly and **Update Now** installs it in one step; settings, recent files and documents kept | when that release is published |
+| B5 | **Skipped versions:** keep one test computer on 0.5.0 without updating; when a later release (e.g. 0.6.x) is out, **Check for Updates** offers it directly and **Update Now** installs it in one step; settings, recent files and documents kept | when that release is published |
 | B6 | A release that sets `min_upgrade_from` above the installed version: **Update Now** disabled with the reason; Setup from the release page works | only if such a release is made |
 
 ## Logs and failure reports
