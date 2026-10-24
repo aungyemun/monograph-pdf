@@ -97,7 +97,7 @@ def test_hover_and_click_show_the_note_text(win, qtbot, monkeypatch):
     QApplication.sendEvent(inner, QMouseEvent(QEvent.Type.MouseMove, pos, inner.mapToGlobal(pos),
                                               Qt.MouseButton.NoButton, Qt.MouseButton.NoButton,
                                               Qt.KeyboardModifier.NoModifier))
-    # (0.4.2) pointing at a note does not reveal its text — it is hidden until the note is clicked
+    # (0.5.0) pointing at a note does not reveal its text — it is hidden until the note is clicked
     assert "Bring the passport copy" not in inner.toolTip() and "click" in inner.toolTip().lower()
     # A click opens the note's pop-up next to it (it replaced a tooltip that vanished after 12 s)
     for kind, buttons in ((QEvent.Type.MouseButtonPress, Qt.MouseButton.LeftButton),

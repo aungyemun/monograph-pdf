@@ -26,6 +26,12 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
 - Opening a PDF never changes it; changes are written only when you save.
 - Fit width, fit page or any zoom level; page thumbnails, search, bookmarks and attachments.
 - **View ▸ Highlight Fillable Fields** tints form fields on screen only.
+- **Scroll button.** Press the mouse wheel button on a page: a round marker appears and the pages
+  scroll towards the pointer, faster the further away it is (click to keep scrolling, hold to scroll
+  until released). **View ▸ Automatic Scrolling** (`Ctrl+Shift+L`) scrolls at a steady, adjustable
+  reading speed.
+- **Ctrl + mouse wheel** zooms around the pointer; pages are shown scaled while the sharp picture is
+  made.
 - Bookmark editing in the Navigation panel: add (`Ctrl+B`), rename, point at the current page,
   move and delete (including sub-bookmarks), all undoable. Bookmarks that open web pages or carry
   styles are preserved (`core/organize/bookmarks.py`).
@@ -45,6 +51,11 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
   underline, strikethrough and ink annotations; it never removes original page content. Creating
   and erasing markup can be undone.
 - **Edit ▸ Copy Page as Picture** (`Ctrl+Alt+C`) copies the page as shown at 150 dpi.
+- **Color picker** for every color: color field and hue strip, current and new color, Hex / color
+  name and R G B, standard and recent colors, **Pick from Screen**, and the contrast on white paper for
+  text colors.
+- **Pictures in front of or behind text.** *Behind Text* lets the page's text and lines show through
+  the picture (multiply blending), also on scanned pages; shown on screen exactly as saved.
 - **Properties panel.** Text boxes have opacity, letter spacing and rotation; shapes have opacity, rotation and dash style. Objects can be copied, pasted, duplicated and layered.
 - **Squiggly underline.** Markup can be drawn as a squiggly underline, and markup opacity can be set.
 - **Comments panel.** **View ▸ Comments Panel** lists, selects, edits, moves and deletes notes.
@@ -64,13 +75,12 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
 
 ## OCR
 
-- Bundled Tesseract with English, Japanese and orientation data (`eng`, `jpn`, `osd`); nothing is
-  downloaded.
+- Bundled Tesseract with English, Japanese and orientation data (`eng`, `jpn`, `osd`); works offline.
 - Recognize a page or the whole document, add a searchable text layer, or make the text editable.
 - **Recognize Text in Area**, and **Extract Text** with a correctable preview: copy, or save as UTF-8 .txt or .docx.
 - **Scanned PDF to Word.**
 - **Rotated scans.** Rotated and upside-down scans are handled, and an existing text layer is never duplicated.
-- **Optional language packs.** Chinese, Korean, vertical Japanese, German, French and Spanish can be installed from a file you supply. The file must match the pinned SHA-256; nothing is downloaded.
+- **45 optional languages** (Arabic, Burmese, Chinese, Dutch, French, German, Greek, Hindi, Korean, Russian, Spanish, Thai, Vietnamese and more), installed on request: **Download and Install** (one click, from the official Tesseract release), **Install from File…**, or files found in the Downloads folder. A file is accepted only if it matches the pinned size and SHA-256, and is ready at once.
 
 ## Organizing and converting
 
@@ -94,6 +104,10 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
 - AES-256 encryption with an open password and permissions; unlocking only with the password; an
   offline password-strength rating and a warning when the permissions password equals the open
   password.
+- **Protected, signed and watermarked PDFs** are handled consistently: every PDF written from a
+  protected PDF keeps its passwords and permissions; the permissions are honoured (the permissions
+  password unlocks the rest); unchanged signed PDFs are copied byte for byte; watermarks stay in every
+  output. See [Protected, signed and watermarked PDFs](PROTECTED_SIGNED_WATERMARKED_PDFS.md).
 - **Remove Hidden Information** finds and selectively removes: document, page and picture metadata
   (including XMP); attachments; scripts and automatic actions (document JavaScript, open actions that
   run something, document and page automatic actions, scripts in comments, fields and bookmarks);

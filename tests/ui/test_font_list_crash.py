@@ -161,7 +161,7 @@ def test_panel_rebuild_never_deletes_widgets_immediately(win, qtbot):
 
 
 def test_scrolling_the_open_font_lists_while_the_text_box_changes_does_not_crash(win, qtbot):
-    """Regression (0.4.2 crash, access violation in Qt6Widgets): place a text box, type, then scroll the
+    """Regression (0.4.2 test build crash, access violation in Qt6Widgets): place a text box, type, then scroll the
     font list. Both font boxes: the list is scrolled by wheel and scroll bar while the text box keeps
     changing (each change asks the panel and toolbar to refresh). Nothing may be rebuilt or deleted
     under the open list, no error may be raised, and choosing a font afterwards works."""

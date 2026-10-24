@@ -55,8 +55,10 @@ Images and Office files open as a new unsaved PDF; the original is never changed
 
 ## Viewing
 
-- Zoom: Fit Width (Ctrl+1), Fit Page (Ctrl+2), Actual Size (Ctrl+0); Ctrl+= / Ctrl+-
+- Zoom: Fit Width (Ctrl+1), Fit Page (Ctrl+2), Actual Size (Ctrl+0); Ctrl+= / Ctrl+-; Ctrl + mouse wheel zooms around the pointer
 - Pages: Page Up/Down, Home/End, **View ▸ Go to Page…** (Ctrl+G)
+- **Scroll button**: press the mouse wheel button on a page — a round marker appears. Move the pointer above or below it and the pages scroll that way, faster the further away (sideways too when the page is wider than the window). After a click, scrolling continues until the next click or Esc; while you hold the button, it stops when you release it
+- **View ▸ Automatic Scrolling** (Ctrl+Shift+L): the pages scroll at a steady reading speed; ↓ faster, ↑ slower (and back up), Esc or a click stops; it stops at the end of the document
 - Find: Ctrl+F; next/previous Enter / Shift+Enter
 - **File ▸ Document Properties…** (Ctrl+Alt+D) · full screen F11
 - **View ▸ Highlight Fillable Fields** (Ctrl+Shift+H) — screen tint only; never saved
@@ -67,7 +69,12 @@ The **Bookmarks** tab of the Navigation panel lists the document outline; click 
 
 ## Password-protected PDFs
 
-The **Protected PDF** dialog asks for the password (never stored in recent files, recovery data or logs). **Save** and **Save As** keep protection. Remove it only with **Protect ▸ Unlock PDF (Remove Password)…**. Protection is never removed without the correct password.
+The **Protected PDF** dialog asks for the password (never stored in recent files, recovery data or logs).
+
+- **Protection is kept.** Save, Save As, every Save a Copy command, Watermark, Header & Footer, Background, Flatten, Redact, Extract Pages, Compress and Make Searchable write PDFs with the same open password, permissions password and permissions as the original. Remove protection only with **Protect ▸ Unlock PDF (Remove Password)…**, never without the correct password.
+- **Permissions are honoured.** A PDF can allow or forbid printing, copying its content, changes and page assembly. With the open password alone, an action the author did not allow asks for the **permissions password** (owner password); after it is entered, everything is allowed until you close the document. Converting to Word, PowerPoint, Excel, text or pictures needs *copying*; Print needs *printing*; saving changes and page design need *changes*; extracting, splitting and combining pages need *page assembly*; changing or removing restrictions always needs the permissions password. **Protect ▸ View Permissions** shows what the PDF allows.
+- **Digitally signed PDFs.** Save As without changes copies the file exactly, so its signatures stay valid. Saving changes rewrites the file and makes the signatures invalid; Save asks first — keep the signed original and save your changes under a new name. Word, PowerPoint and picture exports show how the signature looks, but they are not digitally signed.
+- **Watermarks** are part of the pages and stay in every output. PDF to Word and PDF to PowerPoint can leave out the watermark, header/footer and background added with Monograph PDF; a watermark locked with Protect with Password, and watermarks made by other programs, always stay.
 
 ## Saving
 
@@ -86,6 +93,8 @@ Opening a PDF never changes it. Edits are written only when you save.
 - The **context toolbar** and **Properties panel**: font, size, wrapping, box sizing and color
 - The font box lists the fonts installed on your PC plus the fonts that come with Monograph PDF (Noto Sans, Noto Serif, Noto Sans CJK JP). One click opens the list; type a few letters to find a font
 - Double-click a text box to type in it. Select a shape to change its **Line** and **Fill** color on the context toolbar
+- **Colors**: every color button opens the same color picker — a large color field with hue strip, the current and new color side by side, Hex (or a color name such as *navy*) and R G B values, standard colors, your recent colors, and **Pick from Screen** (click anywhere to take its color; Esc cancels). For text, it shows the contrast against white paper
+- **Pictures**: **Insert ▸ Image** (`I`). With a picture selected, **In Front of Text** (it covers what is under it) or **Behind Text** (the page's text and lines show through it, as if printed on the paper beneath them — also on scanned pages) is on the Image toolbar, in **Edit ▸ Selected Image** and in the Properties panel (*Placement*), together with opacity and rotation
 - While typing in a text box or field, Ctrl+Z / Ctrl+Y undo and redo typing and paste; after you leave, **Edit ▸ Undo** / **Edit ▸ Redo** cover the session
 - Arrange: Ctrl+] / Ctrl+[ · **Edit ▸ Align & Distribute**
 - **Edit ▸ Copy Page as Picture** (Ctrl+Alt+C) — the current page as shown, including unsaved changes, at 150 dpi, ready to paste into another program
@@ -103,14 +112,14 @@ Opening a PDF never changes it. Edits are written only when you save.
 
 ## OCR (text recognition)
 
-The OCR engine and English / Japanese language data ship with the app. Nothing is downloaded.
+The OCR engine and English / Japanese language data ship with the app and work offline. Other languages are added only when you ask (see OCR Languages below).
 
 - **OCR ▸ Make PDF Editable…** (summary before conversion)
 - **OCR ▸ OCR Whole Document…**, **OCR ▸ OCR Current Page…**, **OCR ▸ Make Searchable PDF…** — each saves a searchable copy under a name you choose (the open document is not changed); open the copy to search or select its text
 - Low-certainty words are marked in amber; Cancel stops after the current page
 - **OCR ▸ Recognize Text in Area…** (drag a rectangle) and **OCR ▸ Extract Text (OCR)…**: the recognised text can be corrected, copied, or saved as a text file or Word document; **OCR ▸ Scanned PDF to Word (OCR)…**
 - Rotated and upside-down scans are handled; running OCR again never adds a second text layer
-- **OCR ▸ OCR Languages…** — choose languages; optional languages (Chinese, Korean, vertical Japanese, German, French, Spanish) are installed only from a file you supply that matches the pinned SHA-256
+- **OCR ▸ OCR Languages…** — tick the languages printed on your pages (fewer languages recognize faster and more accurately). Under **Add languages**, 45 more languages are listed (Arabic, Burmese, Chinese, Dutch, French, German, Greek, Hindi, Korean, Russian, Spanish, Thai, Vietnamese …): select one and click **Download and Install**, or use **Install from File…** for files you downloaded yourself (the download address is shown by **Copy Address**). Language files already in your Downloads folder are offered for installation. Every file comes from the official Tesseract release used for the included languages and is installed only if its size and SHA-256 match; an installed language is ready at once and is ticked for recognition. Nothing is downloaded unless you click **Download and Install**
 
 ## Organize pages
 
@@ -225,7 +234,7 @@ discards it. The app itself sends nothing.
 | File | Ctrl+O · Ctrl+S · Ctrl+Shift+S · Ctrl+W · Ctrl+P · Ctrl+, (Settings) · Ctrl+Q |
 | Edit | Ctrl+Z · Ctrl+Y · Ctrl+X/C/V · Del · Ctrl+A · Ctrl+Alt+C (copy page as picture) |
 | Insert | Ctrl+B (bookmark for this page) |
-| View | Ctrl+1 / 2 / 0 · Ctrl+= / − · Ctrl+F · F8 · F9 · F11 · Ctrl+/ |
+| View | Ctrl+1 / 2 / 0 · Ctrl+= / − · Ctrl+F · F8 · F9 · F11 · Ctrl+Shift+L (automatic scrolling) · mouse wheel button (scroll button) · Ctrl+/ |
 | Tools | V Select · T Text · H Highlight · Shift+E Eraser · I Image · … |
 
 Full list: **Help ▸ Keyboard Shortcuts**.
@@ -238,7 +247,7 @@ Full list: **Help ▸ Keyboard Shortcuts**.
 - Signatures are visual only
 - Builds are not code-signed — verify `SHA256SUMS.txt`; SmartScreen may warn
 - Sending problem reports is switched off in this version (reports can be copied and passed on)
-- Optional OCR language packs (other than English and Japanese) have not been tested for recognition quality
+- Optional OCR languages (other than English and Japanese) have not been tested by the project for recognition quality
 
 ## Troubleshooting
 

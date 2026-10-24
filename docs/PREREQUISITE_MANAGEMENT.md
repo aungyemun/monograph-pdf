@@ -46,4 +46,4 @@ The following policy applies if a future change requires a system-wide prerequis
 
 ## Inventory of bundled components
 
-Versions, licences and sources are listed in `THIRD_PARTY_NOTICES.md` and in the SBOM produced with each build (`scripts/packaging/make_sbom.py`). OCR language data is pinned by SHA-256 in `resources/ocr/language_packs.json` and `scripts/vendor_ocr.ps1`. Nothing is downloaded at build time without a pinned hash, or at run time at all.
+Versions, licences and sources are listed in `THIRD_PARTY_NOTICES.md` and in the SBOM produced with each build (`scripts/packaging/make_sbom.py`). OCR language data is pinned by SHA-256 in `resources/ocr/language_packs.json` and `scripts/vendor_ocr.ps1`. Nothing is downloaded at build time without a pinned hash. At run time only an optional OCR language you choose to download (OCR ▸ OCR Languages ▸ Download and Install) is fetched, and it is installed only if it matches its pin.

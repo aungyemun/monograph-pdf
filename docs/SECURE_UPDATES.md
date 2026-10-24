@@ -165,8 +165,8 @@ application. Without `cryptography`, the original key format, `selftest` and `ve
 Python standard library.
 
 ```powershell
-& $PY -I <bundle>\scripts\packaging\update_manifest.py make --setup installer\MonographPDF_0.4.2_Setup.exe `
-    --notes docs\releases\v0.4.2.md --channel stable --sequence <N> `
+& $PY -I <bundle>\scripts\packaging\update_manifest.py make --setup installer\MonographPDF_0.5.0_Setup.exe `
+    --notes docs\releases\v0.5.0.md --channel stable --sequence <N> `
     --key <key folder>\update-signing.pkcs8.pem --config resources\update\update_config.json `
     --out installer\MonographPDF_update_manifest.json
 & $PY -I <bundle>\scripts\packaging\update_manifest.py verify --manifest installer\MonographPDF_update_manifest.json `
@@ -264,7 +264,7 @@ not added.
 
 A recovery key only helps if installed copies **already trust it** when the primary key is lost:
 a second key kept offline but not listed in `trusted_keys` is useless for recovery, because nothing
-signed with it would be accepted. Recommended for a later release (for example 0.4.2), with
+signed with it would be accepted. Recommended for a later release (for example 0.5.x), with
 explicit approval:
 
 1. Generate a separate recovery key on a different medium with a different passphrase; back it up

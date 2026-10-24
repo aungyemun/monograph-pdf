@@ -66,3 +66,28 @@ def test_restricted_pdf_conversion_needs_the_permissions_password(window, tmp_pa
     monkeypatch.setattr(sd.PermissionsPasswordDialog, "password", lambda self: "o")
     assert window._allow("copy", "Converting to Word")  # noqa: SLF001
     assert window._allow("owner", "Changing the password protection")  # noqa: SLF001
+
+
+def test_pdf_outputs_with_unsaved_changes_stay_protected(window, tmp_path):
+    from core.convert.copy_pdf import copy_pdf_preserving_metadata
+    from core.document import open_document
+    from core.editing.geometry import Rect
+
+    src = tmp_path / "p.pdf"
+    d = fitz.open()
+    d.new_page().insert_text((72, 72), "protected")
+    d.save(src.as_posix(), encryption=fitz.PDF_ENCRYPT_AES_256, user_pw="u", owner_pw="o",
+           permissions=fitz.PDF_PERM_PRINT)
+    d.close()
+    window._load_document(open_document(src, password="o"))  # noqa: SLF001
+    window._edit.create_text_box(0, Rect(72, 300, 260, 40), text="UNSAVEDMARK", auto_match=False)  # noqa: SLF001
+    out = tmp_path / "copy.pdf"
+    with window._current_document(keep_protection=True) as current:  # noqa: SLF001
+        copy_pdf_preserving_metadata(current, out)
+    with fitz.open(out.as_posix()) as d2:
+        assert d2.needs_pass and d2.authenticate("u")
+        assert "UNSAVEDMARK" in d2[0].get_text().replace(" ", "")
+        assert not int(d2.permissions) & fitz.PDF_PERM_COPY
+    # an export source is still readable without the password (conversions read it)
+    with window._current_document() as current:  # noqa: SLF001
+        assert "UNSAVEDMARK" in current.page_text(0).replace(" ", "")

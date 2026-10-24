@@ -41,7 +41,8 @@ archives), `runtime/` (working files during development), `build/` and `dist/` (
   `OFFICE_TO_PDF_CONVERSION`, `CONVERSION_FIDELITY`, `PDF_COMPRESSION`, `SAVE_AS_AND_EXPORT`,
   `PDF_RENDERING_AND_PAGE_SIZES`, `COLOR_AND_IMAGE_FIDELITY`, `PRINTING_AND_PRINT_PREVIEW`,
   `PDF_SAVE_AND_EXPORT_FIDELITY`, `PERFORMANCE_AND_RENDERING`, `WINDOWS_RUNTIME_DEPENDENCIES`,
-  `PREREQUISITE_MANAGEMENT`, `INSTALLER_PACKAGE_CONTENTS`, `CLEAN_WINDOWS_INSTALLATION`; screenshots in `docs/images/`; release notes in
+  `PREREQUISITE_MANAGEMENT`, `INSTALLER_PACKAGE_CONTENTS`, `CLEAN_WINDOWS_INSTALLATION`,
+  `PROTECTED_SIGNED_WATERMARKED_PDFS`; screenshots in `docs/images/`; release notes in
   `docs/releases/`
 
 ## Installed layout
@@ -84,9 +85,19 @@ Nothing is written to the installation folder `{app}` during normal use.
    the same converters one file at a time on a worker thread.
 10. OCR (`core/ocr/pipeline.py`) renders pages in display space, so rotated and upside-down scans
     get a correctly placed text layer; recognised text can be exported (`core/ocr/text_export.py`);
-    optional language packs are verified against pinned hashes (`core/ocr/language_packs.py`).
+    optional languages are verified against pinned hashes (`core/ocr/language_packs.py`) and, only when
+    the user clicks Download and Install, fetched from the pinned address (`core/ocr/language_download.py`,
+    using the HTTPS rules of `core/updates/net.py`).
+11. Protection, signatures and watermarks (`core/security/protection.py`): every PDF written from a
+    protected PDF is made from a full copy that keeps its security handler (`working_copy`,
+    `save_copy`); the PDF's permissions decide which commands run without the permissions password
+    (`allowed`, `unlock_with_owner_password`; the UI asks through `ui/security_dialogs.py`); unchanged
+    signed PDFs are copied byte for byte. See [Protected, signed and watermarked
+    PDFs](PROTECTED_SIGNED_WATERMARKED_PDFS.md).
+12. The page view (`ui/pdf_canvas.py`) renders pages progressively; the scroll button and automatic
+    scrolling are `ui/autoscroll.py`; every colour choice uses `ui/color_picker.py`.
 
-## Updates and problem reports (since 0.3.0, switched off)
+## Updates and problem reports (built in since 0.3.0; update checks switched on from 0.4.1, problem-report sending still off)
 
 * `core/updates/manager.py` checks a signed manifest (`manifest.py`, `ed25519.py`) fetched over
   HTTPS (`net.py`), downloads and verifies Setup into the staging folder (`staging.py`), picks the
@@ -96,7 +107,8 @@ Nothing is written to the installation folder `{app}` during normal use.
   are the interface.
 * `core/diagnostics/` records predefined event identifiers in memory, builds allow-listed reports and
   sends one only after the user approves it in `ui/error_report_dialog.py`.
-* Only `core/updates/net.py` and `core/diagnostics/client.py` contain networking code.
+* Only `core/updates/net.py` and `core/diagnostics/client.py` contain networking code;
+  `core/ocr/language_download.py` uses `core/updates/net.py` for OCR language downloads the user asks for.
 
 ## Platform support
 

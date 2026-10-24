@@ -73,3 +73,13 @@ def test_zoom_burst_shows_scaled_pages_then_renders_once(win, qtbot):
     assert dark > 0, "the page is drawn (scaled), not blank, while zooming"
     qtbot.waitUntil(lambda: len(inner._cache) > 0 and not inner._render_timer.isActive(), timeout=3000)  # noqa: SLF001
     assert len(calls) <= 2, f"rendered {len(calls)} times for one burst"
+
+
+def test_zoom_menu_actions_and_shortcuts_change_the_zoom(win, qtbot):
+    """Regression: the Zoom In / Out actions passed their "checked" flag as the zoom anchor and failed."""
+    before = win._canvas.zoom  # noqa: SLF001
+    win.act_zoom_in.trigger()
+    assert win._canvas.zoom > before * 1.1  # noqa: SLF001
+    win.act_zoom_out.trigger()
+    win.act_zoom_out.trigger()
+    assert win._canvas.zoom < before  # noqa: SLF001

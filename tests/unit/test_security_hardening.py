@@ -284,6 +284,8 @@ def test_attachments_are_listed_never_extracted_or_opened():
 #   core/updates/net.py        update checks (user-initiated, or automatic only after the user turns
 #                              them on) and the download the user approved with Update Now;
 #   core/diagnostics/client.py one problem report, only after the user clicked Send to Developer.
+# From 0.5.0 core/ocr/language_download.py uses core/updates/net.py (no network code of its own) for
+# one OCR language file, only after the user clicked Download and Install.
 # Everything else — viewing, editing, saving, OCR, conversion, printing — stays offline.
 NETWORK_MODULES = {"core/updates/net.py", "core/diagnostics/client.py"}
 _NET = re.compile(r"^\s*(?:import|from)\s+(?:socket|ssl|urllib(?!\.parse\b)|http|requests|httpx|aiohttp|ftplib|smtplib|webbrowser|xmlrpc)\b"
@@ -310,10 +312,12 @@ def test_network_modules_are_used_only_by_the_update_and_report_workflows():
         rel = path.relative_to(ROOT).as_posix()
         if imports.search(text) and rel not in NETWORK_MODULES:
             users.setdefault(rel, imports.findall(text))
-    assert set(users) <= {"core/updates/manager.py", "ui/error_report_dialog.py"}, users
+    assert set(users) <= {"core/updates/manager.py", "ui/error_report_dialog.py", "core/ocr/language_download.py"}, users
     # the PDF, OCR, conversion and printing code never imports the update or report packages
     for path, text in _sources():
         rel = path.relative_to(ROOT).as_posix()
+        if rel == "core/ocr/language_download.py":
+            continue  # Download and Install (user-initiated, see above)
         if rel.startswith(("core/convert", "core/ocr", "core/printing", "core/editing", "core/forms", "engines/",
                            "core/document.py", "core/organize", "core/security", "core/redaction")):
             assert "core.updates" not in text and "core.diagnostics.client" not in text, rel

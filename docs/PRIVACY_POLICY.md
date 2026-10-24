@@ -4,8 +4,9 @@ Monograph PDF processes documents on your computer. It has no account, no advert
 and no usage statistics, and it never uploads documents.
 
 **Monograph PDF does not transfer information to other networked systems unless you request it.**
-There are only two such requests, both described below. Update checks are available from version
+There are only three such requests, all described below. Update checks are available from version
 0.4.1 and happen only when you ask (or after you switch on automatic checks, which are off by default).
+OCR language downloads (from version 0.5.0) happen only when you click **Download and Install**.
 Sending problem reports is switched off (no reporting service yet). Versions 0.3.0 and 0.4.0 make no
 network connections at all; the same holds for earlier versions, which do not have these features.
 
@@ -24,6 +25,21 @@ click **Update Now**, it downloads that version's installer from the same place.
   https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement
 * Turning automatic checks off (the default) stops all background checks; manual checks happen only
   when you ask.
+
+## OCR language downloads (from version 0.5.0)
+
+English and Japanese OCR are included. When you select another language in **OCR ▸ OCR Languages** and
+click **Download and Install**, Monograph PDF downloads that one language file from the official
+Tesseract release on GitHub (`github.com`, redirected to `raw.githubusercontent.com`; HTTPS with
+certificate verification; no other address is accepted). The file is installed only if its size and
+SHA-256 match the value shipped with Monograph PDF.
+
+* Sent: an ordinary HTTPS request for the file, with the program's name and version. GitHub sees your
+  IP address and which language file was requested.
+* Not sent: documents, file names, settings or identifiers of you or your computer.
+* Nothing is downloaded at any other time. **Install from File…** and the offer to install language
+  files found in your Downloads folder (only files named like a supported language file are looked
+  at) work without a connection.
 
 ## Problem reports (from version 0.3.0)
 

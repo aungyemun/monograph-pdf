@@ -181,7 +181,8 @@ def _print_temp_path() -> Path:
 
 
 def prepare_current_source(
-    document: PdfDocument, edit: Any | None = None, *, flatten: bool = False, flatten_comments: bool = True
+    document: PdfDocument, edit: Any | None = None, *, flatten: bool = False, flatten_comments: bool = True,
+    keep_encryption: bool = False,
 ) -> PrintSource:
     """The document as it is shown, including every unsaved change: text boxes, shapes, images,
     tables, typed form entries and field formatting, replaced text and page changes.
@@ -199,7 +200,7 @@ def prepare_current_source(
     prev_flatten = bool(getattr(edit, "flatten_on_save", False))
     try:
         edit.flatten_comments = flatten_comments
-        bake_via_backend(edit, dest, flatten=flatten or prev_flatten, keep_encryption=False)
+        bake_via_backend(edit, dest, flatten=flatten or prev_flatten, keep_encryption=keep_encryption)
     finally:
         try:
             edit.flatten_on_save = prev_flatten
@@ -207,7 +208,15 @@ def prepare_current_source(
         except Exception:  # noqa: BLE001
             pass
 
-    baked = open_document(dest)
+    backend = getattr(document, "_backend", None)
+    password = getattr(backend, "_password", None) if keep_encryption else None
+    try:
+        baked = open_document(dest, password=password)
+    except Exception:  # noqa: BLE001 — a copy kept protected opens with the document's password
+        baked = open_document(dest)
+    if keep_encryption and backend is not None:
+        # the permissions password entered for the document also counts for its temporary copy
+        baked._backend._owner_unlocked = bool(getattr(backend, "_owner_unlocked", False))  # noqa: SLF001
     return PrintSource(document=baked, temp_path=dest, owns_document=True)
 
 

@@ -70,6 +70,15 @@ python-docx, python-pptx and openpyxl start from templates that carry their own 
 
 A property the PDF lacks is left empty. Nothing is invented, and no user name, computer name or path from your computer is written. The Word-reflow engine's own author entry is replaced in the same way.
 
+## Protected, signed and watermarked PDFs
+
+Converting a password-protected PDF needs the *content copying* permission; with the open password
+alone and copying forbidden, Monograph PDF asks for the permissions password. The Word and PowerPoint
+files are not password-protected. A digital signature appears as it looks on the page, but the Office
+file is not digitally signed. Watermarks stay; the watermark, header/footer and background added with
+Monograph PDF can be left out (a check box in the dialog), unless the watermark was locked. Details:
+[Protected, signed and watermarked PDFs](PROTECTED_SIGNED_WATERMARKED_PDFS.md).
+
 ## Output files
 
 Every converter writes to a temporary file in the destination folder and swaps it in only when it is complete. An existing file of the same name stays intact if the conversion fails.

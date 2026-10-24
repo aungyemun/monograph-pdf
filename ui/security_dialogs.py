@@ -614,7 +614,9 @@ def ask_permissions_password(parent, document, permission: str, action: str) -> 
         return True
     dlg = PermissionsPasswordDialog(parent, action=action, restriction=PERMISSION_LABELS.get(permission, permission),
                                     filename=getattr(document, "name", ""))
-    while dlg.exec() == QDialog.DialogCode.Accepted:
+    for _attempt in range(5):  # five tries, then the action is cancelled
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return False
         if unlock_with_owner_password(document, dlg.password()):
             return True
         dlg.show_error("That is not the permissions password of this PDF.")

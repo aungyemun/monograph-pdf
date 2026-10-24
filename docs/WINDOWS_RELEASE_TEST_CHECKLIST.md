@@ -100,7 +100,7 @@ upgrade is done with Setup.
 |---|---|---|
 | B1 | After 0.4.1 is published **with** its signed manifest: **Check for Updates** on 0.4.1 reports **No update available** | right after publication |
 | B2 | Optional automatic check (switch on, wait for the interval): stays quiet when up to date | after publication |
-| B3 | **Update Now** from 0.4.1 to the next release (0.4.2): download, verify, close, install in place, restart, settings kept; all-users install shows the administrator prompt; **Cancel** during the download says "Update canceled. Nothing was installed." | when 0.4.2 is published |
+| B3 | **Update Now** from 0.4.1 to the next release (0.5.0): download, verify, close, install in place, restart, settings kept; all-users install shows the administrator prompt; **Cancel** during the download says "Update canceled. Nothing was installed." | when 0.4.2 is published |
 | B4 | A tampered or unsigned manifest is refused (*Invalid digital signature*) | covered by automated tests; on real computers only with a test release |
 | B5 | **Skipped versions:** keep one test computer on 0.4.1 without updating; when a later release (e.g. 0.6.0) is out, **Check for Updates** offers it directly and **Update Now** installs it in one step; settings, recent files and documents kept | when that release is published |
 | B6 | A release that sets `min_upgrade_from` above the installed version: **Update Now** disabled with the reason; Setup from the release page works | only if such a release is made |

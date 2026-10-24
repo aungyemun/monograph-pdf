@@ -738,7 +738,8 @@ def _combo_pick(combo: QComboBox, words: str):
 FILLERS.update({
     "OcrTextDialog": lambda d: "reject",  # read-only result window: Copy is its default button, Close dismisses it
     "PasswordProtectDialog": _protect_fill,
-    "RemoveProtectionDialog": lambda d: d.password.setText("open123"),
+    # removing the protection of a PDF that restricts copying needs its permissions password (0.5.0)
+    "RemoveProtectionDialog": lambda d: d.password.setText("owner123"),
     "TypedSignatureDialog": lambda d: d.name.setText("Aung Ye Mun"),
     "SignaturePadDialog": _pad_fill,
     "WatermarkDialog": lambda d: d.text.setText("社外秘 CONFIDENTIAL"),
@@ -750,6 +751,9 @@ FILLERS.update({
     "MergeDialog": _merge_fill,
     "CropDialog": lambda d: d.left.setValue(10),
     "ChangePageSizeDialog": lambda d: _combo_pick(d.paper, "Letter"),
+    # 0.5.0: sticky notes are written in the note dialog (QInputDialog only in headless mode)
+    "PermissionsPasswordDialog": lambda d: d.edit.setText("owner123"),
+    "NoteDialog": lambda d: d.text.setPlainText(TEXT_QUEUE.popleft() if TEXT_QUEUE else "Note text"),
 })
 
 # ------------------------------------------------------------------ steps: no document
@@ -758,7 +762,8 @@ ALL_MENUS = ["File", "Edit", "View", "Insert", "Forms", "Organize", "Convert", "
 NO_DOC_OK = {"open", "open recent", "clear recent files", "exit", "full screen", "system", "light", "dark",
              "merge pdfs", "word, excel or powerpoint to pdf", "images to pdf", "conversion quality guide",
              "user guide", "keyboard shortcuts", "about monograph pdf", "make monograph pdf the default pdf app",
-             "highlightcolorbutton", "settings", "batch convert", "ocr languages", "check for updates"}
+             "highlightcolorbutton", "settings", "batch convert", "ocr languages", "check for updates",
+             "match colors to monitor profile"}
 
 
 @step("00 no document: menus and toolbar")
@@ -1309,10 +1314,10 @@ def forms_all():
 def organize_pages():
     open_sample("sample_text.pdf")
     n = doc().page_count
-    act("Organize > Insert Blank Page")
+    act("Organize > Insert Blank Pages")
     check("blank page inserted", doc().page_count == n + 1, doc().page_count)
     OPEN_QUEUE.append(fresh("sample_many_pages_10.pdf"))
-    act("Organize > Insert PDF Pages")
+    act("Organize > Insert Pages from PDF")
     check("PDF pages inserted", doc().page_count == n + 11, doc().page_count)
     W._left.select_pages([0]) if hasattr(W._left, "select_pages") else None  # noqa: SLF001
     act("Organize > Duplicate Pages")
@@ -1695,7 +1700,7 @@ def combo_print():
         return p
 
     pd.PrintDialog.printer = printer
-    act("Organize > Insert Blank Page")
+    act("Organize > Insert Blank Pages")
     edit().create_text_box(0, Rect(72, 300, 200, 30), text="Printed edit", auto_match=False)
     edit().mark_dirty()
     act("Organize > Rotate Clockwise")

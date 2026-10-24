@@ -27,7 +27,7 @@ conversions are written to new files.
 | **Page design** | Headers, footers, page numbers, Bates numbers, watermarks and backgrounds |
 | **Convert** | PDF to Word, Excel, PowerPoint (keeping page sizes) and images; images to PDF; Office files to PDF with Microsoft Office or LibreOffice; batch conversion |
 | **Compress** | Lossless, balanced or smallest file, or an exact maximum size (for example 956 KB), measured before saving |
-| **OCR** | Offline text recognition for English and Japanese (optional verified language packs); make scans searchable or editable; recognize an area, extract and correct text, scanned PDF to Word |
+| **OCR** | Offline text recognition for English and Japanese, 45 more languages installable on request (verified); make scans searchable or editable; recognize an area, extract and correct text, scanned PDF to Word |
 | **Protect** | AES-256 passwords and permissions, redaction that removes the marked content, removal of hidden information, visual signatures |
 
 Complete list: [Features](docs/FEATURES.md) · How to use each tool: [User Guide](docs/USER_GUIDE.md) (also **F1** in the app)
@@ -38,7 +38,7 @@ Complete list: [Features](docs/FEATURES.md) · How to use each tool: [User Guide
 | :--- | :--- |
 | **Included** | Everything in the table above unless listed below; covered by the automated tests on Windows |
 | **Needs another application** | Office files to PDF and Office round trips need Microsoft Office or LibreOffice installed (tested with Microsoft 365 and LibreOffice 24.2 only) |
-| **Limited** | PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts. Optional OCR language packs (Chinese, Korean, vertical Japanese, German, French, Spanish) are installed only from a file you supply that matches the pinned SHA-256; their recognition quality has not been tested. Editing Japanese vertical text is not fully supported |
+| **Limited** | PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts. 45 optional OCR languages are installed on request (Download and Install, or from a file) and verified against a pinned SHA-256; their recognition quality has not been tested by the project. Editing Japanese vertical text is not fully supported |
 | **Built in, switched off** | Update checks and automatic upgrades; sending problem reports. They stay off until a production update-signing key and a reporting service exist and have been verified |
 | **Not supported** | Certificate-based digital signatures (signatures are visual); macOS, Android and iOS; Windows on ARM has not been tested |
 
@@ -102,8 +102,10 @@ silent installation, upgrading and uninstalling are described in [Installation](
   0.4.0 and earlier cannot update themselves: install 0.4.1 once with Setup. Problem reports are still
   not sent (you can copy and pass them on yourself):
   [Secure updates](docs/SECURE_UPDATES.md) · [Error reporting](docs/ERROR_REPORTING.md).
-* Qt's network and TLS modules are removed from the release build; only the update and problem-report
-  code uses Python's HTTPS support. The built-in self-check fails if a network connection is attempted
+* From 0.5.0, an optional OCR language is downloaded only when you click **Download and Install** in
+  **OCR ▸ OCR Languages** (from the official Tesseract release; installed only if its SHA-256 matches).
+* Qt's network and TLS modules are removed from the release build; only the update, problem-report
+  and OCR-language-download code uses Python's HTTPS support. The built-in self-check fails if a network connection is attempted
   while it runs.
 * Documents are processed locally. Settings and working files are kept in `%APPDATA%\Monograph PDF`
   and `%LOCALAPPDATA%\Monograph PDF`.
@@ -158,7 +160,7 @@ passed. Details: [Testing](docs/TESTING.md).
 * Signatures are visual only; certificate-based digital signatures are not supported.
 * Converting PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts.
 * Converting Office files to PDF requires Microsoft Office or LibreOffice.
-* OCR recognizes English and Japanese; other languages need an optional language pack supplied by you (verified against a pinned SHA-256).
+* OCR includes English and Japanese; 45 more languages can be installed on request (OCR ▸ OCR Languages), verified against a pinned SHA-256.
 * Not verified for 0.4.1: Windows 10, localized (Japanese, Chinese, Korean, German, French) Windows,
   Office versions other than Microsoft 365 and LibreOffice 24.2, and printing on a physical printer.
 

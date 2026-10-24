@@ -1035,7 +1035,7 @@ def test_text_box_size_keeps_selection_and_valign(form_window, qtbot):
     before = box.style.font_size
     w._nudge_font_size(2)  # noqa: SLF001
     w._apply_text_valign("bottom")  # noqa: SLF001
-    # (0.4.2) A+ with words selected grows only those words; the box keeps its size
+    # (0.5.0) A+ with words selected grows only those words; the box keeps its size
     box = w._edit.objects[box.object_id]  # noqa: SLF001
     assert box.style.font_size == before
     assert box.runs and box.runs[0]["text"] == "Hello" and box.runs[0]["size"] == before + 2

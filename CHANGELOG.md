@@ -2,9 +2,75 @@
 
 All notable changes to Monograph PDF. Versions follow `VERSION` (see `docs/RELEASE_AND_VERSIONING.md`).
 
-## [0.4.2] — Unreleased
+## [0.5.0] — Unreleased
 
-Changes after 0.4.1.
+Changes after 0.4.1. Version 0.4.2 was built for testing but never released; its changes are part of
+0.5.0.
+
+### Security
+
+- **Copies of a password-protected PDF were written without protection.** Save a Copy (Whole
+  Document), Metadata-Preserving Copy, Remove Document Information, Flattened PDF, Watermark, Header &
+  Footer, Background, Remove Header/Footer/Watermark/Background, Extract Pages, Redact, Compress and
+  Make Searchable (OCR) now keep the same open password, permissions password, permissions and
+  encryption as the original. Several of them also lost bookmarks and attachments; they are kept.
+- **The permissions of a protected PDF are honoured.** A PDF opened with its open password only can be
+  printed, converted or changed only as far as its author allowed; otherwise Monograph PDF asks for the
+  permissions (owner) password, which then applies until the document is closed: converting to Word,
+  PowerPoint, Excel, text or pictures, Extract Images, copying a page as a picture and OCR text export
+  need content copying; Print needs printing; saving changes, page design, Flatten and Compress need
+  changes; extracting, splitting and combining pages need page assembly; changing the protection
+  always needs the permissions password. **Remove Protection** with only the open password is refused
+  when the PDF restricts anything. Batch Convert skips such files with a message. Opening a restricted
+  PDF says what needs the permissions password.
+- **Digitally signed PDFs**: saving under another name without changes now copies the file byte for byte,
+  so its signatures stay valid (it used to be rewritten, which invalidated them); Save without changes
+  does nothing instead of rewriting the file; Save with changes over a signed PDF asks first, because
+  the signatures become invalid. Word and PowerPoint exports say that the signature is shown as it looks
+  but the exported file is not digitally signed.
+- **OCR language downloads** happen only when you click **Download and Install** (see Added), over
+  HTTPS with certificate checks to github.com / raw.githubusercontent.com only, and the file is
+  installed only if its size and SHA-256 match the pin shipped with Monograph PDF.
+
+### Added
+
+- **Scroll button**: press the mouse wheel button on a page and a round scroll marker appears; move the
+  pointer above or below it and the pages scroll that way, faster the further away (sideways too on
+  wide pages). A click keeps scrolling until the next click or Esc; holding the button scrolls until it
+  is released. **View ▸ Automatic Scrolling** (Ctrl+Shift+L) scrolls at a steady reading speed: ↓ / ↑
+  change the speed, Esc stops, and it stops by itself at the end of the document.
+- **New colour picker** for every colour choice (text, highlight, shapes, comments, stamps, notes, form
+  fields, page design): a large colour field with hue strip (and opacity where it applies), current and
+  new colour side by side, Hex (also colour names) and R G B fields, standard colours, the recent
+  colours (kept between sessions), **Pick from Screen** with a magnifier, and for text colours the
+  contrast on white paper. It replaces Qt's generic colour dialog.
+- **Pictures behind text**: a placed picture can be **In Front of Text** (covers what is under it) or
+  **Behind Text** — the page's text and lines show through it, as if the picture were printed on the
+  paper beneath them; this also works on scanned pages and on pages with a white background, and the
+  text stays selectable. In the Image toolbar, **Edit ▸ Selected Image** and the Properties panel
+  (Placement); shown on screen exactly as saved; undoable.
+- **Exports and page-design marks**: PDF to Word and PDF to PowerPoint can leave out the watermark,
+  header/footer and background added with Monograph PDF (a locked watermark and other programs'
+  watermarks always stay). **Protect ▸ View Permissions** also explains how Monograph PDF handles the
+  PDF (protection, signatures, watermarks).
+- **OCR languages**: 35 more languages (45 in all, besides the included English and Japanese), among
+  them Arabic, Burmese (Myanmar), Dutch, Greek, Hebrew, Hindi, Indonesian, Italian, Polish, Portuguese,
+  Russian, Thai, Turkish, Ukrainian and Vietnamese. **OCR ▸ OCR Languages** was redesigned: a searchable
+  table (language, code, size, status), **Download and Install** (one click, verified), **Install from
+  File…** (several files at once), language files already in the Downloads folder offered for
+  installation, and **Copy Address**. An installed language is ready at once and is ticked for
+  recognition. Every download address and SHA-256 was checked against the official Tesseract release.
+
+### Changed
+
+- A placed picture whose box was stretched with **Lock aspect ratio** off is saved stretched, as shown
+  on screen (it was saved letterboxed).
+- **Flatten Form on Save** has an icon in the Forms menu, like its neighbours.
+
+### Removed
+
+- Two internal modules that the application no longer used (an older PDF optimiser replaced by
+  Compress PDF, and a duplicate OCR wrapper) and their tests.
 
 ### Fixed
 

@@ -16,10 +16,17 @@
 | B. Different name, same folder | New file; the original is not changed or deleted. |
 | C. Same name, different folder | New file in that folder; if one exists there, the Windows dialog asks before replacing it. |
 | D. Different name and folder | As B and C. |
-| E. Unchanged PDF as a separate copy | Save a Copy ▸ Whole Document (or Copy with Metadata for a byte-preserving copy). |
+| E. Unchanged PDF as a separate copy | Save As or Save a Copy ▸ Whole Document copies the file byte for byte (from 0.5.0), so digital signatures stay valid and the protection is unchanged. Save without changes does nothing. |
 | F. Modified PDF as a separate copy | Save a Copy ▸ Whole Document: the copy contains every unsaved change; the open document keeps them unsaved, with its undo history. |
 
 Choosing the open file in **Save a Copy** is refused; use Save to replace it.
+
+## Protected, signed and watermarked PDFs
+
+Every PDF written from a password-protected PDF keeps its open password, permissions password and
+permissions; saving changes to a PDF whose permissions forbid changes needs its permissions password;
+Save over a digitally signed PDF with changes asks first, because the signatures become invalid.
+Details: [Protected, signed and watermarked PDFs](PROTECTED_SIGNED_WATERMARKED_PDFS.md).
 
 ## Writing files safely
 

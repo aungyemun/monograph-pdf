@@ -11,7 +11,7 @@ Root `VERSION` only. Read via `core.versioning` / `app.read_version`. Do not dup
   **0.4.1** is the current release, a bug-fix release of the **0.4.0** feature release (0.3.0 added
   secure updates and private problem reports, still switched off).
 * After 0.4.0: bug fixes, security patches and stability improvements go into **0.4.x** releases (0.4.1,
-  then **0.4.2** if needed); new features wait for **0.5.0**, the next feature milestone.
+  then **0.4.2** if needed); new features wait for **0.5.0**, the next feature milestone. (0.4.2 was built for testing and not released; its changes went into 0.5.0.)
 * A version prepared but never released is folded into the next public release (0.2.4 into 0.3.0);
   no historical release is invented for it.
 * Failed builds/tests do not bump. Pure doc-only edits usually do not bump.

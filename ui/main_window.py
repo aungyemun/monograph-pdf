@@ -693,11 +693,11 @@ class MainWindow(QMainWindow):
         self.act_zoom_in = QAction("Zoom &In", self)
         self.act_zoom_in.setShortcut(QKeySequence.StandardKey.ZoomIn)
         self.act_zoom_in.setToolTip("Zoom In (Ctrl+=)")
-        self.act_zoom_in.triggered.connect(self._canvas.zoom_in)
+        self.act_zoom_in.triggered.connect(lambda _checked=False: self._canvas.zoom_in())  # not the bool as anchor
         self.act_zoom_out = QAction("Zoom &Out", self)
         self.act_zoom_out.setShortcut(QKeySequence.StandardKey.ZoomOut)
         self.act_zoom_out.setToolTip("Zoom Out (Ctrl+-)")
-        self.act_zoom_out.triggered.connect(self._canvas.zoom_out)
+        self.act_zoom_out.triggered.connect(lambda _checked=False: self._canvas.zoom_out())
         self.act_highlight_fields = QAction("&Highlight Fillable Fields", self)
         self.act_highlight_fields.setCheckable(True)
         self.act_highlight_fields.setChecked(bool(self._prefs.highlight_fillable_fields))
@@ -1117,6 +1117,8 @@ class MainWindow(QMainWindow):
         self.act_user_guide = new("&User Guide", self._show_user_guide, "F1")
 
         self._doc_actions_extra = (
+            self.act_autoscroll,
+            self.act_insert_symbol,
             self.act_select_all,
             self.act_deselect,
             self.act_find_prev,
@@ -4710,7 +4712,7 @@ class MainWindow(QMainWindow):
         from core.organize.page_ops import extract_pages
 
         try:
-            with self._current_document() as src:
+            with self._current_document(keep_protection=True) as src:
                 extract_pages(src, pages, Path(dest))
             self.statusBar().showMessage(f"Extracted {len(pages)} page(s) → {Path(dest).name}", 6000)
         except Exception as exc:  # noqa: BLE001
@@ -4998,7 +5000,7 @@ class MainWindow(QMainWindow):
         if not dest:
             return
         try:
-            with self._current_document() as src:
+            with self._current_document(keep_protection=True) as src:
                 pages_to_pdf(src, self._selected_pages(), dest)
             self.statusBar().showMessage(f"Wrote {dest.name}", 6000)
         except Exception as exc:  # noqa: BLE001
@@ -5016,7 +5018,7 @@ class MainWindow(QMainWindow):
         if not dest:
             return
         try:
-            with self._current_document() as src:
+            with self._current_document(keep_protection=True) as src:
                 export_flattened_pdf(src, dest)
             self.statusBar().showMessage(f"Wrote {dest.name}", 6000)
         except Exception as exc:  # noqa: BLE001
@@ -5032,7 +5034,7 @@ class MainWindow(QMainWindow):
         if not dest:
             return
         try:
-            with self._current_document() as src:
+            with self._current_document(keep_protection=True) as src:
                 copy_pdf_preserving_metadata(src, dest)
             self.statusBar().showMessage(f"Wrote {dest.name}", 6000)
         except Exception as exc:  # noqa: BLE001
@@ -5198,7 +5200,7 @@ class MainWindow(QMainWindow):
         from ui.compress_dialog import CompressDialog
 
         try:
-            with self._current_document() as src:
+            with self._current_document(keep_protection=True) as src:
                 data = cz._source_bytes(src)  # noqa: SLF001
         except Exception as exc:  # noqa: BLE001
             self.report_unexpected("Compress PDF failed", exc, EventId.CONVERT_FAILED)
@@ -5288,7 +5290,7 @@ class MainWindow(QMainWindow):
         from core.convert.page_marks import apply_page_marks
         from ui.convert_dialogs import choose_save
 
-        with self._current_document() as src:
+        with self._current_document(keep_protection=True) as src:
             dlg = dialog_cls(self, page_count=self._document.page_count, current_page=self._canvas.focus_page,
                              source=src)
             if dlg.exec() != dlg.DialogCode.Accepted:
@@ -5321,7 +5323,7 @@ class MainWindow(QMainWindow):
         from ui.convert_dialogs import choose_save
         from ui.page_marks_dialogs import RemoveMarksDialog
 
-        with self._current_document() as src:
+        with self._current_document(keep_protection=True) as src:
             dlg = RemoveMarksDialog(self, source=src)
             if not any(dlg.counts.values()):
                 QMessageBox.information(
@@ -6301,7 +6303,7 @@ class MainWindow(QMainWindow):
         if not dest:
             return
         try:
-            with self._current_document() as src:
+            with self._current_document(keep_protection=True) as src:
                 remove_metadata(src, dest)
             self.statusBar().showMessage(f"Wrote {dest.name}", 6000)
         except Exception as exc:  # noqa: BLE001
@@ -6334,7 +6336,7 @@ class MainWindow(QMainWindow):
         from ui.security_dialogs import RemoveHiddenInfoDialog
 
         try:
-            with self._current_document() as src:
+            with self._current_document(keep_protection=True) as src:
                 dlg = RemoveHiddenInfoDialog(scan_hidden(src), self)
                 if dlg.exec() != dlg.DialogCode.Accepted:
                     return
@@ -7319,14 +7321,17 @@ class MainWindow(QMainWindow):
     # --- Form filling helpers --------------------------------------------------
 
     @contextmanager
-    def _current_document(self, *, flatten: bool = False, leave_out_marks: set[str] | None = None):
+    def _current_document(self, *, flatten: bool = False, leave_out_marks: set[str] | None = None,
+                          keep_protection: bool = False):
         """The open document as shown — including every unsaved change — for printing, exports and
         conversions: a temporary baked copy when something is unsaved (the file is never touched).
         ``leave_out_marks``: kinds of removable Monograph PDF marks to leave out of an export."""
         self._commit_field_editor()
         from core.printing import prepare_current_source
 
-        source = prepare_current_source(self._document, self._edit, flatten=flatten)
+        # keep_protection: for commands that write a PDF, a protected document's temporary copy stays
+        # protected so the written PDF keeps its passwords and permissions (core/security/protection.py)
+        source = prepare_current_source(self._document, self._edit, flatten=flatten, keep_encryption=keep_protection)
         try:
             if not leave_out_marks:
                 yield source.document
