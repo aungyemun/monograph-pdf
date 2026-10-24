@@ -224,7 +224,7 @@ def test_config(certs: Path, key_hex: str) -> Path:
     pub = bytes.fromhex(key_hex)
     cfg = json.loads((ROOT / "resources" / "update" / "update_config.json").read_text(encoding="utf-8"))
     cfg.update(enabled=True, disabled_reason="", allowed_hosts=["127.0.0.1"],
-               stable_manifest_url=f"{BASE}/latest/MonographPDF_update_manifest.json",
+               stable_manifest_url="",  # discovery uses Releases API only (never Latest)
                releases_api_url=f"{BASE}/api/releases",
                trusted_keys=[{"keyid": update_config.key_id(pub), "public_key": key_hex}], ca_file="test-ca.pem")
     (folder / "update_config.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
@@ -456,9 +456,23 @@ def main(argv: list[str] | None = None) -> int:
     manifest_new = sign(new_setup, key_file, 10, E2E / "manifest-new.json")
     manifest_fail = sign(failing, key_file, 11, E2E / "manifest-fail.json")
     good = new_setup.read_bytes()
-    Routes.files = {"/latest/MonographPDF_update_manifest.json": manifest_new,
-                    f"/download/v{a.new}/{new_setup.name}": good,
-                    f"/download/v{a.fail}/{failing.name}": failing.read_bytes()}
+    asset = "MonographPDF_update_manifest.json"
+
+    def listing_for(version: str) -> bytes:
+        # Include a macOS "Latest"-style decoy first — Windows discovery must ignore it.
+        return json.dumps([
+            {"tag_name": "v0.1.0-macos-1", "draft": False, "prerelease": False,
+             "assets": [{"name": asset, "browser_download_url": f"{BASE}/download/v0.1.0-macos-1/{asset}"}]},
+            {"tag_name": f"v{version}", "draft": False, "prerelease": False,
+             "assets": [{"name": asset, "browser_download_url": f"{BASE}/download/v{version}/{asset}"}]},
+        ]).encode()
+
+    Routes.files = {
+        "/api/releases": listing_for(a.new),
+        f"/download/v{a.new}/{asset}": manifest_new,
+        f"/download/v{a.new}/{new_setup.name}": good,
+        f"/download/v{a.fail}/{failing.name}": failing.read_bytes(),
+    }
     httpd = start_server(a.certs)
 
     backup = E2E / "backup"
@@ -567,7 +581,8 @@ def main(argv: list[str] | None = None) -> int:
                 close_app(pid)
 
             print("== a signed installer that fails", flush=True)
-            Routes.files["/latest/MonographPDF_update_manifest.json"] = manifest_fail
+            Routes.files["/api/releases"] = listing_for(a.fail)
+            Routes.files[f"/download/v{a.fail}/{asset}"] = manifest_fail
             app = subprocess.Popen([str(APP_FOLDER / "MonographPDF.exe")], cwd=str(APP_FOLDER))
             time.sleep(10)
             failed = update_once(cfg, app.pid, a.fail)

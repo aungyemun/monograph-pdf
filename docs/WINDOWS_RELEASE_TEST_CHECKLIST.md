@@ -82,7 +82,7 @@ upgrade is done with Setup.
 | # | Step | Expected now |
 |---|---|---|
 | 1 | Settings ▸ Updates | *Automatically check for updates* **off**; **Check Now** enabled |
-| 2 | **Help ▸ Check for Updates…** while online | Until a release with `MonographPDF_update_manifest.json` is the latest on GitHub: **No compatible release found**, "Nothing was downloaded or installed", **Open Releases Page** — never "Up to date" |
+| 2 | **Help ▸ Check for Updates…** while online | Until a published Windows-line release carries `MonographPDF_update_manifest.json` (GitHub Latest may point at macOS/Linux and is ignored): **No compatible release found**, "Nothing was downloaded or installed", **Open Releases Page** — never "Up to date" |
 | 3 | Same while offline (Wi-Fi off / cable out) | **No internet connection**; the app keeps working normally |
 | 4 | Start the app offline | starts normally; no message about updates |
 
