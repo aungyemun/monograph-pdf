@@ -174,9 +174,9 @@ which is the first published version with signed update checks switched on.
 - Searching a long document no longer freezes the window: matches appear while the search continues
   (3000 pages with a match on every line: the window stays responsive, at most about 0.1 s per step).
 
-## [0.4.1] — not released
+## [0.4.1] — 2026-10-23
 
-Prepared on 2026-10-23 but never published; everything below is included in 0.5.0. A bug-fix
+Prepared on this date but **never published**; everything below is included in 0.5.0. A bug-fix
 version for 0.4.0 that also switches on signed update checks. The sending of problem reports
 remains switched off.
 
