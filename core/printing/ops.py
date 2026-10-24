@@ -173,11 +173,27 @@ def print_needs_bake(edit: Any | None) -> bool:
     return False
 
 
-def _print_temp_path() -> Path:
+PROTECTED_TEMP_PREFIX = "print-bake-p-"
+
+
+def _print_temp_path(*, from_protected: bool = False) -> Path:
+    """A new temporary file for a baked copy. A copy made from a password-protected PDF is marked
+    (``print-bake-p-``) so that one left behind by a crash is removed at the next start of Monograph
+    PDF regardless of its age (core/organize/temputil.py), not only after a day."""
     from app.paths import TEMP_DIR
 
     TEMP_DIR.mkdir(parents=True, exist_ok=True)
-    return TEMP_DIR / f"print-bake-{uuid.uuid4().hex}.pdf"
+    prefix = PROTECTED_TEMP_PREFIX if from_protected else "print-bake-"
+    return TEMP_DIR / f"{prefix}{uuid.uuid4().hex}.pdf"
+
+
+def _is_protected_document(document) -> bool:
+    try:
+        from core.security.protection import is_protected
+
+        return is_protected(document._backend._doc)  # noqa: SLF001
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def prepare_current_source(
@@ -196,11 +212,14 @@ def prepare_current_source(
 
     from engines.bake_edits import bake_via_backend
 
-    dest = _print_temp_path()
+    dest = _print_temp_path(from_protected=_is_protected_document(document))
     prev_flatten = bool(getattr(edit, "flatten_on_save", False))
     try:
         edit.flatten_comments = flatten_comments
         bake_via_backend(edit, dest, flatten=flatten or prev_flatten, keep_encryption=keep_encryption)
+    except BaseException:
+        dest.unlink(missing_ok=True)  # never leave a (possibly decrypted) copy behind
+        raise
     finally:
         try:
             edit.flatten_on_save = prev_flatten
@@ -211,9 +230,13 @@ def prepare_current_source(
     backend = getattr(document, "_backend", None)
     password = getattr(backend, "_password", None) if keep_encryption else None
     try:
-        baked = open_document(dest, password=password)
-    except Exception:  # noqa: BLE001 — a copy kept protected opens with the document's password
-        baked = open_document(dest)
+        try:
+            baked = open_document(dest, password=password)
+        except Exception:  # noqa: BLE001 — a copy kept protected opens with the document's password
+            baked = open_document(dest)
+    except BaseException:
+        dest.unlink(missing_ok=True)
+        raise
     if keep_encryption and backend is not None:
         # the permissions password entered for the document also counts for its temporary copy
         baked._backend._owner_unlocked = bool(getattr(backend, "_owner_unlocked", False))  # noqa: SLF001

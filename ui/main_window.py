@@ -7353,12 +7353,21 @@ class MainWindow(QMainWindow):
             from core.security.protection import export_source_without_marks
 
             clean = export_source_without_marks(source.document, set(leave_out_marks))
-            tmp = _print_temp_path()
+            from core.security.protection import is_protected
+
+            tmp = _print_temp_path(from_protected=is_protected(self._document._backend._doc))  # noqa: SLF001
             try:
                 clean.save(tmp.as_posix(), garbage=1, deflate=True)
+            except BaseException:
+                tmp.unlink(missing_ok=True)
+                raise
             finally:
                 clean.close()
-            doc = open_document(tmp)
+            try:
+                doc = open_document(tmp)
+            except BaseException:
+                tmp.unlink(missing_ok=True)
+                raise
             try:
                 yield doc
             finally:
