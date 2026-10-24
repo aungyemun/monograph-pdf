@@ -192,6 +192,11 @@ def run_ocr(
 
                     tessdata = tessdata_for(options.languages)
                 tokens = engine.run_tsv(img_file, lang=options.languages, tessdata=tessdata)
+                if not tokens:
+                    # Tesseract's automatic page layout (psm 3) finds no text blocks in some scripts
+                    # (Burmese, measured on Windows with tessdata_fast 4.1.0) that it reads well as one
+                    # uniform block of text (psm 6): try that before reporting an empty page.
+                    tokens = engine.run_tsv(img_file, lang=options.languages, tessdata=tessdata, psm=6)
                 inverse = ~matrix
                 words: list[OcrWord] = []
                 confs: list[float] = []
