@@ -556,7 +556,7 @@ class PermissionsPasswordDialog(QDialog):
         self.setModal(True)
         self.setMinimumWidth(460)
         lay = QVBoxLayout(self)
-        title = QLabel(f"{action} is not allowed for this PDF")
+        title = QLabel(f"{action} needs the permissions password")
         title.setObjectName("DialogTitle")
         f = title.font()
         f.setBold(True)

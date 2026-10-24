@@ -630,6 +630,10 @@ class ColorPickerDialog(QDialog):
         self.field.changed.connect(self._from_field)
         self.hue.changed.connect(self._from_field)
         self.alpha.changed.connect(self._from_field)
+        from ui.theme import spin_box_min_width
+
+        for spin in [*self.spins.values(), *([self.opacity] if self.opacity is not None else [])]:
+            spin.setMinimumWidth(spin_box_min_width(spin) + 18)  # "255" fully visible at 150 % scaling
         self._apply_style()
         self._set_color(self._color, from_hsv=False)
         self.preview.old = QColor(self._initial)

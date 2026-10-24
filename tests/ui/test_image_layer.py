@@ -113,15 +113,18 @@ def test_canvas_and_menu(qtbot, tmp_path, monkeypatch):
     def text_pixels_dark() -> float:
         canvas.update()
         img = canvas.grab().toImage()
+        k = img.devicePixelRatio() or 1.0  # HiDPI displays: the picture has more pixels than the widget
         wr = canvas.pdf_rect_to_widget(0, Rect(50, 92, 240, 36))
         dark = total = 0
         for x in range(wr.left(), wr.right(), 3):
             for y in range(wr.top(), wr.bottom(), 3):
-                c = QColor(img.pixel(x, y))
+                c = QColor(img.pixel(int(x * k), int(y * k)))
                 total += 1
                 dark += max(c.red(), c.green(), c.blue()) < 60
         return dark / max(1, total)
 
+    canvas.update()
+    qtbot.wait(50)
     assert text_pixels_dark() < 0.02
     win.act_image_behind.trigger()
     assert box.layer == "behind" and win.act_image_behind.isChecked()
