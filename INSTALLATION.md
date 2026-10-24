@@ -1,108 +1,47 @@
-# Installation
+# Installation (Linux 0.1.0)
 
-Monograph PDF is installed with a standard Windows installer. Everything it needs — including
-Python, Qt and the OCR engine — is included, and no internet connection is required.
+Monograph PDF **0.1.0** is the first Linux release. It is separate from the Windows
+installer line (Windows 0.5.0).
 
 ## System requirements
 
 | | Minimum | Recommended |
 | :--- | :--- | :--- |
-| Operating system | Windows 10, 64-bit | Windows 11, 64-bit |
+| Operating system | Linux x86_64 | Recent Ubuntu / Debian / Fedora |
 | Memory | 4 GB | 8 GB or more |
 | Free disk space | 1 GB | 2 GB |
 | Screen | 1280 × 720 | 1920 × 1080 or larger |
-| Office suite | — | Microsoft Office or LibreOffice, only for converting Office files to PDF |
+| Office suite | — | LibreOffice (Office files → PDF) |
+| OCR | Tesseract on `PATH` (or via `scripts/vendor_ocr.sh`) | eng + jpn tessdata (vendored) |
 
-## Installing
+## Run from source (development)
 
-1. Download `MonographPDF_<version>_Setup.exe` from the official
-   [latest release](https://github.com/aungyemun/monograph-pdf/releases/latest) page only.
-2. Check the download in PowerShell. The result must equal the SHA-256 value in the release notes
-   (also listed in `SHA256SUMS.txt` inside `MonographPDF_<version>_Installer.zip`):
-
-   ```powershell
-   Get-FileHash .\MonographPDF_<version>_Setup.exe -Algorithm SHA256
-   ```
-
-3. Run Setup. Monograph PDF is currently distributed without a code-signing certificate, so Windows
-   SmartScreen may display a warning. Continue (**More info ▸ Run anyway**) only if the file came
-   from the official release page and its checksum matches.
-4. Choose where to install:
-   * **For all users** — `C:\Program Files\Monograph PDF` (needs administrator rights)
-   * **Only for me** — `%LOCALAPPDATA%\Programs\Monograph PDF`
-
-Setup copies the program, OCR data, documentation and `uninstall.exe`, registers the file types you
-select, and finishes with an offline self-check. Its report is saved as
-`%LOCALAPPDATA%\Monograph PDF\logs\install_smoke_test.json`.
-
-### Upgrading
-
-Run the Setup of the newer version. It replaces the program files of the existing installation in
-place; your settings and documents are kept.
-
-0.4.0 and earlier cannot update themselves (their update checks are switched off): install the current
-version with its Setup from the [Releases](https://github.com/aungyemun/monograph-pdf/releases) page
-(0.5.0 is the first published version with update checks; 0.4.1 was prepared but never published). From then on,
-**Help ▸ Check for Updates…** can do this for you when a newer signed release exists: **Update Now** downloads and verifies the new Setup, closes Monograph PDF (after you
-save or discard open changes), installs the update in the same folder with the same choices and
-restarts Monograph PDF. An all-users installation shows Windows' administrator prompt. Details:
-[Automatic upgrade](docs/AUTOMATIC_UPGRADE_AND_CLEANUP.md).
-
-### Silent installation (administrators)
-
-```bat
-MonographPDF_0.5.0_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-MonographPDF_0.5.0_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="D:\Apps\Monograph PDF" /MIGRATEINSTALL
+```bash
+bash scripts/setup_env.sh
+bash scripts/vendor_ocr.sh
+bash scripts/dev_launch.sh
 ```
 
-* Installing to the same folder upgrades the existing installation in place.
-* A different `/DIR` keeps the existing location unless `/MIGRATEINSTALL` is given, which moves the
-  installation to the new folder.
-* Setup stops if `MonographPDF.exe` is running.
+Self-check: `./env/bin/python -m app --smoke-test`
 
-## File types
+## Per-user install (built tree)
 
-| Option | Default |
-| :--- | :--- |
-| Offer Monograph PDF for `.pdf` files (Open with / Default apps) | On |
-| Offer **Open with** for images and Office files | On |
+After you have a built `MonographPDF` folder (PyInstaller one-folder layout):
 
-Setup never makes Monograph PDF your default PDF app on its own. To do so, use
-**Help ▸ Make Monograph PDF the Default PDF App…** or Windows **Open with ▸ Always**.
-
-## Uninstalling
-
-Use **Settings ▸ Apps ▸ Installed apps ▸ Monograph PDF ▸ Uninstall**, or run `uninstall.exe` in the
-installation folder.
-
-Uninstalling removes the program files installed by Setup, the shortcuts, the file registrations,
-the recent-files list and the working files in `%LOCALAPPDATA%\Monograph PDF`. You are asked whether
-to remove your settings (`%APPDATA%\Monograph PDF`) as well. **Your own documents are never removed.**
-
-Silent uninstall, keeping or removing settings:
-
-```bat
-"C:\Program Files\Monograph PDF\uninstall.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-"C:\Program Files\Monograph PDF\uninstall.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /REMOVEUSERDATA
+```bash
+bash installer/linux/install.sh /path/to/MonographPDF
 ```
 
-## Checking an installation
+This installs under `~/.local/share/Monograph PDF`, adds a `~/.local/bin/MonographPDF`
+launcher and a desktop entry. Uninstall: run `uninstall.sh` in the install folder.
+Settings stay in `~/.local/share/monograph-pdf` unless you remove them yourself.
 
-On an offline computer: install, open a PDF, fill in a form field, convert a PDF to Word, protect
-and unlock a file, run OCR on a scanned page, and uninstall. The self-check report
-`install_smoke_test.json` should contain `"passed": true`. Developers can run the automated
-installer test, `scripts\test_installer.ps1` ([Testing](docs/TESTING.md#installer-and-uninstaller-test)).
+## Default PDF app
 
-## Troubleshooting
+**Help ▸ Make Monograph PDF the Default PDF App…** writes a `.desktop` file and runs
+`xdg-mime default … application/pdf`.
 
-| Problem | What to do |
-| :--- | :--- |
-| The app does not start | Run Setup again. Check whether your antivirus software quarantined `MonographPDF.exe` or files in `_internal`. |
-| You want to check the installation | Run `MonographPDF.exe --smoke-test`, or open `%LOCALAPPDATA%\Monograph PDF\logs\install_smoke_test.json`. |
-| Office files cannot be converted | Open **Help ▸ About Monograph PDF ▸ Office Integration** to see which Office suite was found. |
+## Windows installation
 
----
-
-Developers: [Build and Runtime](docs/BUILD_AND_RUNTIME.md) · [Release and Versioning](docs/RELEASE_AND_VERSIONING.md)
-
-© 2026 Aung Ye Mun · AGPL-3.0-or-later ([LICENSE.md](LICENSE.md)) · Source code: `MonographPDF_<version>_Source.zip`
+See the Windows 0.5.0 materials (`MonographPDF_0.5.0_Installer` / GitHub Releases) for
+`Setup.exe`. That line is versioned separately from this Linux 0.1.0 tree.
