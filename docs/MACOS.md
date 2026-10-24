@@ -26,13 +26,20 @@ bash scripts/dev_launch.sh
 bash scripts/run_tests.sh
 ```
 
-## Build a `.app`
+## Build a `.app` and packages
 
 ```bash
 bash scripts/build_app.sh
 # → dist/MonographPDF.app
+
+bash scripts/package_macos.sh
+# → dist/release/MonographPDF_<version>_macOS.zip  (.app archive)
+# → dist/release/MonographPDF_<version>_macOS.dmg
+# → dist/release/MonographPDF_<version>_macOS.pkg
+# → dist/release/SHA256SUMS.txt
 ```
 
+These packages are **unsigned**. First open may need **Right-click → Open** (or allow in System Settings ▸ Privacy & Security).
 ## User data locations
 
 | Kind | Path |
