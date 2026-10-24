@@ -157,10 +157,21 @@ def test_semver_precedence_and_locale_independence():
         V("٠.٣.٠")  # Arabic-Indic digits are not version digits
 
 
-def _fetch_returning(data: bytes, record: list | None = None):
+def _fetch_returning(data: bytes, record: list | None = None, *, tag_version: str | None = None):
+    """Stub fetch: Releases API listing → one Windows entry; other URLs → the signed manifest."""
+    from tests.fixtures.update_fixtures import listing_with_manifest, release_listing
+
+    listing = b"[]"
+    if data:
+        signed_ver = json.loads(data.decode("utf-8"))["signed"]["version"]
+        list_version = tag_version or signed_ver.split("-", 1)[0]
+        listing = release_listing(listing_with_manifest(list_version))
+
     def fetch(cfg, url, limit, accept="application/json"):
         if record is not None:
             record.append(url)
+        if "api.github.com" in url or url.rstrip("/").endswith("/api/releases") or "/releases?" in url:
+            return listing
         return data
     return fetch
 
@@ -187,9 +198,12 @@ def test_replayed_older_manifest_is_rejected():
 
 
 def test_stable_channel_refuses_a_prerelease_manifest():
-    pre = manifest_bytes(signed_fields(version="0.4.0-rc.1", channel="prerelease"))
-    res = manager.check(make_config(), "stable", "0.3.0", UpdateState(), fetch=_fetch_returning(pre))
+    # Adversarial: Windows-looking tag/asset, but signed body claims channel=prerelease.
+    pre = manifest_bytes(signed_fields(version="0.4.0", channel="prerelease", sequence=12))
+    res = manager.check(make_config(), "stable", "0.3.0", UpdateState(),
+                        fetch=_fetch_returning(pre, tag_version="0.4.0"))
     assert res.status == UpdateStatus.VERIFICATION_FAILED
+    assert res.reason == "channel"
 
 
 def test_prerelease_channel_picks_the_newest_listed_release():
@@ -260,15 +274,19 @@ def test_shipped_configuration_trusts_exactly_the_production_key():
     assert set(cfg.allowed_hosts) <= {"github.com", "api.github.com", "objects.githubusercontent.com",
                                       "release-assets.githubusercontent.com"}
     assert cfg.repository == "aungyemun/monograph-pdf"
-    assert cfg.stable_manifest_url == ("https://github.com/aungyemun/monograph-pdf/releases/latest/download/"
-                                       "MonographPDF_update_manifest.json")
+    # Discovery uses the Releases API; repository-wide Latest is intentionally unused.
+    assert cfg.releases_api_url == ("https://api.github.com/repos/aungyemun/monograph-pdf/"
+                                    "releases?per_page=100")
+    assert cfg.stable_manifest_url == ""
 
 
 def test_configuration_validation(tmp_path):
     good = json.loads((ROOT / "resources" / "update" / "update_config.json").read_text(encoding="utf-8"))
     for bad in ({"schema": 2}, {"allowed_hosts": ["exa mple"]}, {"trusted_keys": [{"public_key": "zz"}]},
                 {"trusted_keys": [{"public_key": "00" * 32, "keyid": "0000000000000000"}]}, {"threshold": 0},
-                {"ca_file": "../x.pem"}, {"enabled": True, "stable_manifest_url": "http://github.com/x.json"}):
+                {"ca_file": "../x.pem"},
+                {"enabled": True, "releases_api_url": "http://api.github.com/repos/x/y/releases"},
+                {"enabled": True, "stable_manifest_url": "http://github.com/x.json"}):
         p = tmp_path / "c.json"
         p.write_text(json.dumps({**good, **bad}), encoding="utf-8")
         with pytest.raises(update_config.ConfigError):

@@ -84,11 +84,13 @@ installed only if all of the following hold:
 * Bounded sizes (manifest 256 KB, release list 2 MB, installer exactly the signed size), 20-second
   network timeouts, cancellable downloads, no cookies or credentials, no GitHub token. The only
   identifying header is `User-Agent: MonographPDF/<version> (+updater)`.
-* Sources: the stable channel reads
-  `https://github.com/aungyemun/monograph-pdf/releases/latest/download/MonographPDF_update_manifest.json`
-  (no API rate limit); the prerelease channel lists releases through the GitHub REST API
-  (unauthenticated, 60 requests per hour per address; a rate limit is reported as *Unable to check*)
-  and takes the newest non-draft release that has a manifest.
+* Sources: **both** stable and prerelease channels discover candidates through the GitHub Releases
+  REST API (`releases?per_page=20`; unauthenticated, 60 requests per hour per address; a rate limit
+  is reported as *Unable to check*). Discovery picks the newest **Windows-line** non-draft release
+  that publishes `MonographPDF_update_manifest.json` (stable skips GitHub prereleases and
+  platform-suffixed tags such as `v0.1.0-macos-1` / `v0.1.0-linux`). The listing is only a hint —
+  authenticity always comes from the Ed25519-signed manifest fetched next. The repository-wide
+  GitHub “Latest” badge is **never** used (it may point at macOS or Linux).
 
 ### Why not TUF
 
@@ -402,9 +404,10 @@ Signing happens locally; GitHub only hosts the files. For every release with upd
    trusted keys exactly as the application does; this version; this Setup.exe — URL of tag
    `v<version>`, size, SHA-256; valid 30+ days).
 10. Prepare a **draft** GitHub release and 11. attach exactly four files: Setup.exe, the Installer
-    and Source ZIPs and `MonographPDF_update_manifest.json`. The stable channel reads
-    `releases/latest/download/MonographPDF_update_manifest.json`, so the newest stable release must
-    always carry it; prereleases are found through the releases API and need it too.
+    and Source ZIPs and `MonographPDF_update_manifest.json`. Windows clients discover that release
+    through the Releases API by selecting the newest Windows-line tag that carries the manifest
+    asset — not through GitHub’s repository-wide Latest. Every published Windows release that
+    should be discoverable must therefore include the signed manifest; prereleases need it too.
 12. Independently verify the draft assets (download them into an empty folder; `verify`,
     `verify_release.py --dir <folder>`).
 13. Publish only after explicit authorization — publication is irreversible (immutable releases).

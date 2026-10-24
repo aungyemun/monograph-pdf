@@ -74,13 +74,27 @@ def test_time_must_be_timezone_aware():
         verify(signed_fields("1.0.0", now=T0), T0.replace(tzinfo=None))
 
 
+def _fetch_manifest(data: bytes):
+    from tests.fixtures.update_fixtures import listing_with_manifest, release_listing
+
+    version = json.loads(data.decode("utf-8"))["signed"]["version"]
+    listing = release_listing(listing_with_manifest(version))
+
+    def fetch(_cfg, url, *_a, **_k):
+        if "api.github.com" in url or "/releases?" in url or url.rstrip("/").endswith("/api/releases"):
+            return listing
+        return data
+
+    return fetch
+
+
 def test_validity_belongs_to_the_manifest_not_to_the_installation_date():
     """A copy installed in October 2026 that first checks in 2029 updates with a fresh manifest."""
     in_2029 = datetime(2029, 11, 5, 8, 0, 0, tzinfo=timezone.utc)
     state = UpdateState()
     state.last_check = int(datetime(2026, 10, 25, tzinfo=timezone.utc).timestamp())
-    res = manager.check(make_config(), "stable", "0.4.1", state,
-                        fetch=lambda *a, **k: manifest_bytes(version="1.4.0", sequence=31, now=in_2029), now=in_2029)
+    data = manifest_bytes(version="1.4.0", sequence=31, now=in_2029)
+    res = manager.check(make_config(), "stable", "0.4.1", state, fetch=_fetch_manifest(data), now=in_2029)
     assert res.status == UpdateStatus.AVAILABLE
 
 
@@ -88,11 +102,11 @@ def test_an_expired_old_manifest_then_a_valid_newer_one():
     state = UpdateState(sequence={"stable": 1})
     old = manifest_bytes(version="0.5.0", sequence=3, now=T0, expires_days=730)
     later = T0 + timedelta(days=800)
-    res = manager.check(make_config(), "stable", "0.4.1", state, fetch=lambda *a, **k: old, now=later)
+    res = manager.check(make_config(), "stable", "0.4.1", state, fetch=_fetch_manifest(old), now=later)
     assert res.status == UpdateStatus.VERIFICATION_FAILED and res.reason == "expired"
     assert state.sequence == {"stable": 1}  # a refused manifest changes nothing
     new = manifest_bytes(version="0.9.0", sequence=1000, now=later)
-    res = manager.check(make_config(), "stable", "0.4.1", state, fetch=lambda *a, **k: new, now=later)
+    res = manager.check(make_config(), "stable", "0.4.1", state, fetch=_fetch_manifest(new), now=later)
     assert res.status == UpdateStatus.AVAILABLE and state.sequence == {"stable": 1000}
 
 
@@ -101,7 +115,7 @@ def test_retrying_repeats_the_full_verification():
     bad["signed"]["release_notes"] = "changed"
     data = json.dumps(bad).encode()
     for _ in range(3):
-        res = manager.check(make_config(), "stable", "0.4.1", UpdateState(), fetch=lambda *a, **k: data, now=T0)
+        res = manager.check(make_config(), "stable", "0.4.1", UpdateState(), fetch=_fetch_manifest(data), now=T0)
         assert res.status == UpdateStatus.VERIFICATION_FAILED and res.reason == "signature"
 
 

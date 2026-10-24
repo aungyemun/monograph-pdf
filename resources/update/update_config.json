@@ -5,7 +5,7 @@
   "repository": "aungyemun/monograph-pdf",
   "manifest_asset": "MonographPDF_update_manifest.json",
   "stable_manifest_url": "",
-  "releases_api_url": "https://api.github.com/repos/aungyemun/monograph-pdf/releases?per_page=20",
+  "releases_api_url": "https://api.github.com/repos/aungyemun/monograph-pdf/releases?per_page=100",
   "allowed_hosts": [
     "github.com",
     "api.github.com",
