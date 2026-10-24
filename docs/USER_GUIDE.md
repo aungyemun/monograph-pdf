@@ -195,9 +195,9 @@ A check contacts only the official GitHub Releases page of Monograph PDF and acc
 information signed with the project's update-signing key. If the check cannot reach GitHub (for
 example offline) or the information cannot be verified, it says so — never "up to date" — nothing is
 downloaded, and **Open Releases Page** takes you to the official download page instead. Automatic
-checks only check: nothing is downloaded or installed until you click **Update Now**. Versions before
-0.4.1 cannot check for updates; install 0.4.1 once with its Setup (your settings and documents are
-kept).
+checks only check: nothing is downloaded or installed until you click **Update Now**. Versions 0.4.0
+and earlier cannot check for updates; install the current version once with its Setup (your settings and
+documents are kept).
 
 When an update is available you see the installed and available versions, the release date, the
 release notes and the download size. **Update Now** downloads the update, verifies it, asks you to

@@ -53,7 +53,7 @@ From **0.4.1**, **Help ▸ Check for Updates…** can install updates itself: it
 information signed with the project's update key and an installer whose SHA-256 matches that signed
 information, and it downloads only from GitHub's release servers
 ([SECURE_UPDATES.md](SECURE_UPDATES.md)). Automatic checks are optional and off by default. 0.4.0 and
-earlier cannot update themselves — install 0.4.1 once with Setup. This works independently of
+earlier cannot update themselves — install the current version (0.5.0 or later; 0.4.1 was not published) once with Setup. This works independently of
 Windows code signing.
 
 ## Unofficial copies

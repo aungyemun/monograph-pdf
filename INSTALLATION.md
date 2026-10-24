@@ -40,8 +40,9 @@ select, and finishes with an offline self-check. Its report is saved as
 Run the Setup of the newer version. It replaces the program files of the existing installation in
 place; your settings and documents are kept.
 
-0.4.0 and earlier cannot update themselves (their update checks are switched off): install 0.4.1 with
-its Setup from the [Releases](https://github.com/aungyemun/monograph-pdf/releases) page. From 0.4.1,
+0.4.0 and earlier cannot update themselves (their update checks are switched off): install the current
+version with its Setup from the [Releases](https://github.com/aungyemun/monograph-pdf/releases) page
+(0.4.1 was prepared but not published; 0.5.0 is the first published version with update checks). From then on,
 **Help ▸ Check for Updates…** can do this for you when a newer signed release exists: **Update Now** downloads and verifies the new Setup, closes Monograph PDF (after you
 save or discard open changes), installs the update in the same folder with the same choices and
 restarts Monograph PDF. An all-users installation shows Windows' administrator prompt. Details:

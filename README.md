@@ -96,10 +96,10 @@ silent installation, upgrading and uninstalling are described in [Installation](
 * Monograph PDF is designed to operate offline. It requires no account or cloud service and has no
   telemetry, advertising, online OCR or document upload. Viewing, editing, saving, OCR, conversion and
   printing never use the network.
-* From 0.4.1, **Help ▸ Check for Updates…** checks the official GitHub Releases page when you ask and
+* **Help ▸ Check for Updates…** (switched on from 0.4.1; 0.5.0 is the first published version with it) checks the official GitHub Releases page when you ask and
   accepts only update information signed with the project's update-signing key; nothing is downloaded
   or installed until you click **Update Now**. Automatic checks are optional and **off by default**.
-  0.4.0 and earlier cannot update themselves: install 0.4.1 once with Setup. Problem reports are still
+  0.4.0 and earlier cannot update themselves: install the current version once with Setup. Problem reports are still
   not sent (you can copy and pass them on yourself):
   [Secure updates](docs/SECURE_UPDATES.md) · [Error reporting](docs/ERROR_REPORTING.md).
 * From 0.5.0, an optional OCR language is downloaded only when you click **Download and Install** in
@@ -155,7 +155,7 @@ passed. Details: [Testing](docs/TESTING.md).
 
 * Windows 10 and 11 (64-bit) only.
 * The installer and program are not code-signed ([Code Signing](docs/CODE_SIGNING.md)).
-* The sending of problem reports is switched off. Versions before 0.4.1 cannot check for updates;
+* The sending of problem reports is switched off. Versions 0.4.0 and earlier cannot check for updates;
   install new versions from the [Releases](https://github.com/aungyemun/monograph-pdf/releases) page.
 * Signatures are visual only; certificate-based digital signatures are not supported.
 * Converting PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts.

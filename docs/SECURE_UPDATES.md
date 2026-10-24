@@ -2,9 +2,10 @@
 
 Status: **included since 0.3.0; switched on from 0.4.1** with the production update-signing key
 (key id `27c3b3b23b949c40`). 0.3.0 and 0.4.0 ship with updates switched off and no trusted key, so
-they cannot update themselves: users install 0.4.1 once with Setup from the
-[GitHub Releases page](https://github.com/aungyemun/monograph-pdf/releases); the first upgrade through
-the updater is from 0.4.1 to a later release.
+they cannot update themselves: users install the current version once with Setup from the
+[GitHub Releases page](https://github.com/aungyemun/monograph-pdf/releases). 0.4.1 was prepared but not
+published, so 0.5.0 is the first published version with update checks; the first upgrade through the
+updater is from 0.5.0 to a later release.
 
 Validation status: the signing key, its backup and restore, the manifest checks and the user
 interface are tested (see [Testing](#testing)). Installation, the 0.4.0 → 0.4.1 Setup upgrade and the
