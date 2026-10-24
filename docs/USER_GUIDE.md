@@ -205,7 +205,7 @@ save or discard unsaved changes, closes Monograph PDF, installs the update in th
 restarts it; your settings, shortcuts and file-type choices are kept. **Remind Me Later** postpones
 it. An installation for all users shows Windows' administrator prompt.
 
-* **Skipped versions.** You do not need to install every version: an older copy (0.4.1 or later)
+* **Skipped versions.** You do not need to install every version: an older copy (0.5.0 or later)
   updates straight to the newest release, even after months or years.
 * **When a check fails** the message names the reason — for example *No internet connection*,
   *GitHub is temporarily unavailable*, *Update information has expired* or *Invalid digital

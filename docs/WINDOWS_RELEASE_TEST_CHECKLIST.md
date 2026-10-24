@@ -1,6 +1,7 @@
 # Windows release test checklist (manual, on real computers)
 
-For testing a release candidate of Monograph PDF on your own Windows computers before publishing.
+For testing a release of Monograph PDF on your own Windows computers, before publishing or — as for
+0.5.0, by the maintainer's decision — after publishing.
 Record each item as **PASS**, **FAIL** (with what you saw) or **NOT TESTED**. Never record an item you
 did not do as passed. The release notes report these results.
 
@@ -18,7 +19,7 @@ Monograph PDF and keep a copy of your documents first. Write down for every comp
 and version (`winver`), display language, regional format / system locale (e.g. Japanese), display
 scaling, and whether another Monograph PDF version was installed and for which users.
 
-## A. Tests you can do now (0.5.0 release candidate)
+## A. Tests you can do now (0.5.0)
 
 ### A1. Download and file checks
 

@@ -35,7 +35,7 @@ PAGES = [
       "Fill in and design forms", "Merge, split, rotate and reorder pages",
       "Headers, footers, page and Bates numbers, watermarks",
       "Convert between PDF, Word, Excel, PowerPoint and images",
-      "Offline OCR for scanned pages (English and Japanese)",
+      "Offline OCR for scanned pages (English, Japanese and 45 more languages)",
       "Protect, redact, remove hidden information and sign"]),
     ("Editing", "Text, comments and forms", "Edit existing text, add text boxes, images and shapes, "
      "highlight and comment. Every change can be undone and is written only when you save.", []),

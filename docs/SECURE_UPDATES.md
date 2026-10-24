@@ -1,17 +1,18 @@
 # Secure updates
 
-Status: **included since 0.3.0; switched on from 0.4.1** with the production update-signing key
+Status: **included since 0.3.0; switched on from 0.5.0** (the first published version with it) with the production update-signing key
 (key id `27c3b3b23b949c40`). 0.3.0 and 0.4.0 ship with updates switched off and no trusted key, so
 they cannot update themselves: users install the current version once with Setup from the
-[GitHub Releases page](https://github.com/aungyemun/monograph-pdf/releases). 0.4.1 was prepared but not
-published, so 0.5.0 is the first published version with update checks; the first upgrade through the
-updater is from 0.5.0 to a later release.
+[GitHub Releases page](https://github.com/aungyemun/monograph-pdf/releases). 0.4.1 also had update checks
+switched on but was never published, so 0.5.0 is the first published version with them; the first
+upgrade through the updater is from 0.5.0 to a later release.
 
 Validation status: the signing key, its backup and restore, the manifest checks and the user
-interface are tested (see [Testing](#testing)). Installation, the 0.4.0 → 0.4.1 Setup upgrade and the
-application on real Windows computers are **not yet** tested
-([WINDOWS_RELEASE_TEST_CHECKLIST.md](WINDOWS_RELEASE_TEST_CHECKLIST.md)); 0.4.1 is not published
-before they pass. 0.4.1 has not been published.
+interface are tested (see [Testing](#testing)). Installation, the 0.4.0 → 0.5.0 Setup upgrade and the
+application on real Windows computers are tested by the maintainer
+([WINDOWS_RELEASE_TEST_CHECKLIST.md](WINDOWS_RELEASE_TEST_CHECKLIST.md)). For 0.5.0 the maintainer
+decided to publish first and carry out these tests afterwards; until then they are **not verified**,
+and problems found go into 0.5.1.
 
 Related: [AUTOMATIC_UPGRADE_AND_CLEANUP.md](AUTOMATIC_UPGRADE_AND_CLEANUP.md) (what happens after
 **Update Now**), [ERROR_REPORTING.md](ERROR_REPORTING.md), [SECURITY_AND_PRIVACY.md](SECURITY_AND_PRIVACY.md).
@@ -261,11 +262,11 @@ it turns a lost key (6) into a planned transition (1). A root key or TUF-style r
 complexity a single-maintainer project would have to operate correctly for little practical gain;
 not added.
 
-### Recommendation: a pre-trusted recovery key (future release, not 0.4.1)
+### Recommendation: a pre-trusted recovery key (future release, not 0.5.0)
 
 A recovery key only helps if installed copies **already trust it** when the primary key is lost:
 a second key kept offline but not listed in `trusted_keys` is useless for recovery, because nothing
-signed with it would be accepted. Recommended for a later release (for example 0.5.x), with
+signed with it would be accepted. Recommended for a later release (for example 0.6.0), with
 explicit approval:
 
 1. Generate a separate recovery key on a different medium with a different passphrase; back it up
@@ -279,7 +280,7 @@ explicit approval:
 
 Trade-off: with threshold 1, either key can sign alone, so both must be protected equally well;
 threshold 2 would protect against one stolen key but would turn one lost key into a blocked update
-path. 0.4.1 keeps one key and threshold 1; copies installed before a recovery key is added must be
+path. 0.5.0 keeps one key and threshold 1; copies installed before a recovery key is added must be
 updated once (with the primary key) to benefit. No unsigned or weaker recovery path exists or will be
 added.
 
@@ -288,7 +289,7 @@ added.
 An installed copy reads only the **newest** manifest of its channel and compares it with its own
 version: it never needs the manifests of versions it skipped, however many there are and however long
 it has not checked. Replay protection does not depend on history either: the copy remembers the
-highest sequence number it has accepted and refuses anything lower. So 0.4.1 can go straight to 0.6.0
+highest sequence number it has accepted and refuses anything lower. So 0.5.0 can go straight to 0.7.0
 or 1.0.0 with one **Update Now** (one download, one Setup run), provided the conditions below hold.
 Every step still requires the user's click; automatic checks stay off by default and only check.
 
@@ -296,10 +297,10 @@ Every step still requires the user's click; automatic checks stay off by default
 
 | From | To | How | Verified |
 |---|---|---|---|
-| 0.3.0, 0.4.0 | 0.4.1 or later | **Setup** (manual): their update checks are switched off and trust no key | Setup upgrade 0.4.0 → 0.4.1: by the maintainer on real computers ([checklist](WINDOWS_RELEASE_TEST_CHECKLIST.md) A3) — **not yet done** |
-| 0.4.1 or later | any newer release whose manifest is signed by a key the installed copy trusts, uses manifest schema 1, and whose `min_upgrade_from` (if any) is not newer than the installed version | **Update Now** (direct, no intermediate versions) | automated tests with synthetic keys (`test_update_direct_upgrade.py`); on real computers **not verified** until a release after 0.4.1 exists |
-| 0.4.1 or later | a release whose manifest the copy cannot verify (only new keys, a newer manifest schema) | refused (*Verification failed*, "nothing was downloaded or installed", **Open Releases Page**); install with **Setup** | automated tests |
-| 0.4.1 or later | a release with `min_upgrade_from` newer than the installed version | the update is shown, **Update Now** is disabled with the reason and a link to the release page; install with **Setup** | automated tests |
+| 0.3.0, 0.4.0 | 0.5.0 or later | **Setup** (manual): their update checks are switched off and trust no key | Setup upgrade 0.4.0 → 0.5.0: by the maintainer on real computers ([checklist](WINDOWS_RELEASE_TEST_CHECKLIST.md) A3); **not verified** at the 0.5.0 release (done after publication) |
+| 0.5.0 or later | any newer release whose manifest is signed by a key the installed copy trusts, uses manifest schema 1, and whose `min_upgrade_from` (if any) is not newer than the installed version | **Update Now** (direct, no intermediate versions) | automated tests with synthetic keys (`test_update_direct_upgrade.py`); on real computers **not verified** until a release after 0.5.0 exists |
+| 0.5.0 or later | a release whose manifest the copy cannot verify (only new keys, a newer manifest schema) | refused (*Verification failed*, "nothing was downloaded or installed", **Open Releases Page**); install with **Setup** | automated tests |
+| 0.5.0 or later | a release with `min_upgrade_from` newer than the installed version | the update is shown, **Update Now** is disabled with the reason and a link to the release page; install with **Setup** | automated tests |
 | any | an older version | never offered (downgrade refused) | automated tests |
 | PDF Editor 0.1.5 | Monograph PDF | **Setup** migration | installer test matrix |
 
@@ -326,7 +327,7 @@ AppId and folder) and keeps settings and documents.
    supported.
 2. Sign with key `27c3b3b23b949c40` — alone or together with newer keys — for as long as copies that
    trust only that key are supported. A release whose manifest is signed only by a newer key cannot
-   be verified by 0.4.1–era copies: they must upgrade with Setup (see [Key rotation](#key-rotation)).
+   be verified by copies that trust only that key (0.5.0 and later until a new key is added): they must upgrade with Setup (see [Key rotation](#key-rotation)).
 3. Sequence numbers grow across all releases of a channel; never reset them.
 4. Keep the Inno Setup AppId, the Setup file name pattern, a Windows x64 Inno Setup installer, and the
    switches the **old** helper passes (`/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /CURRENTUSER|/ALLUSERS
@@ -337,7 +338,7 @@ AppId and folder) and keeps settings and documents.
 
 ## Manifest expiry
 
-Policy (from 0.4.1): every manifest is valid for **730 days from its `issued` time**. The release
+Policy (from 0.5.0, the first published version with update checks): every manifest is valid for **730 days from its `issued` time**. The release
 tool signs for exactly 730 days by default (`--expires-days` accepts 1–730), the application refuses
 any manifest whose `expires − issued` exceeds 730 days (`MAX_VALIDITY` in `core/updates/manifest.py`)
 or whose dates are malformed, out of order or not UTC (`…Z`), and `verify_release.py` requires at
@@ -357,8 +358,8 @@ information has expired*; opening, editing and saving keep working, offline or n
   an installation that accepted *N* refuses everything below *N*.
 * Clock checks: a manifest dated more than 24 hours in the future is refused; a computer whose clock
   is far ahead sees valid manifests as expired. Both fail safely.
-* Note for future versions: 0.4.1 refuses manifests valid for more than 730 days. A later decision
-  to sign longer-lived manifests would make them unverifiable for 0.4.1-era copies.
+* Note for future versions: 0.5.0 refuses manifests valid for more than 730 days. A later decision
+  to sign longer-lived manifests would make them unverifiable for 0.5.0-era copies.
 
 ### Security assessment of 730 instead of 365 days
 
@@ -377,7 +378,7 @@ can only be renewed by a new release.
 | Key rotation | A manifest signed with a key that is later retired stays valid up to 2 years: after a key **compromise**, publish the replacement release promptly (see [Key rotation](#key-rotation)). |
 | Immutable releases | The reason for the change: a manifest cannot be renewed in place, so its validity must cover the expected time to the next release. |
 
-Stronger design, not added before 0.4.1: TUF-style short-lived **timestamp** metadata (re-signed every
+Stronger design, not added in 0.5.0: TUF-style short-lived **timestamp** metadata (re-signed every
 few days, e.g. by a scheduled job) would bound freeze attacks to days regardless of release
 frequency, but needs an online or scheduled signing key and a mutable hosting location (immutable
 releases cannot hold it). It would be a deliberate future design change, not a last-minute one.
@@ -393,8 +394,9 @@ Signing happens locally; GitHub only hosts the files. For every release with upd
 4. Build the final release artifacts (`scripts\build_release.ps1`); `verify_release.py` passes.
 5. Calculate the final installer hashes (the build writes `SHA256SUMS.txt`; `Get-FileHash`).
 6. Generate the 730-day manifest and 7. sign it locally (`make`, interactive passphrase) with the
-   next sequence number — **1** for the first production manifest (0.4.1); never reuse a number for a
-   different manifest (`SEQUENCE_LOG.txt` beside the key).
+   next sequence number — one more than the highest number recorded in `SEQUENCE_LOG.txt` beside the
+   key (a number used for a manifest that was signed but never published, such as one prepared for
+   0.4.1, is used up); never reuse a number for a different manifest.
 8. Verify its Ed25519 signature (`verify`) and 9. confirm the installer hash and size match
    (`verify_release.py --dir installer …` → `PASS update-manifest`: verified with the release's own
    trusted keys exactly as the application does; this version; this Setup.exe — URL of tag
@@ -440,10 +442,10 @@ authentication; keep immutable releases on.
 3. ✅ Manifest validity: 730 days, enforced as a maximum by the application ([Manifest expiry](#manifest-expiry)).
 4. ✅ `verify_release.py` checks the manifest of every release whose configuration has updates on.
 5. Optional, not done: Authenticode signing and `require_authenticode`.
-6. ❌ Not yet done: installation, 0.4.0 → 0.4.1 upgrade and application tests of the packaged build
-   on real Windows computers ([WINDOWS_RELEASE_TEST_CHECKLIST.md](WINDOWS_RELEASE_TEST_CHECKLIST.md)),
-   done by the maintainer. Required before 0.4.1 is published. The first **Update Now** through the
-   updater can only be tested with the release after 0.4.1.
+6. Installation, 0.4.0 → 0.5.0 upgrade and application tests of the packaged build on real Windows
+   computers ([WINDOWS_RELEASE_TEST_CHECKLIST.md](WINDOWS_RELEASE_TEST_CHECKLIST.md)), done by the
+   maintainer: for 0.5.0 carried out after publication (not verified at release). The first
+   **Update Now** through the updater can only be tested with the release after 0.5.0.
 
 `verify_release.py --layout` also fails a release whose bundled update or reporting configuration
 differs from the repository's (so a test build's synthetic key, mock endpoint or test CA can never be

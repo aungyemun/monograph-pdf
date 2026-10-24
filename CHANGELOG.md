@@ -2,10 +2,10 @@
 
 All notable changes to Monograph PDF. Versions follow `VERSION` (see `docs/RELEASE_AND_VERSIONING.md`).
 
-## [0.5.0] — Unreleased
+## [0.5.0] — 2026-10-25
 
-Changes after 0.4.1. Version 0.4.2 was built for testing but never released; its changes are part of
-0.5.0.
+Changes after 0.4.1. Versions 0.4.1 and 0.4.2 were never released; their changes are part of 0.5.0,
+which is the first published version with signed update checks switched on.
 
 ### Security
 
@@ -174,9 +174,10 @@ Changes after 0.4.1. Version 0.4.2 was built for testing but never released; its
 - Searching a long document no longer freezes the window: matches appear while the search continues
   (3000 pages with a match on every line: the window stays responsive, at most about 0.1 s per step).
 
-## [0.4.1] — 2026-10-23
+## [0.4.1] — not released
 
-Bug-fix release for 0.4.0 that also switches on signed update checks. The sending of problem reports
+Prepared on 2026-10-23 but never published; everything below is included in 0.5.0. A bug-fix
+version for 0.4.0 that also switches on signed update checks. The sending of problem reports
 remains switched off.
 
 ### Security

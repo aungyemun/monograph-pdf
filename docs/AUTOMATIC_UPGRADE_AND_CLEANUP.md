@@ -1,9 +1,9 @@
 # Automatic in-place upgrade and update cleanup
 
-Status: **included since 0.3.0; switched on from 0.4.1** with the production update-signing key
+Status: **included since 0.3.0; switched on from 0.5.0** with the production update-signing key
 ([SECURE_UPDATES.md](SECURE_UPDATES.md#production-setup)). 0.4.0 and earlier cannot update themselves;
 the first upgrade through this path is from 0.5.0 (the first published version with update checks;
-0.4.1 was not published) to a later release. An installed copy can skip any
+0.4.1 was never published) to a later release. An installed copy can skip any
 number of versions and upgrade directly to the newest release; supported and unsupported paths:
 [SECURE_UPDATES.md](SECURE_UPDATES.md#direct-upgrades-and-long-term-compatibility). This page describes what happens after
 the user clicks **Update Now**, which installation is changed, which files may be replaced or
@@ -100,7 +100,7 @@ upgrades and are covered by `scripts/test_installer.ps1`:
 * Anything not owned — category B — is never deleted; the installation folder is never deleted
   recursively.
 * Tightly coupled parts (Python runtime, Qt, PyMuPDF, OCR engine) are only ever replaced together,
-  as one signed installer. Selective component updates are not part of 0.3.0, 0.4.0 or 0.4.1.
+  as one signed installer. Selective component updates are not part of 0.3.0, 0.4.0 or 0.5.0.
 
 ## Staging folder and cleanup
 

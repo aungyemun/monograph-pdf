@@ -39,7 +39,7 @@ Complete list: [Features](docs/FEATURES.md) · How to use each tool: [User Guide
 | **Included** | Everything in the table above unless listed below; covered by the automated tests on Windows |
 | **Needs another application** | Office files to PDF and Office round trips need Microsoft Office or LibreOffice installed (tested with Microsoft 365 and LibreOffice 24.2 only) |
 | **Limited** | PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts. 45 optional OCR languages are installed on request (Download and Install, or from a file) and verified against a pinned SHA-256; their recognition quality has not been tested by the project. Editing Japanese vertical text is not fully supported |
-| **Built in, switched off** | Sending problem reports; it stays off until a reporting service exists and has been verified. (Update checks are switched on from 0.4.1.) |
+| **Built in, switched off** | Sending problem reports; it stays off until a reporting service exists and has been verified. (Update checks are switched on from 0.5.0.) |
 | **Not supported** | Certificate-based digital signatures (signatures are visual); macOS, Android and iOS; Windows on ARM has not been tested |
 
 ## Screenshots
@@ -96,7 +96,7 @@ silent installation, upgrading and uninstalling are described in [Installation](
 * Monograph PDF is designed to operate offline. It requires no account or cloud service and has no
   telemetry, advertising, online OCR or document upload. Viewing, editing, saving, OCR, conversion and
   printing never use the network.
-* **Help ▸ Check for Updates…** (switched on from 0.4.1; 0.5.0 is the first published version with it) checks the official GitHub Releases page when you ask and
+* **Help ▸ Check for Updates…** (from 0.5.0) checks the official GitHub Releases page when you ask and
   accepts only update information signed with the project's update-signing key; nothing is downloaded
   or installed until you click **Update Now**. Automatic checks are optional and **off by default**.
   0.4.0 and earlier cannot update themselves: install the current version once with Setup. Problem reports are still

@@ -30,14 +30,14 @@ The following are also not verified:
 
 - Japanese, Chinese, Korean, German or French Windows (the Unicode tests are simulated on an English Windows with Unicode folder and file names);
 - Windows 10;
-- an administrator-run all-users installation of 0.3.0, 0.4.0 or 0.4.1.
+- an administrator-run all-users installation of 0.3.0, 0.4.0 or 0.5.0.
 
 0.3.0 (2026-10-22) and 0.4.0 (2026-10-23) were published with these checks, and the installer test, still not verified; their release notes say so. They remain open.
 
 ### How to run the clean-PC test
 
 Releases are validated by the maintainer on real Windows test computers with the
-[Windows release test checklist](WINDOWS_RELEASE_TEST_CHECKLIST.md) (from 0.4.1). The Windows Sandbox
+[Windows release test checklist](WINDOWS_RELEASE_TEST_CHECKLIST.md) (updated for 0.5.0). The Windows Sandbox
 procedure below is an optional alternative where Sandbox is available (not on Windows Home).
 
 Windows Sandbox (Windows 11 Pro or Enterprise) is a disposable clean Windows. To enable it:
