@@ -9,6 +9,10 @@ forms, organize, convert, compress, OCR, protect). Platform-specific pieces use
 Linux replacements (flock, fontconfig, LibreOffice, XDG, system/micromamba
 Tesseract + pinned tessdata).
 
+**Signing.** This first Linux release is **unsigned**. Code signing and signed
+update manifests will be added later; until then, build from this repository and
+verify checksums when archives are published.
+
 ## Requirements
 
 * Linux x86_64 (developed and tested on this PC)
