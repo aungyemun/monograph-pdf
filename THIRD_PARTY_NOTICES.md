@@ -33,7 +33,7 @@ All **bundled** components listed below run locally. Monograph PDF connects to t
 | Tesseract OCR | 5.4.0 (Windows build) | Offline optical character recognition | Bundled runtime (separate program) | Apache-2.0 |
 | Tesseract support libraries | see [Tesseract OCR](#tesseract-ocr) | Image formats, text layout and compression for Tesseract | Bundled runtime (separate program) | Various (listed below) |
 | Tesseract language data (eng, jpn, osd) | tessdata_fast 4.1.0 | OCR language models | Bundled resources | Apache-2.0 |
-| Optional Tesseract language data (45 languages, pinned in `resources/ocr/language_packs.json`) | tessdata_fast 4.1.0 | OCR language models | Not bundled: installed on request from the official release, verified by SHA-256 | Apache-2.0 |
+| Optional Tesseract language data (45 languages, pinned in `resources/ocr/language_packs.json`) | tessdata_fast 4.1.0 | OCR language models | Not bundled: downloaded only when the user chooses Download and Install (or installed from a file), from the official release, verified by SHA-256 | Apache-2.0 |
 | Noto Sans, Noto Serif, Noto Sans CJK JP | — | Fallback fonts for newly inserted text | Bundled resources | SIL Open Font License 1.1 |
 | PyInstaller bootloader | 6.11.1 | Application launcher for `MonographPDF.exe` | Bundled launcher | GPL-2.0-or-later with bootloader exception |
 | Inno Setup | 6.7.1 | Builds `Setup.exe`; its uninstaller `unins000.exe` is installed | Installer and uninstaller | Inno Setup License |

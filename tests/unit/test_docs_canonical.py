@@ -10,6 +10,8 @@ DOCS = ROOT / "docs"
 
 CANONICAL = {
     "USER_GUIDE.md",
+    # 0.5.0: how protected, signed and watermarked PDFs are handled by every output
+    "PROTECTED_SIGNED_WATERMARKED_PDFS.md",
     "FEATURES.md",
     "FILE_FORMATS_AND_COMPATIBILITY.md",
     "ARCHITECTURE.md",
