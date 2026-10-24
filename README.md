@@ -5,7 +5,7 @@
 [![Windows CI](https://github.com/aungyemun/monograph-pdf/actions/workflows/windows-ci.yml/badge.svg)](https://github.com/aungyemun/monograph-pdf/actions/workflows/windows-ci.yml)
 
 **A free, open-source PDF editor for Windows 10 and 11, designed for privacy and fully offline
-operation.** Current release: **0.4.1**.
+operation.** Current release: **0.5.0**.
 
 Monograph PDF lets you view, edit, annotate, organize, convert and protect PDF documents on your own
 computer. It needs no account or internet connection and has no function that uploads your files.
@@ -20,26 +20,26 @@ conversions are written to new files.
 
 | | |
 | :--- | :--- |
-| **View** | Search, zoom, page thumbnails, editable bookmarks, attachments, printing with preview |
-| **Edit** | Edit text; add text boxes, pictures, shapes, comments and stamps; highlight, underline, squiggly-underline or strike through text, and remove these marks with the Eraser; a Comments panel — with Undo / Redo |
+| **View** | Search (also scientific symbols and Greek letters), zoom around the pointer, a scroll button and automatic scrolling, page thumbnails, editable bookmarks, attachments, printing with preview |
+| **Edit** | Edit text; add text boxes, pictures (in front of or behind the text), shapes, comments and stamps; highlight, underline, squiggly-underline or strike through text, and remove these marks with the Eraser; a Comments panel — with Undo / Redo |
 | **Forms** | Fill in forms, design new fields and flatten finished forms |
 | **Organize** | Merge, split, insert, delete, rotate, crop and reorder pages; change page size |
 | **Page design** | Headers, footers, page numbers, Bates numbers, watermarks and backgrounds |
 | **Convert** | PDF to Word, Excel, PowerPoint (keeping page sizes) and images; images to PDF; Office files to PDF with Microsoft Office or LibreOffice; batch conversion |
 | **Compress** | Lossless, balanced or smallest file, or an exact maximum size (for example 956 KB), measured before saving |
 | **OCR** | Offline text recognition for English and Japanese, 45 more languages installable on request (verified); make scans searchable or editable; recognize an area, extract and correct text, scanned PDF to Word |
-| **Protect** | AES-256 passwords and permissions, redaction that removes the marked content, removal of hidden information, visual signatures |
+| **Protect** | AES-256 passwords and permissions that are honoured and kept in every copy, redaction that removes the marked content, removal of hidden information, visual signatures |
 
 Complete list: [Features](docs/FEATURES.md) · How to use each tool: [User Guide](docs/USER_GUIDE.md) (also **F1** in the app)
 
-### Feature status in 0.4.1
+### Feature status in 0.5.0
 
 | Status | Features |
 | :--- | :--- |
 | **Included** | Everything in the table above unless listed below; covered by the automated tests on Windows |
 | **Needs another application** | Office files to PDF and Office round trips need Microsoft Office or LibreOffice installed (tested with Microsoft 365 and LibreOffice 24.2 only) |
 | **Limited** | PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts. 45 optional OCR languages are installed on request (Download and Install, or from a file) and verified against a pinned SHA-256; their recognition quality has not been tested by the project. Editing Japanese vertical text is not fully supported |
-| **Built in, switched off** | Update checks and automatic upgrades; sending problem reports. They stay off until a production update-signing key and a reporting service exist and have been verified |
+| **Built in, switched off** | Sending problem reports; it stays off until a reporting service exists and has been verified. (Update checks are switched on from 0.4.1.) |
 | **Not supported** | Certificate-based digital signatures (signatures are visual); macOS, Android and iOS; Windows on ARM has not been tested |
 
 ## Screenshots
@@ -69,12 +69,12 @@ Only Windows builds are available.
 
 ## Download and installation
 
-1. Download `MonographPDF_0.4.1_Setup.exe` from the official
+1. Download `MonographPDF_0.5.0_Setup.exe` from the official
    [latest release](https://github.com/aungyemun/monograph-pdf/releases/latest) page only.
 2. Check its SHA-256 checksum in PowerShell and compare it with the value in the release notes:
 
    ```powershell
-   Get-FileHash .\MonographPDF_0.4.1_Setup.exe -Algorithm SHA256
+   Get-FileHash .\MonographPDF_0.5.0_Setup.exe -Algorithm SHA256
    ```
 
 3. Run Setup and choose to install for all users or only for yourself.
@@ -161,7 +161,7 @@ passed. Details: [Testing](docs/TESTING.md).
 * Converting PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts.
 * Converting Office files to PDF requires Microsoft Office or LibreOffice.
 * OCR includes English and Japanese; 45 more languages can be installed on request (OCR ▸ OCR Languages), verified against a pinned SHA-256.
-* Not verified for 0.4.1: Windows 10, localized (Japanese, Chinese, Korean, German, French) Windows,
+* Not verified for 0.5.0: Windows 10, localized (Japanese, Chinese, Korean, German, French) Windows,
   Office versions other than Microsoft 365 and LibreOffice 24.2, and printing on a physical printer.
 
 More: [User Guide ▸ Current limitations](docs/USER_GUIDE.md#current-limitations)
@@ -185,7 +185,7 @@ contains the corresponding source code of the bundled AGPL, GPL and LGPL compone
 
 If you use Monograph PDF in research, please cite it as described in [CITATION.cff](CITATION.cff):
 
-> Mun AY. *Monograph PDF*. Version 0.4.1. 2026. https://github.com/aungyemun/monograph-pdf
+> Mun AY. *Monograph PDF*. Version 0.5.0. 2026. https://github.com/aungyemun/monograph-pdf
 
 Design, development, testing, documentation and packaging: **Aung Ye Mun**. With thanks to the
 developers of the open-source projects listed in the third-party notices.

@@ -4241,7 +4241,7 @@ class MainWindow(QMainWindow):
             return True
         from core.organize.page_ops import warning_for_signatures
 
-        msg = warning_for_signatures(self._document)
+        msg = warning_for_signatures(self._document) if self._signed_count() else None
         if not msg:
             return True
         resp = QMessageBox.warning(
@@ -5457,9 +5457,22 @@ class MainWindow(QMainWindow):
 
         return ask_permissions_password(self, self._document, permission, action)
 
+    def _signed_count(self) -> int:
+        """Signature fields that carry a digital signature (empty signature fields do not count)."""
+        if self._document is None:
+            return 0
+        from core.security.protection import signed_signature_count
+
+        try:
+            return signed_signature_count(self._document._backend._doc)  # noqa: SLF001
+        except Exception:  # noqa: BLE001
+            return 0
+
     def _confirm_signed(self) -> bool:
         if self._document is None:
             return False
+        if not self._signed_count():
+            return True  # an empty signature field waiting to be signed: nothing becomes invalid
         from core.security.ops import warn_signed_document
         from ui.security_dialogs import confirm_signed_edit
 
