@@ -158,3 +158,9 @@ installer_test*.log
 /scripts/gui_driver.ps1
 /scripts/office_open_check.ps1
 /scripts/powerpoint_export.ps1
+
+# Linux first-release local OCR / caches (vendored at build time)
+models/tessdata/*.traineddata
+engines/ocr/tesseract
+packages/wheels/
+runtime/
