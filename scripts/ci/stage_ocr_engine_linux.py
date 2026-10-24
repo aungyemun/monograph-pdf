@@ -104,7 +104,7 @@ def verify_tessdata() -> int:
         if not path.is_file():
             problems.append(f"missing {name}")
         elif sha256(path) != expected:
-            problems.append(f"SHA-256 SHA-256 differs: {name}")
+            problems.append(f"SHA-256 differs: {name}")
     if problems:
         print("tessdata verification FAILED:")
         for p in problems:
