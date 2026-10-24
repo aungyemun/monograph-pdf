@@ -2,7 +2,7 @@
 
 All notable changes to Monograph PDF. Versions follow `VERSION` (see `docs/RELEASE_AND_VERSIONING.md`).
 
-## [0.5.0] — Unreleased
+## [0.5.0] — 2026-10-24
 
 Changes after 0.4.1. Version 0.4.2 was built for testing but never released; its changes are part of
 0.5.0.
