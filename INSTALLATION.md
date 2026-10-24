@@ -19,6 +19,7 @@ Full notes: [LINUX.md](LINUX.md).
 
 ---
 
+## Windows (0.5.0)
 
 Monograph PDF is installed with a standard Windows installer. Everything it needs — including
 Python, Qt and the OCR engine — is included, and no internet connection is required.
