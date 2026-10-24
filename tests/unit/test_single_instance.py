@@ -14,12 +14,15 @@ import pytest
 
 from app import single_instance as si
 
-windows_only = pytest.mark.skipif(not sys.platform.startswith("win"), reason="Windows mutex")
+has_lock = pytest.mark.skipif(
+    not (sys.platform.startswith("win") or sys.platform.startswith(("darwin", "linux"))),
+    reason="no single-instance lock on this platform",
+)
 
 
-@windows_only
+@has_lock
 def test_second_process_is_not_primary(tmp_path):
-    """A real second process sees the first one's mutex (and a different folder does not)."""
+    """A real second process sees the first one's lock (and a different folder does not)."""
     root = Path(__file__).resolve().parents[2]
     holder = subprocess.Popen(
         [sys.executable, "-c",

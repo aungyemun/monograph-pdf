@@ -19,6 +19,23 @@ OUT = ROOT / "tests" / "outputs" / "generated" / "shapes"
 SAMPLES = ROOT / "tests" / "samples"
 
 
+def _letter_sample(tmp_path: Path | None = None) -> Path:
+    """Prefer a normal page PDF; never the tiny OCR fixtures that sort first as ``*.pdf``."""
+    for name in ("sample_plain.pdf", "sample_invitation_form.pdf", "sample_image_page.pdf"):
+        cand = SAMPLES / name
+        if cand.is_file():
+            return cand
+    if tmp_path is None:
+        tmp_path = OUT
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    blank = tmp_path / "letter_blank.pdf"
+    doc = fitz.open()
+    doc.new_page(width=612, height=792)
+    doc.save(blank)
+    doc.close()
+    return blank
+
+
 @pytest.fixture(scope="module", autouse=True)
 def _fixtures():
     from tests.fixtures.make_samples import main as base
@@ -35,9 +52,7 @@ def test_square_and_circle_constraints():
 
 
 def test_create_shapes_and_bake(tmp_path: Path):
-    src = SAMPLES / "sample_plain.pdf"
-    if not src.is_file():
-        src = next(SAMPLES.glob("*.pdf"))
+    src = _letter_sample(tmp_path)
     pdf = open_document(src)
     edit = EditableDocument(pdf)
     rect = edit.create_shape(0, Rect(72, 72, 120, 60), "rectangle")
@@ -66,8 +81,14 @@ def test_create_shapes_and_bake(tmp_path: Path):
 
 
 def test_shape_move_one_undo(tmp_path: Path):
-    src = next(SAMPLES.glob("*.pdf"))
-    pdf = open_document(src)
+    # Use a letter-size page. ``tests/samples/*.pdf`` starts with tiny OCR fixtures whose
+    # width (~92 pt) clamps a (10, 5) move via keep-on-page.
+    blank = tmp_path / "letter.pdf"
+    doc = fitz.open()
+    doc.new_page(width=612, height=792)
+    doc.save(blank)
+    doc.close()
+    pdf = open_document(blank)
     edit = EditableDocument(pdf)
     s = edit.create_shape(0, Rect(50, 50, 40, 40), "rectangle")
     before = edit.begin_transform_snapshot()
@@ -106,7 +127,7 @@ def test_inspector_context_switch(qtbot):
     create_application(["pdf-inspector"])
     window = MainWindow()
     qtbot.addWidget(window)
-    src = next(SAMPLES.glob("*.pdf"))
+    src = _letter_sample(OUT)
     assert window.open_path(src)
     edit = window._edit  # noqa: SLF001
     insp: InspectorPanel = window._inspector  # noqa: SLF001

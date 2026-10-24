@@ -10,6 +10,7 @@ as the active identity.
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,13 +26,17 @@ def _resources_dir() -> Path:
 
 PRODUCT_NAME = "Monograph PDF"
 INTERNAL_NAME = "MonographPDF"
-EXECUTABLE_NAME = "MonographPDF.exe"
+# Platform executable identity: Windows keeps the historical .exe name; macOS uses the
+# Mach-O binary name inside MonographPDF.app (first macOS release is independent of Windows).
+EXECUTABLE_NAME = "MonographPDF.exe" if sys.platform.startswith("win") else "MonographPDF"
 REPOSITORY_NAME = "monograph-pdf"
-# Folder name under %APPDATA% / %LOCALAPPDATA% (and Program Files, Start menu)
+# Folder name under AppData / Application Support (and Program Files, Applications)
 DATA_FOLDER_NAME = "Monograph PDF"
 COPYRIGHT_OWNER = "Aung Ye Mun"
 COPYRIGHT_START_YEAR = 2026
 COPYRIGHT_DISPLAY = "© 2026 Aung Ye Mun"
+# macOS first-release line (VERSION file); Windows releases remain on their own track.
+PLATFORM_LINE = "macOS" if sys.platform == "darwin" else ("Windows" if sys.platform.startswith("win") else "other")
 
 PRODUCT_DESCRIPTION = (
     "Monograph PDF is an offline, privacy-first desktop application for viewing, editing, "
@@ -49,6 +54,7 @@ LEGACY_FINAL_VERSION = "0.1.5"
 ICON_ARTWORK_REL = "source/Monograph_PDF_logo.png"  # canonical artwork (logo with wordmark)
 ICON_PNG_MASTER_REL = "source/monograph_pdf_icon_1024.png"  # square emblem made from the artwork
 ICON_ICO_REL = "windows/monograph_pdf.ico"
+ICON_ICNS_REL = "macos/monograph_pdf.icns"
 # About box / Start page show the emblem next to the product name as text (the wordmark's dark
 # lettering would disappear on the dark theme); 256 px stays sharp at 72 px on 300 % displays
 ICON_ABOUT_PNG_REL = "windows/monograph_pdf_256.png"
@@ -96,7 +102,7 @@ def version_resource_strings(version: str | None = None) -> dict[str, str]:
         "FileVersion": version,
         "InternalName": INTERNAL_NAME,
         "LegalCopyright": COPYRIGHT_DISPLAY,
-        "OriginalFilename": EXECUTABLE_NAME,
+        "OriginalFilename": "MonographPDF.exe",
         "ProductName": PRODUCT_NAME,
         "ProductVersion": version,
     }
@@ -126,8 +132,14 @@ def icon_path(relative: str) -> Path:
 
 
 def resolve_app_icon_path() -> Path | None:
-    """Best available icon for window/taskbar (ICO preferred on Windows, else PNG)."""
-    for rel in (ICON_ICO_REL, "windows/monograph_pdf_256.png", ICON_PNG_MASTER_REL):
+    """Best available icon for window/taskbar (ICO on Windows, ICNS/PNG on macOS)."""
+    if sys.platform.startswith("win"):
+        order = (ICON_ICO_REL, "windows/monograph_pdf_256.png", ICON_PNG_MASTER_REL)
+    elif sys.platform == "darwin":
+        order = (ICON_ICNS_REL, "windows/monograph_pdf_256.png", ICON_PNG_MASTER_REL, ICON_ICO_REL)
+    else:
+        order = ("windows/monograph_pdf_256.png", ICON_PNG_MASTER_REL, ICON_ICO_REL)
+    for rel in order:
         path = icon_path(rel)
         if path.is_file():
             return path
@@ -144,7 +156,10 @@ def resolve_about_logo_path() -> Path | None:
 
 def branding_assets_ok() -> tuple[bool, str]:
     """Return (ok, detail) for missing critical logo resources."""
-    missing = [rel for rel in (ICON_PNG_MASTER_REL, ICON_ICO_REL, ICON_ABOUT_PNG_REL) if not icon_path(rel).is_file()]
+    required = [ICON_PNG_MASTER_REL, ICON_ABOUT_PNG_REL]
+    if sys.platform.startswith("win"):
+        required.append(ICON_ICO_REL)
+    missing = [rel for rel in required if not icon_path(rel).is_file()]
     if missing:
         return False, "Missing branding assets: " + ", ".join(missing)
     return True, "Branding assets present"

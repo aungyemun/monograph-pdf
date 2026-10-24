@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 from PIL import Image
@@ -37,7 +38,10 @@ ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
 
 def test_canonical_identity_strings():
     assert PRODUCT_NAME == "Monograph PDF"
-    assert EXECUTABLE_NAME == "MonographPDF.exe"
+    if sys.platform.startswith("win"):
+        assert EXECUTABLE_NAME == "MonographPDF.exe"
+    else:
+        assert EXECUTABLE_NAME == "MonographPDF"
     assert INTERNAL_NAME == "MonographPDF"
     assert REPOSITORY_NAME == "monograph-pdf"
     assert DATA_FOLDER_NAME == "Monograph PDF"
@@ -55,9 +59,12 @@ def test_legacy_identity_is_internal_compatibility_only():
 
 
 def test_version_is_on_a_public_line():
-    # 0.2.x was the first public line; 0.3.0 is the next milestone (updates and error reporting)
+    # Windows public line started at 0.2.x; macOS first release is 0.1.0 (independent track).
     major, minor, patch = (int(x) for x in re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", get_version()).groups())
-    assert (major, minor) >= (0, 2)
+    if sys.platform == "darwin":
+        assert (major, minor, patch) >= (0, 1, 0)
+    else:
+        assert (major, minor) >= (0, 2)
     assert get_version() == (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 
@@ -72,6 +79,7 @@ def test_identity_version_from_version_file():
 
 def test_pe_version_resource_strings():
     v = get_version()
+    # PE resource strings always describe the Windows executable name (used by Windows packaging).
     assert version_resource_strings() == {
         "CompanyName": "Aung Ye Mun",
         "FileDescription": "Monograph PDF",
@@ -104,7 +112,11 @@ def test_branding_assets_present():
     assert icon_path("source/Monograph_PDF_logo.png").is_file()
     assert icon_path("source/monograph_pdf_icon_1024.png").is_file()
     assert icon_path("windows/monograph_pdf.ico").is_file()
-    assert resolve_app_icon_path() == icon_path("windows/monograph_pdf.ico")
+    if sys.platform.startswith("win"):
+        assert resolve_app_icon_path() == icon_path("windows/monograph_pdf.ico")
+    else:
+        # macOS prefers .icns when present; otherwise falls back to PNG / ICO artwork
+        assert resolve_app_icon_path() is not None
     assert resolve_about_logo_path() == icon_path("windows/monograph_pdf_256.png")
     # No loose icons in project root
     assert not (ROOT / "monograph_pdf.ico").exists()
@@ -145,4 +157,5 @@ def test_icons_come_from_the_new_logo_without_distortion():
 def test_old_pdf_editor_logo_is_not_an_active_resource():
     names = [p.name for p in ICONS.rglob("*") if p.is_file()]
     assert not [n for n in names if n.lower().startswith("pdf_editor") or n == "PDF_logo.png"], names
-    assert not (ICONS / "linux").exists() and not (ICONS / "macos").exists()
+    # linux icons are not shipped; macOS .icns may live under resources/icons/macos
+    assert not (ICONS / "linux").exists()

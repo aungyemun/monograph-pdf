@@ -2,16 +2,24 @@
 
 The program and its helpers are Windows GUI programs, and every console program the application
 starts (OCR engine, wevtutil, Office/LibreOffice command lines, version probes) is started with
-CREATE_NO_WINDOW."""
+CREATE_NO_WINDOW. On macOS the same keyword is passed (value 0) for a uniform call shape."""
 
 from __future__ import annotations
 
 import ast
+import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 CALLS = {"run", "Popen", "call", "check_call", "check_output"}
-GUI_PROGRAMS = ("explorer.exe",)  # GUI programs: no console window is created for them
+GUI_PROGRAMS = ("explorer.exe", "/usr/bin/open")  # GUI programs: no console window is created for them
+
+pytestmark = pytest.mark.skipif(
+    not sys.platform.startswith("win") and sys.platform != "darwin",
+    reason="console-window policy is for Windows and macOS desktop builds",
+)
 
 
 def _subprocess_calls():

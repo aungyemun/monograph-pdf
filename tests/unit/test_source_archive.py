@@ -26,6 +26,11 @@ import make_source_archive as msa  # noqa: E402
 
 sys.path.remove(str(PACKAGING))
 
+pytestmark = pytest.mark.skipif(
+    not sys.platform.startswith("win"),
+    reason="Windows Source.zip / MSYS2 OCR DLL corresponding-source checks",
+)
+
 MANIFEST = msa.load_manifest()
 VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 

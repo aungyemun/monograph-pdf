@@ -1,8 +1,8 @@
 # Monograph PDF — Third-Party Notices
 
-This document identifies the third-party software redistributed with Monograph PDF 0.5.0 (inside `MonographPDF.exe`, its `_internal` folder, `engines\ocr` and `models\tessdata`). Each component remains under its own license. The statements below do not amend those licenses.
+This document identifies the third-party software redistributed with Monograph PDF **0.1.0 (macOS first release)** and the Windows 0.5.x line (inside `MonographPDF.app` / `MonographPDF.exe`, OCR under `engines/ocr` and `models/tessdata`). Each component remains under its own license. The statements below do not amend those licenses.
 
-License texts: `LICENSE.md` (Monograph PDF: **AGPL-3.0-or-later**; PyMuPDF/MuPDF retain upstream **AGPL-3.0**) and, in the `licenses` folder of the installation, GPL-2.0, GPL-3.0, LGPL-2.1, LGPL-3.0, MPL-1.1 and the GCC Runtime Library Exception. Corresponding Monograph PDF release source, including application, build, installer, documentation and release tests, together with the corresponding source of every bundled AGPL, GPL and LGPL component, is published with each release as `MonographPDF_0.5.0_Source.zip` (see [Corresponding source](#corresponding-source)). Local personal-document validation utilities that contain private or machine-local paths are intentionally excluded from that archive.
+License texts: `LICENSE.md` (Monograph PDF: **AGPL-3.0-or-later**; PyMuPDF/MuPDF retain upstream **AGPL-3.0**) and, in the `licenses` folder of the installation, GPL-2.0, GPL-3.0, LGPL-2.1, LGPL-3.0, MPL-1.1 and the GCC Runtime Library Exception. Corresponding Monograph PDF release source, including application, build, installer, documentation and release tests, together with the corresponding source of every bundled AGPL, GPL and LGPL component, is published with each release as `MonographPDF_<version>_Source.zip` (for this macOS line `MonographPDF_0.1.0_Source.zip`; see [Corresponding source](#corresponding-source)). Local personal-document validation utilities that contain private or machine-local paths are intentionally excluded from that archive.
 
 Each bundled component keeps its own license, listed below.
 
@@ -45,7 +45,7 @@ Each release is published together with `MonographPDF_<version>_Source.zip` (for
 
 | Component | Version | License | Release files | In the source archive |
 | :--- | :--- | :--- | :--- | :--- |
-| Monograph PDF | 0.5.0 | AGPL-3.0-or-later | `MonographPDF.exe` (application code), `uninstall.exe`, `MonographPDFUpdater.exe` | `monograph-pdf/` — corresponding release source (application, build, installer, documentation and release tests; personal-document validation utilities excluded) |
+| Monograph PDF | 0.1.0 | AGPL-3.0-or-later | `MonographPDF.app` / `MonographPDF` (macOS); Windows builds also ship `MonographPDF.exe`, `uninstall.exe`, `MonographPDFUpdater.exe` | `monograph-pdf/` — corresponding release source (application, build, installer, documentation and release tests; personal-document validation utilities excluded) |
 | PyMuPDF | 1.25.3 | AGPL-3.0 | `_internal\pymupdf` | `third-party/pymupdf/pymupdf-1.25.3.tar.gz` (PyPI source distribution) |
 | MuPDF | 1.25.4 | AGPL-3.0 | `_internal\pymupdf\mupdfcpp64.dll`, `_mupdf.pyd` | `third-party/mupdf/mupdf-1.25.4-source.tar.gz` (the MuPDF release PyMuPDF 1.25.3 builds) |
 | pdf2docx | 0.5.8 | GPL-3.0 | inside `MonographPDF.exe` | `third-party/pdf2docx/pdf2docx-0.5.8.tar.gz` |

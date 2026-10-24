@@ -97,7 +97,7 @@ Nothing is written to the installation folder `{app}` during normal use.
 12. The page view (`ui/pdf_canvas.py`) renders pages progressively; the scroll button and automatic
     scrolling are `ui/autoscroll.py`; every colour choice uses `ui/color_picker.py`.
 
-## Updates and problem reports (built in since 0.3.0; update checks switched on from 0.5.0, problem-report sending still off)
+## Updates and problem reports (built in since 0.3.0; update checks switched on from 0.4.1, problem-report sending still off)
 
 * `core/updates/manager.py` checks a signed manifest (`manifest.py`, `ed25519.py`) fetched over
   HTTPS (`net.py`), downloads and verifies Setup into the staging folder (`staging.py`), picks the

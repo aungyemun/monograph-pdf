@@ -272,6 +272,10 @@ class UpdateController(QObject):
     def _message_with_releases_link(self, icon, title: str, text: str, installed: str, extra: str, *,
                                     window_title: str = "Check for Updates") -> None:
         box = QMessageBox(icon, window_title, f"{title}\n\n{text}", parent=self._window)
+        # macOS often suppresses QMessageBox window titles; keep a readable copy for tests/a11y.
+        box.setWindowTitle(window_title)
+        box.setAccessibleName(window_title)
+        box.setProperty("monographWindowTitle", window_title)
         box.setInformativeText((extra + "\n\n" if extra else "") + f"Installed version: {installed}")
         open_page = box.addButton("Open Releases Page", QMessageBox.ButtonRole.ActionRole)
         box.addButton(QMessageBox.StandardButton.Ok)

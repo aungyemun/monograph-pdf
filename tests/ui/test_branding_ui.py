@@ -136,11 +136,21 @@ def test_about_shows_monograph_pdf_identity_without_product_history(window, qtbo
 
 
 def test_window_and_application_icon_is_the_new_logo(window):
+    import sys
+
     from PySide6.QtWidgets import QApplication
 
     from core.product_meta import resolve_app_icon_path
 
-    assert resolve_app_icon_path().name == "monograph_pdf.ico"
+    icon_name = resolve_app_icon_path().name
+    if sys.platform.startswith("win"):
+        assert icon_name == "monograph_pdf.ico"
+    else:
+        assert icon_name in {"monograph_pdf.icns", "monograph_pdf_256.png", "monograph_pdf_icon_1024.png", "monograph_pdf.ico"}
     icon = QApplication.instance().windowIcon()
     sizes = {(s.width(), s.height()) for s in icon.availableSizes()}
-    assert {(16, 16), (32, 32), (48, 48), (256, 256)} <= sizes, sizes
+    # On macOS Qt may expose fewer discrete sizes from a PNG/ICNS source.
+    if sys.platform.startswith("win"):
+        assert {(16, 16), (32, 32), (48, 48), (256, 256)} <= sizes, sizes
+    else:
+        assert sizes, "application icon has no sizes"

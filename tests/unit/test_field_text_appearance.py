@@ -92,7 +92,24 @@ def test_bold_italic_latin_uses_font_variants(tmp_path):
 def test_plain_latin_values_keep_mupdf_appearance(tmp_path):
     out = _fill_and_save(_form(tmp_path / "f.pdf"), "Plain text 123")
     with fitz.open(out) as d:
-        assert "Helv" in _ap_fonts(d, next(d[0].widgets()))
+        w = next(d[0].widgets())
+        ap_blob = _ap_fonts(d, w)
+        # Widget /DA still names Helv; the appearance stream may reference it as /Helv (Windows)
+        # or as /F0 → BaseFont /Helvetica / NimbusSans (macOS MuPDF).
+        da = d.xref_get_key(w.xref, "DA")[1]
+        assert "/Helv" in da
+        assert "Plain text 123" in d[0].get_text()
+        ap_xref = int(d.xref_get_key(w.xref, "AP/N")[1].split()[0])
+        font_names = []
+        for xref in range(1, d.xref_length()):
+            try:
+                obj = d.xref_object(xref)
+            except Exception:  # noqa: BLE001
+                continue
+            if "/BaseFont" in obj or "/FontName" in obj:
+                font_names.append(obj)
+        joined = ap_blob + "\n".join(font_names)
+        assert any(token in joined for token in ("Helv", "Helvetica", "NimbusSans")), joined[:800]
 
 
 def test_recent_list_drops_test_and_selfcheck_entries(tmp_path, monkeypatch):

@@ -49,6 +49,8 @@ CANONICAL = {
     "INSTALLER_PACKAGE_CONTENTS.md",
     "CLEAN_WINDOWS_INSTALLATION.md",
     "WINDOWS_RELEASE_TEST_CHECKLIST.md",
+    # macOS first release (0.1.0) — independent of the Windows line
+    "MACOS.md",
 }
 
 STALE_FRAGMENTS = (

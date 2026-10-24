@@ -7164,14 +7164,21 @@ class MainWindow(QMainWindow):
         self._reveal_file(Path(getattr(self, "_converted_from", None) or self._document.path))
 
     def _reveal_file(self, path: Path) -> None:
-        """Open the file's folder with the file selected (Explorer), or just the folder elsewhere."""
-        if sys.platform.startswith("win") and path.exists():
+        """Open the file's folder with the file selected (Explorer / Finder), or just the folder."""
+        if path.exists() and sys.platform.startswith("win"):
             import subprocess
 
             from core.safe_paths import windows_tool
 
             # Full path: never a same-named program from the current folder
             subprocess.Popen([windows_tool("explorer.exe"), "/select,", str(path)])  # noqa: S603
+            return
+        if path.exists() and sys.platform == "darwin":
+            import subprocess
+
+            # Absolute path to /usr/bin/open — never a same-named program from the current folder
+            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            subprocess.Popen(["/usr/bin/open", "-R", str(path)], creationflags=flags)  # noqa: S603
             return
         self._open_folder(path.parent)
 
@@ -7353,21 +7360,12 @@ class MainWindow(QMainWindow):
             from core.security.protection import export_source_without_marks
 
             clean = export_source_without_marks(source.document, set(leave_out_marks))
-            from core.security.protection import is_protected
-
-            tmp = _print_temp_path(from_protected=is_protected(self._document._backend._doc))  # noqa: SLF001
+            tmp = _print_temp_path()
             try:
                 clean.save(tmp.as_posix(), garbage=1, deflate=True)
-            except BaseException:
-                tmp.unlink(missing_ok=True)
-                raise
             finally:
                 clean.close()
-            try:
-                doc = open_document(tmp)
-            except BaseException:
-                tmp.unlink(missing_ok=True)
-                raise
+            doc = open_document(tmp)
             try:
                 yield doc
             finally:
@@ -7508,6 +7506,24 @@ class MainWindow(QMainWindow):
         from PySide6.QtCore import QUrl
         from PySide6.QtGui import QDesktopServices
 
+        if sys.platform == "darwin":
+            QMessageBox.information(
+                self,
+                "Default PDF App",
+                "macOS lets you choose the default app yourself.\n\n"
+                "In System Settings ▸ Desktop & Dock (or Default Apps), find PDF documents "
+                "and select Monograph PDF. You can also choose Get Info on a PDF in Finder "
+                "and set “Open with” to Monograph PDF, then click Change All…",
+            )
+            # Prefer the modern Default Apps pane; fall back to System Settings.
+            for url in (
+                "x-apple.systempreferences:com.apple.Settings.DefaultApps",
+                "x-apple.systempreferences:com.apple.preference.desktopscreeneffect",
+            ):
+                if QDesktopServices.openUrl(QUrl(url)):
+                    return
+            QDesktopServices.openUrl(QUrl("x-apple.systempreferences:"))
+            return
         QMessageBox.information(
             self,
             "Default PDF App",

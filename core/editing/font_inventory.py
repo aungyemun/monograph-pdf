@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -180,11 +181,23 @@ def list_system_families(*, force_refresh: bool = False) -> list[str]:
     except Exception:  # noqa: BLE001
         families = []
 
-    # Headless: still record Windows Fonts directory basenames as weak hints
+    # Headless: still record OS font directory basenames as weak hints
     if not families and os.name == "nt":
         windir = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
         if windir.is_dir():
             families = sorted({p.stem for p in windir.glob("*.ttf")} | {p.stem for p in windir.glob("*.ttc")})
+    if not families and sys.platform == "darwin":
+        names: set[str] = set()
+        for folder in (
+            Path.home() / "Library" / "Fonts",
+            Path("/Library/Fonts"),
+            Path("/System/Library/Fonts/Supplemental"),
+        ):
+            if not folder.is_dir():
+                continue
+            for pattern in ("*.ttf", "*.otf", "*.ttc"):
+                names |= {p.stem for p in folder.glob(pattern)}
+        families = sorted(names)
 
     if headless or len(families) < _MIN_REAL_FAMILIES:
         _system_cache = (now, families)

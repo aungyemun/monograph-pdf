@@ -14,7 +14,7 @@ Nothing has to be installed first: no Python, no Visual C++ Redistributable, no 
 - `--check` fails the build on any unresolved import, a VC++ DLL that is not bundled where the loader looks, or a 32-bit library.
 
 Result for the 0.4.0 release build (tag `v0.4.0`, commit fc411e2; 485 files, 456 MB unpacked).
-The same checks passed in the 0.5.0 release build and matched 0.3.0 (tag `v0.3.0`, commit 96c36b9):
+The same checks apply to 0.4.1 and matched 0.3.0 (tag `v0.3.0`, commit 96c36b9):
 
 | Measure | Result |
 |---|---|

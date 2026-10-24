@@ -21,6 +21,18 @@ from core.updates.state import UpdateState  # noqa: E402
 from tests.fixtures.update_fixtures import make_config, manifest_bytes, setup_bytes, signed_fields  # noqa: E402
 
 
+def _box_title(box: QMessageBox) -> str:
+    """macOS / offscreen often leaves QMessageBox.windowTitle empty.
+
+    Prefer windowTitle, then accessibleName, then a custom dynamic property set by the dialogs.
+    """
+    return (
+        box.windowTitle()
+        or box.accessibleName()
+        or str(box.property("monographWindowTitle") or "")
+    )
+
+
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("MONOGRAPH_PDF_UPDATES_DIR", str(tmp_path / "Updates"))
@@ -45,7 +57,7 @@ def boxes(monkeypatch):
     icons = {QMessageBox.Icon.Warning: "warning", QMessageBox.Icon.Critical: "critical"}
     # message boxes built with buttons (e.g. "Open Releases Page") are recorded instead of shown
     monkeypatch.setattr(QMessageBox, "exec", lambda box: seen.append(
-        (icons.get(box.icon(), "information"), box.windowTitle(), box.text() + "\n" + box.informativeText())) or 0)
+        (icons.get(box.icon(), "information"), _box_title(box), box.text() + "\n" + box.informativeText())) or 0)
     return seen
 
 
@@ -158,7 +170,7 @@ def test_not_configured_offers_the_releases_page_only_when_asked(window, boxes, 
     shown, opened = [], []
 
     def fake_exec(box):
-        shown.append((box.windowTitle(), box.text(), box.informativeText(), [b.text() for b in box.buttons()]))
+        shown.append((_box_title(box), box.text(), box.informativeText(), [b.text() for b in box.buttons()]))
         if click_open:
             next(b for b in box.buttons() if b.text() == "Open Releases Page").click()
         else:
@@ -434,7 +446,7 @@ def test_download_failures_name_the_problem_and_offer_the_releases_page(window, 
 
     shown = []
     monkeypatch.setattr(QMessageBox, "exec", lambda box: shown.append(
-        (box.windowTitle(), box.text(), [b.text() for b in box.buttons()])) or 0)
+        (_box_title(box), box.text(), [b.text() for b in box.buttons()])) or 0)
     window._updates.show_download_problem(UpdateError("Install it with Setup from the release page.", code))
     wtitle, text, buttons = shown[0]
     assert wtitle == "Update not installed" and text.startswith(title) and "Open Releases Page" in buttons

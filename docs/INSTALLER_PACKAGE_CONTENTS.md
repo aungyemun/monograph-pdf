@@ -27,7 +27,7 @@ Setup.exe is an Inno Setup 6 installer. It needs no internet access and installs
 
 The release build verifies the following, and stops on any failure (`scripts/build_release.ps1`):
 
-- **Installed-files list.** The build writes the list of every file the installer places, `build\installer\installed_files.json` (500 paths for 0.3.0 and 0.4.0, 501 for 0.5.0). It is shipped as `installed_files.txt`; when upgrading, Setup removes only files on that list that the new version no longer has.
+- **Installed-files list.** The build writes the list of every file the installer places, `build\installer\installed_files.json` (500 paths for 0.3.0 and 0.4.0). It is shipped as `installed_files.txt`; when upgrading, Setup removes only files on that list that the new version no longer has.
 - **Release-set check** (`scripts/packaging/check_release.py`):
   - the required components are present;
   - OCR engine and data match the SHA-256 pins, with no extra files;
@@ -41,7 +41,7 @@ The release build verifies the following, and stops on any failure (`scripts/bui
 - **Runtime-dependency check** (`scripts/packaging/runtime_dependencies.py --check`).
 - **`MonographPDF.exe --smoke-test`.**
 
-The package checks of the 0.5.0 release build found the same layout expectations as 0.4.0
+The package checks of the 0.4.1 release build found the same layout expectations as 0.4.0
 (tag `v0.4.0`, commit fc411e2) and 0.3.0 (tag `v0.3.0`, commit 96c36b9):
 
 - Hundreds of files in the installation layout (exact count is recorded in
@@ -58,11 +58,11 @@ that suite was run for a given release is stated in that release's notes
 
 ## Installer ZIP
 
-`MonographPDF_0.5.0_Installer.zip` (same layout as 0.4.0 and 0.3.0) contains these
+The published `MonographPDF_0.4.1_Installer.zip` (same layout as 0.4.0 and 0.3.0) contains these
 entries and nothing else:
 
 ```
-Setup.exe                     (identical to MonographPDF_0.5.0_Setup.exe)
+Setup.exe                     (identical to MonographPDF_0.4.1_Setup.exe)
 README.md  INSTALLATION.md  CHANGELOG.md  SECURITY.md  CITATION.cff
 LICENSE.md  THIRD_PARTY_NOTICES.md  SHA256SUMS.txt  docs/USER_GUIDE.md
 licenses/GPL-2.0.txt  licenses/GPL-3.0.txt  licenses/LGPL-2.1.txt  licenses/LGPL-3.0.txt

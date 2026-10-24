@@ -5,12 +5,12 @@ and no usage statistics, and it never uploads documents.
 
 **Monograph PDF does not transfer information to other networked systems unless you request it.**
 There are only three such requests, all described below. Update checks are available from version
-0.5.0 and happen only when you ask (or after you switch on automatic checks, which are off by default).
+0.4.1 and happen only when you ask (or after you switch on automatic checks, which are off by default).
 OCR language downloads (from version 0.5.0) happen only when you click **Download and Install**.
 Sending problem reports is switched off (no reporting service yet). Versions 0.3.0 and 0.4.0 make no
 network connections at all; the same holds for earlier versions, which do not have these features.
 
-## Update checks (built in since 0.3.0, switched on from 0.5.0)
+## Update checks (built in since 0.3.0, switched on from 0.4.1)
 
 When you choose **Help ▸ Check for Updates…**, **Check Now**, or switch on *Automatically check for
 updates* (off by default; **File ▸ Settings… ▸ Updates**), Monograph PDF connects to GitHub, which

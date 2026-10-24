@@ -94,9 +94,7 @@ def cleanup_abandoned_temps(*, max_age_sec: float = _ABANDONED_AGE_SEC) -> int:
                 continue
     for child in loose:
         try:
-            # a temporary copy made from a password-protected PDF (core/printing/ops.py) is removed at
-            # once: Monograph PDF runs one instance, so none of them is in use at start-up
-            if child.name.startswith("print-bake-p-") or now - child.stat().st_mtime >= max_age_sec:
+            if now - child.stat().st_mtime >= max_age_sec:
                 child.unlink(missing_ok=True)
                 removed += 1
         except Exception:  # noqa: BLE001

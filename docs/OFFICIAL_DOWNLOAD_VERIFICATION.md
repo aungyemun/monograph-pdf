@@ -27,7 +27,7 @@ the release page lists; it does not by itself show who published it.
 Get-AuthenticodeSignature .\MonographPDF_X.Y.Z_Setup.exe | Format-List Status, SignerCertificate
 ```
 
-* The releases published so far (0.2.2, 0.2.3, 0.3.0, 0.4.0 and 0.5.0) are **not code-signed**: the expected status is `NotSigned`.
+* The releases published so far (0.2.2, 0.2.3, 0.3.0, 0.4.0 and 0.4.1) are **not code-signed**: the expected status is `NotSigned`.
   Windows SmartScreen may warn ("Windows protected your PC"); continue (**More info ▸ Run anyway**)
   only for a file whose checksum matched in step 1.
 * If a future release is signed, its release notes and [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md)
@@ -49,11 +49,11 @@ Get-AuthenticodeSignature .\MonographPDF_X.Y.Z_Setup.exe | Format-List Status, S
 
 ## Automatic updates
 
-From **0.5.0**, **Help ▸ Check for Updates…** can install updates itself: it accepts only update
+From **0.4.1**, **Help ▸ Check for Updates…** can install updates itself: it accepts only update
 information signed with the project's update key and an installer whose SHA-256 matches that signed
 information, and it downloads only from GitHub's release servers
 ([SECURE_UPDATES.md](SECURE_UPDATES.md)). Automatic checks are optional and off by default. 0.4.0 and
-earlier cannot update themselves — install the current version (0.5.0 or later) once with Setup. This works independently of
+earlier cannot update themselves — install the current version (0.5.0 or later; 0.4.1 was not published) once with Setup. This works independently of
 Windows code signing.
 
 ## Unofficial copies

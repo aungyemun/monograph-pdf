@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
 from core import app_env
-from core.product_meta import DATA_FOLDER_NAME
+from core.platform_paths import is_macos_app_bundle, user_local_base
+
+# Re-export for tests that monkeypatch the app.paths binding.
+__all__ = ["is_macos_app_bundle", "user_local_base"]
 
 
 def _resolve_root() -> Path:
     if getattr(sys, "frozen", False):
-        # Writable/install root = directory containing MonographPDF.exe
+        # Directory containing the frozen executable (Windows beside MonographPDF.exe;
+        # macOS .app: Contents/MacOS).
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parents[1]
 
@@ -21,10 +24,14 @@ def _resolve_bundle_root() -> Path:
     """Resources bundled inside the frozen app (read-only extract)."""
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         return Path(sys._MEIPASS)  # type: ignore[attr-defined]
+    if is_macos_app_bundle():
+        resources = Path(sys.executable).resolve().parent.parent / "Resources"
+        if resources.is_dir():
+            return resources
     return _resolve_root()
 
 
-# Install / project root (exe directory when frozen)
+# Install / project root (exe / MacOS directory when frozen)
 ROOT = _resolve_root()
 # Bundled resources root (may equal ROOT in dev)
 BUNDLE_ROOT = _resolve_bundle_root()
@@ -32,9 +39,17 @@ BUNDLE_ROOT = _resolve_bundle_root()
 
 APP_DIR = ROOT / "app"
 CORE_DIR = ROOT / "core"
-ENGINES_DIR = ROOT / "engines"
+# Engines may live beside the binary or inside the bundle (macOS .app Resources)
+if (ROOT / "engines").is_dir():
+    ENGINES_DIR = ROOT / "engines"
+elif (BUNDLE_ROOT / "engines").is_dir():
+    ENGINES_DIR = BUNDLE_ROOT / "engines"
+else:
+    ENGINES_DIR = ROOT / "engines"
 UI_DIR = ROOT / "ui"
 RESOURCES_DIR = BUNDLE_ROOT / "resources"
+
+
 def _writable(folder: Path) -> bool:
     try:
         folder.mkdir(parents=True, exist_ok=True)
@@ -49,15 +64,14 @@ def _writable(folder: Path) -> bool:
 def _project_layout() -> bool:
     """True when running from the project / a portable folder (not an installed copy).
 
-    An installed copy (Setup.exe leaves unins000.exe beside the app) always keeps its working
-    files in the user's profile, so uninstall/upgrade never touches them; so does a copy in a
-    folder it cannot write to.
+    An installed Windows copy (Setup leaves unins000.exe beside the app) and a macOS
+    .app bundle always keep working files in the user's profile.
     """
     frozen = getattr(sys, "frozen", False)
-    if frozen and any(ROOT.glob("unins*.exe")):
+    if frozen and (any(ROOT.glob("unins*.exe")) or is_macos_app_bundle()):
         return False
     if app_env.get("RUNTIME_DIR"):
-        # Working files go elsewhere (Setup's and the build's self-check): no probe of this folder
+        # Working files go elsewhere (self-check): no probe of this folder
         return not frozen
     return _writable(ROOT / "runtime")
 
@@ -66,19 +80,18 @@ _PROJECT_LAYOUT = _project_layout()
 
 
 def _resolve_runtime_dir() -> Path:
-    r"""./runtime in the project / portable layout, %LOCALAPPDATA%\Monograph PDF\runtime when
-    installed; MONOGRAPH_PDF_RUNTIME_DIR (or --runtime-dir) overrides both."""
+    """``./runtime`` in the project / portable layout; user Application Support / AppData
+    when installed; ``MONOGRAPH_PDF_RUNTIME_DIR`` (or ``--runtime-dir``) overrides both."""
     override = app_env.get("RUNTIME_DIR")
     if override:
         return Path(override)
     if _PROJECT_LAYOUT:
         return ROOT / "runtime"
-    base = os.environ.get("LOCALAPPDATA") or str(Path.home() / ".local" / "share")
-    return Path(base) / DATA_FOLDER_NAME / "runtime"
+    return user_local_base() / "runtime"
 
 
 RUNTIME_DIR = _resolve_runtime_dir()
-# True when the app runs from an installed location (Program Files or per-user Programs)
+# True when the app runs from an installed location (Program Files, per-user Programs, or .app)
 INSTALLED_READ_ONLY = not _PROJECT_LAYOUT
 # Writable caches — never project root; clean abandoned artifacts from these trees
 CACHE_DIR = RUNTIME_DIR / "cache"
@@ -87,7 +100,7 @@ ORGANIZE_CACHE_DIR = CACHE_DIR / "organize"
 ORGANIZE_TEMP_DIR = TEMP_DIR / "organize"
 
 PACKAGES_DIR = ROOT / "packages"
-MODELS_DIR = ROOT / "models"
+MODELS_DIR = ROOT / "models" if (ROOT / "models").is_dir() else BUNDLE_ROOT / "models"
 THIRD_PARTY_DIR = ROOT / "third_party"
 TOOLS_DIR = ROOT / "tools"
 SCRIPTS_DIR = ROOT / "scripts"
@@ -128,10 +141,10 @@ def ensure_runtime_layout() -> None:
         ORGANIZE_TEMP_DIR,
     ]
     if not INSTALLED_READ_ONLY and not getattr(sys, "frozen", False):
-        # Source checkout only: the built app never creates folders beside MonographPDF.exe
+        # Source checkout only: the built app never creates folders beside the binary
         folders += [ENGINES_DIR / "ocr", ENGINES_DIR / "qpdf", ENGINES_DIR / "mupdf", MODELS_DIR, PACKAGES_DIR / "wheels"]
     for path in folders:
         try:
             path.mkdir(parents=True, exist_ok=True)
         except OSError:
-            pass  # read-only install folder — runtime data lives under %LOCALAPPDATA%
+            pass  # read-only install folder — runtime data lives under the user profile

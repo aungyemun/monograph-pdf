@@ -42,7 +42,7 @@ place; your settings and documents are kept.
 
 0.4.0 and earlier cannot update themselves (their update checks are switched off): install the current
 version with its Setup from the [Releases](https://github.com/aungyemun/monograph-pdf/releases) page
-(0.5.0 is the first published version with update checks; 0.4.1 was prepared but never published). From then on,
+(0.4.1 was prepared but not published; 0.5.0 is the first published version with update checks). From then on,
 **Help ▸ Check for Updates…** can do this for you when a newer signed release exists: **Update Now** downloads and verifies the new Setup, closes Monograph PDF (after you
 save or discard open changes), installs the update in the same folder with the same choices and
 restarts Monograph PDF. An all-users installation shows Windows' administrator prompt. Details:
@@ -51,8 +51,8 @@ restarts Monograph PDF. An all-users installation shows Windows' administrator p
 ### Silent installation (administrators)
 
 ```bat
-MonographPDF_0.5.0_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-MonographPDF_0.5.0_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="D:\Apps\Monograph PDF" /MIGRATEINSTALL
+MonographPDF_0.4.1_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+MonographPDF_0.4.1_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="D:\Apps\Monograph PDF" /MIGRATEINSTALL
 ```
 
 * Installing to the same folder upgrades the existing installation in place.

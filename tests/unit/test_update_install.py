@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 import threading
 from pathlib import Path
 
@@ -15,6 +16,11 @@ from core.updates.manifest import parse_and_verify
 from tests.fixtures.update_fixtures import make_config, manifest_bytes, setup_bytes, signed_fields
 
 ROOT = Path(__file__).resolve().parents[2]
+
+pytestmark = pytest.mark.skipif(
+    not sys.platform.startswith("win"),
+    reason="Windows installer registration / MonographPDF.exe update hand-off",
+)
 
 
 @pytest.fixture(autouse=True)

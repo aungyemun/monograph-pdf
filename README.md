@@ -4,8 +4,12 @@
 
 [![Windows CI](https://github.com/aungyemun/monograph-pdf/actions/workflows/windows-ci.yml/badge.svg)](https://github.com/aungyemun/monograph-pdf/actions/workflows/windows-ci.yml)
 
-**A free, open-source PDF editor for Windows 10 and 11, designed for privacy and fully offline
-operation.** Current release: **0.5.0**.
+**A free, open-source PDF editor designed for privacy and fully offline operation.**
+
+| Platform | Current line |
+| :--- | :--- |
+| **macOS** (this tree) | **0.1.0** — first macOS release |
+| Windows 10 and 11 | **0.5.0** — see the [GitHub repository](https://github.com/aungyemun/monograph-pdf) |
 
 Monograph PDF lets you view, edit, annotate, organize, convert and protect PDF documents on your own
 computer. It needs no account or internet connection and has no function that uploads your files.
@@ -39,7 +43,7 @@ Complete list: [Features](docs/FEATURES.md) · How to use each tool: [User Guide
 | **Included** | Everything in the table above unless listed below; covered by the automated tests on Windows |
 | **Needs another application** | Office files to PDF and Office round trips need Microsoft Office or LibreOffice installed (tested with Microsoft 365 and LibreOffice 24.2 only) |
 | **Limited** | PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts. 45 optional OCR languages are installed on request (Download and Install, or from a file) and verified against a pinned SHA-256; their recognition quality has not been tested by the project. Editing Japanese vertical text is not fully supported |
-| **Built in, switched off** | Sending problem reports; it stays off until a reporting service exists and has been verified. (Update checks are switched on from 0.5.0.) |
+| **Built in, switched off** | Sending problem reports; it stays off until a reporting service exists and has been verified. (Update checks are switched on from 0.4.1.) |
 | **Not supported** | Certificate-based digital signatures (signatures are visual); macOS, Android and iOS; Windows on ARM has not been tested |
 
 ## Screenshots
@@ -60,12 +64,12 @@ Information — are in [Features](docs/FEATURES.md#screenshots).
 
 | Platform | Status |
 | :--- | :--- |
-| Windows 10 and 11, 64-bit | Supported |
-| macOS | Planned |
+| macOS 13+ (Apple silicon) | Supported (first release **0.1.0** — see [docs/MACOS.md](docs/MACOS.md)) |
+| Windows 10 and 11, 64-bit | Supported (**0.5.0** on GitHub) |
 | Android | Under consideration |
 | iOS | Not planned |
 
-Only Windows builds are available.
+macOS is developed and tested from this folder with `scripts/setup_env.sh` / `scripts/dev_launch.sh`.
 
 ## Download and installation
 
@@ -96,7 +100,7 @@ silent installation, upgrading and uninstalling are described in [Installation](
 * Monograph PDF is designed to operate offline. It requires no account or cloud service and has no
   telemetry, advertising, online OCR or document upload. Viewing, editing, saving, OCR, conversion and
   printing never use the network.
-* **Help ▸ Check for Updates…** (from 0.5.0) checks the official GitHub Releases page when you ask and
+* **Help ▸ Check for Updates…** (switched on from 0.4.1; 0.5.0 is the first published version with it) checks the official GitHub Releases page when you ask and
   accepts only update information signed with the project's update-signing key; nothing is downloaded
   or installed until you click **Update Now**. Automatic checks are optional and **off by default**.
   0.4.0 and earlier cannot update themselves: install the current version once with Setup. Problem reports are still
@@ -118,17 +122,28 @@ vulnerability: [Security policy](SECURITY.md)
 
 ## Building from source
 
+### macOS (this folder — first release 0.1.0)
+
+Python 3.11, the venv, OCR and tests all live under this project directory.
+
+```bash
+bash scripts/setup_env.sh          # creates ./env with pinned packages
+bash scripts/vendor_ocr_macos.sh   # stages Tesseract into tools/ocr-env + engines/ocr
+bash scripts/dev_launch.sh         # run from source
+bash scripts/run_tests.sh          # unit / integration / UI
+bash scripts/build_app.sh          # dist/MonographPDF.app
+```
+
+Details: [docs/MACOS.md](docs/MACOS.md)
+
+### Windows
+
 You need Windows 10 or 11 (64-bit) and Python 3.11. Building the installer also needs Inno Setup 6
 and the OCR engine with its language data, which are not stored in the repository.
 
 ```powershell
-# Create the development environment (.\env) with the pinned packages
 powershell -ExecutionPolicy Bypass -File scripts\setup_env.ps1
-
-# Run the application from source
 powershell -ExecutionPolicy Bypass -File scripts\dev_launch.ps1
-
-# Build and validate a release: tests, executable, Setup and archives
 installer\build_release.bat
 ```
 
@@ -137,11 +152,15 @@ Details: [Build and Runtime](docs/BUILD_AND_RUNTIME.md) ·
 
 ## Testing
 
-```powershell
-# Unit, integration and UI tests
-powershell -ExecutionPolicy Bypass -File scripts\run_tests.ps1
+```bash
+# macOS
+bash scripts/run_tests.sh
+./env/bin/python -m pytest -m security
+```
 
-# One category only, for example the security tests
+```powershell
+# Windows
+powershell -ExecutionPolicy Bypass -File scripts\run_tests.ps1
 .\env\Scripts\python.exe -m pytest -m security
 ```
 

@@ -352,19 +352,34 @@ def test_frozen_app_does_not_import_modules_from_its_folder():
 
 def test_installed_copy_keeps_working_files_in_localappdata(tmp_path, monkeypatch):
     import app.paths as paths
+    from core.platform_paths import user_local_base
 
-    install = tmp_path / "Program Files" / "Monograph PDF"
+    if sys.platform.startswith("win"):
+        install = tmp_path / "Program Files" / "Monograph PDF"
+        install.mkdir(parents=True)
+        (install / "unins000.exe").write_bytes(b"MZ")
+        monkeypatch.setattr(sys, "frozen", True, raising=False)
+        monkeypatch.setattr(paths, "ROOT", install)
+        assert paths._project_layout() is False  # noqa: SLF001
+        assert not (install / "runtime").exists()  # no write probe into the installation folder
+        monkeypatch.setattr(paths, "_PROJECT_LAYOUT", False)
+        monkeypatch.delenv("MONOGRAPH_PDF_RUNTIME_DIR", raising=False)
+        monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "Local"))
+        runtime = paths._resolve_runtime_dir()  # noqa: SLF001
+        assert runtime == tmp_path / "Local" / "Monograph PDF" / "runtime"
+        assert install not in runtime.parents
+        return
+
+    # macOS / Unix: an installed .app keeps runtime under Application Support (user_local_base).
+    install = tmp_path / "MonographPDF.app" / "Contents" / "MacOS"
     install.mkdir(parents=True)
-    (install / "unins000.exe").write_bytes(b"MZ")
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(paths, "ROOT", install)
-    assert paths._project_layout() is False  # noqa: SLF001
-    assert not (install / "runtime").exists()  # no write probe into the installation folder
+    monkeypatch.setattr(paths, "is_macos_app_bundle", lambda: True)
     monkeypatch.setattr(paths, "_PROJECT_LAYOUT", False)
     monkeypatch.delenv("MONOGRAPH_PDF_RUNTIME_DIR", raising=False)
-    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "Local"))
     runtime = paths._resolve_runtime_dir()  # noqa: SLF001
-    assert runtime == tmp_path / "Local" / "Monograph PDF" / "runtime"
+    assert runtime == user_local_base() / "runtime"
     assert install not in runtime.parents
 
 
