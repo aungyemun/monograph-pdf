@@ -1,5 +1,25 @@
 # Installation
 
+## Linux (0.1.0 — first Linux release)
+
+Monograph PDF **0.1.0** is the first Linux release, versioned separately from Windows **0.5.0**.
+Use branch [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux) or tag **`v0.1.0-linux`**.
+**Unsigned** for this first release (signing later).
+
+```bash
+git clone -b linux https://github.com/aungyemun/monograph-pdf.git
+cd monograph-pdf
+bash scripts/setup_env.sh
+bash scripts/vendor_ocr.sh
+bash scripts/dev_launch.sh
+```
+
+Optional per-user install: `bash installer/linux/install.sh /path/to/MonographPDF` (on the linux tree).
+Full notes: [LINUX.md](LINUX.md).
+
+---
+
+
 Monograph PDF is installed with a standard Windows installer. Everything it needs — including
 Python, Qt and the OCR engine — is included, and no internet connection is required.
 

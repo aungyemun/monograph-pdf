@@ -4,8 +4,8 @@
 
 [![Windows CI](https://github.com/aungyemun/monograph-pdf/actions/workflows/windows-ci.yml/badge.svg)](https://github.com/aungyemun/monograph-pdf/actions/workflows/windows-ci.yml)
 
-**A free, open-source PDF editor for Windows 10 and 11, designed for privacy and fully offline
-operation.** Current release: **0.5.0**.
+**A free, open-source PDF editor designed for privacy and fully offline operation.**
+Windows line: **0.5.0** (this tree / `main`). Linux first release: **0.1.0** (branch [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux), tag `v0.1.0-linux`).
 
 Monograph PDF lets you view, edit, annotate, organize, convert and protect PDF documents on your own
 computer. It needs no account or internet connection and has no function that uploads your files.
@@ -32,14 +32,17 @@ conversions are written to new files.
 
 Complete list: [Features](docs/FEATURES.md) · How to use each tool: [User Guide](docs/USER_GUIDE.md) (also **F1** in the app)
 
-### Feature status in 0.5.0
+### Feature status
+
+Linux **0.1.0** and Windows **0.5.0** share the feature set below. Platform plumbing differs
+([LINUX.md](LINUX.md) for Linux).
 
 | Status | Features |
 | :--- | :--- |
-| **Included** | Everything in the table above unless listed below; covered by the automated tests on Windows |
-| **Needs another application** | Office files to PDF and Office round trips need Microsoft Office or LibreOffice installed (tested with Microsoft 365 and LibreOffice 24.2 only) |
+| **Included** | Everything in the table above unless listed below; covered by the automated tests on each platform |
+| **Needs another application** | Office files to PDF and Office round trips need LibreOffice (Linux) or Microsoft Office / LibreOffice (Windows; tested with Microsoft 365 and LibreOffice 24.2) |
 | **Limited** | PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts. 45 optional OCR languages are installed on request (Download and Install, or from a file) and verified against a pinned SHA-256; their recognition quality has not been tested by the project. Editing Japanese vertical text is not fully supported |
-| **Built in, switched off** | Sending problem reports; it stays off until a reporting service exists and has been verified. (Update checks are switched on from 0.5.0.) |
+| **Built in, switched off** | Sending problem reports; it stays off until a reporting service exists and has been verified. (Update checks are switched on from Windows 0.4.1; Linux update packages are not published yet.) |
 | **Not supported** | Certificate-based digital signatures (signatures are visual); macOS, Android and iOS; Windows on ARM has not been tested |
 
 ## Screenshots
@@ -60,17 +63,35 @@ Information — are in [Features](docs/FEATURES.md#screenshots).
 
 | Platform | Status |
 | :--- | :--- |
-| Windows 10 and 11, 64-bit | Supported |
+| Linux x86_64 | Supported (0.1.0 first release) |
+| Windows 10 and 11, 64-bit | Supported (0.5.0, separate tree) |
 | macOS | Planned |
 | Android | Under consideration |
 | iOS | Not planned |
 
-Only Windows builds are available.
-
 ## Download and installation
 
-1. Download `MonographPDF_0.5.0_Setup.exe` from the official
-   [latest release](https://github.com/aungyemun/monograph-pdf/releases/latest) page only.
+Platform lines are versioned separately. Prefer the official
+[Releases](https://github.com/aungyemun/monograph-pdf/releases) page only.
+
+### Linux (0.1.0 — first Linux release)
+
+1. Open the **v0.1.0-linux** release or clone the [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux) branch.
+2. Build and run from source (unsigned for this first release — signing comes later):
+
+   ```bash
+   bash scripts/setup_env.sh
+   bash scripts/vendor_ocr.sh
+   bash scripts/dev_launch.sh
+   ```
+
+3. Optional per-user install after a built tree: `bash installer/linux/install.sh /path/to/MonographPDF`.
+
+Details: [LINUX.md](LINUX.md) on the `linux` branch · [Installation](https://github.com/aungyemun/monograph-pdf/blob/linux/INSTALLATION.md).
+
+### Windows (0.5.0)
+
+1. Download `MonographPDF_0.5.0_Setup.exe` from the official release page.
 2. Check its SHA-256 checksum in PowerShell and compare it with the value in the release notes:
 
    ```powershell
@@ -79,24 +100,23 @@ Only Windows builds are available.
 
 3. Run Setup and choose to install for all users or only for yourself.
 
-> **Unsigned installer.** Monograph PDF is currently distributed without a code-signing certificate,
-> so Windows SmartScreen may display a warning. Continue (**More info ▸ Run anyway**) only if the
-> file came from the official release page and its checksum matches.
+> **Unsigned builds.** Monograph PDF is currently distributed **without** code signing
+> (Linux and Windows). On Windows, SmartScreen may warn; continue (**More info ▸ Run anyway**)
+> only if the file came from the official release page and its checksum matches. Linux packages
+> will be signed in a later release.
 > [Code signing policy](docs/CODE_SIGNING_POLICY.md) · [Verifying a download](docs/OFFICIAL_DOWNLOAD_VERIFICATION.md) ·
 > [Privacy policy](docs/PRIVACY_POLICY.md)
 
-Each release also provides `MonographPDF_<version>_Installer.zip` (Setup with the documentation,
-licenses and `SHA256SUMS.txt`) and `MonographPDF_<version>_Source.zip` (the corresponding source of
-Monograph PDF and of the bundled AGPL, GPL and LGPL components). The **Source code** archives that
-GitHub adds to every release contain only the repository at the release tag. System requirements,
-silent installation, upgrading and uninstalling are described in [Installation](INSTALLATION.md).
+Windows releases also provide `MonographPDF_<version>_Installer.zip` and
+`MonographPDF_<version>_Source.zip`. The **Source code** archives GitHub adds to every release
+contain only the repository at the release tag.
 
 ## Privacy and offline operation
 
 * Monograph PDF is designed to operate offline. It requires no account or cloud service and has no
   telemetry, advertising, online OCR or document upload. Viewing, editing, saving, OCR, conversion and
   printing never use the network.
-* **Help ▸ Check for Updates…** (from 0.5.0) checks the official GitHub Releases page when you ask and
+* **Help ▸ Check for Updates…** (switched on from 0.4.1; 0.5.0 is the first published version with it) checks the official GitHub Releases page when you ask and
   accepts only update information signed with the project's update-signing key; nothing is downloaded
   or installed until you click **Update Now**. Automatic checks are optional and **off by default**.
   0.4.0 and earlier cannot update themselves: install the current version once with Setup. Problem reports are still
@@ -107,28 +127,38 @@ silent installation, upgrading and uninstalling are described in [Installation](
 * Qt's network and TLS modules are removed from the release build; only the update, problem-report
   and OCR-language-download code uses Python's HTTPS support. The built-in self-check fails if a network connection is attempted
   while it runs.
-* Documents are processed locally. Settings and working files are kept in `%APPDATA%\Monograph PDF`
-  and `%LOCALAPPDATA%\Monograph PDF`.
-* Converting Office files uses the Microsoft Office or LibreOffice installed on your computer, with
-  macros switched off. Those applications run independently and follow their own settings, including
-  any network access.
+* Documents are processed locally. Settings and working files are kept under XDG on Linux
+  (`~/.local/share/monograph-pdf`, cache) or in `%APPDATA%\Monograph PDF` /
+  `%LOCALAPPDATA%\Monograph PDF` on Windows.
+* Converting Office files uses LibreOffice on Linux, or Microsoft Office / LibreOffice on Windows,
+  with macros switched off. Those applications run independently and follow their own settings,
+  including any network access.
 
 Details and limits: [Security and Privacy](docs/SECURITY_AND_PRIVACY.md) · Reporting a
 vulnerability: [Security policy](SECURITY.md)
 
 ## Building from source
 
-You need Windows 10 or 11 (64-bit) and Python 3.11. Building the installer also needs Inno Setup 6
+### Linux (0.1.0)
+
+Python **3.11**, LibreOffice (optional, for Office → PDF), and Tesseract (via `scripts/vendor_ocr.sh`).
+
+```bash
+bash scripts/setup_env.sh
+bash scripts/vendor_ocr.sh
+bash scripts/dev_launch.sh
+```
+
+See [LINUX.md](LINUX.md).
+
+### Windows (0.5.0)
+
+Windows 10 or 11 (64-bit) and Python 3.11. Building the installer also needs Inno Setup 6
 and the OCR engine with its language data, which are not stored in the repository.
 
 ```powershell
-# Create the development environment (.\env) with the pinned packages
 powershell -ExecutionPolicy Bypass -File scripts\setup_env.ps1
-
-# Run the application from source
 powershell -ExecutionPolicy Bypass -File scripts\dev_launch.ps1
-
-# Build and validate a release: tests, executable, Setup and archives
 installer\build_release.bat
 ```
 
@@ -137,34 +167,38 @@ Details: [Build and Runtime](docs/BUILD_AND_RUNTIME.md) ·
 
 ## Testing
 
-```powershell
-# Unit, integration and UI tests
-powershell -ExecutionPolicy Bypass -File scripts\run_tests.ps1
+```bash
+# Linux
+bash scripts/run_tests.sh
+./env/bin/python -m pytest -m security
+./env/bin/python -m app --smoke-test
+```
 
-# One category only, for example the security tests
+```powershell
+# Windows
+powershell -ExecutionPolicy Bypass -File scripts\run_tests.ps1
 .\env\Scripts\python.exe -m pytest -m security
 ```
 
 Each run ends with a summary per test category: **PASS**, **FAIL**, or **NOT VERIFIED** when every
-test in that category was skipped. Automated unit, integration, security and supported UI tests run
-through GitHub Actions for every change. Environment-dependent tests are skipped when their required
+test in that category was skipped. Environment-dependent tests are skipped when their required
 applications, fonts or reference documents are unavailable; they are reported as skipped, never as
 passed. Details: [Testing](docs/TESTING.md).
 
 ## Known limitations
 
-* Windows 10 and 11 (64-bit) only.
-* The installer and program are not code-signed ([Code Signing](docs/CODE_SIGNING.md)).
-* The sending of problem reports is switched off. Versions 0.4.0 and earlier cannot check for updates;
-  install new versions from the [Releases](https://github.com/aungyemun/monograph-pdf/releases) page.
+* Linux x86_64 (0.1.0) and Windows 10/11 64-bit (0.5.0); macOS not yet.
+* Builds are **not code-signed** yet ([Code Signing](docs/CODE_SIGNING.md)); signing is planned later.
+* The sending of problem reports is switched off.
 * Signatures are visual only; certificate-based digital signatures are not supported.
 * Converting PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts.
-* Converting Office files to PDF requires Microsoft Office or LibreOffice.
+* Converting Office files to PDF requires LibreOffice (Linux) or Microsoft Office / LibreOffice (Windows).
 * OCR includes English and Japanese; 45 more languages can be installed on request (OCR ▸ OCR Languages), verified against a pinned SHA-256.
-* Not verified for 0.5.0: Windows 10, localized (Japanese, Chinese, Korean, German, French) Windows,
+* Linux automatic update packages are not published yet.
+* Not verified for Windows 0.5.0: Windows 10, localized (Japanese, Chinese, Korean, German, French) Windows,
   Office versions other than Microsoft 365 and LibreOffice 24.2, and printing on a physical printer.
 
-More: [User Guide ▸ Current limitations](docs/USER_GUIDE.md#current-limitations)
+More: [User Guide ▸ Current limitations](docs/USER_GUIDE.md#current-limitations) · [LINUX.md](LINUX.md)
 
 ## License
 
@@ -185,7 +219,7 @@ contains the corresponding source code of the bundled AGPL, GPL and LGPL compone
 
 If you use Monograph PDF in research, please cite it as described in [CITATION.cff](CITATION.cff):
 
-> Mun AY. *Monograph PDF*. Version 0.5.0. 2026. https://github.com/aungyemun/monograph-pdf
+> Mun AY. *Monograph PDF*. Version 0.1.0 (Linux) / 0.5.0 (Windows). 2026. https://github.com/aungyemun/monograph-pdf
 
 Design, development, testing, documentation and packaging: **Aung Ye Mun**. With thanks to the
 developers of the open-source projects listed in the third-party notices.
