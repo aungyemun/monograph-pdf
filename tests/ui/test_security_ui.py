@@ -97,6 +97,11 @@ def test_save_as_keeps_password_protection(window, tmp_path, monkeypatch):
     assert window.open_path(src, password=PASSWORD)
     _add_text(window)
     monkeypatch.setattr(QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: (str(dest), "")))
+    window.save_as_dialog()  # changes are not allowed with the open password alone: refused
+    assert not dest.exists()
+    from core.security.protection import unlock_with_owner_password
+
+    assert unlock_with_owner_password(window._document, PASSWORD + "-owner")  # noqa: SLF001
     window.save_as_dialog()
     assert window._document is not None and Path(window._document.path) == dest  # noqa: SLF001
     with fitz.open(dest) as out:

@@ -155,6 +155,9 @@ from PySide6.QtWidgets import (  # noqa: E402
     QListWidgetItem,
     QPlainTextEdit,
     QRadioButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QWidget,
 )
 
 
@@ -363,12 +366,12 @@ class LanguagePicker(QGroupBox):
 
     SEARCH_FROM = 7
 
-    def __init__(self, selected: str, parent=None) -> None:
+    def __init__(self, selected: str, parent=None, *, show_hint: bool = True, title: str = "Languages") -> None:
         from PySide6.QtWidgets import QLineEdit
 
         from core.ocr.language_packs import available_languages
 
-        super().__init__("Languages", parent)
+        super().__init__(title, parent)
         layout = QVBoxLayout(self)
         layout.setSpacing(6)
         langs = available_languages()
@@ -410,6 +413,7 @@ class LanguagePicker(QGroupBox):
                       "fewer languages recognize faster and more accurately.")
         note.setObjectName("ContextHint")
         note.setWordWrap(True)
+        note.setVisible(show_hint)  # not shown inside OCR Languages itself
         layout.addWidget(note)
         self._changed()
 
@@ -439,66 +443,199 @@ class LanguagePicker(QGroupBox):
         return "+".join(codes) or "eng"
 
 
+class _PackTable(QTreeWidget):
+    def count(self) -> int:  # like QListWidget (tests and callers count rows)
+        return self.topLevelItemCount()
+
+
+class _DownloadWorker(QThread):
+    progress = Signal(int, int)
+    done = Signal(object)  # LanguagePack
+    failed = Signal(str)
+
+    def __init__(self, pack, parent=None) -> None:
+        super().__init__(parent)
+        import threading
+
+        self.pack = pack
+        self.cancel_event = threading.Event()
+
+    def run(self) -> None:
+        from core.ocr.language_download import download_and_install
+        from core.ocr.language_packs import LanguagePackError
+
+        try:
+            self.done.emit(download_and_install(self.pack, self.cancel_event, lambda a, b: self.progress.emit(a, b)))
+        except LanguagePackError as exc:
+            self.failed.emit(str(exc))
+        except Exception as exc:  # noqa: BLE001
+            self.failed.emit(f"{self.pack.name} could not be installed: {exc}")
+
+
 class OcrLanguagesDialog(QDialog):
-    """Default OCR languages, and optional languages installed from verified files."""
+    """The languages OCR recognizes, and more languages to add.
+
+    Added languages come from the official Tesseract release used for the included English and
+    Japanese (tessdata_fast 4.1.0): **Download and Install** fetches one when clicked (nothing is
+    downloaded otherwise), **Install from File** takes a file downloaded elsewhere, and language files
+    found in the Downloads folder are offered for installation. Each file is installed only if its size
+    and SHA-256 match the pin shipped with Monograph PDF, and can be used at once."""
+
+    COLS = ("Language", "Code", "Size", "Status")
 
     def __init__(self, languages: str, parent=None) -> None:
+        from PySide6.QtWidgets import QHeaderView, QLineEdit
+
         super().__init__(parent)
         self.setWindowTitle("OCR Languages")
-        self.resize(560, 520)
+        self.setMinimumWidth(620)
+        self.resize(680, 640)
         self._languages = languages
+        self._worker: _DownloadWorker | None = None
         self._layout = QVBoxLayout(self)
-        self.picker = LanguagePicker(languages)
-        self._layout.addWidget(QLabel("Languages used for OCR:"))
+        self._layout.setSpacing(10)
+        intro = QLabel("Choose the languages printed on your pages. Fewer languages recognize faster and more "
+                       "accurately.")
+        intro.setWordWrap(True)
+        self._layout.addWidget(intro)
+        self.picker = LanguagePicker(languages, show_hint=False, title="Languages to recognize")
         self._layout.addWidget(self.picker)
-        box = QGroupBox("Optional languages")
+
+        box = QGroupBox("Add languages")
         bl = QVBoxLayout(box)
-        text = QLabel(
-            "English and Japanese are included. Other languages are not downloaded by Monograph PDF: download "
-            "the language file from the address shown (the official Tesseract release used for the included "
-            "languages), then choose Install from File. Only a file whose size and SHA-256 match is accepted.")
-        text.setWordWrap(True)
-        bl.addWidget(text)
-        self.packs = QListWidget()
-        self.packs.setWordWrap(True)
+        bl.setSpacing(8)
+        self.found_bar = QWidget()
+        fb = QHBoxLayout(self.found_bar)
+        fb.setContentsMargins(0, 0, 0, 0)
+        self.found_label = QLabel("")
+        self.found_label.setWordWrap(True)
+        self.found_label.setObjectName("DialogHint")
+        self.found_btn = QPushButton("Install Them")
+        self.found_btn.clicked.connect(self._install_found)
+        fb.addWidget(self.found_label, 1)
+        fb.addWidget(self.found_btn)
+        bl.addWidget(self.found_bar)
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Find a language or code…")
+        self.search.setClearButtonEnabled(True)
+        self.search.setAccessibleName("Find a language to add")
+        self.search.textChanged.connect(self._filter)
+        bl.addWidget(self.search)
+        self.packs = _PackTable()
+        self.packs.setObjectName("OcrPackTable")
+        self.packs.setColumnCount(len(self.COLS))
+        self.packs.setHeaderLabels(list(self.COLS))
+        self.packs.setRootIsDecorated(False)
+        self.packs.setUniformRowHeights(True)
+        self.packs.setAlternatingRowColors(True)
+        self.packs.setAccessibleName("Languages that can be added")
+        head = self.packs.header()
+        head.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for col in (1, 2, 3):
+            head.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
+        self.packs.itemSelectionChanged.connect(self._sync_buttons)
+        self.packs.itemDoubleClicked.connect(lambda *_: self._download())
         bl.addWidget(self.packs, 1)
         row = QHBoxLayout()
+        self.download_btn = QPushButton("Download and Install")
+        self.download_btn.setToolTip("Download the selected language from the official Tesseract release, check "
+                                     "it and install it (needs an internet connection; only when you click)")
+        self.download_btn.clicked.connect(self._download)
         self.install_btn = QPushButton("Install from File…")
+        self.install_btn.setToolTip("Install language files (.traineddata) you downloaded yourself")
         self.install_btn.clicked.connect(self._install)
-        self.copy_btn = QPushButton("Copy Download Address")
+        self.copy_btn = QPushButton("Copy Address")
+        self.copy_btn.setToolTip("Copy the official download address of the selected language")
         self.copy_btn.clicked.connect(self._copy_url)
         self.remove_btn = QPushButton("Remove")
         self.remove_btn.clicked.connect(self._remove)
-        for b in (self.install_btn, self.copy_btn, self.remove_btn):
+        for b in (self.download_btn, self.install_btn, self.copy_btn, self.remove_btn):
             row.addWidget(b)
+        row.addStretch(1)
         bl.addLayout(row)
+        self.progress = QProgressBar()
+        self.progress.setVisible(False)
+        bl.addWidget(self.progress)
+        note = QLabel("Source: the official Tesseract release used for the included languages (tessdata_fast "
+                      "4.1.0, Apache-2.0). A file is installed only if its size and SHA-256 match; installed "
+                      "languages are ready to use at once and appear under Languages to recognize.")
+        note.setWordWrap(True)
+        note.setObjectName("ContextHint")
+        bl.addWidget(note)
         self._layout.addWidget(box, 1)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
+        self._buttons = buttons
         self._layout.addWidget(buttons)
         self._fill()
 
-    def _fill(self) -> None:
-        from core.ocr.language_packs import catalog, installed
+    # ------------------------------------------------------------------ list
+    def _fill(self, select: str | None = None) -> None:
+        from core.ocr.language_packs import catalog, downloads_found, installed
 
         have = {p.code for p in installed()}
+        current = select or (self._selected().code if self._selected() is not None else None)
         self.packs.clear()
-        for p in catalog():
-            state = "installed" if p.code in have else "not installed"
-            item = QListWidgetItem(f"{p.name} — {state}\n{p.url}  ({p.size / 1e6:.1f} MB)")
-            item.setData(Qt.ItemDataRole.UserRole, p)
-            self.packs.addItem(item)
+        for p in sorted(catalog(), key=lambda p: (p.code not in have, p.name.casefold())):
+            item = QTreeWidgetItem([p.name, p.code, f"{p.size / 1e6:.1f} MB",
+                                    "Installed" if p.code in have else "Not installed"])
+            item.setData(0, Qt.ItemDataRole.UserRole, p)
+            item.setToolTip(0, f"{p.name} — {p.url}")
+            if p.code in have:
+                f = item.font(3)
+                f.setBold(True)
+                item.setFont(3, f)
+            self.packs.addTopLevelItem(item)
+            if p.code == current:
+                self.packs.setCurrentItem(item)
+        self._filter(self.search.text())
+        found = downloads_found()
+        self._found = found
+        if found:
+            names = ", ".join(pk.name for pk, _ in found[:6]) + (" …" if len(found) > 6 else "")
+            self.found_label.setText(f"Language files found in your Downloads folder: {names}.")
+        self.found_bar.setVisible(bool(found))
+        self._sync_buttons()
 
-    def _refresh_picker(self) -> None:
+    def _filter(self, text: str) -> None:
+        t = (text or "").strip().casefold()
+        for i in range(self.packs.topLevelItemCount()):
+            item = self.packs.topLevelItem(i)
+            item.setHidden(bool(t) and t not in item.text(0).casefold() and t not in item.text(1).casefold())
+
+    def _selected(self):
+        item = self.packs.currentItem()
+        return item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
+
+    def _sync_buttons(self) -> None:
+        from core.ocr.language_packs import installed
+
+        pack = self._selected()
+        have = {p.code for p in installed()} if pack is not None else set()
+        busy = self._worker is not None
+        self.download_btn.setEnabled(pack is not None and pack.code not in have and not busy)
+        self.copy_btn.setEnabled(pack is not None)
+        self.remove_btn.setEnabled(pack is not None and pack.code in have and not busy)
+        self.install_btn.setEnabled(not busy)
+
+    def _refresh_picker(self, add: str | None = None) -> None:
         current = self.picker.value()
+        if add and add not in current.split("+"):
+            current = f"{current}+{add}"
         index = self._layout.indexOf(self.picker)
         self._layout.removeWidget(self.picker)
         self.picker.deleteLater()
-        self.picker = LanguagePicker(current)
+        self.picker = LanguagePicker(current, show_hint=False, title="Languages to recognize")
         self._layout.insertWidget(index, self.picker)
 
-    def install_file(self, path: str) -> bool:
+    # ------------------------------------------------------------------ installing
+    def _installed(self, pack) -> None:
+        """A language was installed: ready at once, and ticked for recognition."""
+        self._fill(select=pack.code)
+        self._refresh_picker(add=pack.code)
+
+    def install_file(self, path: str, *, quiet: bool = False) -> bool:
         from pathlib import Path
 
         from core.ocr.language_packs import LanguagePackError, install_from_file
@@ -506,29 +643,85 @@ class OcrLanguagesDialog(QDialog):
         try:
             pack = install_from_file(Path(path))
         except LanguagePackError as exc:
-            QMessageBox.warning(self, "Install OCR Language", str(exc))
+            if not quiet:
+                QMessageBox.warning(self, "Install OCR Language", str(exc))
             return False
-        QMessageBox.information(self, "Install OCR Language", f"{pack.name} is installed and verified.")
-        self._fill()
-        self._refresh_picker()
+        self._installed(pack)
+        if not quiet:
+            QMessageBox.information(self, "Install OCR Language",
+                                    f"{pack.name} is installed, verified and ready to use.")
         return True
 
     def _install(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "Install OCR Language", "", "Tesseract language data (*.traineddata)")
-        if path:
-            self.install_file(path)
+        paths, _ = QFileDialog.getOpenFileNames(self, "Install OCR Languages", "",
+                                                "Tesseract language data (*.traineddata)")
+        ok = [p for p in paths if self.install_file(p, quiet=len(paths) > 1)]
+        if len(paths) > 1:
+            QMessageBox.information(self, "Install OCR Languages",
+                                    f"{len(ok)} of {len(paths)} files installed and verified."
+                                    + ("" if len(ok) == len(paths) else
+                                       " The others are not supported language files (size or SHA-256 did not match)."))
+
+    def _install_found(self) -> None:
+        done = [pk.name for pk, path in list(getattr(self, "_found", [])) if self.install_file(str(path), quiet=True)]
+        if done:
+            QMessageBox.information(self, "Install OCR Languages", "Installed and ready to use: " + ", ".join(done) + ".")
+
+    def _download(self) -> None:
+        pack = self._selected()
+        if pack is None or self._worker is not None or not self.download_btn.isEnabled():
+            return
+        self._worker = _DownloadWorker(pack, self)
+        self._worker.progress.connect(self._on_progress)
+        self._worker.done.connect(self._on_downloaded)
+        self._worker.failed.connect(self._on_failed)
+        self._worker.finished.connect(self._worker_finished)
+        self.progress.setRange(0, max(1, pack.size))
+        self.progress.setValue(0)
+        self.progress.setFormat(f"Downloading {pack.name}… %p%")
+        self.progress.setVisible(True)
+        self._sync_buttons()
+        self._worker.start()
+
+    def _on_progress(self, received: int, total: int) -> None:
+        self.progress.setMaximum(max(1, total))
+        self.progress.setValue(received)
+
+    def _on_downloaded(self, pack) -> None:
+        self.progress.setFormat(f"{pack.name} installed")
+        self._installed(pack)
+
+    def _on_failed(self, message: str) -> None:
+        self.progress.setVisible(False)
+        QMessageBox.warning(self, "Download OCR Language", message)
+
+    def _worker_finished(self) -> None:
+        self._worker = None
+        self._sync_buttons()
+
+    def reject(self) -> None:
+        if self._worker is not None:
+            self._worker.cancel_event.set()
+            self._worker.wait(5000)
+        super().reject()
+
+    def accept(self) -> None:
+        if self._worker is not None:
+            self._worker.cancel_event.set()
+            self._worker.wait(5000)
+        super().accept()
 
     def _copy_url(self) -> None:
-        item = self.packs.currentItem()
-        if item is not None:
-            QApplication.clipboard().setText(item.data(Qt.ItemDataRole.UserRole).url)
+        pack = self._selected()
+        if pack is not None:
+            QApplication.clipboard().setText(pack.url)
 
     def _remove(self) -> None:
         from core.ocr.language_packs import remove
 
-        item = self.packs.currentItem()
-        if item is not None and remove(item.data(Qt.ItemDataRole.UserRole).code):
-            self._fill()
+        pack = self._selected()
+        if pack is not None and remove(pack.code):
+            self._fill(select=pack.code)
             self._refresh_picker()
 
     def value(self) -> str:

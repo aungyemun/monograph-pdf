@@ -545,3 +545,93 @@ def confirm_signed_edit(parent, message: str | None) -> bool:
     box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
     box.setDefaultButton(QMessageBox.StandardButton.Cancel)
     return box.exec() == QMessageBox.StandardButton.Yes
+
+
+class PermissionsPasswordDialog(QDialog):
+    """Asks for the permissions (owner) password when the open PDF does not allow an action."""
+
+    def __init__(self, parent, *, action: str, restriction: str, filename: str = "") -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Permissions Password Required")
+        self.setModal(True)
+        self.setMinimumWidth(460)
+        lay = QVBoxLayout(self)
+        title = QLabel(f"{action} is not allowed for this PDF")
+        title.setObjectName("DialogTitle")
+        f = title.font()
+        f.setBold(True)
+        f.setPointSizeF(f.pointSizeF() + 1.5)
+        title.setFont(f)
+        title.setWordWrap(True)
+        lay.addWidget(title)
+        body = QLabel(
+            f"The author of {filename or 'this PDF'} protected it against {restriction}. "
+            "Enter the permissions password (also called the owner password) to continue. "
+            "The open password is not enough. The password is checked on this computer only and is "
+            "not stored."
+        )
+        body.setWordWrap(True)
+        lay.addWidget(body)
+        form = QFormLayout()
+        self.edit = QLineEdit()
+        self.edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.edit.setPlaceholderText("Permissions password")
+        self.edit.setClearButtonEnabled(True)
+        self.edit.setAccessibleName("Permissions password")
+        form.addRow("Password:", self.edit)
+        lay.addLayout(form)
+        show = QCheckBox("Show password")
+        show.toggled.connect(lambda on: self.edit.setEchoMode(
+            QLineEdit.EchoMode.Normal if on else QLineEdit.EchoMode.Password))
+        lay.addWidget(show)
+        self.error = QLabel("")
+        self.error.setObjectName("DialogError")
+        self.error.setWordWrap(True)
+        self.error.hide()
+        lay.addWidget(self.error)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Unlock")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        lay.addWidget(buttons)
+        self.edit.setFocus()
+
+    def password(self) -> str:
+        return self.edit.text()
+
+    def show_error(self, text: str) -> None:
+        self.error.setText(text)
+        self.error.show()
+        self.edit.selectAll()
+        self.edit.setFocus()
+
+
+def ask_permissions_password(parent, document, permission: str, action: str) -> bool:
+    """True when ``document`` allows ``permission`` or the permissions password was entered now."""
+    from core.security.protection import PERMISSION_LABELS, allowed, unlock_with_owner_password
+
+    if document is None or allowed(document, permission):
+        return True
+    dlg = PermissionsPasswordDialog(parent, action=action, restriction=PERMISSION_LABELS.get(permission, permission),
+                                    filename=getattr(document, "name", ""))
+    while dlg.exec() == QDialog.DialogCode.Accepted:
+        if unlock_with_owner_password(document, dlg.password()):
+            return True
+        dlg.show_error("That is not the permissions password of this PDF.")
+    return False
+
+
+def confirm_save_signed(parent, count: int) -> bool:
+    """Saving changes to a digitally signed PDF makes its signatures invalid: confirm first."""
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.Warning)
+    box.setWindowTitle("Signed PDF")
+    box.setText(f"This PDF is digitally signed ({count} signature{'s' if count != 1 else ''}).")
+    box.setInformativeText(
+        "Saving your changes rewrites the file, and the existing digital signatures will no longer be "
+        "valid. To keep the signed original, save your changes under a new name (File ▸ Save As) and "
+        "keep the original file.\n\nSave the changes?"
+    )
+    box.setStandardButtons(QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Cancel)
+    box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+    return box.exec() == QMessageBox.StandardButton.Save

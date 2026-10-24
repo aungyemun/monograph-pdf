@@ -12,7 +12,6 @@ from PySide6.QtGui import QColor, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
-    QColorDialog,
     QDialog,
     QDialogButtonBox,
     QGridLayout,
@@ -184,7 +183,9 @@ class NoteDialog(QDialog):
         self._refresh()
 
     def _more_colors(self) -> None:
-        c = QColorDialog.getColor(QColor(self._color), self.window(), "Note color")
+        from ui.color_picker import get_color
+
+        c = get_color(QColor(self._color), self, "Note color")
         if c.isValid():
             self._set_color(c.name())
 

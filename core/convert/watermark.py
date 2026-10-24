@@ -51,15 +51,9 @@ def apply_headers_footers(
 
 
 def _plain_copy(document: PdfDocument, destination: Path) -> None:
-    import fitz
+    from core.convert.copy_pdf import copy_pdf_preserving_metadata
 
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    doc = fitz.open()
-    try:
-        doc.insert_pdf(document._backend._doc)  # noqa: SLF001
-        doc.save(destination.as_posix(), garbage=3, deflate=True)
-    finally:
-        doc.close()
+    copy_pdf_preserving_metadata(document, destination)
 
 
 def apply_page_numbers(

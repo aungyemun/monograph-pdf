@@ -340,11 +340,55 @@ def _bake_image(targets: "_OverlayTargets", img) -> None:
                 pil.putalpha(alpha)
             buf = io.BytesIO()
             pil.save(buf, format="PNG")
-            page.insert_image(target, stream=buf.getvalue())
+            _place_image(page, target, {"stream": buf.getvalue()}, behind=getattr(img, "layer", "front") == "behind")
         else:
-            page.insert_image(rect, filename=path.as_posix())
+            _place_image(page, rect, {"filename": path.as_posix()}, behind=getattr(img, "layer", "front") == "behind")
     except Exception:  # noqa: BLE001
         return
+
+
+_MULTIPLY_GS = "MPDFBehind"
+
+
+def _add_ext_gstate(doc: fitz.Document, page_xref: int, name: str, value: str) -> None:
+    """Add ExtGState ``name`` to a page's resources (inline or indirect dictionaries)."""
+    kind, val = doc.xref_get_key(page_xref, "Resources")
+    if kind == "xref":
+        holder, prefix = int(val.split()[0]), ""
+    else:
+        holder, prefix = page_xref, "Resources/"
+        if kind == "null":
+            doc.xref_set_key(page_xref, "Resources", "<<>>")
+    kind2, val2 = doc.xref_get_key(holder, prefix + "ExtGState")
+    if kind2 == "xref":
+        doc.xref_set_key(int(val2.split()[0]), name, value)
+    elif kind2 == "null":
+        doc.xref_set_key(holder, prefix + "ExtGState", f"<</{name} {value}>>")
+    else:
+        doc.xref_set_key(holder, prefix + "ExtGState/" + name, value)
+
+
+def _place_image(page: fitz.Page, rect: fitz.Rect, source: dict, *, behind: bool) -> None:
+    """Insert a picture. ``behind``: drawn with *multiply* blending, so the page's text, lines and
+    any picture already there show through it as if the picture were printed beneath them. This
+    also works on scanned pages and on pages whose content paints an opaque white background (a
+    picture placed under the content would be hidden there). The page text stays selectable."""
+    # keep_proportion=False: the picture fills its box exactly as on screen (a box stretched with
+    # "Lock aspect ratio" off was saved letterboxed before)
+    if not behind:
+        page.insert_image(rect, keep_proportion=False, **source)
+        return
+    scratch = fitz.open()
+    try:
+        full = page.rect
+        sp = scratch.new_page(width=full.width, height=full.height)
+        sp.insert_image(rect - (full.x0, full.y0, full.x0, full.y0), keep_proportion=False, **source)
+        for xref in sp.get_contents():
+            scratch.update_stream(xref, b"q /" + _MULTIPLY_GS.encode() + b" gs\n" + scratch.xref_stream(xref) + b"\nQ")
+        _add_ext_gstate(scratch, sp.xref, _MULTIPLY_GS, "<</Type/ExtGState/BM/Multiply>>")
+        page.show_pdf_page(full, scratch, 0, keep_proportion=False, overlay=True)
+    finally:
+        scratch.close()
 
 
 def _bake_shape(targets: "_OverlayTargets", shape) -> None:

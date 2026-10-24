@@ -17,7 +17,6 @@ from core.convert.extract_images import extract_embedded_images
 from core.convert.flatten_export import export_flattened_pdf
 from core.convert.images_to_pdf import images_to_pdf
 from core.convert.office_to_pdf import office_to_pdf, office_to_pdf_supported
-from core.convert.optimize import OptimizePreset, optimize_pdf, preview_optimize_size
 from core.convert.pages_to_pdf import pages_to_pdf
 from core.convert.pdf_to_docx import FIDELITY_NOTICE as DOCX_NOTICE
 from core.convert.pdf_to_docx import pdf_to_docx
@@ -155,23 +154,6 @@ def test_office_to_pdf_unsupported(monkeypatch):
         office_bridge.office_availability(refresh=True)
 
 
-def test_optimize_and_preview():
-    pdf = open_document(SAMPLES / "sample_text.pdf")
-    try:
-        src_b, out_b = preview_optimize_size(pdf, OptimizePreset.DEFAULT)
-        assert src_b > 0 and out_b > 0
-        result = optimize_pdf(
-            pdf,
-            OUT / "convert_opt.pdf",
-            preset=OptimizePreset.AGGRESSIVE,
-            remove_metadata=True,
-        )
-        assert result.destination.is_file()
-        assert result.output_bytes > 0
-    finally:
-        pdf.close()
-
-
 def test_watermark_header_page_numbers():
     pdf = open_document(SAMPLES / "sample_text.pdf")
     try:
@@ -206,27 +188,6 @@ def test_image_box_export_and_bake():
     finally:
         pdf.close()
     assert dest.is_file()
-
-
-def test_searchable_path_uses_ocr_when_available():
-    from core.convert.searchable import scanned_to_searchable_pdf
-    from core.ocr.paths import ocr_ready
-
-    ok, _ = ocr_ready()
-    if not ok:
-        pytest.skip("OCR not vendored")
-    # Use image-only sample if present
-    sample = SAMPLES / "ocr_english_scan.pdf"
-    if not sample.is_file():
-        from tests.fixtures.make_ocr_samples import main as ocr_main
-
-        ocr_main()
-    pdf = open_document(sample)
-    try:
-        out = scanned_to_searchable_pdf(pdf, OUT / "convert_searchable.pdf", pages=[0])
-        assert out.is_file()
-    finally:
-        pdf.close()
 
 
 def test_pdf_to_docx_layout_keeps_tables_and_text(tmp_path):

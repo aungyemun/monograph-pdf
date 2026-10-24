@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import fitz
-
 from core.document import PdfDocument
 from core.forms.acroform import flatten_form_fields
 
@@ -14,10 +12,10 @@ def export_flattened_pdf(document: PdfDocument, destination: Path) -> Path:
     """Write a new PDF with form fields flattened. Source file unchanged."""
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    src: fitz.Document = document._backend._doc  # noqa: SLF001
-    doc = fitz.open()
+    from core.security.protection import save_copy, working_copy
+
+    doc = working_copy(document)  # keeps a protected PDF's protection
     try:
-        doc.insert_pdf(src)
         flatten_form_fields(doc)
         # Also flatten annotations when API exists
         try:
@@ -35,7 +33,7 @@ def export_flattened_pdf(document: PdfDocument, destination: Path) -> Path:
                         pass
         except Exception:  # noqa: BLE001
             pass
-        doc.save(destination.as_posix(), garbage=3, deflate=True)
+        save_copy(doc, destination)
     finally:
         doc.close()
     return destination

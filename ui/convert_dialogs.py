@@ -204,6 +204,42 @@ def fidelity_confirm(parent, title: str, notice: str) -> bool:
     return box.exec() == QMessageBox.StandardButton.Ok
 
 
+class ExportProtectionNotes(QWidget):
+    """What happens to digital signatures and watermarks in an export (core/security/protection.py),
+    with the choice to leave out marks added with Monograph PDF that are still removable."""
+
+    def __init__(self, info, *, target: str) -> None:
+        super().__init__()
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(4)
+        self.include_marks: QCheckBox | None = None
+        lines = []
+        if getattr(info, "signatures", 0):
+            lines.append(f"The PDF is digitally signed. The {target} shows how the signature looks but is "
+                         "not digitally signed.")
+        if getattr(info, "other_watermarks", False):
+            lines.append("A watermark made by another program is part of the pages and is kept.")
+        for text in lines:
+            lab = _hint(text)
+            lay.addWidget(lab)
+        if getattr(info, "marks", None):
+            self.include_marks = QCheckBox("Include the watermark, header/footer and background added with "
+                                           "Monograph PDF")
+            self.include_marks.setChecked(True)
+            self.include_marks.setToolTip("Clear to convert the pages without them. A watermark locked with "
+                                          "Protect with Password is part of the pages and always stays.")
+            lay.addWidget(self.include_marks)
+        self.setVisible(bool(lines) or self.include_marks is not None)
+
+    def leave_out_marks(self) -> set[str]:
+        if self.include_marks is None or self.include_marks.isChecked():
+            return set()
+        from core.convert.page_marks import ALL_KINDS
+
+        return set(ALL_KINDS)
+
+
 class PdfToPowerPointDialog(QDialog):
     """Choose how a PDF becomes slides: whole pages as pictures, or pictures plus editable text; the slide
     size policy for documents whose pages differ in size; and the picture quality."""
@@ -216,7 +252,8 @@ class PdfToPowerPointDialog(QDialog):
         ("split", "Separate presentation for each page size"),
     )
 
-    def __init__(self, parent=None, *, page_groups: list[tuple[str, list[int]]] | None = None) -> None:
+    def __init__(self, parent=None, *, page_groups: list[tuple[str, list[int]]] | None = None,
+                 protection=None) -> None:
         super().__init__(parent)
         from PySide6.QtWidgets import QRadioButton
 
@@ -272,6 +309,8 @@ class PdfToPowerPointDialog(QDialog):
             lab.setWordWrap(True)
             lab.setContentsMargins(24, 0, 0, 0)
             root.addWidget(lab)
+        self.protection_notes = ExportProtectionNotes(protection, target="presentation")
+        root.addWidget(self.protection_notes)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Continue…")
         buttons.accepted.connect(self.accept)
@@ -303,7 +342,7 @@ class PdfToPowerPointDialog(QDialog):
 class PdfToWordDialog(QDialog):
     """Choose the PDF → Word engine and page scope."""
 
-    def __init__(self, parent=None, *, page_count: int = 0, current_page: int = 0) -> None:
+    def __init__(self, parent=None, *, page_count: int = 0, current_page: int = 0, protection=None) -> None:
         super().__init__(parent)
         from core.convert.pdf_to_docx import layout_engine_available, word_engine_available
 
@@ -326,6 +365,8 @@ class PdfToWordDialog(QDialog):
         root.addLayout(layout)
         self.notes = _hint("")
         root.addWidget(self.notes)
+        self.protection_notes = ExportProtectionNotes(protection, target="Word document")
+        root.addWidget(self.protection_notes)
         self.open_after = QCheckBox("Open the Word document when finished")
         self.open_after.setChecked(True)
         root.addWidget(self.open_after)
@@ -350,4 +391,5 @@ class PdfToWordDialog(QDialog):
             "engine": str(self.engine.currentData()),
             "pages": self.scope.pages(),
             "open_after": self.open_after.isChecked(),
+            "leave_out_marks": self.protection_notes.leave_out_marks(),
         }

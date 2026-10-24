@@ -239,9 +239,14 @@ def test_encrypted_input_merge_and_ops():
     job = MergeJob()
     src = job.add_path(SAMPLES / "sample_password.pdf")
     assert src.open_error is not None or src.encrypted
-    # Proper password
+    # The open password is not enough: the PDF does not allow combining its pages without its
+    # permissions password (core/security/protection.py)
+    job_user = MergeJob()
+    restricted = job_user.add_path(SAMPLES / "sample_password.pdf", password="secret")
+    assert restricted.restricted and "permissions password" in (restricted.open_error or "")
+    # The permissions password
     job2 = MergeJob()
-    src2 = job2.add_path(SAMPLES / "sample_password.pdf", password="secret")
+    src2 = job2.add_path(SAMPLES / "sample_password.pdf", password="owner-secret")
     assert src2.open_error is None
     assert src2.page_count >= 1
     dest = OUT / "organize_merged_encrypted.pdf"

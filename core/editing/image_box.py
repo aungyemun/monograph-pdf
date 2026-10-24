@@ -30,6 +30,9 @@ class ImageBox:
     # How a visual signature was made, so it can be opened again and changed after placing:
     # {"kind": "typed", "text", "family", "color"} or {"kind": "drawn"} / {"kind": "image"}
     signature: dict = field(default_factory=dict)
+    # "front": covers what is on the page; "behind": the page's text and lines show through it, as if
+    # the picture were printed on the paper beneath the text (multiply blending, engines/bake_edits.py)
+    layer: str = "front"
 
     def copy(self) -> "ImageBox":
         return ImageBox(
@@ -44,6 +47,7 @@ class ImageBox:
             object_id=str(uuid.uuid4()),
             role=self.role,
             signature=dict(self.signature),
+            layer=self.layer,
         )
 
     def clone_same_id(self) -> "ImageBox":
@@ -65,6 +69,7 @@ class ImageBox:
             "z_index": self.z_index,
             "role": self.role,
             "signature": dict(self.signature),
+            "layer": self.layer,
         }
 
     @staticmethod
@@ -82,7 +87,11 @@ class ImageBox:
             object_id=str(data.get("object_id") or uuid.uuid4()),
             role=str(data.get("role") or ""),
             signature=dict(data.get("signature") or {}),
+            layer="behind" if data.get("layer") == "behind" else "front",
         )
+
+
+IMAGE_LAYERS = {"front": "In front of text", "behind": "Behind text"}
 
 
 def export_image_box(box: ImageBox, destination: Path) -> Path:

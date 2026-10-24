@@ -8,7 +8,6 @@ from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
-    QColorDialog,
     QComboBox,
     QDoubleSpinBox,
     QFormLayout,
@@ -639,12 +638,9 @@ class InspectorPanel(QScrollArea):
             self._updating = False
 
     def _pick_into(self, edit: QLineEdit, btn: QToolButton) -> None:
-        c = QColorDialog.getColor(
-            QColor(edit.text() or "#000000"),
-            self,
-            "Color",
-            QColorDialog.ColorDialogOption.ShowAlphaChannel,
-        )
+        from ui.color_picker import get_color
+
+        c = get_color(QColor(edit.text() or "#000000"), self, "Color", allow_alpha=True)
         if c.isValid():
             name = c.name(QColor.NameFormat.HexArgb) if c.alpha() < 255 else c.name()
             edit.setText(name)
@@ -1049,6 +1045,20 @@ class InspectorPanel(QScrollArea):
         self._img_op = _percent_spin(float(getattr(image, "opacity", 1.0)))
         self._img_op.valueChanged.connect(self._apply_image)
         self._form.addRow("Opacity:", self._img_op)
+        from core.editing.image_box import IMAGE_LAYERS
+
+        self._img_layer = QComboBox()
+        self._img_layer.setObjectName("ImageLayer")
+        for key, label in IMAGE_LAYERS.items():
+            self._img_layer.addItem(label, key)
+        self._img_layer.setCurrentIndex(max(0, self._img_layer.findData(getattr(image, "layer", "front"))))
+        self._img_layer.setToolTip(
+            "In front of text: the picture covers what is under it.\n"
+            "Behind text: the page's text and lines show through the picture, as if it were printed "
+            "on the paper beneath them (also on scanned pages)."
+        )
+        self._img_layer.currentIndexChanged.connect(self._apply_image)
+        self._form.addRow("Placement:", self._img_layer)
 
         self._img_lock = QCheckBox("Lock aspect ratio")
         self._img_lock.setChecked(bool(getattr(image, "lock_aspect", False)))
@@ -1073,5 +1083,6 @@ class InspectorPanel(QScrollArea):
             opacity=float(self._img_op.value()) / 100.0,
             rotation=float(self._img_rot.value()),
             lock_aspect=self._img_lock.isChecked(),
+            layer=str(self._img_layer.currentData() or "front"),
         )
         self.styleEdited.emit()

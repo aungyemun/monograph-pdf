@@ -82,8 +82,7 @@ def test_watermark_size_shows_three_digits(themed, qtbot):
 
 def test_page_design_color_picker_is_not_tinted(themed, qtbot, monkeypatch):
     """The colour picker opens on the dialog, not on the coloured button (whose style tinted it)."""
-    from PySide6.QtWidgets import QColorDialog
-
+    import ui.color_picker as color_picker
     from ui.page_marks_dialogs import WatermarkDialog
 
     dlg = WatermarkDialog(page_count=1, current_page=0, source=None)
@@ -91,12 +90,12 @@ def test_page_design_color_picker_is_not_tinted(themed, qtbot, monkeypatch):
     seen = {}
 
     def fake(initial, parent=None, title="", *a, **k):
-        seen["parent"] = parent
+        seen["parent"] = parent.window() if parent is not None else None
         from PySide6.QtGui import QColor
 
         return QColor("#1f3a5f")
 
-    monkeypatch.setattr(QColorDialog, "getColor", staticmethod(fake))
+    monkeypatch.setattr(color_picker, "get_color", fake)
     dlg.color_btn._pick()  # noqa: SLF001  "More colors…"
     assert seen["parent"] is dlg and dlg.color_btn.name() == "#1f3a5f"
     sheet = dlg.color_btn.styleSheet()

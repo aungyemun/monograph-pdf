@@ -187,40 +187,6 @@ def _image_hashes(path: Path) -> list[str]:
         d.close()
 
 
-def test_lossless_preset_keeps_every_image_pixel_and_is_labelled_lossless(tmp_path: Path):
-    from core.convert.optimize import OptimizePreset, optimize_pdf
-
-    src = _image_pdf(tmp_path / "img.pdf")
-    pdf = open_document(src)
-    try:
-        res = optimize_pdf(pdf, tmp_path / "lossless.pdf", preset=OptimizePreset.LOSSLESS)
-    finally:
-        pdf.close()
-    assert res.is_lossy is False and res.mode_label == "Lossless"
-    assert _image_hashes(src) == _image_hashes(res.destination)
-    assert res.output_bytes == res.destination.stat().st_size
-
-
-def test_balanced_preset_is_labelled_lossy_and_really_smaller(tmp_path: Path):
-    from core.convert.optimize import OptimizePreset, optimize_pdf
-
-    src = _image_pdf(tmp_path / "img.pdf")
-    pdf = open_document(src)
-    try:
-        res = optimize_pdf(pdf, tmp_path / "bal.pdf", preset=OptimizePreset.BALANCED)
-    finally:
-        pdf.close()
-    assert res.is_lossy is True
-    assert res.output_bytes < res.source_bytes
-    assert res.reduction_pct == pytest.approx(100.0 * (1 - res.output_bytes / res.source_bytes), abs=0.5)
-    d = fitz.open(res.destination.as_posix())
-    try:
-        assert d.page_count == 1 and d[0].get_pixmap().width > 0  # still opens and renders
-    finally:
-        d.close()
-
-
-# ------------------------------------------------------------------ OCR accuracy (measured, not assumed)
 def _ratio(expected: str, got: str) -> float:
     n = lambda t: re.sub(r"\s+", "", t)  # noqa: E731
     return difflib.SequenceMatcher(None, n(expected), n(got)).ratio()

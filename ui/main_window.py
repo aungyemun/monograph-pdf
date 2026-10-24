@@ -417,6 +417,7 @@ class MainWindow(QMainWindow):
         self.act_flatten = QAction("Flatten Form on Save", self)
         self.act_flatten.setCheckable(True)
         self.act_flatten.toggled.connect(self._toggle_flatten)
+        set_action_icon(self.act_flatten, "lock")  # an icon column entry like its neighbours; accent when on
 
         self.act_detect_tables = QAction("Detect &Tables", self)
         self.act_detect_tables.triggered.connect(self._detect_tables)
@@ -556,6 +557,24 @@ class MainWindow(QMainWindow):
         self.act_replace_image.triggered.connect(self._replace_selected_image)
         self.act_export_image.setEnabled(False)  # enabled while an image is selected
         self.act_replace_image.setEnabled(False)
+        # Placement of a picture: over the page, or under its text (the text shows through)
+        self.act_image_front = QAction("In &Front of Text", self)
+        self.act_image_front.setToolTip("The picture covers the text and drawings under it")
+        self.act_image_behind = QAction("&Behind Text", self)
+        self.act_image_behind.setToolTip(
+            "The page's text and lines show through the picture, as if it were printed on the paper "
+            "beneath them (also on scanned pages)"
+        )
+        self._image_layer_group = QActionGroup(self)
+        self._image_layer_group.setExclusive(True)
+        for act, layer in ((self.act_image_front, "front"), (self.act_image_behind, "behind")):
+            act.setCheckable(True)
+            act.setEnabled(False)
+            self._image_layer_group.addAction(act)
+            act.triggered.connect(lambda _c=False, v=layer: self._set_image_layer(v))
+        self.act_image_front.setChecked(True)
+        set_action_icon(self.act_image_front, "image_front")
+        set_action_icon(self.act_image_behind, "image_behind")
 
         # Annotations (menu titles finalized in _build_extra_actions)
         self.act_annot_highlight = QAction("&Highlight Text", self)
@@ -1063,6 +1082,12 @@ class MainWindow(QMainWindow):
         self.act_last = new("&Last Page", self._last_page, "End")
         self.act_goto = new("&Go to Page…", self._go_to_page_dialog, "Ctrl+G")
         self.act_fullscreen = new("F&ull Screen", self._toggle_fullscreen, "F11", checkable=True)
+        self.act_autoscroll = new(
+            "Automatic &Scrolling", self._toggle_autoscroll, "Ctrl+Shift+L", checkable=True,
+            tip="Scroll through the pages at a steady speed: ↓ / ↑ change the speed, Esc stops. "
+                "Or press the mouse wheel button on a page and move the pointer up or down.",
+        )
+        set_action_icon(self.act_autoscroll, "autoscroll")
         self.act_print_preview = new("Print Pre&view…", self._print_preview, "Ctrl+Shift+P")
         self.addAction(self.act_print_preview)  # shortcut only — the Print dialog has the preview
         self.act_doc_props = new(
@@ -1387,6 +1412,9 @@ class MainWindow(QMainWindow):
         set_action_icon(image_menu.menuAction(), "image")
         image_menu.addAction(self.act_replace_image)
         image_menu.addAction(self.act_export_image)
+        image_menu.addSeparator()
+        image_menu.addAction(self.act_image_front)
+        image_menu.addAction(self.act_image_behind)
         edit.addSeparator()
         edit.addAction(self.act_find)
         edit.addAction(self.act_find_next)
@@ -1408,6 +1436,7 @@ class MainWindow(QMainWindow):
         view.addAction(self.act_show_comments)
         view.addAction(self.act_toggle_right)
         view.addAction(self.act_fullscreen)
+        view.addAction(self.act_autoscroll)
         view.addSeparator()
         view.addAction(self.act_highlight_fields)
         view.addAction(self.act_match_monitor_colors)
@@ -1815,6 +1844,9 @@ class MainWindow(QMainWindow):
         self._canvas.selectionChanged.connect(self._on_selection_changed)
         self._canvas.editModelChanged.connect(self._on_edit_changed)
         self._canvas.requestStatus.connect(self.statusBar().showMessage)
+        self._canvas.autoscroll.started.connect(self._on_autoscroll_started)
+        self._canvas.autoscroll.speedChanged.connect(self._on_autoscroll_speed)
+        self._canvas.autoscroll.stopped.connect(self._on_autoscroll_stopped)
         self._canvas._canvas.history_handler = (  # noqa: SLF001
             lambda op: self._undo() if op == "undo" else self._redo()
         )
@@ -1961,6 +1993,17 @@ class MainWindow(QMainWindow):
         msg = f"Opened {document.name} ({n} page{'' if n == 1 else 's'})"
         if has_fields:
             msg += " — click fields to fill (Forms Mode not required)"
+        try:
+            from core.security.protection import PERMISSION_LABELS, effective_permissions
+
+            denied = [PERMISSION_LABELS[k] for k, v in effective_permissions(document).items() if not v]
+        except Exception:  # noqa: BLE001
+            denied = []
+        if denied:
+            msg += (" — protected: " + ", ".join(denied) + " need the permissions password "
+                    "(Protect ▸ View Permissions shows the details)")
+            self.statusBar().showMessage(msg, 12000)
+            return
         self.statusBar().showMessage(msg, 5000)
 
     def _is_headless_ui(self) -> bool:
@@ -2118,7 +2161,13 @@ class MainWindow(QMainWindow):
         except OSError:
             same = current is not None and current.resolve() == dest.resolve()
         if not same:
-            bake_via_backend(self._edit, dest)
+            if self._unchanged_on_disk():
+                # Save As without changes: a byte-for-byte copy, so digital signatures stay valid
+                from core.security.protection import copy_file_exactly
+
+                copy_file_exactly(self._document, dest)
+            else:
+                bake_via_backend(self._edit, dest)
             return False
         tmp = dest.with_name(f".{dest.stem}.saving-{uuid.uuid4().hex[:8]}.pdf")
         try:
@@ -2164,6 +2213,12 @@ class MainWindow(QMainWindow):
         if getattr(self, "_converted_from", None) is not None:
             # A converted image/Office file has no PDF on disk yet — choose where to save it
             self.save_as_dialog()
+            return
+        if self._unchanged_on_disk():
+            # nothing to write: rewriting an unchanged file would only invalidate digital signatures
+            self.statusBar().showMessage("No changes to save", 3000)
+            return
+        if not self._may_save_changes(overwrite=True):
             return
         # Explicit Save overwrites the opened path after baking overlays.
         # Original remains intact until this intentional action.
@@ -2222,12 +2277,20 @@ class MainWindow(QMainWindow):
                 QMessageBox.information(self, "Save a Copy", "That is the open document itself. Choose another "
                                                              "name or folder, or use Save to replace it.")
             return None
+        if not self._may_save_changes(overwrite=False):
+            return None
         from core.forms import xfa_sync
         from engines.bake_edits import bake_via_backend
 
         xfa_sync.take_notes()
         try:
-            bake_via_backend(self._edit, dest)  # atomic; the editing model is not changed
+            if self._unchanged_on_disk():
+                # nothing changed: an exact copy keeps digital signatures valid (and the protection as is)
+                from core.security.protection import copy_file_exactly
+
+                copy_file_exactly(self._document, dest)
+            else:
+                bake_via_backend(self._edit, dest)  # atomic; the editing model is not changed
         except Exception as exc:  # noqa: BLE001
             self.report_unexpected("Save a Copy failed", exc, EventId.PDF_SAVE_FAILED,
                                    hint="Pick a writable folder and ensure the file is not open elsewhere.")
@@ -2251,6 +2314,8 @@ class MainWindow(QMainWindow):
         dest = Path(path)
         if dest.suffix.lower() != ".pdf":
             dest = dest.with_suffix(dest.suffix + ".pdf") if dest.suffix else dest.with_suffix(".pdf")
+        if not self._may_save_changes(overwrite=False):
+            return
         diagnostics.record(EventId.PDF_SAVE_STARTED)
         try:
             old_path = self._document.path
@@ -2449,7 +2514,7 @@ class MainWindow(QMainWindow):
 
     def _pick_text_color(self) -> None:
         from PySide6.QtGui import QColor
-        from PySide6.QtWidgets import QColorDialog
+        from ui.color_picker import get_color
 
         boxes = self._selected_text_boxes()
         fields = self._selected_style_fields()
@@ -2460,7 +2525,7 @@ class MainWindow(QMainWindow):
             current = boxes[0].style.text_color or "#000000"
         else:
             current = (inner.field_editor_style() or {}).get("color") or fields[0].text_color or "#000000"
-        c = QColorDialog.getColor(QColor(current), self, "Text color")
+        c = get_color(QColor(current), self, "Text color", text_contrast=True)
         if not c.isValid():
             return
         if inner.format_field_selection(color=c.name()):
@@ -2646,6 +2711,8 @@ class MainWindow(QMainWindow):
         self._pick_on_page("Area OCR: drag a rectangle around the text to read", apply, default_size=(0.0, 0.0))
 
     def _ocr_extract(self) -> None:
+        if not self._allow("copy", "Extracting recognized text"):
+            return
         if self._document is None or not self._ocr_ready_or_report():
             return
         from core.ocr.pipeline import OcrOptions
@@ -2670,6 +2737,8 @@ class MainWindow(QMainWindow):
         self._show_ocr_text(result, "Recognized Text", languages)
 
     def _scan_to_word(self) -> None:
+        if not self._allow("copy", "Converting to Word"):
+            return
         if self._document is None or not self._ocr_ready_or_report():
             return
         from core.ocr.pipeline import OcrOptions
@@ -2919,9 +2988,23 @@ class MainWindow(QMainWindow):
 
     def _sync_selection_actions(self) -> None:
         """Commands that need a particular kind of selection are greyed out without one."""
-        has_image = bool(self._edit and any(oid in self._edit.images for oid in self._edit.selection))
+        images = [self._edit.images[oid] for oid in self._edit.selection if oid in self._edit.images] if self._edit else []
+        has_image = bool(images)
         self.act_replace_image.setEnabled(has_image)
         self.act_export_image.setEnabled(has_image)
+        for act in (self.act_image_front, self.act_image_behind):
+            act.setEnabled(has_image)
+        if images:
+            behind = all(getattr(i, "layer", "front") == "behind" for i in images)
+            (self.act_image_behind if behind else self.act_image_front).setChecked(True)
+
+    def _set_image_layer(self, layer: str) -> None:
+        if self._edit is None:
+            return
+        for oid in list(self._edit.selection):
+            if oid in self._edit.images:
+                self._edit.set_overlay_attrs(oid, layer=layer)  # undoable
+        self._on_edit_changed()
 
     def _on_selection_changed(self) -> None:
         if getattr(self._canvas._canvas, "_live_interaction", False):  # noqa: SLF001
@@ -3092,6 +3175,9 @@ class MainWindow(QMainWindow):
             title("Image")
             for act in (self.act_replace_image, self.act_export_image):
                 bar.addAction(act)
+            bar.addSeparator()
+            bar.addAction(self.act_image_front)
+            bar.addAction(self.act_image_behind)
             bar.addSeparator()
             for act in (self.act_bring_forward, self.act_send_backward, self.act_duplicate, self.act_delete):
                 bar.addAction(act)
@@ -4610,6 +4696,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Crop", str(exc))
 
     def _extract_pages(self) -> None:
+        if not self._allow("assemble", "Extracting pages"):
+            return
         if self._document is None:
             return
         pages = self._selected_pages()
@@ -4769,6 +4857,8 @@ class MainWindow(QMainWindow):
                 self.open_path(dlg.output_path)
 
     def _split_document(self) -> None:
+        if not self._allow("assemble", "Splitting the document"):
+            return
         if self._document is None:
             return
         from ui.organize_dialogs import SplitDialog
@@ -4815,6 +4905,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Images → PDF", str(exc))
 
     def _pdf_to_images(self) -> None:
+        if not self._allow("copy", "Saving pages as pictures"):
+            return
         if self._document is None:
             return
         if not self._confirm_unsaved_for_export("PDF to Images"):
@@ -4852,6 +4944,8 @@ class MainWindow(QMainWindow):
             self.report_unexpected("Export images failed", exc, EventId.PDF_EXPORT_FAILED)
 
     def _extract_images(self) -> None:
+        if not self._allow("copy", "Extracting the pictures"):
+            return
         if self._document is None:
             return
         from core.convert.extract_images import extract_embedded_images
@@ -4868,6 +4962,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Extract images", str(exc))
 
     def _pdf_to_text(self) -> None:
+        if not self._allow("copy", "Saving the text"):
+            return
         if self._document is None:
             return
         if not self._confirm_unsaved_for_export("PDF to Text"):
@@ -4891,6 +4987,8 @@ class MainWindow(QMainWindow):
         self._run_ocr(scope="needed")
 
     def _export_selected_pages_pdf(self) -> None:
+        if not self._allow("assemble", "Saving pages as a new PDF"):
+            return
         if self._document is None:
             return
         from core.convert.pages_to_pdf import pages_to_pdf
@@ -4907,6 +5005,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Pages → PDF", str(exc))
 
     def _export_flattened(self) -> None:
+        if not self._allow("edit", "Saving a flattened copy"):
+            return
         if self._document is None:
             return
         from core.convert.flatten_export import export_flattened_pdf
@@ -4939,6 +5039,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Copy", str(exc))
 
     def _pdf_to_docx(self) -> None:
+        if not self._allow("copy", "Converting to Word"):
+            return
         if self._document is None:
             return
         if not self._confirm_unsaved_for_export("PDF to Word"):
@@ -4947,7 +5049,10 @@ class MainWindow(QMainWindow):
         from ui.convert_dialogs import PdfToWordDialog, choose_save
         from ui.task_runner import run_with_progress
 
-        dlg = PdfToWordDialog(self, page_count=self._document.page_count, current_page=self._canvas.focus_page)
+        from core.security.protection import protection_info
+
+        dlg = PdfToWordDialog(self, page_count=self._document.page_count, current_page=self._canvas.focus_page,
+                              protection=protection_info(self._document))
         if dlg.exec() != dlg.DialogCode.Accepted:
             return
         try:
@@ -4960,7 +5065,7 @@ class MainWindow(QMainWindow):
             return
         self._commit_field_editor()
         try:
-            with self._current_document() as src:
+            with self._current_document(leave_out_marks=opts.get("leave_out_marks")) as src:
                 run_with_progress(
                     self,
                     "PDF to Word",
@@ -4976,6 +5081,8 @@ class MainWindow(QMainWindow):
             self._open_external(dest)
 
     def _tables_to_xlsx(self) -> None:
+        if not self._allow("copy", "Saving tables to Excel"):
+            return
         if self._document is None:
             return
         if not self._confirm_unsaved_for_export("PDF to Excel"):
@@ -4996,6 +5103,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "PDF Tables to Excel", str(exc))
 
     def _pdf_to_pptx(self) -> None:
+        if not self._allow("copy", "Converting to PowerPoint"):
+            return
         if self._document is None:
             return
         from core.convert.pdf_to_pptx import (
@@ -5008,7 +5117,10 @@ class MainWindow(QMainWindow):
 
         if not self._confirm_unsaved_for_export("PDF to PowerPoint"):
             return
-        dlg = PdfToPowerPointDialog(self, page_groups=page_groups(self._document))
+        from core.security.protection import protection_info
+
+        dlg = PdfToPowerPointDialog(self, page_groups=page_groups(self._document),
+                                    protection=protection_info(self._document))
         if dlg.exec() != dlg.DialogCode.Accepted:
             return
         dest = choose_save(self, "Save as PowerPoint", self._suggest("", "pptx"), "PowerPoint (*.pptx)")
@@ -5017,7 +5129,7 @@ class MainWindow(QMainWindow):
         opts = dlg.options()
         try:
             report = PptxReport()
-            with self._current_document() as src:
+            with self._current_document(leave_out_marks=dlg.protection_notes.leave_out_marks()) as src:
                 if dlg.policy() == "split":
                     outs = pdf_to_pptx_split(src, dest, **opts)
                     self.statusBar().showMessage(
@@ -5076,6 +5188,8 @@ class MainWindow(QMainWindow):
         """Compress PDF: the document as shown (unsaved changes included, after the Save / Save As /
         Cancel decision) is compressed in memory, measured, previewed, and written atomically to the
         chosen file. The open file is replaced only when the user picks it and confirms."""
+        if not self._allow("edit", "Compressing the PDF"):
+            return
         if self._document is None:
             return
         if not self._confirm_unsaved_for_export("Compress PDF"):
@@ -5145,16 +5259,22 @@ class MainWindow(QMainWindow):
         return dest
 
     def _watermark(self) -> None:
+        if not self._allow("edit", "Adding a watermark"):
+            return
         from ui.page_marks_dialogs import WatermarkDialog
 
         self._page_design(WatermarkDialog, "Watermark", "watermarked", "Save Watermarked PDF")
 
     def _header_footer(self) -> None:
+        if not self._allow("edit", "Adding a header or footer"):
+            return
         from ui.page_marks_dialogs import HeaderFooterDialog
 
         self._page_design(HeaderFooterDialog, "Header / Footer", "numbered", "Save PDF with Header / Footer")
 
     def _background(self) -> None:
+        if not self._allow("edit", "Adding a background"):
+            return
         from ui.page_marks_dialogs import BackgroundDialog
 
         self._page_design(BackgroundDialog, "Background", "background", "Save PDF with Background")
@@ -5289,6 +5409,51 @@ class MainWindow(QMainWindow):
             self._on_edit_changed()
             return
         QMessageBox.information(self, "Replace image", "Select an image object first.")
+
+    def _unchanged_on_disk(self) -> bool:
+        """True when the open document is exactly the file on disk (no unsaved change of any kind)."""
+        return bool(
+            self._document is not None and self._edit is not None and not self._edit.dirty
+            and not getattr(self._edit, "flatten_on_save", False)
+            and getattr(self, "_converted_from", None) is None
+            and Path(self._document.path).is_file()
+        )
+
+    def _may_save_changes(self, *, overwrite: bool) -> bool:
+        """Before writing unsaved changes: the PDF's permissions (changes need the "edit" permission or
+        the permissions password) and, on Save over a digitally signed PDF, a confirmation that its
+        signatures become invalid."""
+        if self._unchanged_on_disk():
+            return True
+        if not self._allow("edit", "Saving changes"):
+            return False
+        if overwrite and not self._is_headless_ui():
+            from core.security.protection import signed_signature_count
+            from ui.security_dialogs import confirm_save_signed
+
+            try:
+                count = signed_signature_count(self._document._backend._doc)  # noqa: SLF001
+            except Exception:  # noqa: BLE001
+                count = 0
+            if count and not confirm_save_signed(self, count):
+                return False
+        return True
+
+    def _allow(self, permission: str, action: str) -> bool:
+        """Honour the permissions of a password-protected PDF (core/security/protection.py): True when
+        the open PDF allows ``permission`` or its permissions password is entered now."""
+        if self._document is None:
+            return True
+        from core.security.protection import allowed
+
+        if allowed(self._document, permission):
+            return True
+        if self._is_headless_ui():
+            self.statusBar().showMessage(f"{action} is not allowed for this PDF without its permissions password", 6000)
+            return False
+        from ui.security_dialogs import ask_permissions_password
+
+        return ask_permissions_password(self, self._document, permission, action)
 
     def _confirm_signed(self) -> bool:
         if self._document is None:
@@ -5501,10 +5666,10 @@ class MainWindow(QMainWindow):
 
     def _choose_custom_highlight_color(self) -> None:
         from PySide6.QtGui import QColor
-        from PySide6.QtWidgets import QColorDialog
+        from ui.color_picker import get_color
 
         current = QColor(getattr(self._prefs, "highlight_color", "#ffff00") or "#ffff00")
-        chosen = QColorDialog.getColor(current, self, "Highlight color")
+        chosen = get_color(current, self, "Highlight color")
         if chosen.isValid():
             self._set_highlight_color(chosen.name())
 
@@ -5928,9 +6093,8 @@ class MainWindow(QMainWindow):
 
     def _comment_color(self, ref) -> None:
         from PySide6.QtGui import QColor
-        from PySide6.QtWidgets import QColorDialog
-
         from core.annotations.stamps import StampSpec, stamp_spec, update_stamp
+        from ui.color_picker import get_color
 
         found = self._live_annot(ref)
         if found is None:
@@ -5941,7 +6105,7 @@ class MainWindow(QMainWindow):
         custom = stamp_spec(self._document, ref.xref)
         if custom is not None:
             initial = QColor(custom[0].color)
-        color = QColorDialog.getColor(initial, self, "Comment Colour")
+        color = get_color(initial, self, "Comment color")
         if not color.isValid():
             return
         rgb = (color.redF(), color.greenF(), color.blueF())
@@ -6000,6 +6164,8 @@ class MainWindow(QMainWindow):
         self._left.comments.refresh()
 
     def _password_protect(self) -> None:
+        if not self._allow("owner", "Changing the password protection"):
+            return
         if self._document is None:
             return
         from core.security import apply_password_protection
@@ -6082,6 +6248,14 @@ class MainWindow(QMainWindow):
                 lines.append(f"{label}: {'allowed' if values[key] else 'not allowed'}")
         if not encrypted:
             lines += ["", "Without password protection every action is allowed."]
+        from core.security.protection import protection_info
+
+        info = protection_info(self._document)
+        if info.owner_unlocked:
+            lines += ["", "The permissions password was entered: every action is allowed until the document is closed."]
+        summary = info.summary_lines()
+        if summary:
+            lines += ["", "How Monograph PDF handles this PDF:"] + [f"• {line}" for line in summary]
         InfoTextDialog("Permissions", "\n".join(lines), self).exec()
 
     def _inspect_metadata(self) -> None:
@@ -6116,6 +6290,8 @@ class MainWindow(QMainWindow):
         InfoTextDialog("Metadata", "\n".join(lines), self).exec()
 
     def _remove_metadata(self) -> None:
+        if not self._allow("edit", "Removing the document information"):
+            return
         if self._document is None:
             return
         from core.security import remove_metadata
@@ -6132,6 +6308,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Remove metadata", str(exc))
 
     def _copy_page_as_picture(self) -> None:
+        if not self._allow("copy", "Copying the page as a picture"):
+            return
         if self._document is None:
             return
         page = self._canvas.focus_page
@@ -6556,6 +6734,8 @@ class MainWindow(QMainWindow):
 
     def _print_document(self) -> None:
         """Print with Monograph PDF's own dialog — printer settings plus a live preview of every sheet."""
+        if not self._allow("print", "Printing"):
+            return
         self._commit_field_editor()
         if self._document is None:
             return
@@ -6903,6 +7083,35 @@ class MainWindow(QMainWindow):
         self._canvas.go_to_page(value - 1)
         self._canvas.setFocus()
 
+    def _toggle_autoscroll(self) -> None:
+        scroller = self._canvas.autoscroll
+        if scroller.mode == "read":
+            scroller.stop()
+        else:
+            self._canvas.start_reading_scroll()
+        self.act_autoscroll.setChecked(scroller.mode == "read")
+
+    def _on_autoscroll_started(self, mode: str) -> None:
+        self.act_autoscroll.setChecked(mode == "read")
+        if mode == "read":
+            return  # the speed message follows
+        self.statusBar().showMessage(
+            "Scrolling: move the pointer above or below the marker — further away scrolls faster. "
+            + ("Click or press Esc to stop." if mode == "click" else "Release the wheel button to stop."),
+            6000,
+        )
+
+    def _on_autoscroll_speed(self, speed: int) -> None:
+        direction = "down" if speed > 0 else "up"
+        self.statusBar().showMessage(
+            f"Automatic scrolling {direction}, {abs(speed)} pixels per second — ↓ faster, ↑ slower, Esc stops.",
+            8000,
+        )
+
+    def _on_autoscroll_stopped(self) -> None:
+        self.act_autoscroll.setChecked(False)
+        self.statusBar().clearMessage()
+
     def _toggle_fullscreen(self) -> None:
         if self.isFullScreen():
             if getattr(self, "_was_maximized", False):
@@ -7110,15 +7319,36 @@ class MainWindow(QMainWindow):
     # --- Form filling helpers --------------------------------------------------
 
     @contextmanager
-    def _current_document(self, *, flatten: bool = False):
+    def _current_document(self, *, flatten: bool = False, leave_out_marks: set[str] | None = None):
         """The open document as shown — including every unsaved change — for printing, exports and
-        conversions: a temporary baked copy when something is unsaved (the file is never touched)."""
+        conversions: a temporary baked copy when something is unsaved (the file is never touched).
+        ``leave_out_marks``: kinds of removable Monograph PDF marks to leave out of an export."""
         self._commit_field_editor()
         from core.printing import prepare_current_source
 
         source = prepare_current_source(self._document, self._edit, flatten=flatten)
         try:
-            yield source.document
+            if not leave_out_marks:
+                yield source.document
+                return
+            from core.printing.ops import _print_temp_path  # noqa: PLC2701
+            from core.security.protection import export_source_without_marks
+
+            clean = export_source_without_marks(source.document, set(leave_out_marks))
+            tmp = _print_temp_path()
+            try:
+                clean.save(tmp.as_posix(), garbage=1, deflate=True)
+            finally:
+                clean.close()
+            doc = open_document(tmp)
+            try:
+                yield doc
+            finally:
+                doc.close()
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
         finally:
             source.close()
 

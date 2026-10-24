@@ -554,7 +554,11 @@ def _source_bytes(source: Any) -> bytes:
     doc = source
     if not isinstance(doc, fitz.Document):
         doc = source._backend._doc
-    enc = fitz.PDF_ENCRYPT_KEEP if (doc.is_encrypted or doc.needs_pass) else fitz.PDF_ENCRYPT_NONE
+    from core.security.protection import is_protected
+
+    # is_protected, not is_encrypted / needs_pass: those are False (or reset the unlock) on an
+    # unlocked document, and the compressed copy was then written without its protection
+    enc = fitz.PDF_ENCRYPT_KEEP if is_protected(doc) else fitz.PDF_ENCRYPT_NONE
     return doc.tobytes(garbage=0, encryption=enc)
 
 

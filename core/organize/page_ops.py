@@ -336,11 +336,23 @@ def extract_pages(
     indices = sorted({int(p) for p in pages})
     if not indices:
         raise ValueError("no pages to extract")
+    for p in indices:
+        if p < 0 or p >= d.page_count:
+            raise IndexError(f"page out of range: {p}")
+    from core.security.protection import is_protected, save_copy, working_copy
+
+    if is_protected(d):
+        # the pages of a protected PDF stay protected (same passwords and permissions)
+        out = working_copy(document)
+        try:
+            out.select(indices)
+            save_copy(out, Path(destination))
+        finally:
+            out.close()
+        return Path(destination)
     out = fitz.open()
     try:
         for p in indices:
-            if p < 0 or p >= d.page_count:
-                raise IndexError(f"page out of range: {p}")
             out.insert_pdf(d, from_page=p, to_page=p)
         destination = Path(destination)
         destination.parent.mkdir(parents=True, exist_ok=True)

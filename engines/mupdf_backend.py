@@ -31,6 +31,8 @@ class MuPdfBackend:
         # Kept in memory only (never written to disk, logs or session data) so that Save can
         # keep the file's password protection.
         self._password: str | None = None
+        # True once the permissions password was entered (core/security/protection.py)
+        self._owner_unlocked = False
         # Any security handler, also a permissions-only (owner) password that MuPDF unlocks on open
         # (``is_encrypted`` is then False, but the restrictions still apply and must be kept).
         try:
@@ -58,6 +60,9 @@ class MuPdfBackend:
             if not ok:
                 doc.close()
                 raise PasswordRequiredError("Incorrect password")
+            owner = bool(int(ok) & 4)  # opened with the permissions (owner) password: every action allowed
+        else:
+            owner = False
 
         # Reject empty / non-PDF that somehow opened
         if doc.page_count < 0:
@@ -72,6 +77,7 @@ class MuPdfBackend:
         )
         if was_encrypted or needs_password:
             backend._password = password
+        backend._owner_unlocked = owner
         return backend
 
     @property

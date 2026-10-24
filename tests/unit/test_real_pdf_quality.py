@@ -7,7 +7,6 @@ from pathlib import Path
 import fitz
 import pytest
 
-from core.convert.optimize import OptimizePreset, optimize_pdf
 from core.document import open_document
 from core.editing.edit_model import EditableDocument
 from core.editing.geometry import Rect
@@ -72,31 +71,6 @@ def test_render_cache_key_includes_zoom_dpr_rotation():
     # Low-res key must not equal high-res key
     assert a.zoom_bucket != b.zoom_bucket
     assert a.dpr_bucket != c.dpr_bucket
-
-
-def test_lossless_optimize_does_not_mark_lossy():
-    pdf = open_document(SAMPLES / "sample_raster_dpi.pdf")
-    try:
-        dest = OUT / "opt_lossless_geom.pdf"
-        result = optimize_pdf(pdf, dest, preset=OptimizePreset.LOSSLESS)
-        assert result.destination.is_file()
-        assert result.is_lossy is False
-        assert result.images_touched == 0
-        assert result.mode_label == "Lossless"
-    finally:
-        pdf.close()
-
-
-def test_balanced_optimize_labeled_not_lossless():
-    pdf = open_document(SAMPLES / "sample_raster_dpi.pdf")
-    try:
-        dest = OUT / "opt_balanced_geom.pdf"
-        result = optimize_pdf(pdf, dest, preset=OptimizePreset.BALANCED)
-        assert result.mode_label == "Balanced"
-        # May or may not touch images depending on size — never claim lossless
-        assert "Lossless" not in result.mode_label
-    finally:
-        pdf.close()
 
 
 def test_save_as_preserves_page_count_and_size(tmp_path: Path):

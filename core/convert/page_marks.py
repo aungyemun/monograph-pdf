@@ -486,10 +486,16 @@ def mark_document(doc: fitz.Document, *, header_footer: HeaderFooterSpec | None 
 
 
 def _working_copy(document: PdfDocument) -> fitz.Document:
-    src: fitz.Document = document._backend._doc  # noqa: SLF001
-    doc = fitz.open()
-    doc.insert_pdf(src)
-    return doc
+    """Full copy of the live document; a protected PDF stays protected (core/security/protection.py)."""
+    from core.security.protection import working_copy
+
+    return working_copy(document)
+
+
+def _save(doc: fitz.Document, destination: Path) -> None:
+    from core.security.protection import save_copy
+
+    save_copy(doc, destination)
 
 
 def apply_page_marks(document: PdfDocument, destination: Path, **kwargs) -> MarksResult:
@@ -499,7 +505,7 @@ def apply_page_marks(document: PdfDocument, destination: Path, **kwargs) -> Mark
     doc = _working_copy(document)
     try:
         result = mark_document(doc, result=MarksResult(destination=destination), **kwargs)
-        doc.save(destination.as_posix(), garbage=3, deflate=True)
+        _save(doc, destination)
     finally:
         doc.close()
     return result
@@ -521,7 +527,7 @@ def remove_page_marks(document: PdfDocument, destination: Path, kinds: set[str] 
                 if removed:
                     result.removed[kind] = result.removed.get(kind, 0) + removed
                 result.retained_objects += retained
-        doc.save(destination.as_posix(), garbage=3, deflate=True)
+        _save(doc, destination)
     finally:
         doc.close()
     return result

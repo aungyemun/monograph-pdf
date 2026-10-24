@@ -741,6 +741,52 @@ def _fullscreen(p, c):
         _poly(p, pts, close=False)
 
 
+@icon("autoscroll")
+def _autoscroll(p, c):
+    p.drawEllipse(QRectF(3, 3, 14, 14))
+    _poly(p, ((10, 4.8), (7.8, 7.4), (12.2, 7.4)), fill=c)
+    _poly(p, ((10, 15.2), (7.8, 12.6), (12.2, 12.6)), fill=c)
+    p.setBrush(c)
+    p.drawEllipse(QPointF(10, 10), 1.1, 1.1)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+
+
+@icon("eyedropper")
+def _eyedropper(p, c):
+    # pipette: bulb at the top right, glass tube down to a fine tip at the bottom left
+    p.drawLine(QPointF(4, 16), QPointF(5.5, 14.5))
+    _poly(p, ((5.5, 14.5), (12, 8), (12.8, 8.8), (6.3, 15.3)), close=True)
+    p.drawLine(QPointF(10.5, 6.5), QPointF(14.5, 10.5))
+    p.setBrush(c)
+    path = QPainterPath()
+    path.addRoundedRect(QRectF(12.5, 3.3, 4.6, 4.6), 2.3, 2.3)
+    p.save()
+    p.translate(14.8, 5.6)
+    p.rotate(45)
+    p.translate(-14.8, -5.6)
+    p.drawPath(path)
+    p.restore()
+    p.setBrush(Qt.BrushStyle.NoBrush)
+
+
+@icon("image_front")
+def _image_front(p, c):
+    for y in (4.5, 8, 11.5, 15):  # text lines
+        p.drawLine(QPointF(2.5, y), QPointF(17.5, y))
+    p.setBrush(QColor(c.red(), c.green(), c.blue(), 255))
+    p.drawRoundedRect(QRectF(6, 6, 8.5, 7.5), 1.2, 1.2)  # opaque picture over the lines
+    p.setBrush(Qt.BrushStyle.NoBrush)
+
+
+@icon("image_behind")
+def _image_behind(p, c):
+    p.setBrush(_soft(c, 80))
+    p.drawRoundedRect(QRectF(6, 6, 8.5, 7.5), 1.2, 1.2)  # picture under the lines
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    for y in (4.5, 8, 11.5, 15):
+        p.drawLine(QPointF(2.5, y), QPointF(17.5, y))
+
+
 @icon("theme")
 def _theme(p, c):
     p.drawEllipse(QRectF(3, 3, 14, 14))

@@ -1605,6 +1605,9 @@ class _CanvasWidget(QWidget):
             if pix is not None and not pix.isNull():
                 painter.save()
                 painter.setOpacity(max(0.05, min(1.0, float(getattr(img, "opacity", 1.0)))))
+                if getattr(img, "layer", "front") == "behind":
+                    # the page's text shows through, as at Save (multiply blending, engines/bake_edits.py)
+                    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Multiply)
                 if abs(float(getattr(img, "rotation", 0.0))) > 0.01:
                     painter.translate(wr.center())
                     painter.rotate(float(img.rotation))
@@ -2183,7 +2186,8 @@ class _CanvasWidget(QWidget):
         from PySide6.QtWidgets import QColorDialog, QMenu
 
         try:
-            if isinstance(widget.window(), QColorDialog):  # Text color… dialog
+            win = widget.window()
+            if isinstance(win, QColorDialog) or bool(win.property("keepsTextEditor")):  # Text color… dialog
                 return True
         except RuntimeError:
             return False
@@ -3845,8 +3849,32 @@ class PdfCanvas(QScrollArea):
         self._canvas.imageEditRequested.connect(self.imageEditRequested.emit)
         self.verticalScrollBar().valueChanged.connect(self._on_scroll)
         self.horizontalScrollBar().valueChanged.connect(self._on_scroll)
+        from ui.autoscroll import AutoScroller
+
+        # Scroll button: middle-click / hold on a page, or View ▸ Automatic Scrolling
+        self.autoscroll = AutoScroller(self)
+        self._canvas.installEventFilter(self)
+        self.viewport().installEventFilter(self)
+
+    def eventFilter(self, obj, event) -> bool:  # noqa: N802
+        if (
+            event.type() == QEvent.Type.MouseButtonPress
+            and event.button() == Qt.MouseButton.MiddleButton
+            and obj in (self._canvas, self.viewport())
+            and self._canvas._layouts  # noqa: SLF001
+        ):
+            pos = self.viewport().mapFromGlobal(event.globalPosition().toPoint())
+            self.autoscroll.begin_middle(pos)
+            return True
+        return super().eventFilter(obj, event)
+
+    def start_reading_scroll(self) -> None:
+        """View ▸ Automatic Scrolling: steady scrolling (↓/↑ change the speed, Esc stops)."""
+        if self._canvas._layouts:  # noqa: SLF001
+            self.autoscroll.start_reading()
 
     def clear_document(self) -> None:
+        self.autoscroll.stop()
         self._canvas.clear_document()
 
     def open_note_popup(self, page_index: int, xref: int) -> bool:
@@ -3862,6 +3890,7 @@ class PdfCanvas(QScrollArea):
         return self._canvas.note_popup()
 
     def set_document(self, document: PdfDocument) -> None:
+        self.autoscroll.stop()
         self._canvas.set_document(document)
         self._canvas.apply_zoom_for_viewport(self._fit_size())
         self._center_fit_page()

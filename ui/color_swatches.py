@@ -11,7 +11,7 @@ from typing import Callable
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QColorDialog, QGridLayout, QMenu, QToolButton, QWidget, QWidgetAction
+from PySide6.QtWidgets import QGridLayout, QMenu, QToolButton, QWidget, QWidgetAction
 
 # (name, hex): dark, readable on white paper — text, lines, stamps, watermarks
 INK_COLORS: list[tuple[str, str]] = [
@@ -86,13 +86,16 @@ class SwatchMenu(QMenu):
     def _more(self) -> None:
         start = QColor(self._current() if self._current else "#000000")
         owner = self.parentWidget().window() if self.parentWidget() is not None else None
-        c = QColorDialog.getColor(start if start.isValid() else QColor("#000000"), owner, self._title)
+        from ui.color_picker import get_color
+
+        c = get_color(start if start.isValid() else QColor("#000000"), owner, self._title)
         if c.isValid():
             self._on_pick(c.name())
 
 
 def pick_color_dialog(owner: QWidget | None, initial: str, title: str) -> str | None:
     """Full colour picker parented to ``owner``'s window (untinted by any styled button)."""
-    window = owner.window() if owner is not None else None
-    c = QColorDialog.getColor(QColor(initial), window, title)
+    from ui.color_picker import get_color
+
+    c = get_color(QColor(initial), owner, title)
     return c.name() if c.isValid() else None

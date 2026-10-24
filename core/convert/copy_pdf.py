@@ -4,41 +4,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import fitz
-
 from core.document import PdfDocument
 
 
 def copy_pdf_preserving_metadata(document: PdfDocument, destination: Path) -> Path:
     """
-    Write a full copy of the live document including the info dictionary.
-    Source path is never modified.
+    Write a full copy of the live document: pages with their unsaved changes, document information,
+    bookmarks, form fields, attachments — and the password protection of a protected PDF (same
+    passwords and permissions; it used to be written unprotected). Source path is never modified.
     """
-    destination = Path(destination)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    src: fitz.Document = document._backend._doc  # noqa: SLF001
-    doc = fitz.open()
+    from core.security.protection import save_copy, working_copy
+
+    doc = working_copy(document)
     try:
-        doc.insert_pdf(src)
-        meta = src.metadata or {}
-        doc.set_metadata(
-            {
-                "title": meta.get("title") or "",
-                "author": meta.get("author") or "",
-                "subject": meta.get("subject") or "",
-                "keywords": meta.get("keywords") or "",
-                "creator": meta.get("creator") or "",
-                "producer": meta.get("producer") or "",
-            }
-        )
-        encrypt = fitz.PDF_ENCRYPT_KEEP if src.is_encrypted else fitz.PDF_ENCRYPT_NONE
-        doc.save(
-            destination.as_posix(),
-            garbage=3,
-            deflate=True,
-            encryption=encrypt,
-            incremental=False,
-        )
+        save_copy(doc, Path(destination), incremental=False)
     finally:
         doc.close()
-    return destination
+    return Path(destination)

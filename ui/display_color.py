@@ -149,6 +149,25 @@ def qcolor(value) -> QColor:
         return c
 
 
+def from_display(value) -> QColor:
+    """A colour read off the screen (monitor profile) converted back to sRGB — the inverse of
+    :func:`qcolor` — so a colour picked from a page is the colour stored in the PDF."""
+    c = QColor(value)
+    with _LOCK:
+        _load()
+        space = _STATE["space"] if _STATE["enabled"] else None
+    if space is None or not c.isValid():
+        return c
+    try:
+        back = space.transformationToColorSpace(QColorSpace(QColorSpace.NamedColorSpace.SRgb))
+        alpha = c.alphaF()
+        out = back.map(c)
+        out.setAlphaF(alpha)
+        return out
+    except Exception:  # noqa: BLE001
+        return c
+
+
 def image_for_screen(image: QImage) -> QImage:
     """A placed picture prepared for the screen: a picture with its own colour profile (Adobe RGB,
     Display P3 …) is converted to sRGB first — Qt draws pixels as they are — then to the monitor

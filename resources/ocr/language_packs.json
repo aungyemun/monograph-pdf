@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "comment": "Optional OCR languages. Never downloaded by Monograph PDF: the user downloads a file from the URL and installs it with OCR > OCR Languages > Install from File; it is accepted only if its size and SHA-256 match. Source: tesseract-ocr/tessdata_fast, release tag 4.1.0 (the same release as the bundled eng, jpn and osd files). License: Apache-2.0.",
+ "comment": "Optional OCR languages, installed only when the user asks (OCR > OCR Languages: Download and Install, Install from File, or files found in the Downloads folder); a file is accepted only if its size and SHA-256 match. Source: tesseract-ocr/tessdata_fast, release tag 4.1.0 (the same release as the bundled eng, jpn and osd files). License: Apache-2.0. Every pin was checked against the published file on 2026-10-24.",
  "source": {
   "repository": "https://github.com/tesseract-ocr/tessdata_fast",
   "tag": "4.1.0",
@@ -93,6 +93,286 @@
    "size": 2294433,
    "sha256": "6f2e04d02774a18f01bed44b1111f2cd7f3ba7ac9dc4373cd3f898a40ea6b464",
    "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/spa.traineddata"
+  },
+  {
+   "code": "ita",
+   "name": "Italian",
+   "file": "ita.traineddata",
+   "size": 2701314,
+   "sha256": "b8f89e1e785118dac4d51ae042c029a64edb5c3ee42ef73027a6d412748d8827",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/ita.traineddata"
+  },
+  {
+   "code": "por",
+   "name": "Portuguese",
+   "file": "por.traineddata",
+   "size": 1982756,
+   "sha256": "c4932b937207a9514b7514d518b931a99938c02a28a5a5a553f8599ed58b7deb",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/por.traineddata"
+  },
+  {
+   "code": "nld",
+   "name": "Dutch",
+   "file": "nld.traineddata",
+   "size": 6050296,
+   "sha256": "ced0e5e046a84c908a6aa7accbef9a232c4a5d9a8276691b81c6ee64d02963f6",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/nld.traineddata"
+  },
+  {
+   "code": "rus",
+   "name": "Russian",
+   "file": "rus.traineddata",
+   "size": 3861738,
+   "sha256": "e16e5e036cce1d9ec2b00063cf8b54472625b9e14d893a169e2b0dedeb4df225",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/rus.traineddata"
+  },
+  {
+   "code": "ukr",
+   "name": "Ukrainian",
+   "file": "ukr.traineddata",
+   "size": 3825102,
+   "sha256": "d59e53e2bded32f4445f124b4b00240fcac7e8044c003ab822ccb94f0b3db59b",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/ukr.traineddata"
+  },
+  {
+   "code": "pol",
+   "name": "Polish",
+   "file": "pol.traineddata",
+   "size": 4765518,
+   "sha256": "c4476cdbc0e33d898d32345122b7be1cbf85ace15f920f06c7714756e1ef79b2",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/pol.traineddata"
+  },
+  {
+   "code": "ces",
+   "name": "Czech",
+   "file": "ces.traineddata",
+   "size": 3795684,
+   "sha256": "934bcaf97ef3348413263331131c9fa7f55f30db333c711929c124fb635f7e1b",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/ces.traineddata"
+  },
+  {
+   "code": "tur",
+   "name": "Turkish",
+   "file": "tur.traineddata",
+   "size": 4550554,
+   "sha256": "7393381111e1152420fc4092cb44eef4237580d21b92bf30d7d221aad192c6b7",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/tur.traineddata"
+  },
+  {
+   "code": "ell",
+   "name": "Greek",
+   "file": "ell.traineddata",
+   "size": 1419514,
+   "sha256": "4fba8a0b461038d51f1c20d043d4f2ac38c4e778f1b90830847f7bd8fa3ba726",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/ell.traineddata"
+  },
+  {
+   "code": "heb",
+   "name": "Hebrew",
+   "file": "heb.traineddata",
+   "size": 961404,
+   "sha256": "11f9e43ab227f786352a50f75c94c2e9906f1baba86d93276da19da7ce0904db",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/heb.traineddata"
+  },
+  {
+   "code": "ara",
+   "name": "Arabic",
+   "file": "ara.traineddata",
+   "size": 1432056,
+   "sha256": "e3206d3dc87fd50c24a0fb9f01838615911d25168f4e64415244b67d2bb3e729",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/ara.traineddata"
+  },
+  {
+   "code": "hin",
+   "name": "Hindi",
+   "file": "hin.traineddata",
+   "size": 1122751,
+   "sha256": "4c73ffc59d497c186b19d1e90f5d721d678ea6b2e277b719bee4e2af12271825",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/hin.traineddata"
+  },
+  {
+   "code": "ben",
+   "name": "Bengali",
+   "file": "ben.traineddata",
+   "size": 855841,
+   "sha256": "31163084c279aaebd376216f0c3d5c17ad4b5fee8db49dae79c20000b5de5964",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/ben.traineddata"
+  },
+  {
+   "code": "tam",
+   "name": "Tamil",
+   "file": "tam.traineddata",
+   "size": 3237963,
+   "sha256": "d02fbec24be4b07e32e80d0ccfc3b6b67a3c5d61c9d0a7c8532677990912c6ec",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/tam.traineddata"
+  },
+  {
+   "code": "tha",
+   "name": "Thai",
+   "file": "tha.traineddata",
+   "size": 1072600,
+   "sha256": "294227cc2d1292b0acb28d61d4115c88252b96d466ca90b417cf4cf0c67bf07c",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/tha.traineddata"
+  },
+  {
+   "code": "vie",
+   "name": "Vietnamese",
+   "file": "vie.traineddata",
+   "size": 531275,
+   "sha256": "79df64caf7bcfb2a27df5042ecb6121e196eada34da774956995747636d5bfa1",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/vie.traineddata"
+  },
+  {
+   "code": "ind",
+   "name": "Indonesian",
+   "file": "ind.traineddata",
+   "size": 1122661,
+   "sha256": "69786901da87ab8766c1ea7fbb10b28f2110c14da3f6c8f2735df131fba95d88",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/ind.traineddata"
+  },
+  {
+   "code": "msa",
+   "name": "Malay",
+   "file": "msa.traineddata",
+   "size": 1747801,
+   "sha256": "e41a3e5febfec50c90371eb1cbb17a48b10cad387900e3420b1f134c1b766cba",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/msa.traineddata"
+  },
+  {
+   "code": "mya",
+   "name": "Burmese (Myanmar)",
+   "file": "mya.traineddata",
+   "size": 4640561,
+   "sha256": "02aa6c25cfe9e583fa7b5d4131eac948f962308983f0f397df077dea58212b03",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/mya.traineddata"
+  },
+  {
+   "code": "fil",
+   "name": "Filipino",
+   "file": "fil.traineddata",
+   "size": 1841715,
+   "sha256": "2b17f68014ab44b88b5e2334ebcd0ce0090d9af7c6fbef6fab22e0bbd9a934dd",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/fil.traineddata"
+  },
+  {
+   "code": "swe",
+   "name": "Swedish",
+   "file": "swe.traineddata",
+   "size": 4167034,
+   "sha256": "f7304988d41f833efebcc2d529df54b1903ecebbc3da1faabd19a0fddd4fe586",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/swe.traineddata"
+  },
+  {
+   "code": "dan",
+   "name": "Danish",
+   "file": "dan.traineddata",
+   "size": 2580059,
+   "sha256": "acb1fd074487a31d1294fcdfd7d7c673467ffd8aeacb2ccd61ebcbf04eb4e2fa",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/dan.traineddata"
+  },
+  {
+   "code": "nor",
+   "name": "Norwegian",
+   "file": "nor.traineddata",
+   "size": 3610079,
+   "sha256": "0451eb4f8049ae78196806bf878a389a2f40f1386fe038568cf4441226ba6ef2",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/nor.traineddata"
+  },
+  {
+   "code": "fin",
+   "name": "Finnish",
+   "file": "fin.traineddata",
+   "size": 7865732,
+   "sha256": "61a04cd62b507c3d9ae0e1cda399e6715ebf49dea9df47897c8acdcd3bd3e13c",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/fin.traineddata"
+  },
+  {
+   "code": "hun",
+   "name": "Hungarian",
+   "file": "hun.traineddata",
+   "size": 5296273,
+   "sha256": "35067e7cfe102dcdc953f9a758fdfaa6296b17a1ee6d874ee780fa306430b9fb",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/hun.traineddata"
+  },
+  {
+   "code": "ron",
+   "name": "Romanian",
+   "file": "ron.traineddata",
+   "size": 2376323,
+   "sha256": "9adfde6b51ba4b97efd10ea37c3070fd3fc2bad7815e81f5c3c198cd96216cc9",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/ron.traineddata"
+  },
+  {
+   "code": "bul",
+   "name": "Bulgarian",
+   "file": "bul.traineddata",
+   "size": 1675212,
+   "sha256": "aebc9b0fcc8cfaf8a9f38a02bb7b85052bd850744696a2c11cf0081820e5b21e",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/bul.traineddata"
+  },
+  {
+   "code": "srp",
+   "name": "Serbian (Cyrillic)",
+   "file": "srp.traineddata",
+   "size": 2149931,
+   "sha256": "aa41ae3d9cc705e60d398ab38a5c3cc8b772c0d420c7d4f0859beb13d0e321b6",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/srp.traineddata"
+  },
+  {
+   "code": "hrv",
+   "name": "Croatian",
+   "file": "hrv.traineddata",
+   "size": 4103348,
+   "sha256": "9e515d9832ce259dbab550b1cc6b998f8b929faf2edacaaca981b05adb130571",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/hrv.traineddata"
+  },
+  {
+   "code": "fas",
+   "name": "Persian",
+   "file": "fas.traineddata",
+   "size": 431500,
+   "sha256": "db1c0a91208aff00d3cf1ed2c1d23f76419afd5f024688b4f71adc3f2ce4a505",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/fas.traineddata"
+  },
+  {
+   "code": "urd",
+   "name": "Urdu",
+   "file": "urd.traineddata",
+   "size": 1398718,
+   "sha256": "62e8250ce2a994106e313a82e26a516a39e2cf159d0ce3c5b5008387fd0d555f",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/urd.traineddata"
+  },
+  {
+   "code": "khm",
+   "name": "Khmer",
+   "file": "khm.traineddata",
+   "size": 1446926,
+   "sha256": "47f110575341b322052f3becbefee61a3ecf1ef549352b5d4d33d28afe30d099",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/khm.traineddata"
+  },
+  {
+   "code": "lao",
+   "name": "Lao",
+   "file": "lao.traineddata",
+   "size": 6386744,
+   "sha256": "20124962e93e68121e02c49a949d1f9df5db87dd62e5e4aa578362ca532444f8",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/lao.traineddata"
+  },
+  {
+   "code": "nep",
+   "name": "Nepali",
+   "file": "nep.traineddata",
+   "size": 1002911,
+   "sha256": "280ba9450b4f21afbf5985e0de87857b75a972577c50ef0603c141ddde4f1cb8",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/nep.traineddata"
+  },
+  {
+   "code": "sin",
+   "name": "Sinhala",
+   "file": "sin.traineddata",
+   "size": 1727413,
+   "sha256": "bc75c6df2375a30c9f7e759fa7d4b58ae3ecf9ce72668a702d01acb13e551422",
+   "url": "https://github.com/tesseract-ocr/tessdata_fast/raw/4.1.0/sin.traineddata"
   }
  ]
 }

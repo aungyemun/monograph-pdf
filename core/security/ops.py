@@ -195,9 +195,18 @@ def remove_password_protection(
         raise DocumentError(str(exc)) from exc
     try:
         if probe.needs_pass or probe.is_encrypted:
-            # authenticate() > 0 for a valid user or owner password; 0 = wrong.
-            if not probe.authenticate(password):
+            # authenticate(): 0 = wrong, 2 = open password, 4 = permissions (owner) password
+            level = int(probe.authenticate(password))
+            if not level:
                 raise PasswordRequiredError("Incorrect password — protection not removed")
+            from core.security.protection import raw_permissions
+
+            if not level & 4 and not all(raw_permissions(probe).values()):
+                # the PDF restricts what may be done with it: only its permissions password may lift that
+                raise PasswordRequiredError(
+                    "This PDF restricts printing, copying or changes. Enter its permissions password (owner "
+                    "password) to remove the protection; the open password is not enough."
+                )
         # Save the authenticated document itself (not a page copy) so form fields,
         # bookmarks, links, attachments and metadata are all kept.
         source = content._backend._doc if content is not None else probe  # noqa: SLF001
@@ -213,39 +222,21 @@ def remove_password_protection(
 
 
 def remove_metadata(document: PdfDocument, destination: Path) -> Path:
-    """Write a copy with info dictionary / XML metadata cleared. Source unchanged."""
-    destination = Path(destination)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    src: fitz.Document = document._backend._doc  # noqa: SLF001
-    doc = fitz.open()
+    """Write a copy with the document information and XMP metadata cleared. Source unchanged; a
+    password-protected PDF's copy keeps its protection (core/security/protection.py)."""
+    from core.security.protection import save_copy, working_copy
+
+    doc = working_copy(document)
     try:
-        doc.insert_pdf(src)
-        doc.set_metadata(
-            {
-                "title": "",
-                "author": "",
-                "subject": "",
-                "keywords": "",
-                "creator": "",
-                "producer": "",
-            }
-        )
+        doc.set_metadata({})
         try:
             doc.del_xml_metadata()
         except Exception:  # noqa: BLE001
             pass
-        # Keep encryption as-is for the copy of content; do not strip passwords here
-        encrypt = fitz.PDF_ENCRYPT_KEEP if src.is_encrypted else fitz.PDF_ENCRYPT_NONE
-        doc.save(
-            destination.as_posix(),
-            encryption=encrypt,
-            garbage=3,
-            deflate=True,
-            incremental=False,
-        )
+        save_copy(doc, Path(destination), incremental=False)
     finally:
         doc.close()
-    return destination
+    return Path(destination)
 
 
 def warn_signed_document(document: PdfDocument) -> str | None:

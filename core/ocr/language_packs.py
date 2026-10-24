@@ -1,12 +1,18 @@
 """Optional OCR languages (Japanese vertical, Chinese, Korean, German, French, Spanish ...).
 
-English and Japanese (and the orientation data) are bundled. Other languages are never downloaded by
-Monograph PDF: ``resources/ocr/language_packs.json`` pins each optional language file (official
-tesseract-ocr/tessdata_fast release 4.1.0, the same release as the bundled files; Apache-2.0) by size
-and SHA-256. The user downloads a file and installs it with **OCR ▸ OCR Languages ▸ Install from
-File**; it is accepted only if it matches a pin, and is copied to the user's local app-data folder.
-The pins ship inside each signed release, so a future release can add or change languages through the
-normal (signed) update; nothing is fetched at run time.
+English and Japanese (and the orientation data) are bundled. ``resources/ocr/language_packs.json``
+pins each optional language file (official tesseract-ocr/tessdata_fast release 4.1.0, the same release
+as the bundled files; Apache-2.0) by size and SHA-256. A file is accepted only if it matches a pin and
+is copied to the user's local app-data folder; it can be used at once. It arrives in one of three ways,
+always on the user's request (**OCR ▸ OCR Languages**):
+
+* **Download and Install** — core/ocr/language_download.py fetches the pinned file (this module itself
+  never uses the network);
+* **Install from File** — a file the user downloaded;
+* language files already in the user's Downloads folder are offered for installation.
+
+The pins ship inside each signed release, so a future release adds languages through the normal
+(signed) update.
 
 Tesseract reads its language data from one folder. When an installed optional language is used, OCR
 runs on a merged folder (the user's language folder plus links to — or, across drives, copies of — the
@@ -83,14 +89,27 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+_VERIFIED: dict[tuple[str, int, int], str] = {}  # (path, size, mtime_ns) -> SHA-256 already computed
+
+
 def installed() -> list[LanguagePack]:
-    """Optional languages installed and still matching their pins (a changed file is not used)."""
+    """Optional languages installed and still matching their pins (a changed file is not used). A
+    file's SHA-256 is computed once per (size, modification time), not every time a list is shown."""
     folder = user_language_dir()
     out = []
     for pack in catalog():
         f = folder / pack.file
         try:
-            if f.is_file() and f.stat().st_size == pack.size and _sha256(f) == pack.sha256:
+            if not f.is_file():
+                continue
+            st = f.stat()
+            if st.st_size != pack.size:
+                continue
+            key = (str(f), st.st_size, st.st_mtime_ns)
+            digest = _VERIFIED.get(key)
+            if digest is None:
+                digest = _VERIFIED[key] = _sha256(f)
+            if digest == pack.sha256:
                 out.append(pack)
         except OSError:
             continue
@@ -129,6 +148,31 @@ def install_from_file(path: Path) -> LanguagePack:
         raise LanguagePackError("The copied file did not verify; nothing was installed.")
     tmp.replace(target)
     return match
+
+
+def downloads_folder() -> Path:
+    try:
+        from core.windows_paths import get_downloads_dir
+
+        return Path(get_downloads_dir())
+    except Exception:  # noqa: BLE001
+        return Path.home() / "Downloads"
+
+
+def downloads_found(folder: Path | None = None) -> list[tuple[LanguagePack, Path]]:
+    """Pinned language files in the Downloads folder that are not installed yet (matched by name and
+    size here; the SHA-256 is checked when they are installed). Only ``*.traineddata`` names are read."""
+    folder = folder or downloads_folder()
+    have = {p.code for p in installed()}
+    out = []
+    try:
+        for pack in catalog():
+            f = folder / pack.file
+            if pack.code not in have and f.is_file() and f.stat().st_size == pack.size:
+                out.append((pack, f))
+    except OSError:
+        return out
+    return out
 
 
 def remove(code: str) -> bool:

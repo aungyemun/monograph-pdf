@@ -8,6 +8,8 @@ from pathlib import Path
 
 import fitz
 
+from core.security.protection import is_protected as _is_protected
+
 from core.document import PdfDocument
 from core.editing.geometry import Rect
 
@@ -312,7 +314,7 @@ def apply_redactions_report(document: PdfDocument, destination: Path) -> Redacti
         destination.as_posix(),
         garbage=4,
         deflate=True,
-        encryption=fitz.PDF_ENCRYPT_NONE if not src.is_encrypted else fitz.PDF_ENCRYPT_KEEP,
+        encryption=fitz.PDF_ENCRYPT_KEEP if _is_protected(src) else fitz.PDF_ENCRYPT_NONE,
         incremental=False,
     )
     terms = marked_terms(document)

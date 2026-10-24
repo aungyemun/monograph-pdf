@@ -12,7 +12,6 @@ from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
-    QColorDialog,
     QComboBox,
     QGridLayout,
     QToolButton,
@@ -169,7 +168,9 @@ class StampLibraryDialog(QDialog):
         self.list.setCurrentRow(self.list.count() - 1 if select_last else 0)
 
     def _pick_color(self) -> None:
-        c = QColorDialog.getColor(self._custom_color, self, "Stamp Colour")
+        from ui.color_picker import get_color
+
+        c = get_color(self._custom_color, self, "Stamp color")
         if c.isValid():
             self._custom_color = c
 

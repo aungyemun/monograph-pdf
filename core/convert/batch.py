@@ -190,6 +190,14 @@ class BatchRunner:
         try:
             pages = parse_page_range(self.options.page_range, pdf.page_count)
             self._check()
+            from core.security.protection import allowed
+
+            needed = "edit" if fmt.key == "searchable" else "copy"
+            if not allowed(pdf, needed):
+                # the PDF's permissions do not allow this conversion (core/security/protection.py)
+                raise PermissionError("its permissions do not allow "
+                                      + ("changes" if needed == "edit" else "copying its content")
+                                      + " — open it with its permissions password to convert it")
             if fmt.key == "docx":
                 from core.convert.pdf_to_docx import pdf_to_docx
 

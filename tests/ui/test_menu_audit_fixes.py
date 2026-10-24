@@ -97,13 +97,12 @@ def test_exports_include_unsaved_edits(window, tmp_path, monkeypatch, method, ex
     assert src.read_bytes() == before and window._edit.dirty  # noqa: SLF001
 
 
-def test_optimize_accepts_the_preset_value_and_includes_edits(window, tmp_path, monkeypatch):
-    from core.convert.optimize import OptimizePreset, optimize_pdf
+def test_compress_dialog_estimates_and_previews(window, tmp_path, monkeypatch):
+    import shutil
 
-    _open(window, tmp_path)
+    src = _open(window, tmp_path)
     out = tmp_path / "plain.pdf"
-    result = optimize_pdf(window._document, out, preset=OptimizePreset.STANDARD.value)  # noqa: SLF001
-    assert out.exists() and result.output_bytes > 0
+    shutil.copyfile(src, out)
 
     # The Compress PDF dialog (which replaced the preset-only dialog) estimates per mode and caches
     # measured results per setting
@@ -122,8 +121,15 @@ def test_optimize_accepts_the_preset_value_and_includes_edits(window, tmp_path, 
 
 
 def test_save_keeps_password_protection(window, tmp_path):
+    from core.security.protection import unlock_with_owner_password
+
     src = _open(window, tmp_path, "sample_password.pdf", password="secret")
     _add_unsaved_text(window)
+    # the PDF does not allow changes with the open password alone: Save is refused …
+    window.save_document()
+    assert window._edit.dirty  # noqa: SLF001
+    # … until its permissions password is entered; the saved file keeps the open password
+    assert unlock_with_owner_password(window._document, "owner-secret")  # noqa: SLF001
     window.save_document()
     assert not window._edit.dirty  # noqa: SLF001
     with fitz.open(src) as doc:

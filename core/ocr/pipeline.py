@@ -119,7 +119,10 @@ def run_ocr(
     out_doc: fitz.Document | None = None
     if options.make_searchable and destination is not None:
         # The document as it is now (page order, rotation and comments included), not the file on disk
-        out_doc = fitz.open("pdf", src_doc.tobytes(garbage=0, deflate=False, encryption=fitz.PDF_ENCRYPT_NONE))
+        # A password-protected PDF's searchable copy keeps the same protection (core/security/protection.py)
+        from core.security.protection import working_copy
+
+        out_doc = working_copy(document)
 
     try:
         for i, page_index in enumerate(page_indices):
@@ -242,7 +245,9 @@ def run_ocr(
         if out_doc is not None and destination is not None:
             destination = Path(destination)
             destination.parent.mkdir(parents=True, exist_ok=True)
-            out_doc.save(destination.as_posix(), garbage=3, deflate=True)
+            from core.security.protection import save_copy
+
+            save_copy(out_doc, destination)
             out_path = destination
         return OcrDocumentResult(pages=results, output_path=out_path)
     finally:

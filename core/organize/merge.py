@@ -26,6 +26,7 @@ class MergeSource:
     page_count: int = 0
     encrypted: bool = False
     has_signatures: bool = False
+    restricted: bool = False  # combining not allowed without the permissions password
     open_error: str | None = None
 
     def effective_pages(self) -> list[int]:
@@ -44,10 +45,18 @@ class MergeJob:
         try:
             doc = _open_external(path, password=password)
             try:
+                from core.security.protection import is_protected, raw_permissions, signed_signature_count
+
                 src.page_count = doc.page_count
-                src.encrypted = bool(doc.is_encrypted or doc.needs_pass)
-                src.has_signatures = _detect_sigs(doc)
+                src.encrypted = is_protected(doc)  # also a PDF with only a permissions password
+                src.has_signatures = signed_signature_count(doc) > 0
                 src.included_pages = list(range(src.page_count))
+                if src.encrypted:
+                    perms = raw_permissions(doc)
+                    if not (perms["assemble"] or perms["edit"]) and not _is_owner(path, password):
+                        src.restricted = True
+                        src.open_error = ("Password required: this PDF does not allow combining its pages "
+                                          "without its permissions password")
             finally:
                 doc.close()
         except PasswordRequiredError as exc:
@@ -185,6 +194,16 @@ def _remapped_outline(doc: fitz.Document, pages: list[int], base: int) -> list[l
         out.append([level, str(title), target + 1])
         prev = level
     return out
+
+
+def _is_owner(path: Path, password: str | None) -> bool:
+    if not password:
+        return False
+    try:
+        with fitz.open(Path(path)) as probe:
+            return bool(int(probe.authenticate(password)) & 4)
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _detect_sigs(doc: fitz.Document) -> bool:
