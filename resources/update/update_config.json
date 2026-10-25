@@ -4,7 +4,7 @@
   "disabled_reason": "Update checks are switched off in this build. Download new versions from the official GitHub Releases page.",
   "repository": "aungyemun/monograph-pdf",
   "manifest_asset": "MonographPDF_update_manifest.json",
-  "stable_manifest_url": "https://github.com/aungyemun/monograph-pdf/releases/latest/download/MonographPDF_update_manifest.json",
+  "stable_manifest_url": "",
   "releases_api_url": "https://api.github.com/repos/aungyemun/monograph-pdf/releases?per_page=20",
   "allowed_hosts": [
     "github.com",

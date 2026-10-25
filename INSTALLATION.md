@@ -1,10 +1,11 @@
 # Installation
 
-## Linux (0.1.0 — first Linux release)
+## Linux (0.1.0 — first Linux line)
 
-Monograph PDF **0.1.0** is the first Linux release, versioned separately from Windows **0.5.0**.
-Use branch [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux) or tag **`v0.1.0-linux`**.
-**Unsigned** for this first release (signing later).
+Monograph PDF **0.1.0** for Linux lives on branch
+[`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux). There is **no** published
+`v0.1.0-linux` release tag yet — build from that branch. **Unsigned** for this first line
+(signing later). See [LINUX.md](LINUX.md).
 
 ```bash
 git clone -b linux https://github.com/aungyemun/monograph-pdf.git
@@ -15,11 +16,19 @@ bash scripts/dev_launch.sh
 ```
 
 Optional per-user install: `bash installer/linux/install.sh /path/to/MonographPDF` (on the linux tree).
-Full notes: [LINUX.md](LINUX.md).
+
+### macOS (0.1.0)
+
+Published release: [v0.1.0-macos-1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1)
+(zip / dmg / pkg). See [docs/MACOS.md](https://github.com/aungyemun/monograph-pdf/blob/macos/docs/MACOS.md).
 
 ---
 
-## Windows (0.5.0)
+## Windows
+
+**Published:** [v0.4.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.4.0).
+**Prepared (not public yet):** 0.5.0 (draft). Do not use the repository-wide GitHub “Latest” link
+for Windows downloads while it may point at macOS.
 
 Monograph PDF is installed with a standard Windows installer. Everything it needs — including
 Python, Qt and the OCR engine — is included, and no internet connection is required.
@@ -36,8 +45,9 @@ Python, Qt and the OCR engine — is included, and no internet connection is req
 
 ## Installing
 
-1. Download `MonographPDF_<version>_Setup.exe` from the official
-   [latest release](https://github.com/aungyemun/monograph-pdf/releases/latest) page only.
+1. Download `MonographPDF_<version>_Setup.exe` from the official **Windows** release tag only
+   (currently [v0.4.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.4.0) until 0.5.0
+   is published). Do not rely on GitHub’s repository-wide Latest badge.
 2. Check the download in PowerShell. The result must equal the SHA-256 value in the release notes
    (also listed in `SHA256SUMS.txt` inside `MonographPDF_<version>_Installer.zip`):
 
