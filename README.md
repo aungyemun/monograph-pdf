@@ -5,7 +5,12 @@
 [![Windows CI](https://github.com/aungyemun/monograph-pdf/actions/workflows/windows-ci.yml/badge.svg)](https://github.com/aungyemun/monograph-pdf/actions/workflows/windows-ci.yml)
 
 **A free, open-source PDF editor designed for privacy and fully offline operation.**
-Windows line: **0.5.0** (this tree / `main`). Linux first release: **0.1.0** (branch [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux), tag `v0.1.0-linux`).
+
+| Line | Version | Status |
+| :--- | :--- | :--- |
+| Windows (`main`) | **0.5.0** prepared | Not yet publicly released (draft). Latest **published** Windows: **[0.4.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.4.0)** |
+| macOS (`macos`) | **0.1.0** | Published: **[v0.1.0-macos-1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1)** |
+| Linux (`linux`) | **0.1.0** | Source on branch [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux) — **no** published Linux release tag yet |
 
 Monograph PDF lets you view, edit, annotate, organize, convert and protect PDF documents on your own
 computer. It needs no account or internet connection and has no function that uploads your files.
@@ -34,16 +39,16 @@ Complete list: [Features](docs/FEATURES.md) · How to use each tool: [User Guide
 
 ### Feature status
 
-Linux **0.1.0** and Windows **0.5.0** share the feature set below. Platform plumbing differs
-([LINUX.md](LINUX.md) for Linux).
+Windows, Linux and macOS share the feature set below. Platform plumbing differs
+([LINUX.md](LINUX.md), [docs/MACOS.md](https://github.com/aungyemun/monograph-pdf/blob/macos/docs/MACOS.md)).
 
 | Status | Features |
 | :--- | :--- |
 | **Included** | Everything in the table above unless listed below; covered by the automated tests on each platform |
-| **Needs another application** | Office files to PDF and Office round trips need LibreOffice (Linux) or Microsoft Office / LibreOffice (Windows; tested with Microsoft 365 and LibreOffice 24.2) |
+| **Needs another application** | Office files to PDF need LibreOffice (Linux/macOS) or Microsoft Office / LibreOffice (Windows; tested with Microsoft 365 and LibreOffice 24.2) |
 | **Limited** | PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts. 45 optional OCR languages are installed on request (Download and Install, or from a file) and verified against a pinned SHA-256; their recognition quality has not been tested by the project. Editing Japanese vertical text is not fully supported |
-| **Built in, switched off** | Sending problem reports; it stays off until a reporting service exists and has been verified. (Update checks are switched on from Windows 0.4.1; Linux update packages are not published yet.) |
-| **Not supported** | Certificate-based digital signatures (signatures are visual); macOS, Android and iOS; Windows on ARM has not been tested |
+| **Built in, switched off** | Sending problem reports; it stays off until a reporting service exists and has been verified. (Windows update checks ship with 0.5.0 when published; Linux/macOS use manual upgrades for now.) |
+| **Not supported** | Certificate-based digital signatures (signatures are visual); Android and iOS; Windows on ARM has not been tested |
 
 ## Screenshots
 
@@ -63,47 +68,58 @@ Information — are in [Features](docs/FEATURES.md#screenshots).
 
 | Platform | Status |
 | :--- | :--- |
-| Linux x86_64 | Supported (0.1.0 first release) |
-| Windows 10 and 11, 64-bit | Supported (0.5.0, separate tree) |
-| macOS | Planned |
+| Windows 10 and 11, 64-bit | Supported — latest **published** **0.4.0**; **0.5.0** prepared (draft) |
+| macOS (Apple silicon, 13+) | Supported — first release **0.1.0** ([v0.1.0-macos-1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1)) |
+| Linux x86_64 | Supported from source — **0.1.0** on branch [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux) (no release tag yet) |
 | Android | Under consideration |
 | iOS | Not planned |
 
 ## Download and installation
 
 Platform lines are versioned separately. Prefer the official
-[Releases](https://github.com/aungyemun/monograph-pdf/releases) page only.
+[Releases](https://github.com/aungyemun/monograph-pdf/releases) page only. GitHub’s repository-wide
+“Latest” badge may point at any platform — always open the **platform-specific** link below.
 
-### Linux (0.1.0 — first Linux release)
+| Platform | Get it |
+| :--- | :--- |
+| **Windows (published)** | [v0.4.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.4.0) — `MonographPDF_0.4.0_Setup.exe` |
+| **Windows (0.5.0, not public yet)** | Draft only; do not treat GitHub Latest as the Windows channel |
+| **macOS** | [v0.1.0-macos-1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1) — zip / dmg / pkg |
+| **Linux** | Clone [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux) and build from source (no `v0.1.0-linux` tag yet) |
 
-1. Open the **v0.1.0-linux** release or clone the [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux) branch.
-2. Build and run from source (unsigned for this first release — signing comes later):
+### Windows
 
-   ```bash
-   bash scripts/setup_env.sh
-   bash scripts/vendor_ocr.sh
-   bash scripts/dev_launch.sh
-   ```
-
-3. Optional per-user install after a built tree: `bash installer/linux/install.sh /path/to/MonographPDF`.
-
-Details: [LINUX.md](LINUX.md) on the `linux` branch · [Installation](https://github.com/aungyemun/monograph-pdf/blob/linux/INSTALLATION.md).
-
-### Windows (0.5.0)
-
-1. Download `MonographPDF_0.5.0_Setup.exe` from the official release page.
-2. Check its SHA-256 checksum in PowerShell and compare it with the value in the release notes:
+1. Download Setup from the Windows tag above (currently **0.4.0** until 0.5.0 is published).
+2. Check its SHA-256 checksum in PowerShell against the release notes:
 
    ```powershell
-   Get-FileHash .\MonographPDF_0.5.0_Setup.exe -Algorithm SHA256
+   Get-FileHash .\MonographPDF_0.4.0_Setup.exe -Algorithm SHA256
    ```
 
 3. Run Setup and choose to install for all users or only for yourself.
 
-> **Unsigned builds.** Monograph PDF is currently distributed **without** code signing
-> (Linux and Windows). On Windows, SmartScreen may warn; continue (**More info ▸ Run anyway**)
-> only if the file came from the official release page and its checksum matches. Linux packages
-> will be signed in a later release.
+### macOS
+
+Download zip, dmg or pkg from [v0.1.0-macos-1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1)
+and verify SHA-256 against that release. Builds are unsigned; use **Right-click → Open** if Gatekeeper blocks them.
+Details: [docs/MACOS.md](https://github.com/aungyemun/monograph-pdf/blob/macos/docs/MACOS.md).
+
+### Linux
+
+```bash
+git clone -b linux https://github.com/aungyemun/monograph-pdf.git
+cd monograph-pdf
+bash scripts/setup_env.sh
+bash scripts/vendor_ocr.sh
+bash scripts/dev_launch.sh
+```
+
+Optional per-user install after a built tree: `bash installer/linux/install.sh /path/to/MonographPDF`.
+Details: [LINUX.md](LINUX.md).
+
+> **Unsigned builds.** Windows and macOS packages are currently distributed **without** code signing.
+> On Windows, SmartScreen may warn; continue (**More info ▸ Run anyway**) only if the file came from
+> the official release page and its checksum matches.
 > [Code signing policy](docs/CODE_SIGNING_POLICY.md) · [Verifying a download](docs/OFFICIAL_DOWNLOAD_VERIFICATION.md) ·
 > [Privacy policy](docs/PRIVACY_POLICY.md)
 
@@ -116,13 +132,14 @@ contain only the repository at the release tag.
 * Monograph PDF is designed to operate offline. It requires no account or cloud service and has no
   telemetry, advertising, online OCR or document upload. Viewing, editing, saving, OCR, conversion and
   printing never use the network.
-* **Help ▸ Check for Updates…** (switched on from 0.4.1; 0.5.0 is the first published version with it) checks the official GitHub Releases page when you ask and
-  accepts only update information signed with the project's update-signing key; nothing is downloaded
-  or installed until you click **Update Now**. Automatic checks are optional and **off by default**.
-  0.4.0 and earlier cannot update themselves: install the current version once with Setup. Problem reports are still
-  not sent (you can copy and pass them on yourself):
+* **Help ▸ Check for Updates…** (Windows, when enabled in a published build) discovers Windows releases
+  through the GitHub Releases API and accepts only an Ed25519-signed update manifest for a Windows
+  x64 Setup — never macOS/Linux packages and never “GitHub Latest” alone. Nothing is downloaded or
+  installed until you click **Update Now**. Automatic checks are optional and **off by default**.
+  0.4.0 and earlier cannot update themselves: install newer Windows versions with Setup from the
+  Releases page. Problem reports are still not sent:
   [Secure updates](docs/SECURE_UPDATES.md) · [Error reporting](docs/ERROR_REPORTING.md).
-* From 0.5.0, an optional OCR language is downloaded only when you click **Download and Install** in
+* From Windows 0.5.0, an optional OCR language is downloaded only when you click **Download and Install** in
   **OCR ▸ OCR Languages** (from the official Tesseract release; installed only if its SHA-256 matches).
 * Qt's network and TLS modules are removed from the release build; only the update, problem-report
   and OCR-language-download code uses Python's HTTPS support. The built-in self-check fails if a network connection is attempted
@@ -158,7 +175,7 @@ and the OCR engine with its language data, which are not stored in the repositor
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\setup_env.ps1
-powershell -ExecutionPolicy Bypass -File scripts\dev_launch.ps1
+powershell -ExecutionPolicy Bypass -File scripts\dev_launch.sh
 installer\build_release.bat
 ```
 
@@ -187,14 +204,14 @@ passed. Details: [Testing](docs/TESTING.md).
 
 ## Known limitations
 
-* Linux x86_64 (0.1.0) and Windows 10/11 64-bit (0.5.0); macOS not yet.
+* Windows 10/11 64-bit, macOS (Apple silicon), and Linux x86_64; Android/iOS not planned.
 * Builds are **not code-signed** yet ([Code Signing](docs/CODE_SIGNING.md)); signing is planned later.
 * The sending of problem reports is switched off.
 * Signatures are visual only; certificate-based digital signatures are not supported.
 * Converting PDF to Word, Excel or PowerPoint is best-effort for complex or scanned layouts.
-* Converting Office files to PDF requires LibreOffice (Linux) or Microsoft Office / LibreOffice (Windows).
+* Converting Office files to PDF requires LibreOffice (Linux/macOS) or Microsoft Office / LibreOffice (Windows).
 * OCR includes English and Japanese; 45 more languages can be installed on request (OCR ▸ OCR Languages), verified against a pinned SHA-256.
-* Linux automatic update packages are not published yet.
+* Linux and macOS do not yet use the Windows signed-Setup auto-updater.
 * Not verified for Windows 0.5.0: Windows 10, localized (Japanese, Chinese, Korean, German, French) Windows,
   Office versions other than Microsoft 365 and LibreOffice 24.2, and printing on a physical printer.
 
@@ -219,7 +236,7 @@ contains the corresponding source code of the bundled AGPL, GPL and LGPL compone
 
 If you use Monograph PDF in research, please cite it as described in [CITATION.cff](CITATION.cff):
 
-> Mun AY. *Monograph PDF*. Version 0.1.0 (Linux) / 0.5.0 (Windows). 2026. https://github.com/aungyemun/monograph-pdf
+> Mun AY. *Monograph PDF*. Version 0.4.0 (Windows published) / 0.1.0 (macOS) / 0.1.0 (Linux source). 2026. https://github.com/aungyemun/monograph-pdf
 
 Design, development, testing, documentation and packaging: **Aung Ye Mun**. With thanks to the
 developers of the open-source projects listed in the third-party notices.
