@@ -10,7 +10,10 @@ import pytest
 
 from core.product_meta import EXECUTABLE_NAME, REPOSITORY_NAME, resolve_app_icon_path
 
-pytestmark = pytest.mark.skipif(sys.platform.startswith("win"), reason="Linux desktop FreeDesktop entry")
+pytestmark = pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="Linux FreeDesktop .desktop entry and installer/linux/install.sh only",
+)
 
 
 def test_resolve_app_icon_prefers_png_on_linux():
