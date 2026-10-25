@@ -98,7 +98,8 @@ def test_monograph_pdf_license_expression_is_agpl_or_later():
     notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
     from core.versioning import get_version
 
-    assert f"| Monograph PDF | {get_version()} | AGPL-3.0-or-later |" in notices
+    # Notices track the Windows redistributable line; Linux/macOS use independent SemVer files.
+    assert f"| Monograph PDF | {get_version('windows')} | AGPL-3.0-or-later |" in notices
 
 
 def test_child_user_guide_and_changelogs_removed():
