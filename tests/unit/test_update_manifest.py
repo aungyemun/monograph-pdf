@@ -208,6 +208,8 @@ def test_stable_channel_refuses_a_prerelease_manifest():
 
 def test_prerelease_channel_picks_the_newest_listed_release():
     cfg = make_config()
+    # Newest eligible is 0.4.0-rc.1. Drafts are ignored. An older release with a disallowed
+    # host must not be selected (and must not block the newest when it is not newest).
     listing = json.dumps([
         {"tag_name": "v0.3.1", "draft": False, "prerelease": False, "assets": [
             {"name": cfg.manifest_asset, "browser_download_url": "https://github.com/aungyemun/monograph-pdf/releases/download/v0.3.1/m.json"}]},
@@ -215,7 +217,7 @@ def test_prerelease_channel_picks_the_newest_listed_release():
             {"name": cfg.manifest_asset, "browser_download_url": "https://github.com/aungyemun/monograph-pdf/releases/download/v0.4.0-rc.1/m.json"}]},
         {"tag_name": "v9.0.0", "draft": True, "assets": [
             {"name": cfg.manifest_asset, "browser_download_url": "https://github.com/x/draft.json"}]},
-        {"tag_name": "v5.0.0", "draft": False, "assets": [
+        {"tag_name": "v0.2.0", "draft": False, "assets": [
             {"name": cfg.manifest_asset, "browser_download_url": "https://evil.example/m.json"}]},
     ]).encode()
     pre = manifest_bytes(signed_fields(version="0.4.0-rc.1", channel="prerelease"))
@@ -227,7 +229,25 @@ def test_prerelease_channel_picks_the_newest_listed_release():
 
     res = manager.check(cfg, "prerelease", "0.3.0", UpdateState(), fetch=fetch)
     assert res.status == UpdateStatus.AVAILABLE and str(res.release.version) == "0.4.0-rc.1"
-    assert urls[1].endswith("/v0.4.0-rc.1/m.json")
+    assert any(u.endswith("/v0.4.0-rc.1/m.json") for u in urls)
+
+
+def test_newest_eligible_with_disallowed_manifest_host_does_not_fall_back():
+    cfg = make_config()
+    listing = json.dumps([
+        {"tag_name": "v0.5.0", "draft": False, "prerelease": False, "assets": [
+            {"name": cfg.manifest_asset, "browser_download_url": "https://evil.example/m.json"}]},
+        {"tag_name": "v0.4.0", "draft": False, "prerelease": False, "assets": [
+            {"name": cfg.manifest_asset, "browser_download_url": "https://github.com/aungyemun/monograph-pdf/releases/download/v0.4.0/m.json"}]},
+    ]).encode()
+
+    def fetch(c, url, limit, accept="application/json"):
+        if "api.github.com" in url:
+            return listing
+        raise AssertionError(f"must not fetch after disallowed newest host: {url}")
+
+    res = manager.check(cfg, "stable", "0.3.0", UpdateState(), fetch=fetch)
+    assert res.status == UpdateStatus.UNAVAILABLE and res.reason == "not_found"
 
 
 @pytest.mark.parametrize("kind", ["offline", "timeout", "rate_limited", "tls", "http", "not_found", "redirect"])
