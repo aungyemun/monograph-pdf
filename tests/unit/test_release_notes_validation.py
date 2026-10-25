@@ -127,9 +127,18 @@ def test_links_dates_and_markdown(good):
 
 
 def test_repository_release_notes_are_valid():
-    """Every release-notes file kept in docs/releases passes (checksums are not re-hashed here)."""
+    """Every Windows-style release-notes file (vX.Y.Z.md) passes (checksums are not re-hashed here).
+
+    Platform-qualified notes (``v0.1.0-linux.md``, ``v0.1.0-macos.md``) are validated on their
+    own platform CI / packaging path.
+    """
+    import re
+
     sys.path.insert(0, str(ROOT))
+    win_stem = re.compile(r"^v\d+\.\d+\.\d+$")
     for notes in sorted((ROOT / "docs" / "releases").glob("v*.md")):
+        if not win_stem.fullmatch(notes.stem):
+            continue
         version = notes.stem[1:]
         r = vrn.validate(notes.read_text(encoding="utf-8"), version,
                          changelog=(ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), repo_root=ROOT)

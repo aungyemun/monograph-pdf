@@ -63,8 +63,10 @@ jobs:
       - name: Release-note validation
         shell: pwsh
         run: |
+          # Windows notes only (vX.Y.Z.md). Platform-qualified files (vX.Y.Z-linux.md) are separate.
           $failed = $false
           foreach ($notes in Get-ChildItem docs\releases\v*.md) {
+            if ($notes.BaseName -notmatch '^v\d+\.\d+\.\d+$') { continue }
             $version = $notes.BaseName.Substring(1)
             python scripts\packaging\validate_release_notes.py $notes.FullName --version $version --changelog CHANGELOG.md --repo-root .
             if ($LASTEXITCODE -ne 0) { $failed = $true }

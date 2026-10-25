@@ -15,16 +15,28 @@ maintained, so focused changes with clear explanations and relevant tests are ap
 ## Code changes
 
 1. For anything larger than a small fix, open an issue first so the change can be discussed.
-2. Set up the development environment and run the application and tests as described in
+2. Branch from the latest approved **`main`** using a temporary name
+   (`feature/windows-*`, `feature/linux-*`, `feature/macos-*`, `fix/*`, `security/*`,
+   `integration/*`). See [Cross-platform development](docs/CROSS_PLATFORM_DEVELOPMENT.md).
+3. Set up the development environment and run the application and tests as described in
    [Build and Runtime](docs/BUILD_AND_RUNTIME.md) and [Testing](docs/TESTING.md):
 
    ```powershell
+   # Windows
    powershell -ExecutionPolicy Bypass -File scripts\setup_env.ps1
    powershell -ExecutionPolicy Bypass -File scripts\run_tests.ps1
    ```
 
-3. Keep changes small and add or update tests for new behavior. Do not weaken existing tests.
-4. Use only synthetic test documents; do not add real documents to the repository.
+   ```bash
+   # Linux (and macOS when scripts are on main)
+   bash scripts/setup_env.sh
+   bash scripts/run_tests.sh
+   ```
+
+4. Keep changes small and add or update tests for new behavior. Do not weaken existing tests.
+5. Use only synthetic test documents; do not add real documents to the repository.
+6. Bump only the relevant platform version in `versions/<platform>.txt` (Windows packaging also
+   mirrors into root `VERSION`). Never change another platform’s version by accident.
 
 ## Project principles
 

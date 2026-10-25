@@ -1,28 +1,34 @@
 # Architecture
 
-Monograph PDF is an offline desktop application for Windows, written in Python 3.11 (the source also
-runs on 3.12) with PySide6 (Qt) for the interface, PyMuPDF (MuPDF) for PDF processing and a bundled
-Tesseract engine for OCR. End users run `MonographPDF.exe` and need no separate Python, Qt or
-Tesseract installation.
+Monograph PDF is an offline desktop PDF editor (Python 3.11 / PySide6 / PyMuPDF / bundled Tesseract).
+**Option B** keeps one `main` tree with shared PDF/GUI code and platform-specific adapters,
+packaging and **independent versions** for Windows, Linux and macOS. See
+[CROSS_PLATFORM_DEVELOPMENT.md](CROSS_PLATFORM_DEVELOPMENT.md).
+
+Windows end users run `MonographPDF.exe`. Linux and macOS use native packaging on those lines.
 
 ## Repository layout
 
 | Path | Contents |
 | :--- | :--- |
-| `VERSION` | The single source of the product version |
-| `app/` | Start-up, file locations and the offline self-check (`--smoke-test`) |
+| `versions/` | Per-platform SemVer (`windows.txt`, `linux.txt`, `macos.txt`) |
+| `VERSION` | Mirror of the **Windows** line (packaging compatibility) |
+| `platforms/` | Package marker / adapters entrypoint |
+| `app/` | Start-up, file locations, single-instance, offline self-check (`--smoke-test`) |
 | `core/` | Document model, editing, forms, OCR, conversion, organizing, security and redaction |
+| `core/platform_paths.py` | Cross-platform user data / cache roots |
+| `core/linux_desktop.py` | Linux XDG desktop entry / default PDF handler |
 | `core/product_meta.py` | Product name, executable name, copyright, branding and license identifiers |
-| `core/updates/` | Secure updates: signed manifests (Ed25519), HTTPS access, staging and cleanup, installation detection, hand-off to the update helper |
+| `core/updates/` | Secure **Windows** updates: signed manifests (Ed25519), HTTPS, staging, helper hand-off |
 | `core/diagnostics/` | Problem reports: event identifiers, sanitized reports, crash and termination records, consent-only sender |
 | `engines/` | MuPDF backend, writing edits into the PDF ("baking"), OCR process handling |
 | `ui/` | Main window, page canvas, panels, dialogs and themes |
 | `resources/` | Icons, logo, styles and fallback fonts |
 | `models/tessdata/` | OCR language data (not stored in the repository) |
-| `scripts/` | Environment setup, tests, build, packaging and release checks |
+| `scripts/` | Environment setup, tests, build, packaging and release checks (`.ps1` / `.sh`) |
 | `tests/` | Unit, integration and UI tests with synthetic fixtures |
 | `docs/` | User and developer documentation, screenshots and release notes |
-| `installer/` | Inno Setup script, uninstaller and update-helper sources |
+| `installer/` | Windows Inno Setup; `installer/linux/` for Linux per-user install |
 | `services/report_gateway/` | Reference problem-report gateway (deployed separately; not part of the application) |
 | `licenses/`, `third_party/` | Dependency inventory and third-party license texts |
 
@@ -35,6 +41,7 @@ archives), `runtime/` (working files during development), `build/` and `dist/` (
   `THIRD_PARTY_NOTICES.md`, `SECURITY.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `CITATION.cff`
 * `.github/`: the Windows CI workflow, issue templates and the pull-request template
 * `docs/`: `USER_GUIDE`, `FEATURES`, `FILE_FORMATS_AND_COMPATIBILITY`, `ARCHITECTURE`,
+  `CROSS_PLATFORM_DEVELOPMENT`,
   `BUILD_AND_RUNTIME`, `RELEASE_AND_VERSIONING`, `RELEASE_CHECKLIST`, `CODE_SIGNING`,
   `SECURITY_AND_PRIVACY`, `TESTING`, `SECURE_UPDATES`, `AUTOMATIC_UPGRADE_AND_CLEANUP`,
   `ERROR_REPORTING`, `INTERNATIONAL_WINDOWS_COMPATIBILITY`, `PDF_TO_OFFICE_CONVERSION`,

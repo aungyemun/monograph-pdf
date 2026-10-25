@@ -49,13 +49,23 @@ def _writable(folder: Path) -> bool:
 def _project_layout() -> bool:
     """True when running from the project / a portable folder (not an installed copy).
 
-    An installed copy (Setup.exe leaves unins000.exe beside the app) always keeps its working
-    files in the user's profile, so uninstall/upgrade never touches them; so does a copy in a
-    folder it cannot write to.
+    An installed copy (Setup.exe leaves unins000.exe beside the app; Linux ``install.sh`` /
+    macOS ``.app``) keeps working files in the user profile. A folder it cannot write to
+    is treated the same way.
     """
     frozen = getattr(sys, "frozen", False)
     if frozen and any(ROOT.glob("unins*.exe")):
         return False
+    if frozen and sys.platform.startswith("linux"):
+        # Per-user Linux install: binary under ~/.local/bin or a dedicated prefix
+        return False
+    try:
+        from core.platform_paths import is_macos_app_bundle
+
+        if is_macos_app_bundle():
+            return False
+    except Exception:  # noqa: BLE001
+        pass
     if app_env.get("RUNTIME_DIR"):
         # Working files go elsewhere (Setup's and the build's self-check): no probe of this folder
         return not frozen
@@ -66,15 +76,20 @@ _PROJECT_LAYOUT = _project_layout()
 
 
 def _resolve_runtime_dir() -> Path:
-    r"""./runtime in the project / portable layout, %LOCALAPPDATA%\Monograph PDF\runtime when
-    installed; MONOGRAPH_PDF_RUNTIME_DIR (or --runtime-dir) overrides both."""
+    r"""./runtime in the project / portable layout; platform user-data when installed;
+    MONOGRAPH_PDF_RUNTIME_DIR (or --runtime-dir) overrides both."""
     override = app_env.get("RUNTIME_DIR")
     if override:
         return Path(override)
     if _PROJECT_LAYOUT:
         return ROOT / "runtime"
-    base = os.environ.get("LOCALAPPDATA") or str(Path.home() / ".local" / "share")
-    return Path(base) / DATA_FOLDER_NAME / "runtime"
+    try:
+        from core.platform_paths import user_local_base
+
+        return user_local_base() / "runtime"
+    except Exception:  # noqa: BLE001 — keep Windows AppData fallback
+        base = os.environ.get("LOCALAPPDATA") or str(Path.home() / ".local" / "share")
+        return Path(base) / DATA_FOLDER_NAME / "runtime"
 
 
 RUNTIME_DIR = _resolve_runtime_dir()

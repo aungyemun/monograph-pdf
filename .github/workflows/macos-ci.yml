@@ -1,0 +1,82 @@
+# macOS CI for Monograph PDF (Option B). Runs on macOS; never builds or publishes a release.
+# Full .app / dmg / pkg packaging remains a local acceptance test until package scripts land on main.
+name: macOS CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests (macOS, Python 3.11)
+    runs-on: macos-14
+    timeout-minutes: 75
+    env:
+      QT_QPA_PLATFORM: offscreen
+      MONOGRAPH_PDF_HEADLESS: "1"
+      PYTHONUTF8: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      MONOGRAPH_TEST_CATEGORY_REPORT: ${{ github.workspace }}/tests/outputs/junit/categories.md
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11.9"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-ci.txt
+
+      - name: Install pinned dependencies
+        run: python -m pip install -r requirements-ci.txt
+
+      - name: Dependency consistency
+        run: python -m pip check
+
+      - name: Platform versions
+        run: |
+          python scripts/read_version.py --all
+          test "$(python scripts/read_version.py --platform macos)" = "0.1.0"
+
+      - name: Tests (unit + integration; UI offscreen)
+        run: |
+          mkdir -p tests/outputs/junit
+          # Avoid Homebrew Qt / DYLD collisions with the venv PySide6
+          unset DYLD_LIBRARY_PATH DYLD_FRAMEWORK_PATH || true
+          python -m pytest -p no:cacheprovider -o addopts="" -q -rs --timeout=900 \
+            --junitxml=tests/outputs/junit/ci-macos.xml tests/unit tests/integration tests/ui
+
+      - name: Test summary
+        if: always()
+        run: |
+          {
+            echo "## Test categories (macOS)"
+            echo "Skipped tests are SKIPPED / NOT VERIFIED — never treated as passed."
+            echo ".app / dmg / pkg packaging is a local acceptance test until scripts/build_app.sh is on main."
+            if [ -f "$MONOGRAPH_TEST_CATEGORY_REPORT" ]; then cat "$MONOGRAPH_TEST_CATEGORY_REPORT"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: junit-macos
+          path: |
+            tests/outputs/junit/ci-macos.xml
+            tests/outputs/junit/categories.md
+          retention-days: 14
+          if-no-files-found: warn

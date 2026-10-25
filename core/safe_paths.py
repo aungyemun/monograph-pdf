@@ -75,3 +75,17 @@ def windows_tool(name: str) -> str:
         "powershell.exe": ntpath.join(root, "System32", "WindowsPowerShell", "v1.0"),
     }
     return ntpath.join(folders.get(name.lower(), ntpath.join(root, "System32")), name)
+
+
+def linux_tool(name: str) -> str | None:
+    """Absolute path of a PATH program on Linux/Unix, or ``None`` if not found.
+
+    Used for optional desktop helpers (``xdg-mime``, ``update-desktop-database``). Never runs
+    a same-named binary from the current working directory.
+    """
+    if _WINDOWS:
+        return None
+    import shutil
+
+    path = shutil.which(name)
+    return path

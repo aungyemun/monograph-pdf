@@ -2,7 +2,19 @@
 
 ## Source of truth
 
-Root `VERSION` only. Read via `core.versioning` / `app.read_version`. Do not duplicate version strings.
+Independent platform lines (Option B):
+
+| Platform | File | Current |
+| :--- | :--- | :--- |
+| Windows | `versions/windows.txt` | 0.5.0 |
+| Linux | `versions/linux.txt` | 0.1.0 |
+| macOS | `versions/macos.txt` | 0.1.0 |
+
+Root `VERSION` **mirrors the Windows line** for existing Windows packaging tools. Runtime and scripts
+must use `core.versioning.get_version()` / `scripts/read_version.py` (`--platform` / `--all`).
+See [CROSS_PLATFORM_DEVELOPMENT.md](CROSS_PLATFORM_DEVELOPMENT.md).
+
+A Linux or macOS bump must **not** change the Windows version (or root `VERSION`).
 
 ## Scheme
 
