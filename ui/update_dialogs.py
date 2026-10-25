@@ -30,6 +30,38 @@ from core.versioning import get_version
 RELEASES_PAGE = "https://github.com/aungyemun/monograph-pdf/releases"
 NOT_CONFIGURED_SHORT = "Not configured for this build"
 
+# Dynamic property holding the intended dialog title. On macOS, QMessageBox sheets
+# (and the offscreen Cocoa path) often leave windowTitle() empty even after setWindowTitle.
+MESSAGE_BOX_TITLE_PROPERTY = "monographWindowTitle"
+
+
+def apply_message_box_title(box: QMessageBox, title: str) -> None:
+    """Set the dialog title so it remains readable when native sheets clear windowTitle().
+
+    Always calls ``setWindowTitle`` (Windows / Linux title bars). Also sets
+    ``accessibleName`` and :data:`MESSAGE_BOX_TITLE_PROPERTY` so accessibility tools and
+    headless tests can recover the intended title on macOS without depending on the
+    window manager.
+    """
+    text = (title or "").strip()
+    box.setWindowTitle(text)
+    if text:
+        box.setAccessibleName(text)
+        box.setProperty(MESSAGE_BOX_TITLE_PROPERTY, text)
+
+
+def message_box_title(box: QMessageBox) -> str:
+    """Best-effort title for a QMessageBox (native title bar or macOS-safe fallbacks)."""
+    for candidate in (
+        box.windowTitle(),
+        box.accessibleName(),
+        str(box.property(MESSAGE_BOX_TITLE_PROPERTY) or ""),
+    ):
+        value = (candidate or "").strip()
+        if value:
+            return value
+    return ""
+
 
 def status_line(status: UpdateStatus) -> str:
     """Status as shown after "Updates:" (About) or "Update status:" (Settings).
@@ -272,6 +304,7 @@ class UpdateController(QObject):
     def _message_with_releases_link(self, icon, title: str, text: str, installed: str, extra: str, *,
                                     window_title: str = "Check for Updates") -> None:
         box = QMessageBox(icon, window_title, f"{title}\n\n{text}", parent=self._window)
+        apply_message_box_title(box, window_title)
         box.setInformativeText((extra + "\n\n" if extra else "") + f"Installed version: {installed}")
         open_page = box.addButton("Open Releases Page", QMessageBox.ButtonRole.ActionRole)
         box.addButton(QMessageBox.StandardButton.Ok)
