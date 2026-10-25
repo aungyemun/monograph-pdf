@@ -198,7 +198,9 @@ class Routes(http.server.BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):  # noqa: N802
-        data = self.files.get(self.path)
+        # Releases API pagination appends ?page=&per_page=; match on path only.
+        path = self.path.split("?", 1)[0]
+        data = self.files.get(path) or self.files.get(self.path)
         if data is None:
             self.send_response(404)
             self.end_headers()

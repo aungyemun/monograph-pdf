@@ -101,6 +101,12 @@ def _tag_is_windows_line(tag_name: str, *, allow_prerelease: bool) -> bool:
     return True
 
 
+# Cap Releases API pagination (GitHub max per_page is 100). Enough for multi-platform noise
+# without unbounded requests. Listing is never authentication — only the signed manifest is.
+_MAX_RELEASE_PAGES = 5
+_RELEASES_PER_PAGE = 100
+
+
 def _manifest_url_from_release(config: UpdateConfig, rel: dict) -> str | None:
     for asset in rel.get("assets") or []:
         if not isinstance(asset, dict) or asset.get("name") != config.manifest_asset:
@@ -111,23 +117,54 @@ def _manifest_url_from_release(config: UpdateConfig, rel: dict) -> str | None:
     return None
 
 
-def _choose_from_listing(config: UpdateConfig, data: bytes, *, channel: str) -> str:
-    """Newest non-draft GitHub release that publishes our Windows update manifest asset.
+def _releases_page_url(api_url: str, page: int) -> str:
+    """Force page/per_page on the configured Releases API URL (ignore any prior values)."""
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-    The listing is only a discovery hint: authenticity comes from the Ed25519-signed manifest
-    fetched next. GitHub's repository-wide Latest badge is never used (it may point at macOS or
-    Linux). Drafts are ignored. Stable skips GitHub prereleases and platform-suffixed tags;
-    the prerelease channel allows SemVer prereleases on the Windows line only.
+    parts = urlsplit(api_url)
+    q = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True)
+         if k.lower() not in ("page", "per_page")]
+    q.append(("per_page", str(_RELEASES_PER_PAGE)))
+    q.append(("page", str(page)))
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(q), parts.fragment))
+
+
+def _fetch_release_pages(config: UpdateConfig, fetch: Callable[..., bytes]) -> list:
+    """Fetch up to ``_MAX_RELEASE_PAGES`` of the Releases API (newest-first on GitHub)."""
+    releases: list = []
+    budget = config.max_listing_bytes
+    for page in range(1, _MAX_RELEASE_PAGES + 1):
+        url = _releases_page_url(config.releases_api_url, page)
+        data = fetch(config, url, budget, "application/vnd.github+json")
+        budget = max(1024, budget - len(data))
+        try:
+            chunk = json.loads(data.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
+            raise net.NetworkError("the release list could not be read", "http") from None
+        if not isinstance(chunk, list):
+            raise net.NetworkError("the release list could not be read", "http")
+        releases.extend(chunk)
+        if len(chunk) < _RELEASES_PER_PAGE:
+            break
+    return releases
+
+
+def _choose_from_listing(config: UpdateConfig, releases: list, *, channel: str) -> str:
+    """Manifest URL of the newest *eligible* Windows-line release — never an older fallback.
+
+    Eligibility (stable): non-draft, not a GitHub prerelease, Windows-line SemVer tag (no
+    macos/linux/… suffixes). The listing is only a discovery hint; authenticity comes from the
+    Ed25519-signed manifest fetched next. GitHub's repository-wide Latest badge is never used.
+
+    Policy when the newest eligible release has no ``manifest_asset``: raise ``not_found`` — do
+    **not** silently select an older release that still has a manifest. An invalid/tampered
+    manifest for that newest release fails later in verification (also without falling back).
     """
-    try:
-        releases = json.loads(data.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError):
-        raise net.NetworkError("the release list could not be read", "http") from None
     if not isinstance(releases, list):
         raise net.NetworkError("the release list could not be read", "http")
     allow_pre = channel == "prerelease"
-    best = None
-    for rel in releases[:100]:
+    best: tuple | None = None  # (version, rel)
+    for rel in releases:
         if not isinstance(rel, dict) or rel.get("draft"):
             continue
         if not allow_pre and rel.get("prerelease"):
@@ -139,14 +176,17 @@ def _choose_from_listing(config: UpdateConfig, data: bytes, *, channel: str) -> 
             version = parse_version(tag)
         except ValueError:
             continue
-        url = _manifest_url_from_release(config, rel)
-        if url is None:
-            continue
         if best is None or version > best[0]:
-            best = (version, url)
+            best = (version, rel)
     if best is None:
-        raise net.NetworkError("no release with update information was found", "not_found")
-    return best[1]
+        raise net.NetworkError("no compatible Windows release was found", "not_found")
+    url = _manifest_url_from_release(config, best[1])
+    if url is None:
+        raise net.NetworkError(
+            f"the newest compatible Windows release (v{best[0]}) has no signed update manifest",
+            "not_found",
+        )
+    return url
 
 
 def check(config: UpdateConfig, channel: str, installed: str, state: UpdateState, *,
@@ -157,8 +197,8 @@ def check(config: UpdateConfig, channel: str, installed: str, state: UpdateState
         return CheckResult(UpdateStatus.NOT_CONFIGURED, config.disabled_reason or
                            "Automatic updates are not configured for this build.", installed, checked_at=stamp)
     try:
-        listing = fetch(config, config.releases_api_url, config.max_listing_bytes, "application/vnd.github+json")
-        url = _choose_from_listing(config, listing, channel=channel)
+        releases = _fetch_release_pages(config, fetch)
+        url = _choose_from_listing(config, releases, channel=channel)
         data = fetch(config, url, config.max_manifest_bytes)
     except net.NetworkError as exc:
         state.last_check, state.last_status = stamp, UpdateStatus.UNAVAILABLE.value

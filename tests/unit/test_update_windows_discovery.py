@@ -145,7 +145,8 @@ def test_newest_windows_release_is_github_prerelease_skipped_on_stable():
     assert str(res.release.version) == "0.4.0"
 
 
-def test_windows_release_without_signed_manifest_asset_is_skipped():
+def test_windows_release_without_signed_manifest_does_not_fall_back_to_older():
+    """Newest eligible Windows release missing the manifest asset → not_found (no older offer)."""
     older = manifest_bytes(version="0.4.0", sequence=20, now=NOW)
     res = _check(
         [
@@ -155,8 +156,9 @@ def test_windows_release_without_signed_manifest_asset_is_skipped():
         {"v0.4.0": older},
         installed="0.3.0",
     )
-    assert res.status == UpdateStatus.AVAILABLE
-    assert str(res.release.version) == "0.4.0"
+    assert res.status == UpdateStatus.UNAVAILABLE
+    assert res.reason == "not_found"
+    assert "0.5.0" in res.detail
 
 
 def test_windows_release_with_invalid_manifest_signature_fails_verification():
@@ -316,3 +318,85 @@ def test_no_compatible_windows_release_reports_not_found():
     )
     assert res.status == UpdateStatus.UNAVAILABLE
     assert res.reason == "not_found"
+
+
+def test_invalid_newest_manifest_does_not_fall_back_to_older_valid():
+    """Tampered newest Windows manifest → verification_failed; older valid manifest is not used."""
+    import base64
+
+    newer = manifest_bytes(version="0.5.0", sequence=30, now=NOW)
+    doc = json.loads(newer.decode())
+    raw = bytearray(base64.b64decode(doc["signatures"][0]["sig"]))
+    raw[0] ^= 1
+    doc["signatures"][0]["sig"] = base64.b64encode(bytes(raw)).decode()
+    tampered = json.dumps(doc).encode()
+    older = manifest_bytes(version="0.4.0", sequence=20, now=NOW)
+    asked = []
+
+    def fetch(_c, url, *_a, **_k):
+        asked.append(url)
+        if "api.github.com" in url or "/releases?" in url:
+            return release_listing(
+                listing_with_manifest("0.5.0"),
+                listing_with_manifest("0.4.0"),
+            )
+        if "v0.5.0" in url:
+            return tampered
+        if "v0.4.0" in url:
+            raise AssertionError("must not fall back to older manifest after newest failed verification")
+        raise net.NetworkError(f"unexpected URL: {url}", "not_found")
+
+    res = manager.check(make_config(), "stable", "0.3.0", UpdateState(), fetch=fetch, now=NOW)
+    assert res.status == UpdateStatus.VERIFICATION_FAILED
+    assert res.reason == "signature"
+    assert all("v0.4.0" not in u for u in asked)
+
+
+def test_pagination_finds_windows_release_on_later_page():
+    """When page 1 is only foreign platforms, page 2 still yields the Windows candidate."""
+    win = manifest_bytes(version="0.4.0", sequence=20, now=NOW)
+    page1 = [listing_with_manifest("0.1.0", tag_name=f"v0.1.0-macos-{i}") for i in range(1, 101)]
+    assert len(page1) == 100
+    page2 = [listing_with_manifest("0.4.0"), listing_with_manifest("0.3.0")]
+    pages_seen = []
+
+    def fetch(_c, url, *_a, **_k):
+        if "api.github.com" in url or "/api/releases" in url or "/releases?" in url:
+            # Match &page=N (not the "page=1" substring inside per_page=100).
+            if url.endswith("page=1") or "&page=1&" in url or "?page=1&" in url:
+                pages_seen.append(1)
+                return release_listing(*page1)
+            if url.endswith("page=2") or "&page=2&" in url or "?page=2&" in url:
+                pages_seen.append(2)
+                return release_listing(*page2)
+            pages_seen.append(url)
+            return b"[]"
+        if "v0.4.0" in url and ASSET in url:
+            return win
+        raise net.NetworkError(f"unexpected URL: {url}", "not_found")
+
+    res = manager.check(make_config(), "stable", "0.3.0", UpdateState(), fetch=fetch, now=NOW)
+    assert res.status == UpdateStatus.AVAILABLE
+    assert str(res.release.version) == "0.4.0"
+    assert pages_seen == [1, 2]
+
+
+def test_listing_metadata_is_not_treated_as_authenticated():
+    """A listing can claim any version; only the signed manifest version is trusted."""
+    # Listing advertises v9.9.9; signed body is 0.4.0 — client must use signed fields.
+    data = manifest_bytes(version="0.4.0", sequence=20, now=NOW)
+    listing = release_listing({
+        "tag_name": "v9.9.9", "draft": False, "prerelease": False,
+        "assets": [{"name": ASSET,
+                    "browser_download_url":
+                        "https://github.com/aungyemun/monograph-pdf/releases/download/v0.4.0/" + ASSET}],
+    })
+
+    def fetch(_c, url, *_a, **_k):
+        if "api.github.com" in url or "/releases?" in url:
+            return listing
+        return data
+
+    res = manager.check(make_config(), "stable", "0.3.0", UpdateState(), fetch=fetch, now=NOW)
+    assert res.status == UpdateStatus.AVAILABLE
+    assert str(res.release.version) == "0.4.0"  # from signed body, not listing tag
