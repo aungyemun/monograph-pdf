@@ -1,25 +1,62 @@
-"""Single-source version helpers. All product metadata must derive from VERSION."""
+"""Platform-aware version helpers (Option B: independent Windows / Linux / macOS lines).
+
+Each platform keeps its own SemVer in ``versions/<platform>.txt``. The root ``VERSION``
+file mirrors the **Windows** line for backward-compatible packaging tools that still
+read it; runtime code should call :func:`get_version` (current host) or
+:func:`get_version` with an explicit platform.
+"""
 
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 _VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+_PLATFORMS = ("windows", "linux", "macos")
 
 
 def project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def version_file() -> Path:
-    return project_root() / "VERSION"
+def versions_dir() -> Path:
+    return project_root() / "versions"
 
 
-def get_version() -> str:
-    text = version_file().read_text(encoding="utf-8").strip()
+def version_file(platform: str | None = None) -> Path:
+    """Path of the authoritative version file for ``platform`` (default: host OS).
+
+    Windows packaging still consults root ``VERSION`` as a mirror of ``versions/windows.txt``.
+    """
+    plat = platform or current_platform()
+    if plat not in _PLATFORMS:
+        raise ValueError(f"Unknown platform: {plat!r}")
+    return versions_dir() / f"{plat}.txt"
+
+
+def current_platform() -> str:
+    if sys.platform.startswith("win"):
+        return "windows"
+    if sys.platform == "darwin":
+        return "macos"
+    return "linux"
+
+
+def get_version(platform: str | None = None) -> str:
+    """Return ``X.Y.Z`` for ``platform`` (default: the host operating system)."""
+    plat = platform or current_platform()
+    path = version_file(plat)
+    if path.is_file():
+        text = path.read_text(encoding="utf-8").strip()
+    elif plat == "windows":
+        # Legacy checkouts / frozen Windows installs that only ship root VERSION
+        legacy = project_root() / "VERSION"
+        text = legacy.read_text(encoding="utf-8").strip() if legacy.is_file() else ""
+    else:
+        text = ""
     if not _VERSION_RE.match(text):
-        raise ValueError(f"Invalid VERSION contents: {text!r}")
+        raise ValueError(f"Invalid version for {plat}: {text!r} ({path})")
     return text
 
 
@@ -45,7 +82,18 @@ def bump_patch(version: str | None = None) -> str:
     return f"{major}.{minor}.{patch}"
 
 
-def write_version(version: str) -> None:
+def write_version(version: str, platform: str | None = None) -> None:
+    """Write ``version`` for ``platform`` and keep root ``VERSION`` mirrored for Windows."""
     if not _VERSION_RE.match(version):
         raise ValueError(f"Invalid version: {version!r}")
-    version_file().write_text(version + "\n", encoding="utf-8")
+    plat = platform or current_platform()
+    if plat not in _PLATFORMS:
+        raise ValueError(f"Unknown platform: {plat!r}")
+    versions_dir().mkdir(parents=True, exist_ok=True)
+    version_file(plat).write_text(version + "\n", encoding="utf-8")
+    if plat == "windows":
+        (project_root() / "VERSION").write_text(version + "\n", encoding="utf-8")
+
+
+def all_platform_versions() -> dict[str, str]:
+    return {p: get_version(p) for p in _PLATFORMS}

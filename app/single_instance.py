@@ -1,14 +1,14 @@
 """One Monograph PDF per user session: a second start hands over to the running window.
 
-Starting Monograph PDF again (from the Start menu, a shortcut or by opening a PDF in Explorer) while
-it is already running does not open a second copy. The new process writes a small request — the
-files to open, nothing else — into ``<runtime>\\instance\\requests``, allows the running window to
-come to the front, waits until the request has been taken and exits. The running window opens the
-file, or comes to the front and says it is already running.
+Starting Monograph PDF again while it is already running does not open a second copy. The new
+process writes a small request — the files to open, nothing else — into
+``<runtime>/instance/requests``, allows the running window to come to the front, waits until the
+request has been taken and exits. The running window opens the file, or comes to the front and
+says it is already running.
 
-* Detection: a named Windows mutex (``Local\\`` namespace = this logon session). The name is derived
-  from the runtime folder, so the installed program, a copy run from source and the installer's
-  self-check (``--runtime-dir``) never block each other.
+* Detection: a named Windows mutex (``Local\\`` namespace) on Windows; an exclusive ``fcntl``
+  file lock on macOS / Unix. The lock key is derived from the runtime folder, so the installed
+  program, a copy run from source and the self-check (``--runtime-dir``) never block each other.
 * No network and no Qt networking: Qt's network module is not part of the build (offline design).
 * Requests are local files of this user only; they are validated (JSON, a short list of existing
   files with a supported extension), consumed once and deleted. Stale requests are discarded.
@@ -33,11 +33,16 @@ MAX_FILES = 20
 STALE_SECONDS = 120.0
 HANDOVER_TIMEOUT = 10.0
 
-_handle = None  # the mutex handle, kept for the life of the process
+_handle = None  # the mutex / lock handle, kept for the life of the process
+_lock_file = None  # open file object holding the fcntl lock (Unix)
 
 
 def _is_windows() -> bool:
     return sys.platform.startswith("win")
+
+
+def _is_unix() -> bool:
+    return sys.platform.startswith(("darwin", "linux", "freebsd"))
 
 
 def instance_folder() -> Path:
@@ -55,13 +60,28 @@ def mutex_name(folder: Path) -> str:
     return "Local\\MonographPDF-" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:24]
 
 
+def _lock_path(folder: Path) -> Path:
+    key = hashlib.sha256(str(Path(folder).resolve()).encode("utf-8")).hexdigest()[:24]
+    return folder / f"primary-{key}.lock"
+
+
 def acquire(folder: Path | None = None) -> bool:
-    """True when this process is the first Monograph PDF (it then keeps the mutex). Always True
-    outside Windows or if the mutex cannot be created (never blocks starting the program)."""
-    global _handle
-    if not _is_windows():
-        return True
+    """True when this process is the first Monograph PDF (it then keeps the lock).
+
+    On unsupported platforms, or if the lock cannot be created, returns True so the program
+    can still start.
+    """
+    global _handle, _lock_file
     folder = folder or instance_folder()
+    if _is_windows():
+        return _acquire_windows(folder)
+    if _is_unix():
+        return _acquire_unix(folder)
+    return True
+
+
+def _acquire_windows(folder: Path) -> bool:
+    global _handle
     try:
         import ctypes
         from ctypes import wintypes
@@ -81,8 +101,31 @@ def acquire(folder: Path | None = None) -> bool:
         return True
 
 
+def _acquire_unix(folder: Path) -> bool:
+    global _lock_file
+    try:
+        import fcntl
+
+        folder.mkdir(parents=True, exist_ok=True)
+        path = _lock_path(folder)
+        fh = open(path, "a+", encoding="utf-8")  # noqa: SIM115
+        try:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            fh.close()
+            return False
+        fh.seek(0)
+        fh.truncate()
+        fh.write(str(os.getpid()))
+        fh.flush()
+        _lock_file = fh
+        return True
+    except Exception:  # noqa: BLE001
+        return True
+
+
 def release() -> None:
-    global _handle
+    global _handle, _lock_file
     if _handle is not None and _is_windows():
         try:
             import ctypes
@@ -91,6 +134,15 @@ def release() -> None:
         except Exception:  # noqa: BLE001
             pass
     _handle = None
+    if _lock_file is not None:
+        try:
+            import fcntl
+
+            fcntl.flock(_lock_file.fileno(), fcntl.LOCK_UN)
+            _lock_file.close()
+        except Exception:  # noqa: BLE001
+            pass
+    _lock_file = None
 
 
 def files_from_args(argv: list[str]) -> list[str]:
@@ -191,16 +243,36 @@ def allow_primary_foreground(folder: Path | None = None) -> None:
 
 
 def show_native_message(text: str, title: str = "Monograph PDF") -> None:
-    if not _is_windows():
-        print(text, file=sys.stderr)
-        return
-    try:
-        import ctypes
+    if _is_windows():
+        try:
+            import ctypes
 
-        MB_ICONINFORMATION, MB_SETFOREGROUND = 0x40, 0x10000
-        ctypes.WinDLL("user32").MessageBoxW(None, text, title, MB_ICONINFORMATION | MB_SETFOREGROUND)
-    except Exception:  # noqa: BLE001
-        pass
+            MB_ICONINFORMATION, MB_SETFOREGROUND = 0x40, 0x10000
+            ctypes.WinDLL("user32").MessageBoxW(None, text, title, MB_ICONINFORMATION | MB_SETFOREGROUND)
+            return
+        except Exception:  # noqa: BLE001
+            pass
+    if sys.platform == "darwin":
+        try:
+            import subprocess
+
+            # Escape for AppleScript string literals
+            safe = text.replace("\\", "\\\\").replace('"', '\\"')
+            safe_title = title.replace("\\", "\\\\").replace('"', '\\"')
+            # Full path only; CREATE_NO_WINDOW is 0 on macOS but kept for the same call shape as Windows
+            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            subprocess.run(
+                ["/usr/bin/osascript", "-e",
+                 f'display dialog "{safe}" with title "{safe_title}" buttons {{"OK"}} default button 1'],
+                check=False,
+                capture_output=True,
+                timeout=30,
+                creationflags=flags,
+            )
+            return
+        except Exception:  # noqa: BLE001
+            pass
+    print(text, file=sys.stderr)
 
 
 def hand_over(argv: list[str], folder: Path | None = None, *, timeout: float = HANDOVER_TIMEOUT) -> int:

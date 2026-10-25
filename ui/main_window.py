@@ -1111,7 +1111,9 @@ class MainWindow(QMainWindow):
             self._make_default_app,
             tip="Open Windows settings to choose Monograph PDF for .pdf files",
         )
-        self.act_default_app.setVisible(sys.platform.startswith("win"))
+        # Windows registry handler; Linux XDG via core.linux_desktop. macOS opens System Settings
+        # (wired separately); hide until that path is verified on the Mac integration branch.
+        self.act_default_app.setVisible(sys.platform.startswith(("win", "linux")))
         set_action_icon(self.act_default_app, "default_app")
         self.act_select_all = new("Select &All", self._select_all, "Ctrl+A")
         self.act_deselect = new("D&eselect All", self._deselect_all, "Ctrl+Shift+A")
@@ -7895,6 +7897,15 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Rotated {len(pages)} page(s) — Save to keep the change", 5000)
 
     def _make_default_app(self) -> None:
+        if sys.platform.startswith("linux"):
+            from core.linux_desktop import set_default_pdf_handler
+
+            ok, detail = set_default_pdf_handler()
+            if ok:
+                QMessageBox.information(self, "Default PDF App", detail)
+            else:
+                QMessageBox.warning(self, "Default PDF App", detail)
+            return
         from PySide6.QtCore import QUrl
         from PySide6.QtGui import QDesktopServices
 

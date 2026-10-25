@@ -15,6 +15,9 @@ CANONICAL = {
     "FEATURES.md",
     "FILE_FORMATS_AND_COMPATIBILITY.md",
     "ARCHITECTURE.md",
+    "CROSS_PLATFORM_DEVELOPMENT.md",
+    "COMPONENT_COMPATIBILITY_MATRIX.md",
+    "UNIFICATION_HYGIENE.md",
     "BUILD_AND_RUNTIME.md",
     "RELEASE_AND_VERSIONING.md",
     "SECURITY_AND_PRIVACY.md",
@@ -69,7 +72,9 @@ def test_docs_markdown_is_the_canonical_set():
     """Only the canonical documents, plus one release-notes file per version in docs/releases."""
     files = sorted(p.relative_to(DOCS).as_posix() for p in DOCS.rglob("*.md"))
     notes = [f for f in files if f.startswith("releases/")]
-    assert all(re.fullmatch(r"releases/v\d+\.\d+\.\d+\.md", f) for f in notes), notes
+    # Windows: vX.Y.Z.md — platform lines may use vX.Y.Z-linux.md / vX.Y.Z-macos.md
+    note_re = re.compile(r"releases/v\d+\.\d+\.\d+(?:-(?:linux|macos))?\.md")
+    assert all(note_re.fullmatch(f) for f in notes), notes
     assert set(files) - set(notes) == CANONICAL
 
 
