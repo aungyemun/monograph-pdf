@@ -351,6 +351,8 @@ def test_frozen_app_does_not_import_modules_from_its_folder():
 
 
 def test_installed_copy_keeps_working_files_in_localappdata(tmp_path, monkeypatch):
+    if sys.platform != "win32":
+        pytest.skip("Windows installed-layout / LocalAppData paths only")
     import app.paths as paths
 
     install = tmp_path / "Program Files" / "Monograph PDF"
