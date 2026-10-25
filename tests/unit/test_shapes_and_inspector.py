@@ -35,9 +35,9 @@ def test_square_and_circle_constraints():
 
 
 def test_create_shapes_and_bake(tmp_path: Path):
-    src = SAMPLES / "sample_plain.pdf"
+    src = SAMPLES / "sample_text.pdf"
     if not src.is_file():
-        src = next(SAMPLES.glob("*.pdf"))
+        src = next(p for p in SAMPLES.glob("*.pdf") if p.name != "sample_password.pdf")
     pdf = open_document(src)
     edit = EditableDocument(pdf)
     rect = edit.create_shape(0, Rect(72, 72, 120, 60), "rectangle")
@@ -66,7 +66,9 @@ def test_create_shapes_and_bake(tmp_path: Path):
 
 
 def test_shape_move_one_undo(tmp_path: Path):
-    src = next(SAMPLES.glob("*.pdf"))
+    src = SAMPLES / "sample_text.pdf"
+    if not src.is_file():
+        src = next(p for p in SAMPLES.glob("*.pdf") if p.name != "sample_password.pdf")
     pdf = open_document(src)
     edit = EditableDocument(pdf)
     s = edit.create_shape(0, Rect(50, 50, 40, 40), "rectangle")
@@ -106,7 +108,9 @@ def test_inspector_context_switch(qtbot):
     create_application(["pdf-inspector"])
     window = MainWindow()
     qtbot.addWidget(window)
-    src = next(SAMPLES.glob("*.pdf"))
+    src = SAMPLES / "sample_text.pdf"
+    if not src.is_file():
+        src = next(p for p in SAMPLES.glob("*.pdf") if p.name != "sample_password.pdf")
     assert window.open_path(src)
     edit = window._edit  # noqa: SLF001
     insp: InspectorPanel = window._inspector  # noqa: SLF001
