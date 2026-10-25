@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from core.product_meta import EXECUTABLE_NAME
+from core.product_meta import WINDOWS_EXECUTABLE_NAME
 from core.updates.config import INNO_APP_ID
 
 UNINSTALL_SUBKEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall" + "\\" + INNO_APP_ID + "_is1"
@@ -42,7 +42,8 @@ class InstallTarget:
 
     @property
     def exe(self) -> Path | None:
-        return self.install_dir / EXECUTABLE_NAME if self.install_dir else None
+        # Windows Setup installs always use the .exe name, even when this module is imported on Linux CI.
+        return self.install_dir / WINDOWS_EXECUTABLE_NAME if self.install_dir else None
 
 
 def norm(path: str | os.PathLike) -> str:
@@ -90,7 +91,7 @@ def detect(exe: Path | None = None,
                                         "available in a copy installed with Setup.")
         exe = Path(sys.executable)
     exe = Path(exe)
-    if exe.name.lower() != EXECUTABLE_NAME.lower():
+    if exe.name.lower() != WINDOWS_EXECUTABLE_NAME.lower():
         return InstallTarget(False, "This is not the Monograph PDF program file.")
     folder = exe.resolve().parent if exe.exists() else exe.parent
     if not any(folder.glob("unins*.exe")):
