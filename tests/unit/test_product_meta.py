@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 from PIL import Image
@@ -21,6 +22,7 @@ from core.product_meta import (
     PRODUCT_LICENSE,
     PRODUCT_NAME,
     REPOSITORY_NAME,
+    WINDOWS_EXECUTABLE_NAME,
     branding_assets_ok,
     get_product_identity,
     icon_path,
@@ -37,7 +39,11 @@ ICO_SIZES = [16, 24, 32, 48, 64, 128, 256]
 
 def test_canonical_identity_strings():
     assert PRODUCT_NAME == "Monograph PDF"
-    assert EXECUTABLE_NAME == "MonographPDF.exe"
+    assert WINDOWS_EXECUTABLE_NAME == "MonographPDF.exe"
+    if sys.platform.startswith("win"):
+        assert EXECUTABLE_NAME == "MonographPDF.exe"
+    else:
+        assert EXECUTABLE_NAME == "MonographPDF"
     assert INTERNAL_NAME == "MonographPDF"
     assert REPOSITORY_NAME == "monograph-pdf"
     assert DATA_FOLDER_NAME == "Monograph PDF"
@@ -55,11 +61,19 @@ def test_legacy_identity_is_internal_compatibility_only():
 
 
 def test_version_is_on_a_public_line():
-    # 0.2.x was the first public line; 0.3.0 is the next milestone (updates and error reporting)
-    major, minor, patch = (int(x) for x in re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", get_version()).groups())
-    assert (major, minor) >= (0, 2)
-    assert get_version() == (ROOT / "VERSION").read_text(encoding="utf-8").strip()
-
+    # Option B: each platform has its own SemVer; root VERSION mirrors Windows only.
+    host = get_version()
+    windows = get_version("windows")
+    linux = get_version("linux")
+    macos = get_version("macos")
+    for label, version in (("host", host), ("windows", windows), ("linux", linux), ("macos", macos)):
+        major, minor, patch = (int(x) for x in re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", version).groups())
+        assert (major, minor, patch) >= (0, 0, 0), label
+    # Windows public line remains >= 0.2; Linux/macOS may start at 0.1.0 independently.
+    w_major, w_minor, _ = (int(x) for x in re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", windows).groups())
+    assert (w_major, w_minor) >= (0, 2)
+    assert windows == (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    assert host in {windows, linux, macos}
 
 def test_identity_version_from_version_file():
     identity = get_product_identity()
@@ -104,7 +118,10 @@ def test_branding_assets_present():
     assert icon_path("source/Monograph_PDF_logo.png").is_file()
     assert icon_path("source/monograph_pdf_icon_1024.png").is_file()
     assert icon_path("windows/monograph_pdf.ico").is_file()
-    assert resolve_app_icon_path() == icon_path("windows/monograph_pdf.ico")
+    if sys.platform.startswith("win"):
+        assert resolve_app_icon_path() == icon_path("windows/monograph_pdf.ico")
+    else:
+        assert resolve_app_icon_path() == icon_path("windows/monograph_pdf_256.png")
     assert resolve_about_logo_path() == icon_path("windows/monograph_pdf_256.png")
     # No loose icons in project root
     assert not (ROOT / "monograph_pdf.ico").exists()
