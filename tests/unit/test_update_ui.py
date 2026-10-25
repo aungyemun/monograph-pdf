@@ -11,37 +11,6 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtWidgets import QMessageBox, QPushButton  # noqa: E402
 
-
-def _message_box_title(box: QMessageBox) -> str:
-    """Return the dialog title Qt was given.
-
-    On macOS, ``QMessageBox`` sheets often report an empty ``windowTitle()`` even when the
-    constructor received a title. Prefer ``windowTitle``, then a title recorded on the
-    instance by the test ``boxes``/``exec`` patches.
-    """
-    title = (box.windowTitle() or "").strip()
-    if title:
-        return title
-    return str(getattr(box, "_monograph_test_title", "") or "").strip()
-
-
-def _patch_message_box_exec(monkeypatch, record):
-    """Record ``(title, …)`` from ``QMessageBox.exec`` with a macOS-safe title."""
-    orig_init = QMessageBox.__init__
-
-    def init(self, *args, **kwargs):
-        orig_init(self, *args, **kwargs)
-        # QMessageBox(icon, title, text, …) — title is args[1] when icon is first.
-        if len(args) >= 2 and isinstance(args[1], str):
-            self._monograph_test_title = args[1]
-
-    monkeypatch.setattr(QMessageBox, "__init__", init)
-
-    def fake_exec(box, *a, **k):
-        return record(box)
-
-    monkeypatch.setattr(QMessageBox, "exec", fake_exec)
-
 from core.diagnostics import EventId  # noqa: E402
 from core.diagnostics import report as reports  # noqa: E402
 from core.updates import manager, staging  # noqa: E402
@@ -50,6 +19,21 @@ from core.updates.manager import CheckResult, UpdateStatus  # noqa: E402
 from core.updates.manifest import parse_and_verify  # noqa: E402
 from core.updates.state import UpdateState  # noqa: E402
 from tests.fixtures.update_fixtures import make_config, manifest_bytes, setup_bytes, signed_fields  # noqa: E402
+from ui.update_dialogs import MESSAGE_BOX_TITLE_PROPERTY, apply_message_box_title, message_box_title  # noqa: E402
+
+
+def _message_box_title(box: QMessageBox) -> str:
+    """Title the application set — independent of native sheet windowTitle clearing."""
+    return message_box_title(box)
+
+
+def _patch_message_box_exec(monkeypatch, record):
+    """Intercept ``QMessageBox.exec`` without showing a modal (title comes from the app)."""
+
+    def fake_exec(box, *a, **k):
+        return record(box)
+
+    monkeypatch.setattr(QMessageBox, "exec", fake_exec)
 
 
 @pytest.fixture(autouse=True)
@@ -507,3 +491,28 @@ def test_no_update_available_wording(window, boxes):
     window._updates._checked(CheckResult(UpdateStatus.UP_TO_DATE, "Monograph PDF 0.4.1 is the newest version. "
                                          "No update is available.", "0.4.1", rel), True)
     assert boxes[-1][0] == "information" and boxes[-1][2].startswith("No update available")
+
+
+def test_apply_message_box_title_survives_native_window_title_clearing(qtbot):
+    """Regression: macOS sheets clear QMessageBox.windowTitle(); app must keep the title elsewhere.
+
+    Verifies the intended title, text, and that fall-backs used by tests match what the UI set —
+    without asserting on window-manager chrome alone.
+    """
+    from PySide6.QtWidgets import QWidget
+
+    parent = QWidget()
+    qtbot.addWidget(parent)
+    box = QMessageBox(QMessageBox.Icon.Warning, "Update not installed", "Installer integrity verification failed\n\nDetail", parent=parent)
+    apply_message_box_title(box, "Update not installed")
+    assert message_box_title(box) == "Update not installed"
+    assert box.accessibleName() == "Update not installed"
+    assert box.property(MESSAGE_BOX_TITLE_PROPERTY) == "Update not installed"
+    assert "Installer integrity verification failed" in box.text()
+    # On macOS the native title is often empty; other platforms may still expose it.
+    import sys
+
+    if sys.platform == "darwin":
+        assert box.windowTitle() == ""
+    else:
+        assert box.windowTitle() in ("", "Update not installed")
