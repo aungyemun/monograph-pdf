@@ -21,6 +21,7 @@ from core.updates.state import UpdateState
 from tests.fixtures.update_fixtures import (
     OTHER_SECRET,
     TEST_SECRET,
+    listing_with_manifest,
     make_config,
     manifest_bytes,
     setup_bytes,
@@ -36,7 +37,19 @@ def isolated(tmp_path, monkeypatch):
 
 
 def check(data: bytes, installed: str, state: UpdateState, *, cfg=None, now=NOW, channel="stable"):
-    return manager.check(cfg or make_config(), channel, installed, state, fetch=lambda *a, **k: data, now=now)
+    """Fetch stub: Releases API listing then the provided signed manifest (never Latest)."""
+    cfg = cfg or make_config()
+    version = json.loads(data.decode("utf-8"))["signed"]["version"]
+    entry = listing_with_manifest(
+        version,
+        prerelease=channel == "prerelease" or "-" in version,
+    )
+    listing = json.dumps([entry]).encode()
+
+    def fetch(_c, url, *a, **k):
+        return listing if "api.github.com" in url else data
+
+    return manager.check(cfg, channel, installed, state, fetch=fetch, now=now)
 
 
 @pytest.mark.parametrize("target", ["0.4.2", "0.6.0", "1.0.0", "2.3.4"])
