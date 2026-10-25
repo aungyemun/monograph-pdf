@@ -362,7 +362,8 @@ def test_historical_changelog_entries_are_kept():
     from core.versioning import get_version
 
     log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    ver = get_version()
+    # Root CHANGELOG tracks the Windows public line; Linux/macOS notes live under docs/releases/.
+    ver = get_version("windows")
     assert re.search(rf"^## \[{re.escape(ver)}\] — (Unreleased|\d{{4}}-\d{{2}}-\d{{2}})$", log, re.M)
     assert "## Internal development history" in log
     assert "### [0.1.5] — 2026-10-15" in log and "### [0.1.4] — 2026-10-08" in log
