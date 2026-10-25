@@ -11,6 +11,37 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtWidgets import QMessageBox, QPushButton  # noqa: E402
 
+
+def _message_box_title(box: QMessageBox) -> str:
+    """Return the dialog title Qt was given.
+
+    On macOS, ``QMessageBox`` sheets often report an empty ``windowTitle()`` even when the
+    constructor received a title. Prefer ``windowTitle``, then a title recorded on the
+    instance by the test ``boxes``/``exec`` patches.
+    """
+    title = (box.windowTitle() or "").strip()
+    if title:
+        return title
+    return str(getattr(box, "_monograph_test_title", "") or "").strip()
+
+
+def _patch_message_box_exec(monkeypatch, record):
+    """Record ``(title, …)`` from ``QMessageBox.exec`` with a macOS-safe title."""
+    orig_init = QMessageBox.__init__
+
+    def init(self, *args, **kwargs):
+        orig_init(self, *args, **kwargs)
+        # QMessageBox(icon, title, text, …) — title is args[1] when icon is first.
+        if len(args) >= 2 and isinstance(args[1], str):
+            self._monograph_test_title = args[1]
+
+    monkeypatch.setattr(QMessageBox, "__init__", init)
+
+    def fake_exec(box, *a, **k):
+        return record(box)
+
+    monkeypatch.setattr(QMessageBox, "exec", fake_exec)
+
 from core.diagnostics import EventId  # noqa: E402
 from core.diagnostics import report as reports  # noqa: E402
 from core.updates import manager, staging  # noqa: E402
@@ -43,9 +74,18 @@ def boxes(monkeypatch):
     for name in ("information", "warning", "critical"):
         monkeypatch.setattr(QMessageBox, name, staticmethod(lambda parent, title, text, *a, n=name, **k: seen.append((n, title, text))))
     icons = {QMessageBox.Icon.Warning: "warning", QMessageBox.Icon.Critical: "critical"}
-    # message boxes built with buttons (e.g. "Open Releases Page") are recorded instead of shown
-    monkeypatch.setattr(QMessageBox, "exec", lambda box: seen.append(
-        (icons.get(box.icon(), "information"), box.windowTitle(), box.text() + "\n" + box.informativeText())) or 0)
+
+    def record(box):
+        seen.append(
+            (
+                icons.get(box.icon(), "information"),
+                _message_box_title(box),
+                box.text() + "\n" + box.informativeText(),
+            )
+        )
+        return 0
+
+    _patch_message_box_exec(monkeypatch, record)
     return seen
 
 
@@ -158,14 +198,14 @@ def test_not_configured_offers_the_releases_page_only_when_asked(window, boxes, 
     shown, opened = [], []
 
     def fake_exec(box):
-        shown.append((box.windowTitle(), box.text(), box.informativeText(), [b.text() for b in box.buttons()]))
+        shown.append((_message_box_title(box), box.text(), box.informativeText(), [b.text() for b in box.buttons()]))
         if click_open:
             next(b for b in box.buttons() if b.text() == "Open Releases Page").click()
         else:
             box.button(QMessageBox.StandardButton.Ok).click()
         return 0
 
-    monkeypatch.setattr(QMessageBox, "exec", fake_exec)
+    _patch_message_box_exec(monkeypatch, fake_exec)
     monkeypatch.setattr(QDesktopServices, "openUrl", staticmethod(lambda url: opened.append(url.toString())))
     window._updates._checked(CheckResult(UpdateStatus.NOT_CONFIGURED, "Download from GitHub Releases.", "0.3.0"), True)
     assert boxes == [] and len(shown) == 1
@@ -433,8 +473,12 @@ def test_download_failures_name_the_problem_and_offer_the_releases_page(window, 
     from core.updates.manager import UpdateError
 
     shown = []
-    monkeypatch.setattr(QMessageBox, "exec", lambda box: shown.append(
-        (box.windowTitle(), box.text(), [b.text() for b in box.buttons()])) or 0)
+
+    def record(box):
+        shown.append((_message_box_title(box), box.text(), [b.text() for b in box.buttons()]))
+        return 0
+
+    _patch_message_box_exec(monkeypatch, record)
     window._updates.show_download_problem(UpdateError("Install it with Setup from the release page.", code))
     wtitle, text, buttons = shown[0]
     assert wtitle == "Update not installed" and text.startswith(title) and "Open Releases Page" in buttons
