@@ -111,9 +111,13 @@ def load(path: Path | None = None) -> UpdateConfig:
         ca_file=ca_path,
     )
     if cfg.enabled:
-        for url in (cfg.stable_manifest_url, cfg.releases_api_url):
-            if not cfg.host_allowed(url):
-                raise ConfigError("source URLs must be HTTPS on an allowed host")
+        # Windows discovery always uses the Releases API listing (never repository-wide Latest).
+        if not cfg.releases_api_url or not cfg.host_allowed(cfg.releases_api_url):
+            raise ConfigError("releases_api_url must be HTTPS on an allowed host")
+        # stable_manifest_url is optional/legacy; if set it must still be an allowed HTTPS URL
+        # but it is not used for discovery (see core.updates.manager.check).
+        if cfg.stable_manifest_url and not cfg.host_allowed(cfg.stable_manifest_url):
+            raise ConfigError("stable_manifest_url must be HTTPS on an allowed host when set")
         if not re.match(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", cfg.repository):
             raise ConfigError("repository must be owner/name")
         if not re.match(r"^[A-Za-z0-9_.-]+\.json$", cfg.manifest_asset):
