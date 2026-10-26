@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.error
 import zipfile
 from pathlib import Path
 
@@ -442,3 +443,132 @@ def test_source_archive_and_checksums_use_the_new_names():
     build = (ROOT / "scripts" / "build_release.ps1").read_text(encoding="utf-8-sig")
     assert 'installer\\MonographPDF_${Version}_Source.zip' in build and 'installer\\MonographPDF_${Version}_Setup.exe' in build
     assert "guard-frozen" in build
+
+
+def test_repeated_archive_generation_is_byte_identical(tmp_path):
+    manifest_path, cache = _small_manifest(tmp_path)
+    a = tmp_path / "a" / f"MonographPDF_{VERSION}_Source.zip"
+    b = tmp_path / "b" / f"MonographPDF_{VERSION}_Source.zip"
+    assert msa.build(a, cache, offline=True, manifest_path=manifest_path, allow_dirty=True) == 0
+    assert msa.build(b, cache, offline=True, manifest_path=manifest_path, allow_dirty=True) == 0
+    assert msa.sha256_of(a) == msa.sha256_of(b)
+
+
+def test_ocr_local_manifest_and_wrapper_are_excluded_from_selection(tmp_path):
+    root = tmp_path / "tree"
+    root.mkdir(parents=True)
+    (root / "README.md").write_text("x\n", encoding="utf-8")
+    ocr = root / "engines" / "ocr"
+    ocr.mkdir(parents=True)
+    (ocr / "MANIFEST.json").write_text("{}\n", encoding="utf-8")
+    (ocr / "MANIFEST.local.json").write_text('{"platform":"linux"}\n', encoding="utf-8")
+    (ocr / "tesseract").write_text("#!/bin/sh\n", encoding="utf-8")
+    files = {p.as_posix() for p in msa.product_files(root)}
+    assert "engines/ocr/MANIFEST.json" in files
+    assert "engines/ocr/MANIFEST.local.json" not in files
+    assert "engines/ocr/tesseract" not in files
+
+
+def test_download_http_404_tries_next_url_and_cleans_part(tmp_path, monkeypatch):
+    dest = tmp_path / "pkg.src.tar.zst"
+    calls: list[str] = []
+
+    class Resp:
+        def __init__(self, data: bytes):
+            self._data = data
+
+        def read(self, n: int = -1):
+            if not self._data:
+                return b""
+            if n < 0:
+                out, self._data = self._data, b""
+                return out
+            out, self._data = self._data[:n], self._data[n:]
+            return out
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def fake_urlopen(req, timeout=120):  # noqa: ARG001
+        url = req.get_full_url() if hasattr(req, "get_full_url") else str(req)
+        calls.append(url)
+        if "missing" in url:
+            raise urllib.error.HTTPError(url, 404, "Not Found", hdrs=None, fp=None)  # type: ignore[arg-type]
+        return Resp(b"good-bytes")
+
+    import urllib.request
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    used = msa._download(
+        ["https://example.test/missing/pkg.src.tar.zst", "https://example.test/mirror/pkg.src.tar.zst"],
+        dest,
+    )
+    assert dest.read_bytes() == b"good-bytes"
+    assert "mirror" in used
+    assert not list(tmp_path.glob("*.part"))
+    assert any("missing" in u for u in calls)
+
+
+def test_download_rejects_non_https(tmp_path):
+    dest = tmp_path / "x.bin"
+    with pytest.raises(RuntimeError, match="no download address worked"):
+        msa._download(["http://insecure.example/x.bin"], dest)
+    assert not dest.exists()
+    assert not list(tmp_path.glob("*.part"))
+
+
+def test_invalid_checksum_removes_bad_cache_and_fails_build(tmp_path):
+    manifest_path, cache = _small_manifest(tmp_path)
+    # Corrupt one cached third-party file after pinning stand-in hashes.
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    victim = next(f["name"] for c in manifest["components"] for f in c["files"])
+    (cache / victim).write_bytes(b"tampered-after-pin")
+    out = tmp_path / "bad.zip"
+    assert msa.build(out, cache, offline=True, manifest_path=manifest_path, allow_dirty=True) == 1
+    assert not out.exists()
+    assert not (cache / victim).exists()  # mismatched file removed
+
+
+def test_failed_zip_write_leaves_no_partial_archive(tmp_path, monkeypatch):
+    manifest_path, cache = _small_manifest(tmp_path)
+    out = tmp_path / "out.zip"
+    real_replace = Path.replace
+
+    def boom(self, target):  # noqa: ANN001
+        if str(self).endswith(".zip.part"):
+            raise OSError("simulated replace failure")
+        return real_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", boom)
+    with pytest.raises(OSError, match="simulated replace failure"):
+        msa.build(out, cache, offline=True, manifest_path=manifest_path, allow_dirty=True)
+    assert not out.exists()
+    assert not list(tmp_path.glob("*.zip.part"))
+
+
+def test_unicode_paths_round_trip_in_archive(tmp_path):
+    root = tmp_path / "checkout"
+    manifest, cache = _synthetic_repo(root)
+    rel = "docs/日本語/案内.md"
+    (root / rel).parent.mkdir(parents=True, exist_ok=True)
+    (root / rel).write_text("こんにちは\n", encoding="utf-8")
+    _git(root, "add", rel)
+    _git(root, *GIT_ID, "commit", "-q", "-m", "unicode")
+    out = tmp_path / "u.zip"
+    assert msa.build(out, cache, offline=True, root=root, manifest_path=manifest) == 0
+    with zipfile.ZipFile(out) as z:
+        data = z.read(f"MonographPDF_9.9.9_Source/monograph-pdf/{rel}")
+    assert data == "こんにちは\n".encode("utf-8")
+
+
+def test_msys2_ocr_pins_list_https_mirrors():
+    for comp in MANIFEST["components"]:
+        if not comp.get("msys2"):
+            continue
+        urls = comp["files"][0]["urls"]
+        assert all(u.startswith("https://") for u in urls)
+        assert any("repo.msys2.org" in u for u in urls)
+        assert any("futureware.at" in u or "mirror.msys2.org" in u for u in urls)
