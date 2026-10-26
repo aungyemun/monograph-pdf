@@ -133,6 +133,66 @@ def _git(cwd: Path, *args: str) -> None:
 GIT_ID = ("-c", "user.name=Test", "-c", "user.email=test@example.invalid")
 
 
+def _rmtree_git_dir(git_dir: Path) -> None:
+    """Delete a temporary ``.git`` tree without failing on Git's maintenance.lock race.
+
+    On macOS CI, ``git`` may create and remove ``objects/maintenance.lock`` while
+    ``shutil.rmtree`` walks the tree; a naive ``onerror`` that re-calls ``unlink`` then
+    raises ``FileNotFoundError``. Ignore gone entries; chmod+retry only for permission
+    errors; bound-retry the whole remove for transient ENOENT races.
+    """
+    import errno
+
+    git_dir = Path(git_dir)
+    if not git_dir.exists():
+        return
+    repo = git_dir.parent if git_dir.name == ".git" else git_dir
+    try:
+        subprocess.run(
+            ["git", "-C", str(repo), "-c", "maintenance.auto=false", "status", "--porcelain"],
+            capture_output=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+    def onerror(func, path, exc_info):
+        err = exc_info[1]
+        if isinstance(err, FileNotFoundError) or getattr(err, "errno", None) == errno.ENOENT:
+            return
+        if isinstance(err, PermissionError) or getattr(err, "errno", None) in (errno.EACCES, errno.EPERM):
+            try:
+                os.chmod(path, 0o700)
+            except OSError:
+                pass
+            try:
+                func(path)
+                return
+            except FileNotFoundError:
+                return
+        raise err
+
+    last: BaseException | None = None
+    for attempt in range(10):
+        try:
+            if not git_dir.exists():
+                return
+            shutil.rmtree(git_dir, onerror=onerror)
+            return
+        except FileNotFoundError as exc:
+            last = exc
+            time.sleep(0.05 * (attempt + 1))
+        except OSError as exc:
+            if getattr(exc, "errno", None) == errno.ENOENT:
+                last = exc
+                time.sleep(0.05 * (attempt + 1))
+                continue
+            raise
+    if git_dir.exists():
+        raise RuntimeError(f"could not remove {git_dir}") from last
+
+
 def _synthetic_repo(root: Path) -> tuple[Path, Path]:
     """A tiny committed project with every file the archive needs (synthetic content only)."""
     files = {
@@ -238,13 +298,45 @@ def test_unpacked_source_builds_are_deterministic_too(tmp_path, monkeypatch):
     """Without .git the files on disk are used; SOURCE_DATE_EPOCH (or 1980-01-01) dates every entry."""
     root = tmp_path / "unpacked"
     manifest, cache = _synthetic_repo(root)
-    shutil.rmtree(root / ".git", onerror=lambda f, p, e: (os.chmod(p, 0o700), f(p)))
+    _rmtree_git_dir(root / ".git")
     monkeypatch.setenv("SOURCE_DATE_EPOCH", "1767225600")  # 2026-01-01
     a, b = tmp_path / "a" / "x.zip", tmp_path / "b" / "x.zip"
     assert msa.build(a, cache, offline=True, root=root, manifest_path=manifest) == 0
     assert msa.build(b, cache, offline=True, root=root, manifest_path=manifest) == 0
     assert msa.sha256_of(a) == msa.sha256_of(b)
     assert {e[1] for e in _entries(a).values()} == {(2026, 1, 1, 0, 0, 0)}
+
+
+def test_rmtree_git_dir_tolerates_vanishing_maintenance_lock(tmp_path, monkeypatch):
+    """Regression for macOS CI: maintenance.lock can disappear mid-rmtree (FileNotFoundError)."""
+    root = tmp_path / "repo"
+    _synthetic_repo(root)
+    git_dir = root / ".git"
+    objects = git_dir / "objects"
+    objects.mkdir(parents=True, exist_ok=True)
+    lock = objects / "maintenance.lock"
+    lock.write_text("lock", encoding="utf-8")
+
+    real_unlink = os.unlink
+    calls = {"n": 0}
+
+    def flaky_unlink(path, *args, **kwargs):
+        # First attempt to remove the lock fails as if Git already deleted it.
+        name = path if isinstance(path, str) else getattr(path, "name", str(path))
+        if str(name).endswith("maintenance.lock") or str(path).endswith("maintenance.lock"):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                try:
+                    real_unlink(path, *args, **kwargs)
+                except FileNotFoundError:
+                    pass
+                raise FileNotFoundError(2, "No such file or directory", str(path))
+        return real_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "unlink", flaky_unlink)
+    _rmtree_git_dir(git_dir)
+    assert not git_dir.exists()
+    assert calls["n"] >= 1
 
 
 def test_source_selection_ships_the_repository_documents():

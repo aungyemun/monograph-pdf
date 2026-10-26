@@ -52,6 +52,7 @@ LEGACY_FINAL_VERSION = "0.1.5"
 ICON_ARTWORK_REL = "source/Monograph_PDF_logo.png"  # canonical artwork (logo with wordmark)
 ICON_PNG_MASTER_REL = "source/monograph_pdf_icon_1024.png"  # square emblem made from the artwork
 ICON_ICO_REL = "windows/monograph_pdf.ico"
+ICON_ICNS_REL = "macos/monograph_pdf.icns"  # macOS application / disk-image icon
 # About box / Start page show the emblem next to the product name as text (the wordmark's dark
 # lettering would disappear on the dark theme); 256 px stays sharp at 72 px on 300 % displays
 ICON_ABOUT_PNG_REL = "windows/monograph_pdf_256.png"
@@ -131,12 +132,13 @@ def icon_path(relative: str) -> Path:
 def resolve_app_icon_path() -> Path | None:
     """Best available icon for window/taskbar/desktop.
 
-    Windows prefers the multi-size ``.ico``. Linux and macOS prefer PNG (``.ico`` is a
-    poor fit for FreeDesktop / many Qt builds on Unix).
+    Windows prefers the multi-size ``.ico``. macOS prefers ``.icns`` then PNG. Linux
+    prefers PNG (``.ico`` is a poor fit for FreeDesktop / many Qt builds on Unix).
     """
     if sys.platform.startswith("win"):
         candidates = (ICON_ICO_REL, ICON_ABOUT_PNG_REL, ICON_PNG_MASTER_REL)
     else:
+        # Qt window icons use PNG on macOS/Linux; the .icns is for the .app bundle only.
         candidates = (ICON_ABOUT_PNG_REL, ICON_PNG_MASTER_REL, ICON_ICO_REL)
     for rel in candidates:
         path = icon_path(rel)
