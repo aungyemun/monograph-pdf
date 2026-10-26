@@ -550,18 +550,47 @@ def test_failed_zip_write_leaves_no_partial_archive(tmp_path, monkeypatch):
 
 
 def test_unicode_paths_round_trip_in_archive(tmp_path):
+    """Japanese directory/file names and UTF-8 LF/CRLF payloads survive archive extract.
+
+    Write fixtures with write_bytes (not write_text): on Windows, text mode would convert
+    ``\\n`` to ``\\r\\n`` before git commits, which is unrelated to Unicode-path verification
+    and breaks byte assertions that intentionally expect LF. The synthetic repo already sets
+    ``core.autocrlf=false``, so committed bytes match what we write.
+    """
     root = tmp_path / "checkout"
     manifest, cache = _synthetic_repo(root)
-    rel = "docs/日本語/案内.md"
-    (root / rel).parent.mkdir(parents=True, exist_ok=True)
-    (root / rel).write_text("こんにちは\n", encoding="utf-8")
-    _git(root, "add", rel)
+    lf_rel = "docs/日本語/案内.md"
+    crlf_rel = "docs/日本語/改行CRLF.txt"
+    name_rel = "docs/日本語ファイル名.md"
+    (root / lf_rel).parent.mkdir(parents=True, exist_ok=True)
+    (root / lf_rel).write_bytes("こんにちは\n".encode("utf-8"))
+    (root / crlf_rel).write_bytes("改行確認\r\n二行目\r\n".encode("utf-8"))
+    (root / name_rel).write_bytes("ファイル名もUTF-8\n".encode("utf-8"))
+    _git(root, "add", lf_rel, crlf_rel, name_rel)
     _git(root, *GIT_ID, "commit", "-q", "-m", "unicode")
     out = tmp_path / "u.zip"
     assert msa.build(out, cache, offline=True, root=root, manifest_path=manifest) == 0
+
+    prefix = "MonographPDF_9.9.9_Source/monograph-pdf/"
+    extract = tmp_path / "extracted"
     with zipfile.ZipFile(out) as z:
-        data = z.read(f"MonographPDF_9.9.9_Source/monograph-pdf/{rel}")
-    assert data == "こんにちは\n".encode("utf-8")
+        assert z.read(prefix + lf_rel) == "こんにちは\n".encode("utf-8")
+        assert z.read(prefix + crlf_rel) == "改行確認\r\n二行目\r\n".encode("utf-8")
+        assert z.read(prefix + name_rel) == "ファイル名もUTF-8\n".encode("utf-8")
+        # Safe extract: only product paths under the archive root (no zip-slip).
+        for info in z.infolist():
+            assert not info.filename.startswith("/") and ".." not in Path(info.filename).parts
+        z.extractall(extract)
+
+    got_lf = (extract / prefix / lf_rel).read_bytes()
+    got_crlf = (extract / prefix / crlf_rel).read_bytes()
+    got_name = (extract / prefix / name_rel).read_bytes()
+    assert got_lf == "こんにちは\n".encode("utf-8")
+    assert got_crlf == "改行確認\r\n二行目\r\n".encode("utf-8")
+    assert got_name == "ファイル名もUTF-8\n".encode("utf-8")
+    # Text decode with universal newlines still yields the same characters.
+    assert got_lf.decode("utf-8").replace("\r\n", "\n") == "こんにちは\n"
+    assert got_crlf.decode("utf-8").splitlines() == ["改行確認", "二行目"]
 
 
 def test_msys2_ocr_pins_list_https_mirrors():
