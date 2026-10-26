@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from core.document import PdfDocument
 from core.editing.edit_model import EditableDocument
@@ -18,6 +18,14 @@ def canonical_doc_path(path: str | Path | None) -> Path | None:
         return Path(path).resolve()
     except OSError:
         return Path(path)
+
+
+def _display_stem(path: Path) -> str:
+    """Basename stem that tolerates Windows-style paths when running on POSIX."""
+    text = str(path)
+    if "\\" in text:
+        return PureWindowsPath(text).stem
+    return Path(text).stem
 
 
 @dataclass
@@ -39,5 +47,5 @@ class DocumentSession:
         mark = " *" if self.edit.dirty else ""
         src = self.converted_from
         if src is not None:
-            return f"{src.stem}.pdf{mark}"
+            return f"{_display_stem(src)}.pdf{mark}"
         return f"{self.document.name}{mark}"
