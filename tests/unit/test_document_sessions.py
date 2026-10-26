@@ -33,11 +33,15 @@ def test_session_tab_title_converted_from() -> None:
     doc.name = "tmp.pdf"
     edit = MagicMock()
     edit.dirty = False
+    # Relative path: stem/basename behave the same on Windows, Linux, and macOS.
     sess = DocumentSession(
         document=doc,
         edit=edit,
-        converted_from=Path(r"C:\docs\letter.docx"),
+        converted_from=Path("docs") / "letter.docx",
     )
+    assert sess.tab_title() == "letter.pdf"
+    # Windows-style converted_from strings must still yield a basename title on POSIX hosts.
+    sess.converted_from = Path(r"C:\docs\letter.docx")
     assert sess.tab_title() == "letter.pdf"
 
 
