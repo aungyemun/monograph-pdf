@@ -113,10 +113,8 @@ def _read_need_appearances(doc: Any, acro_xref: int | None) -> bool | None:
                     return False
         except Exception:  # noqa: BLE001
             pass
-        try:
-            return bool(doc.need_appearances)
-        except Exception:  # noqa: BLE001
-            return None
+        # Do not call Document.need_appearances() for reads — PyMuPDF's getter also writes False.
+        return None
     try:
         key = doc.xref_get_key(acro_xref, "NeedAppearances")
         if not key or key[0] == "null":
@@ -128,10 +126,7 @@ def _read_need_appearances(doc: Any, acro_xref: int | None) -> bool | None:
             return False
     except Exception:  # noqa: BLE001
         pass
-    try:
-        return bool(doc.need_appearances)
-    except Exception:  # noqa: BLE001
-        return None
+    return None
 
 
 def _xfa_packets_from_bytes(data: bytes) -> list[str]:

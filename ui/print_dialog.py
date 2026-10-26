@@ -580,6 +580,42 @@ class PrintDialog(QDialog):
         i = self.printer_combo.currentIndex()
         return self._printers[i] if 0 <= i < len(self._printers) else None
 
+    def _refresh_printer_list(self) -> None:
+        """Re-query installed printers so the combo matches the current Windows selection (BUG-25)."""
+        current = self.printer_combo.currentText()
+        self._printers = _list_printers()
+        self.printer_combo.blockSignals(True)
+        self.printer_combo.clear()
+        for info in self._printers:
+            self.printer_combo.addItem(info.printerName())
+        if not self._printers:
+            self.printer_combo.addItem("No printer installed")
+            self.printer_combo.setEnabled(False)
+            self._props.setEnabled(False)
+        else:
+            self.printer_combo.setEnabled(True)
+            self._props.setEnabled(True)
+            names = [info.printerName() for info in self._printers]
+            if current in names:
+                self.printer_combo.setCurrentText(current)
+            elif _printer_com_safe():
+                try:
+                    default_name = QPrinterInfo.defaultPrinterName()
+                except Exception:  # noqa: BLE001
+                    default_name = ""
+                if default_name in names:
+                    self.printer_combo.setCurrentText(default_name)
+        self.printer_combo.blockSignals(False)
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        # Printers may have been installed/removed while the app was open.
+        try:
+            self._refresh_printer_list()
+            self._printer_changed()
+        except Exception:  # noqa: BLE001
+            pass
+
     def _printer_changed(self, *_args) -> None:
         info = self._info()
         current = self.paper.currentData()
@@ -681,6 +717,7 @@ class PrintDialog(QDialog):
                 self._props.setEnabled(True)
                 self._printer = None  # new QPrinter picks up the driver's updated defaults
                 self._margin_cache.clear()
+                self._refresh_printer_list()  # default printer / name may have changed in prefs
                 self._printer_changed()
                 proc.deleteLater()
 

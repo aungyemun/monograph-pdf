@@ -334,6 +334,12 @@ def install_qt_message_handler() -> None:
         if previous is not None:
             previous(mode, context, message)
         else:
-            sys.stderr.write(message + "\n")
+            # Windowed PyInstaller builds set sys.stderr to None — never crash on log.
+            err = getattr(sys, "stderr", None)
+            if err is not None:
+                try:
+                    err.write(message + "\n")
+                except Exception:  # noqa: BLE001
+                    pass
 
     previous = qInstallMessageHandler(handler)

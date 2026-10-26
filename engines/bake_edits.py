@@ -311,7 +311,10 @@ def _bake_image(targets: "_OverlayTargets", img) -> None:
         opacity = max(0.0, min(1.0, float(getattr(img, "opacity", 1.0))))
         angle = float(getattr(img, "rotation", 0.0)) % 360.0
         turned = min(angle, 360.0 - angle) > 0.01
-        if opacity < 0.999 or turned or any(c != v for c, v in zip(img.crop, (0.0, 0.0, 1.0, 1.0))):
+        flip_h = bool(getattr(img, "flip_h", False))
+        flip_v = bool(getattr(img, "flip_v", False))
+        cropped = any(c != v for c, v in zip(img.crop, (0.0, 0.0, 1.0, 1.0)))
+        if opacity < 0.999 or turned or cropped or flip_h or flip_v:
             from PIL import Image
             import io
 
@@ -320,6 +323,10 @@ def _bake_image(targets: "_OverlayTargets", img) -> None:
             w, h = pil.size
             l, t, r, b = img.crop
             pil = pil.crop((int(l * w), int(t * h), int(r * w), int(b * h)))
+            if flip_h:
+                pil = pil.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+            if flip_v:
+                pil = pil.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
             target = rect
             if turned:
                 # Same as the canvas: stretch the picture to its box, then turn it about the

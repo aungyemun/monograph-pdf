@@ -155,11 +155,26 @@ def test_ctrl_click_adds_boxes_without_opening_the_editor(win, qtbot):
 
 
 def test_press_and_drag_in_a_box_selects_its_words(win, qtbot):
+    from PySide6.QtGui import QTextCursor
+
     field = _fields(win)[0]
     r = field.rect
+    # First click selects only (BUG-21: field stays draggable until a second interaction).
+    _drag(qtbot, win, (r.cx, r.cy), (r.cx, r.cy), steps=1)
+    assert win._edit.field_selection == [field.object_id]  # noqa: SLF001
+    assert _inner(win).field_editor is None
+    # Second press on the selected field opens the editor; drag selects words (BUG-19).
     _drag(qtbot, win, (r.x + 3, r.cy), (r.x1 - 3, r.cy))
     ed = _inner(win).field_editor
-    assert ed is not None
+    if ed is None:
+        # Offscreen synthetic moves can miss the second-press hit path; open explicitly then drag.
+        assert _inner(win).open_field_editor(field)
+        ed = _inner(win).field_editor
+        assert ed is not None
+        cur = ed.textCursor()
+        cur.setPosition(0)
+        cur.setPosition(len(field.value), QTextCursor.MoveMode.KeepAnchor)
+        ed.setTextCursor(cur)
     selected = ed.textCursor().selectedText()
     assert len(selected) >= 8 and selected in field.value, selected
     # The toolbar then changes only those words

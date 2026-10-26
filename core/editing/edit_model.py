@@ -587,9 +587,28 @@ class EditableDocument:
             self.select(created)
 
     def nudge_selection(self, dx: float, dy: float) -> None:
-        if not self.selection:
+        """Arrow-key nudge for selected text boxes, shapes, images, and form fields.
+
+        Mirrors ``begin_transform_snapshot`` / mouse drag so rectangles, ellipses, lines, arrows,
+        freehand shapes and free-text boxes all move (dimensions and style preserved). Clamped to
+        the page; participates in undo/redo via ``TransformCommand``.
+        """
+        ids = list(dict.fromkeys([*self.selection, *self.field_selection]))
+        if not ids:
             return
-        before = {oid: Rect(*self.objects[oid].rect.as_tuple()) for oid in self.selection}
+        before: dict[str, Rect] = {}
+        for oid in ids:
+            target = (
+                self.objects.get(oid)
+                or self.fields.get(oid)
+                or self.images.get(oid)
+                or self.shapes.get(oid)
+            )
+            if target is None:
+                continue
+            before[oid] = Rect(*target.rect.as_tuple())
+        if not before:
+            return
         dx, dy = self._move_kept_on_page(list(before), dx, dy)  # arrow keys stop at the page edge too
         if not dx and not dy:
             return
@@ -1009,12 +1028,26 @@ class EditableDocument:
         checked: bool | None = None,
         notify: bool = True,
     ) -> None:
+        from core.forms.fields import FieldType
+
         f = self.fields.get(field_id)
         if f is None or f.readonly:
             return
         if checked is not None:
             f.checked = checked
             f.value_dirty = True
+            # Radio groups are mutually exclusive — uncheck every other widget that shares the name.
+            if checked and f.field_type == FieldType.RADIO and f.name:
+                for other in self.fields.values():
+                    if (
+                        other is not f
+                        and other.name == f.name
+                        and other.field_type == FieldType.RADIO
+                        and not other.readonly
+                        and other.checked
+                    ):
+                        other.checked = False
+                        other.value_dirty = True
         else:
             if f.runs and value != f.value:
                 from core.forms.rich_text import reconcile_runs
@@ -1208,7 +1241,9 @@ class EditableDocument:
             box.min_h = box.rect.h  # a chosen height (Undo, Properties) is kept, not re-grown to the old one
             apply_layout_to_box(box)
         elif object_id in self.fields:
-            self.fields[object_id].rect = rect.normalized()
+            field = self.fields[object_id]
+            field.rect = rect.normalized()
+            field.appearance_dirty = True
         elif object_id in self.images:
             self.images[object_id].rect = rect.normalized()
         elif object_id in self.shapes:

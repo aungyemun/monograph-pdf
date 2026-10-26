@@ -295,6 +295,10 @@ class DocumentPropertiesDialog(QDialog):
         self.setWindowTitle(f"Document Properties — {document.name}")
         self.setMinimumWidth(520)
         root = QVBoxLayout(self)
+        scope = _hint(
+            "Properties of this PDF file. Application preferences (updates, theme) are under File ▸ Settings."
+        )
+        root.addWidget(scope)
         tabs = QTabWidget()
         root.addWidget(tabs, 1)
         meta = document.metadata()
@@ -384,9 +388,24 @@ class SignaturePad(QWidget):
         self.setCursor(Qt.CursorShape.CrossCursor)
         self._strokes: list[list[QPointF]] = []
         self._ink = QColor("#0d0d59")
+        self._pen_width = 2.4
 
     def strokes(self) -> list[list[tuple[float, float]]]:
         return [[(p.x(), p.y()) for p in s] for s in self._strokes if len(s) > 1]
+
+    def ink_color(self) -> QColor:
+        return QColor(self._ink)
+
+    def set_ink_color(self, color: QColor) -> None:
+        self._ink = QColor(color)
+        self.update()
+
+    def pen_width(self) -> float:
+        return float(self._pen_width)
+
+    def set_pen_width(self, width: float) -> None:
+        self._pen_width = max(1.0, min(12.0, float(width)))
+        self.update()
 
     def is_empty(self) -> bool:
         return not self.strokes()
@@ -425,7 +444,13 @@ class SignaturePad(QWidget):
         p.drawLine(24, y, self.width() - 24, y)
         p.setPen(QColor("#9aa3af"))
         p.drawText(28, y + 18, "Sign above the line")
-        pen = QPen(self._ink, 2.4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        pen = QPen(
+            self._ink,
+            self._pen_width,
+            Qt.PenStyle.SolidLine,
+            Qt.PenCapStyle.RoundCap,
+            Qt.PenJoinStyle.RoundJoin,
+        )
         p.setPen(pen)
         for stroke in self._strokes:
             if len(stroke) == 1:
@@ -450,6 +475,23 @@ class SignaturePadDialog(QDialog):
         root.addWidget(warn)
         self.pad = SignaturePad()
         root.addWidget(self.pad, 1)
+        style = QHBoxLayout()
+        color_btn = QPushButton("Ink colour…")
+        color_btn.setAutoDefault(False)
+        color_btn.clicked.connect(self._pick_ink)
+        width = QSpinBox()
+        width.setRange(1, 12)
+        width.setValue(int(round(self.pad.pen_width())))
+        width.setSuffix(" px")
+        width.setToolTip("Stroke thickness")
+        width.valueChanged.connect(lambda v: self.pad.set_pen_width(float(v)))
+        self._width_spin = width
+        style.addWidget(QLabel("Style:"))
+        style.addWidget(color_btn)
+        style.addWidget(QLabel("Thickness:"))
+        style.addWidget(width)
+        style.addStretch(1)
+        root.addLayout(style)
         row = QHBoxLayout()
         undo = QPushButton("Undo Stroke")
         undo.setAutoDefault(False)  # Place on Page is the main action; Enter never just undoes a stroke
@@ -471,8 +513,21 @@ class SignaturePadDialog(QDialog):
         self._buttons.rejected.connect(self.reject)
         root.addWidget(self._buttons)
 
+    def _pick_ink(self) -> None:
+        from PySide6.QtWidgets import QColorDialog
+
+        chosen = QColorDialog.getColor(self.pad.ink_color(), self, "Signature ink colour")
+        if chosen.isValid():
+            self.pad.set_ink_color(chosen)
+
     def strokes(self) -> list[list[tuple[float, float]]]:
         return self.pad.strokes()
+
+    def ink_hex(self) -> str:
+        return self.pad.ink_color().name()
+
+    def pen_width(self) -> float:
+        return self.pad.pen_width()
 
 
 def fit_strokes_into(

@@ -157,6 +157,32 @@ def _keep_selection_visible(editor) -> None:
     editor.setPalette(pal)
 
 
+def _grapheme_span(text: str, index: int) -> tuple[int, int]:
+    """Start/end indices of the extended grapheme cluster at *index* (BUG-16 CJK/emoji)."""
+    import unicodedata
+
+    if not text or index < 0 or index >= len(text):
+        return max(0, index), max(0, index)
+    # Walk back over combining marks / variation selectors; treat CJK ideographs as one unit each.
+    start = index
+    while start > 0:
+        prev = text[start - 1]
+        cat = unicodedata.category(prev)
+        if cat.startswith("M") or ord(prev) in (0x200D, 0xFE0F) or 0x1F3FB <= ord(prev) <= 0x1F3FF:
+            start -= 1
+            continue
+        break
+    end = index + 1
+    while end < len(text):
+        ch = text[end]
+        cat = unicodedata.category(ch)
+        if cat.startswith("M") or ord(ch) in (0x200D, 0xFE0F) or 0x1F3FB <= ord(ch) <= 0x1F3FF:
+            end += 1
+            continue
+        break
+    return start, end
+
+
 class _FieldTextEdit(_AlignedTextEdit):
     """In-place editor for a text field — one line or wrapped — that keeps word formatting."""
 
@@ -172,12 +198,50 @@ class _FieldTextEdit(_AlignedTextEdit):
     def setText(self, text: str) -> None:  # noqa: N802 — QLineEdit-style API kept for callers
         self.setPlainText(text)
 
-    def insertFromMimeData(self, source) -> None:  # noqa: N802
-        if source is not None and source.hasText():
+    def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802
+        # Qt WordUnderCursor splits poorly on CJK; select the grapheme (or Latin word) under the caret.
+        cur = self.cursorForPosition(event.position().toPoint())
+        text = self.toPlainText()
+        pos = cur.position()
+        if pos >= len(text) and pos > 0:
+            pos -= 1
+        if 0 <= pos < len(text):
+            ch = text[pos]
+            if ord(ch) > 0x2E7F or unicodedata_category_m_or_cjk(ch):
+                a, b = _grapheme_span(text, pos)
+                cur.setPosition(a)
+                cur.setPosition(b, QTextCursor.MoveMode.KeepAnchor)
+                self.setTextCursor(cur)
+                return
+        super().mouseDoubleClickEvent(event)
+
+    def insertFromMimeData(self, source) -> None:  # noqa: N802 — keep bold/italic/colour when present (BUG-12)
+        if source is None:
+            return
+        if source.hasHtml() and not self.single_line:
+            from ui.rich_field_text import insert_html_fragment
+
+            if insert_html_fragment(self, source.html(), self.px_per_pt, self.base_pt):
+                return
+        if source.hasText():
             text = source.text()
             if self.single_line:
                 text = " ".join(text.replace("\r\n", "\n").replace("\r", "\n").split("\n"))
             self.textCursor().insertText(text)
+
+
+def unicodedata_category_m_or_cjk(ch: str) -> bool:
+    import unicodedata
+
+    cp = ord(ch)
+    if unicodedata.category(ch).startswith("M"):
+        return True
+    return (
+        0x3040 <= cp <= 0x30FF  # kana
+        or 0x3400 <= cp <= 0x9FFF  # CJK
+        or 0xF900 <= cp <= 0xFAFF
+        or 0xFF66 <= cp <= 0xFF9D  # halfwidth kana
+    )
 
 
 def _field_qt_alignment(field) -> Qt.AlignmentFlag:
@@ -191,6 +255,33 @@ def _field_qt_alignment(field) -> Qt.AlignmentFlag:
         effective_valign(field), Qt.AlignmentFlag.AlignVCenter
     )
     return h | v
+
+
+def _apply_editor_h_alignment(editor: QTextEdit, h_align: Qt.AlignmentFlag) -> None:
+    """Apply horizontal alignment so existing paragraphs update immediately (BUG-11).
+
+    ``setDefaultTextOption`` alone only affects new blocks — prior text kept the old
+    alignment until the editor was closed and reopened.
+    """
+    from PySide6.QtGui import QTextCursor
+
+    opt = editor.document().defaultTextOption()
+    if opt.alignment() != h_align:
+        opt.setAlignment(h_align)
+        if getattr(editor, "single_line", False):
+            opt.setWrapMode(QTextOption.WrapMode.NoWrap)
+        editor.document().setDefaultTextOption(opt)
+    cur = editor.textCursor()
+    saved_pos, saved_anchor = cur.position(), cur.anchor()
+    cur.select(QTextCursor.SelectionType.Document)
+    fmt = cur.blockFormat()
+    if fmt.alignment() != h_align:
+        fmt.setAlignment(h_align)
+        cur.mergeBlockFormat(fmt)
+    cur.setPosition(saved_anchor)
+    mode = QTextCursor.MoveMode.KeepAnchor if saved_anchor != saved_pos else QTextCursor.MoveMode.MoveAnchor
+    cur.setPosition(saved_pos, mode)
+    editor.setTextCursor(cur)
 
 
 class _CanvasWidget(QWidget):
@@ -232,6 +323,7 @@ class _CanvasWidget(QWidget):
         self._retain_radius = 3
         self._highlights: list[tuple[int, object]] = []
         self._highlights_by_page: dict[int, list[object]] = {}
+        self._highlight_active: int = -1  # index into _highlights for the current Find match
         self._render_timer = QTimer(self)
         self._render_timer.setSingleShot(True)
         self._render_timer.setInterval(16)
@@ -282,6 +374,8 @@ class _CanvasWidget(QWidget):
         self.history_handler: Callable[[str], None] | None = None
         # Press-and-drag in a field selects its words at once (the press opened the editor)
         self._field_text_drag: bool = False
+        # Second click on an already-selected field (no drag) opens the in-place editor
+        self._field_click_edit: bool = False
         # Smooth dragging: repaint only where moved objects were and are (+ snap guides), skip
         # objects outside that area, and keep decoded / scaled pictures instead of reading the
         # image file on every repaint
@@ -323,6 +417,7 @@ class _CanvasWidget(QWidget):
         self._layouts = []
         self._highlights = []
         self._highlights_by_page = {}
+        self._highlight_active = -1
         self._focus_page = 0
         self._fit_ref_page = None
         self._mode = "idle"
@@ -380,8 +475,9 @@ class _CanvasWidget(QWidget):
         self.selectionChanged.emit()
         self.update()
 
-    def set_highlights(self, hits: list[tuple[int, object]]) -> None:
+    def set_highlights(self, hits: list[tuple[int, object]], *, active: int = -1) -> None:
         self._highlights = hits
+        self._highlight_active = int(active)
         # by page: painting a page looks only at its own matches (a long document can have 100 000+)
         by_page: dict[int, list[object]] = {}
         for page_index, rect in hits:
@@ -389,9 +485,15 @@ class _CanvasWidget(QWidget):
         self._highlights_by_page = by_page
         self.update()
 
+    def set_active_highlight(self, index: int) -> None:
+        """Emphasize Find match ``index`` without rebuilding the hit list."""
+        self._highlight_active = int(index)
+        self.update()
+
     def clear_highlights(self) -> None:
         self._highlights = []
         self._highlights_by_page = {}
+        self._highlight_active = -1
         self.update()
 
     @property
@@ -1131,9 +1233,32 @@ class _CanvasWidget(QWidget):
                 painter.drawPixmap(rect, stale[i])
                 painter.restore()
             self._paint_tiles(painter, i, dpr)
-            for pdf_rect in getattr(self, "_highlights_by_page", {}).get(i, ()):
+            page_hits = getattr(self, "_highlights_by_page", {}).get(i, ())
+            active = getattr(self, "_highlight_active", -1)
+            active_rect = None
+            if 0 <= active < len(self._highlights) and self._highlights[active][0] == i:
+                active_rect = self._highlights[active][1]
+            for pdf_rect in page_hits:
                 hr = self._pdf_rect_to_widget(i, pdf_rect)
-                if hr is not None:
+                if hr is None:
+                    continue
+                is_active = active_rect is not None and pdf_rect is active_rect
+                if not is_active and active_rect is not None:
+                    try:
+                        is_active = (
+                            abs(float(pdf_rect.x0) - float(active_rect.x0)) < 0.01
+                            and abs(float(pdf_rect.y0) - float(active_rect.y0)) < 0.01
+                            and abs(float(pdf_rect.x1) - float(active_rect.x1)) < 0.01
+                            and abs(float(pdf_rect.y1) - float(active_rect.y1)) < 0.01
+                        )
+                    except Exception:  # noqa: BLE001
+                        is_active = False
+                if is_active:
+                    painter.fillRect(hr, QColor(255, 180, 0, 160))
+                    painter.setPen(QPen(QColor("#ea580c"), 2))
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawRect(hr.adjusted(0, 0, -1, -1))
+                else:
                     painter.fillRect(hr, QColor(255, 220, 0, 100))
             if self._edit is not None:
                 self._paint_overlays(painter, i)
@@ -1309,7 +1434,8 @@ class _CanvasWidget(QWidget):
                 painter.drawRect(wr)
             text = visible_field_content(field)
             if text:
-                from core.forms.autofit import effective_form_font_size, form_text_overflows
+                from core.forms.autofit import effective_form_font_size
+                from core.forms.appearance import entry_overflows
 
                 painter.setPen(QColor(field.text_color))
                 font = QFont(field.font_family or "Segoe UI")
@@ -1331,10 +1457,8 @@ class _CanvasWidget(QWidget):
                         Qt.TextFlag.TextWordWrap if field.multiline else Qt.TextFlag.TextSingleLine
                     )
                     painter.drawText(wr.adjusted(3, 1, -3, -1), flags, text)
-                from core.forms.appearance import entry_overflows
-
-                # Part of the entry is hidden (box too small for the size): it would not print
-                if form_text_overflows(field, text) or entry_overflows(field, text):
+                # Same predicate as the tooltip and Save/print layout (BUG-17) — not the rough autofit probe.
+                if entry_overflows(field, text):
                     painter.setPen(QPen(QColor("#dc2626"), 1))
                     painter.drawText(
                         wr.adjusted(0, 0, -2, -1),
@@ -1608,10 +1732,15 @@ class _CanvasWidget(QWidget):
                 if getattr(img, "layer", "front") == "behind":
                     # the page's text shows through, as at Save (multiply blending, engines/bake_edits.py)
                     painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Multiply)
+                cx, cy = float(wr.center().x()), float(wr.center().y())
+                painter.translate(cx, cy)
                 if abs(float(getattr(img, "rotation", 0.0))) > 0.01:
-                    painter.translate(wr.center())
                     painter.rotate(float(img.rotation))
-                    painter.translate(-wr.center())
+                sx = -1.0 if getattr(img, "flip_h", False) else 1.0
+                sy = -1.0 if getattr(img, "flip_v", False) else 1.0
+                if sx < 0 or sy < 0:
+                    painter.scale(sx, sy)
+                painter.translate(-cx, -cy)
                 painter.drawPixmap(wr, pix)
                 painter.restore()
                 return
@@ -1875,6 +2004,7 @@ class _CanvasWidget(QWidget):
         self._mode = "typing_field"
         editor.show()
         editor.setFocus(Qt.FocusReason.MouseFocusReason)
+        self.editModelChanged.emit()  # clears single-letter tool shortcuts while typing
         # Caret where the user clicked; otherwise select all (one line) or go to the end
         if click_pos is not None and wr.contains(click_pos):
             editor.setTextCursor(editor.cursorForPosition(editor.viewport().mapFrom(self, click_pos)))
@@ -1917,12 +2047,7 @@ class _CanvasWidget(QWidget):
         editor.px_per_pt = wr.height() / max(field.rect.h, 1.0)
         editor.base_pt = float(fs)
         h_align = _field_qt_alignment(field) & Qt.AlignmentFlag.AlignHorizontal_Mask
-        opt = editor.document().defaultTextOption()
-        if opt.alignment() != h_align:
-            opt.setAlignment(h_align)
-            if editor.single_line:
-                opt.setWrapMode(QTextOption.WrapMode.NoWrap)
-            editor.document().setDefaultTextOption(opt)
+        _apply_editor_h_alignment(editor, h_align)
         editor.valign = effective_valign(field)
         editor.update_vertical_offset()
         geo = wr.adjusted(-1, -1, 1, 1)
@@ -2040,16 +2165,31 @@ class _CanvasWidget(QWidget):
 
     def _update_annotation_hover(self, page_index: int, pdf_pt: Point) -> None:
         """Hovering a sticky note (or another comment with text) shows its text as a tooltip."""
+        from PySide6.QtWidgets import QToolTip
+
         found = self._annotation_at(page_index, pdf_pt)
         key = (found[0], found[1]) if found else None
         if key == getattr(self, "_hover_annot_key", None):
             return
         self._hover_annot_key = key
-        if found is not None and found[2] == "Text":
+        if found is None:
+            # Hide immediately on leave — Qt's default linger made sticky-note tips stick around (BUG-15).
+            self.setToolTip("")
+            QToolTip.hideText()
+            return
+        if found[2] == "Text":
             # a sticky note keeps its text to itself until clicked (a click opens it, a double-click edits)
             self.setToolTip("Note — click to read, double-click to edit, drag to move")
             return
-        self.setToolTip(self._annotation_tip(found[0], found[1], found[2]) if found else "")
+        self.setToolTip(self._annotation_tip(found[0], found[1], found[2]))
+
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        from PySide6.QtWidgets import QToolTip
+
+        self._hover_annot_key = None
+        self.setToolTip("")
+        QToolTip.hideText()
+        super().leaveEvent(event)
 
     def select_annotation(self, page_index: int, xref: int) -> bool:
         """Select the annotation ``xref`` on ``page_index`` (e.g. again after it was moved)."""
@@ -2392,10 +2532,7 @@ class _CanvasWidget(QWidget):
         align = {TextAlign.CENTER: Qt.AlignmentFlag.AlignHCenter, TextAlign.RIGHT: Qt.AlignmentFlag.AlignRight}.get(
             box.align, Qt.AlignmentFlag.AlignLeft
         )
-        opt = editor.document().defaultTextOption()
-        if opt.alignment() != align:
-            opt.setAlignment(align)
-            editor.document().setDefaultTextOption(opt)
+        _apply_editor_h_alignment(editor, align)
         wrap = QTextEdit.LineWrapMode.WidgetWidth if getattr(box.style, "wrap", True) else QTextEdit.LineWrapMode.NoWrap
         if editor.lineWrapMode() != wrap:
             editor.setLineWrapMode(wrap)
@@ -2445,6 +2582,7 @@ class _CanvasWidget(QWidget):
         self._mode = "typing"
         editor.show()
         editor.setFocus(Qt.FocusReason.MouseFocusReason)
+        self.editModelChanged.emit()  # clears single-letter tool shortcuts while typing
         if click_pos is not None and editor.geometry().contains(click_pos) and not at_end:
             editor.setTextCursor(editor.cursorForPosition(editor.mapFrom(self, click_pos)))
         else:
@@ -2631,6 +2769,7 @@ class _CanvasWidget(QWidget):
             self._edit._notify()  # noqa: SLF001
         if had_focus:
             self.setFocus(Qt.FocusReason.OtherFocusReason)
+        self.editModelChanged.emit()  # restore single-letter tool shortcuts
         self.update()
 
     def tab_to_next_field(self, *, reverse: bool = False) -> None:
@@ -2863,7 +3002,8 @@ class _CanvasWidget(QWidget):
                     self.setCursor(Qt.CursorShape.SizeAllCursor)
                     return
 
-        # Select mode: direct form fill (no Forms Mode required)
+        # Select mode: click selects / moves fields; double-click (or Enter) fills text.
+        # Opening the editor on every single click made created fields undraggable (BUG-19/21).
         if self._edit.tool == EditTool.SELECT:
             field = self._hit_form_field(page_index, pdf_pt)
             if field is not None and not field.is_candidate:
@@ -2880,9 +3020,34 @@ class _CanvasWidget(QWidget):
                     self._edit._notify()  # noqa: SLF001
                     self.update()
                     return
-                self._activate_form_fill(field)
-                if self._field_editor is not None and self._field_editor_id == field.object_id:
-                    self._field_text_drag = True  # keep dragging: select words in the box
+                if field.field_type in (FieldType.CHECKBOX, FieldType.RADIO):
+                    self._activate_form_fill(field)
+                    return
+                if field.field_type == FieldType.DROPDOWN and field.options:
+                    self._activate_form_fill(field)
+                    return
+                was_selected = (
+                    field.object_id in self._edit.field_selection
+                    and len(self._edit.field_selection) == 1
+                    and not self._edit.selection
+                )
+                self._edit.field_selection = [field.object_id]
+                self._edit.selection = []
+                self._edit.editing_field_id = None
+                if was_selected and not field.readonly and field.field_type not in (
+                    FieldType.CHECKBOX, FieldType.RADIO, FieldType.SIGNATURE,
+                ):
+                    # Second press on the selected field: type / drag to select words (BUG-19).
+                    # First press still selects+moves so newly created fields stay draggable (BUG-21).
+                    if self.open_field_editor(field, click_pos=event.position().toPoint()):
+                        self._field_text_drag = True
+                        self._mode = "typing_field"
+                        return
+                self._field_click_edit = False
+                self._mode = "drag_move"
+                self._drag_before = {field.object_id: Rect(*field.rect.as_tuple())}
+                self._live_interaction = True
+                self._edit._notify()  # noqa: SLF001
                 return
 
         # Forms / Layout design: select + move/resize fields
@@ -3280,9 +3445,14 @@ class _CanvasWidget(QWidget):
                         rect = Rect(self._create_origin.x, self._create_origin.y, 14, 14)
                     else:
                         rect = Rect(self._create_origin.x, self._create_origin.y, 140, 24)
-                self._edit.create_form_field(self._press_page, rect, self._form_create_type)
+                created_type = self._form_create_type
+                self._edit.create_form_field(self._press_page, rect, created_type)
+                # Sync toolbar/cursor to Forms Select so the new field can be dragged (BUG-21).
                 self._edit.tool = EditTool.FORM_SELECT
-                self.requestStatus.emit(f"Form field ({self._form_create_type}) created")
+                self.set_tool(EditTool.FORM_SELECT)
+                self.requestStatus.emit(
+                    f"Form field ({created_type}) created — drag to move, double-click to fill"
+                )
                 self._form_create_type = None
             else:
                 rect = Rect.from_points(self._create_origin, self._create_current)
@@ -3318,11 +3488,22 @@ class _CanvasWidget(QWidget):
                     moved = True
                     break
             self._live_interaction = False
+            pending_field_edit = bool(getattr(self, "_field_click_edit", False)) and not moved
+            self._field_click_edit = False
             if moved:
                 self._edit.commit_transform(self._drag_before, name="Move")
             else:
-                # Click without move on text box → keep editing focus
-                self._end_live_interaction()
+                # Click without move: edit a previously selected text field, else keep selection
+                field_id = next(iter(self._drag_before), None)
+                field = self._edit.fields.get(field_id) if field_id else None
+                if pending_field_edit and field is not None and not field.readonly and not field.is_candidate:
+                    if field.field_type not in (FieldType.CHECKBOX, FieldType.RADIO, FieldType.SIGNATURE):
+                        self._end_live_interaction()
+                        self.open_field_editor(field, click_pos=self._press_pos)
+                    else:
+                        self._end_live_interaction()
+                else:
+                    self._end_live_interaction()
             self._write_drag_perf("move")
         elif self._mode == "drag_resize" and self._resize_handle in ("p0", "p1") and getattr(self, "_line_before", None):
             # moving a line's end: undo restores both ends exactly (direction included)
@@ -3714,24 +3895,35 @@ class _CanvasWidget(QWidget):
             self.clear_annotation_selection()
             return
 
-        # Keyboard nudging
+        # Keyboard nudging (shapes, text boxes, images, form fields; annotations via move signal)
         if (
-            self._edit.selection
-            and self._edit.editing_object_id is None
+            self._edit.editing_object_id is None
             and self._edit.editing_field_id is None
+            and self._field_editor is None
+            and self._text_editor is None
+            and key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down)
         ):
             step = 10.0 if mod & Qt.KeyboardModifier.ShiftModifier else 1.0
-            if key == Qt.Key.Key_Left:
-                self._edit.nudge_selection(-step, 0)
+            dx = -step if key == Qt.Key.Key_Left else step if key == Qt.Key.Key_Right else 0.0
+            dy = -step if key == Qt.Key.Key_Up else step if key == Qt.Key.Key_Down else 0.0
+            if self._edit.selection or self._edit.field_selection:
+                self._edit.nudge_selection(dx, dy)
                 return
-            if key == Qt.Key.Key_Right:
-                self._edit.nudge_selection(step, 0)
-                return
-            if key == Qt.Key.Key_Up:
-                self._edit.nudge_selection(0, -step)
-                return
-            if key == Qt.Key.Key_Down:
-                self._edit.nudge_selection(0, step)
+            if self._annot_sel is not None:
+                page_index, xref, _kind, rect = self._annot_sel
+                # Keep the annotation on the page (same clamp as overlay objects).
+                try:
+                    page = self._edit.pdf.page(page_index)
+                    pw, ph = float(page.display_width_pt), float(page.display_height_pt)
+                    r = rect.normalized()
+                    ndx = min(max(dx, min(0.0, pw - r.w) - r.x), max(0.0, pw - r.w) - r.x)
+                    ndy = min(max(dy, min(0.0, ph - r.h) - r.y), max(0.0, ph - r.h) - r.y)
+                except Exception:  # noqa: BLE001
+                    ndx, ndy = dx, dy
+                if ndx or ndy:
+                    self._annot_sel = (page_index, xref, _kind, rect.translated(ndx, ndy))
+                    self.annotationMoveRequested.emit(page_index, xref, float(ndx), float(ndy))
+                    self.viewport().update()
                 return
 
         # Typing into active form field (direct fill)
@@ -3903,8 +4095,27 @@ class PdfCanvas(QScrollArea):
         self._canvas.set_tool(tool)
         self._canvas.setFocus(Qt.FocusReason.OtherFocusReason)
 
-    def set_highlights(self, hits: list[tuple[int, object]]) -> None:
-        self._canvas.set_highlights(hits)
+    def set_highlights(self, hits: list[tuple[int, object]], *, active: int = -1) -> None:
+        self._canvas.set_highlights(hits, active=active)
+
+    def set_active_highlight(self, index: int) -> None:
+        self._canvas.set_active_highlight(index)
+
+    def ensure_pdf_rect_visible(self, page_index: int, pdf_rect) -> None:
+        """Scroll so a Find match (or similar) is visible on screen."""
+        try:
+            x0, y0 = float(pdf_rect.x0), float(pdf_rect.y0)
+            x1, y1 = float(pdf_rect.x1), float(pdf_rect.y1)
+        except Exception:  # noqa: BLE001
+            self.go_to_page(page_index)
+            return
+        wr = self._canvas.pdf_rect_to_widget(page_index, Rect(x0, y0, x1 - x0, y1 - y0))
+        if wr is None:
+            self.go_to_page(page_index)
+            return
+        self._canvas._focus_page = page_index  # noqa: SLF001
+        self.ensureVisible(wr.center().x(), wr.center().y(), max(40, wr.width() // 2 + 40), max(40, wr.height() // 2 + 60))
+        self.pageChanged.emit(page_index)
 
     def select_annotation(self, page_index: int, xref: int) -> bool:
         return self._canvas.select_annotation(page_index, xref)
