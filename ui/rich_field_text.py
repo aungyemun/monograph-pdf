@@ -145,6 +145,83 @@ def style_at(doc: QTextDocument, position: int) -> tuple:
     return styles[min(max(0, position), len(styles) - 1)]
 
 
+def insert_html_fragment(editor, html: str, px_per_pt: float, base_pt: float) -> bool:
+    """Paste HTML into a field editor, mapping bold/italic/font/size/colour onto run styles.
+
+    Returns False when the fragment has no usable text (caller should fall back to plain paste).
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QTextCursor
+
+    probe = QTextDocument()
+    probe.setHtml(html or "")
+    plain = probe.toPlainText()
+    if not plain:
+        return False
+
+    styles: list[tuple] = []
+    block = probe.begin()
+    while block.isValid():
+        it = block.begin()
+        while not it.atEnd():
+            frag = it.fragment()
+            if frag.isValid():
+                fmt = frag.charFormat()
+                font = fmt.font()
+                families = font.families() or ([font.family()] if font.family() else [])
+                family = families[0] if families else None
+                px, pt = font.pixelSize(), font.pointSizeF()
+                size = None
+                if px > 0 and px_per_pt > 0:
+                    size = round(px / px_per_pt, 1)
+                elif pt > 0:
+                    size = float(pt)
+                if size is not None and abs(size - float(base_pt or 0)) < 0.3:
+                    size = None
+                brush = fmt.foreground()
+                color = None
+                if brush.style() != Qt.BrushStyle.NoBrush:
+                    name = brush.color().name()
+                    if name.lower() not in ("#000000", "#000"):
+                        color = name
+                st = (
+                    family if family and family.lower() not in ("sans-serif", "serif", "monospace") else None,
+                    size,
+                    True if font.bold() else None,
+                    True if font.italic() else None,
+                    color,
+                )
+                styles.extend([st] * len(frag.text()))
+            it += 1
+        block = block.next()
+        if block.isValid():
+            styles.append(styles[-1] if styles else (None,) * len(STYLE_KEYS))
+    if not styles or all(s == (None,) * len(STYLE_KEYS) for s in styles):
+        return False
+    runs = runs_from_char_styles(plain, styles)
+
+    cur: QTextCursor = editor.textCursor()
+    cur.beginEditBlock()
+    start = cur.selectionStart() if cur.hasSelection() else cur.position()
+    if cur.hasSelection():
+        cur.removeSelectedText()
+    cur.insertText(plain)
+    end = start + len(plain)
+    live = editor.document()
+    full_text, existing = runs_from_document(live)
+    full_styles = char_styles(existing, full_text)
+    paste_styles = char_styles(normalize_runs(runs), plain)
+    for i, st in enumerate(paste_styles):
+        idx = start + i
+        if idx < len(full_styles):
+            full_styles[idx] = st
+    apply_runs(live, runs_from_char_styles(full_text, full_styles), px_per_pt)
+    cur.setPosition(end)
+    editor.setTextCursor(cur)
+    cur.endEditBlock()
+    return True
+
+
 def paint_runs(painter, field, rect, px_per_pt: float, base_font: QFont, h_align, valign: str, multiline: bool) -> None:
     """Draw a field's entry with its word formats inside ``rect`` (widget pixels)."""
     from PySide6.QtCore import QRectF

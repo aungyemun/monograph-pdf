@@ -1064,12 +1064,56 @@ class InspectorPanel(QScrollArea):
         self._img_lock.setChecked(bool(getattr(image, "lock_aspect", False)))
         self._img_lock.toggled.connect(self._apply_image)
         self._form.addRow(self._img_lock)
+        self._img_flip_h = QCheckBox("Flip horizontal")
+        self._img_flip_h.setChecked(bool(getattr(image, "flip_h", False)))
+        self._img_flip_h.toggled.connect(self._apply_image)
+        self._img_flip_v = QCheckBox("Flip vertical")
+        self._img_flip_v.setChecked(bool(getattr(image, "flip_v", False)))
+        self._img_flip_v.toggled.connect(self._apply_image)
+        self._form.addRow(self._img_flip_h)
+        self._form.addRow(self._img_flip_v)
+
+        self._section("Crop")
+        cl, ct, cr, cb = getattr(image, "crop", (0.0, 0.0, 1.0, 1.0))
+        crop_row = QHBoxLayout()
+        crop_row.setSpacing(6)
+
+        def _crop_spin(label: str, trimmed_pct: float) -> QDoubleSpinBox:
+            sp = QDoubleSpinBox()
+            sp.setRange(0.0, 45.0)
+            sp.setDecimals(1)
+            sp.setSuffix(" %")
+            sp.setValue(max(0.0, min(45.0, float(trimmed_pct) * 100.0)))
+            sp.setToolTip(f"Trim from the {label} edge of the source image")
+            sp.valueChanged.connect(self._apply_image)
+            crop_row.addWidget(QLabel(label[:1].upper()))
+            crop_row.addWidget(sp)
+            return sp
+
+        self._img_crop_l = _crop_spin("left", float(cl))
+        self._img_crop_t = _crop_spin("top", float(ct))
+        self._img_crop_r = _crop_spin("right", 1.0 - float(cr))
+        self._img_crop_b = _crop_spin("bottom", 1.0 - float(cb))
+        self._form.addRow("Trim:", crop_row)
+        reset_crop = QPushButton("Reset crop")
+        reset_crop.setObjectName("GhostButton")
+        reset_crop.clicked.connect(self._reset_image_crop)
+        self._form.addRow(reset_crop)
 
         tip = QLabel("Replace or save the image from Edit ▸ Selected Image or the toolbar.")
         tip.setWordWrap(True)
         tip.setObjectName("ContextHint")
         self._form.addRow(tip)
         self._updating = False
+
+    def _reset_image_crop(self) -> None:
+        if self._updating:
+            return
+        self._updating = True
+        for sp in (self._img_crop_l, self._img_crop_t, self._img_crop_r, self._img_crop_b):
+            sp.setValue(0.0)
+        self._updating = False
+        self._apply_image()
 
     def _apply_image(self, *_args) -> None:
         if self._updating or self._edit is None or self._image is None:
@@ -1078,11 +1122,22 @@ class InspectorPanel(QScrollArea):
         img = self._edit.images.get(oid)
         if img is None:
             return
+        left = float(self._img_crop_l.value()) / 100.0
+        top = float(self._img_crop_t.value()) / 100.0
+        right = 1.0 - float(self._img_crop_r.value()) / 100.0
+        bottom = 1.0 - float(self._img_crop_b.value()) / 100.0
+        if right - left < 0.05:
+            right = left + 0.05
+        if bottom - top < 0.05:
+            bottom = top + 0.05
         self._edit.set_overlay_attrs(  # undoable
             oid,
             opacity=float(self._img_op.value()) / 100.0,
             rotation=float(self._img_rot.value()),
             lock_aspect=self._img_lock.isChecked(),
+            flip_h=self._img_flip_h.isChecked(),
+            flip_v=self._img_flip_v.isChecked(),
             layer=str(self._img_layer.currentData() or "front"),
+            crop=(left, top, right, bottom),
         )
         self.styleEdited.emit()

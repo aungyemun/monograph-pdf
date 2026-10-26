@@ -23,8 +23,10 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSplitter,
     QStackedWidget,
+    QTabBar,
     QToolBar,
     QToolButton,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -44,6 +46,7 @@ from core.user_prefs import UserPreferences
 from ui.about_dialog import AboutDialog
 from core.diagnostics import EventId, diagnostics
 from ui.branding import apply_application_icon, load_app_icon
+from ui.document_session import DocumentSession, canonical_doc_path
 from ui.inspector_panel import InspectorPanel
 from ui.left_rail import LeftRail
 from ui.password_dialog import PasswordDialog
@@ -84,6 +87,9 @@ class MainWindow(QMainWindow):
 
         self._document: PdfDocument | None = None
         self._edit: EditableDocument | None = None
+        self._sessions: list[DocumentSession] = []
+        self._session_index: int = -1
+        self._tab_switching: bool = False
         self._recent = RecentFiles(limit=self._prefs.recent_limit)
         self._search_hits: list[tuple[int, object]] = []
         self._search_index = -1
@@ -100,6 +106,35 @@ class MainWindow(QMainWindow):
         self._center_stack.addWidget(self._welcome)
         self._center_stack.addWidget(self._canvas)
         self._center_stack.setCurrentWidget(self._welcome)
+        self._doc_tabs = QTabBar()
+        self._doc_tabs.setObjectName("DocumentTabs")
+        self._doc_tabs.setDocumentMode(True)
+        self._doc_tabs.setTabsClosable(True)
+        self._doc_tabs.setMovable(True)
+        self._doc_tabs.setExpanding(False)
+        self._doc_tabs.setVisible(False)
+        self._doc_tabs.currentChanged.connect(self._on_doc_tab_changed)
+        self._doc_tabs.tabCloseRequested.connect(self._on_doc_tab_close)
+        self._doc_tabs.tabMoved.connect(self._on_doc_tab_moved)
+        self.act_next_tab = QAction("Next Document Tab", self)
+        self.act_next_tab.setShortcut(QKeySequence("Ctrl+Tab"))
+        self.act_next_tab.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
+        self.act_next_tab.triggered.connect(lambda: self._cycle_doc_tab(1))
+        self.act_prev_tab = QAction("Previous Document Tab", self)
+        self.act_prev_tab.setShortcut(QKeySequence("Ctrl+Shift+Tab"))
+        self.act_prev_tab.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
+        self.act_prev_tab.triggered.connect(lambda: self._cycle_doc_tab(-1))
+        self.addAction(self.act_next_tab)
+        self.addAction(self.act_prev_tab)
+        # Dedicated ApplicationShortcuts survive in-place editors that may swallow QAction keys.
+        from PySide6.QtGui import QShortcut
+
+        self._shortcut_next_tab = QShortcut(QKeySequence("Ctrl+Tab"), self)
+        self._shortcut_next_tab.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self._shortcut_next_tab.activated.connect(lambda: self._cycle_doc_tab(1))
+        self._shortcut_prev_tab = QShortcut(QKeySequence("Ctrl+Shift+Tab"), self)
+        self._shortcut_prev_tab.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self._shortcut_prev_tab.activated.connect(lambda: self._cycle_doc_tab(-1))
         self._inspector = InspectorPanel()
         # using its controls keeps the text box being typed in open (its selected words stay selected)
         self._inspector.setProperty("keepsTextEditor", True)
@@ -847,9 +882,9 @@ class MainWindow(QMainWindow):
             self.act_searchable: "Create a searchable PDF via local OCR (no cloud)",
             self.act_convert_caps: "What each conversion can and cannot do",
             self.act_theme_system: "Follow Windows / OS light or dark preference",
-            self.act_select_tool: "Select and move objects",
-            self.act_text_tool: "Add a text box",
-            self.act_image_tool: "Place an image on the current page",
+            self.act_select_tool: "Select and move objects  (V)",
+            self.act_text_tool: "Add a text box  (T)",
+            self.act_image_tool: "Place an image on the current page  (Shift+I)",
             self.act_annot_highlight: "Highlight — click to toggle on/off; draw over text or any blank area; change colour without leaving the tool; Esc cancels a stroke, Esc again exits",
             self.act_annot_eraser: "Eraser — draw over highlights, underlines, strikethroughs or ink to remove them (a click removes everything under the pointer); click again or Esc to exit; Undo restores them",
             self.act_annot_comment: "Add a sticky-note comment",
@@ -885,20 +920,23 @@ class MainWindow(QMainWindow):
         keys(self.act_find_next, "F3")
         keys(self.act_prev, "PgUp")
         keys(self.act_next, "PgDown")
-        # --- tool keys (single letters; in-place typing overrides them)
-        keys(self.act_select_tool, "V")
-        keys(self.act_text_tool, "T")
-        keys(self.act_image_tool, "I")
-        keys(self.act_annot_rect, "R")
-        keys(self.act_annot_ellipse, "E")
-        keys(self.act_annot_line, "L")
-        keys(self.act_annot_arrow, "A")
-        keys(self.act_annot_ink, "P")
-        keys(self.act_annot_highlight, "H")
-        keys(self.act_annot_eraser, "Shift+E")
-        keys(self.act_annot_underline, "U")
-        keys(self.act_annot_strike, "K")
-        keys(self.act_annot_comment, "N")
+        # --- tool keys (letters that rarely collide with typing; Image/Arrow use Shift to avoid
+        # stealing "i"/"a" from in-place field editors — BUG-22)
+        self._tool_letter_actions: list[tuple[QAction, tuple[str, ...]]] = [
+            (self.act_select_tool, ("V",)),
+            (self.act_text_tool, ("T",)),
+            (self.act_image_tool, ("Shift+I",)),
+            (self.act_annot_rect, ("R",)),
+            (self.act_annot_ellipse, ("Shift+O",)),
+            (self.act_annot_line, ("L",)),
+            (self.act_annot_arrow, ("Shift+A",)),
+            (self.act_annot_ink, ("P",)),
+            (self.act_annot_highlight, ("H",)),
+            (self.act_annot_eraser, ("Shift+E",)),
+            (self.act_annot_underline, ("U",)),
+            (self.act_annot_strike, ("K",)),
+            (self.act_annot_comment, ("N",)),
+        ]
         # --- arrange
         keys(self.act_bring_forward, "Ctrl+]")
         keys(self.act_send_backward, "Ctrl+[")
@@ -1792,8 +1830,15 @@ class MainWindow(QMainWindow):
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
         self._splitter.setChildrenCollapsible(True)
         self._splitter.addWidget(self._left)
-        self._splitter.addWidget(self._center_stack)
+        center = QWidget()
+        center_layout = QVBoxLayout(center)
+        center_layout.setContentsMargins(0, 0, 0, 0)
+        center_layout.setSpacing(0)
+        center_layout.addWidget(self._doc_tabs)
+        center_layout.addWidget(self._center_stack, 1)
+        self._splitter.addWidget(center)
         self._splitter.addWidget(self._inspector)
+        self._bind_tool_letter_shortcuts()
         self._splitter.setStretchFactor(0, 0)
         self._splitter.setStretchFactor(1, 1)
         self._splitter.setStretchFactor(2, 0)
@@ -1816,6 +1861,7 @@ class MainWindow(QMainWindow):
         self._left.pageActivated.connect(self._canvas.go_to_page)
         self._left.pagesReordered.connect(self._on_thumbs_reordered)
         self._left.searchRequested.connect(self._run_search_query)
+        self._left.searchHitActivated.connect(self._goto_hit)
         self._left.bookmarkActivated.connect(self._canvas.go_to_page)
         self._left.bookmarkAddRequested.connect(self._bookmark_add)
         self._left.bookmarkRenameRequested.connect(self._bookmark_rename)
@@ -1855,6 +1901,8 @@ class MainWindow(QMainWindow):
         self._canvas.regionPickCancelled.connect(self._on_region_pick_cancelled)
         self._canvas.fieldValueEdited.connect(self._on_field_typed)
         self._canvas.fieldEditorFormatChanged.connect(self._on_field_editor_format)
+        self._canvas.editModelChanged.connect(self._sync_tool_letter_shortcuts)
+        self._canvas.selectionChanged.connect(self._sync_tool_letter_shortcuts)
         self._inspector.styleEdited.connect(self._on_edit_changed)
         self._inspector.pageSizeRequested.connect(lambda: self.act_page_sizes.trigger())
         self._inspector.hideRequested.connect(self._hide_right_panel)
@@ -1892,8 +1940,13 @@ class MainWindow(QMainWindow):
 
     def open_path(self, path: str | Path, password: str | None = None) -> bool:
         path = Path(path)
-        if self._document is not None and not self._confirm_unsaved("opening another file"):
-            return False
+        existing = self._find_session_index(path)
+        if existing >= 0:
+            self._activate_session(existing)
+            self.raise_()
+            self.activateWindow()
+            return True
+        # Other open documents stay in their tabs — no unsaved prompt for the previous file.
         diagnostics.record(EventId.PDF_OPEN_STARTED)
         ext = path.suffix.lower()
         if ext != ".pdf" and path.is_file():
@@ -1903,16 +1956,19 @@ class MainWindow(QMainWindow):
             ok = self.open_path(converted)
             if ok:
                 self._converted_from = path
+                if 0 <= self._session_index < len(self._sessions):
+                    self._sessions[self._session_index].converted_from = path
                 self._recent.remove(converted)
                 self._recent.add(path)
                 self._rebuild_recent_menu()
                 self._refresh_welcome_recent()
                 self._update_title()
+                self._refresh_doc_tab_titles()
                 self.statusBar().showMessage(
                     f"Opened {path.name} as a new PDF — use Save to keep it as a PDF file", 8000
                 )
             return ok
-        self._converted_from = None
+        # Fresh PDF open — converted_from cleared when the new session is bound
         try:
             document = open_document(path, password=password)
         except PasswordRequiredError:
@@ -1963,28 +2019,50 @@ class MainWindow(QMainWindow):
         self._maybe_recover_session(path)
         return True
 
-    def _load_document(self, document: PdfDocument) -> None:
-        self.close_document(save_session=False)
-        self._document = document
-        self._edit = EditableDocument(document)
-        self._edit.highlight_fillable_fields = bool(self._prefs.highlight_fillable_fields)
-        has_fields = bool(self._edit.fields)
-        # Default ON when the PDF has forms (unless user turned it off permanently)
+    def _load_document(self, document: PdfDocument, *, replace_active: bool = False) -> None:
+        """Show *document* as a tab. New opens add a tab; Save/Save As/compress replace the active one."""
+        self._commit_field_editor()
+        edit = EditableDocument(document)
+        edit.highlight_fillable_fields = bool(self._prefs.highlight_fillable_fields)
+        has_fields = bool(edit.fields)
         if has_fields and self._prefs.highlight_fillable_fields:
-            self._edit.highlight_fillable_fields = True
-        self.act_highlight_fields.setChecked(bool(self._edit.highlight_fillable_fields))
+            edit.highlight_fillable_fields = True
+        session = DocumentSession(document=document, edit=edit)
+
+        if replace_active and self._session_index >= 0 and self._sessions:
+            self._stash_active_session()
+            old = self._sessions[self._session_index]
+            try:
+                old.edit.remove_listener(self._on_edit_changed)
+            except Exception:  # noqa: BLE001
+                pass
+            if old.document is not document:
+                try:
+                    if not getattr(old.document, "_closed", False):
+                        old.document.close()
+                except Exception:  # noqa: BLE001
+                    pass
+            session.page_index = old.page_index
+            session.zoom = old.zoom
+            session.zoom_mode = old.zoom_mode
+            session.converted_from = old.converted_from
+            self._sessions[self._session_index] = session
+        else:
+            if self._document is not None:
+                self._stash_active_session()
+            self._sessions.append(session)
+            self._session_index = len(self._sessions) - 1
+
+        self._bind_session(session)
+        self._rebuild_doc_tabs()
+        self.act_highlight_fields.setChecked(bool(edit.highlight_fillable_fields))
         self.act_highlight_fields.setEnabled(has_fields)
         self.act_mode_edit.setChecked(True)
         self.act_policy_preserve.setChecked(True)
-        self._edit.add_listener(self._on_edit_changed)
-        self._canvas.set_document(document)
-        self._canvas.set_edit_model(self._edit)
-        self._left.set_document(document)
-        self._center_stack.setCurrentWidget(self._canvas)
         self._set_document_actions_enabled(True)
         self._update_workspace_chrome()
         self._update_title()
-        self._on_page_changed(0)
+        self._on_page_changed(self._canvas.focus_page)
         self._on_zoom_changed(self._canvas.zoom)
         self._on_edit_changed()
         self._update_context_toolbar()
@@ -2007,6 +2085,278 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(msg, 12000)
             return
         self.statusBar().showMessage(msg, 5000)
+
+    def _bind_tool_letter_shortcuts(self) -> None:
+        """Install single-letter tool keys; cleared while an in-place editor is typing."""
+        for act, seqs in getattr(self, "_tool_letter_actions", ()):
+            act.setShortcuts([QKeySequence(s) for s in seqs])
+            act.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+        self._sync_tool_letter_shortcuts()
+
+    def _sync_tool_letter_shortcuts(self) -> None:
+        """Drop V/T/I/… tool accelerators while typing so ``i`` in “first” never opens Insert Image."""
+        typing = bool(self._canvas.editor_active())
+        for act, seqs in getattr(self, "_tool_letter_actions", ()):
+            act.setShortcuts([] if typing else [QKeySequence(s) for s in seqs])
+
+    # --- Multi-document tabs (FEATURE-01) ------------------------------------
+
+    def _find_session_index(self, path: str | Path) -> int:
+        key = canonical_doc_path(path)
+        if key is None:
+            return -1
+        for i, sess in enumerate(self._sessions):
+            if sess.path_key() == key:
+                return i
+        return -1
+
+    def _stash_active_session(self) -> None:
+        """Snapshot view/search state into the active session without closing the PDF."""
+        if self._session_index < 0 or self._session_index >= len(self._sessions):
+            return
+        sess = self._sessions[self._session_index]
+        self._commit_field_editor()
+        sess.page_index = int(self._canvas.focus_page)
+        sess.zoom = float(self._canvas.zoom)
+        sess.zoom_mode = self._canvas._canvas.zoom_mode  # noqa: SLF001
+        sess.converted_from = getattr(self, "_converted_from", None)
+        sess.search_hits = list(self._search_hits)
+        sess.search_index = int(self._search_index)
+        sess.last_query = getattr(self, "_last_query", None)
+        if self._edit is not None:
+            try:
+                self._edit.remove_listener(self._on_edit_changed)
+            except Exception:  # noqa: BLE001
+                pass
+
+    def _bind_session(self, sess: DocumentSession) -> None:
+        """Attach *sess* to canvas / rails as the active document."""
+        self._document = sess.document
+        self._edit = sess.edit
+        self._converted_from = sess.converted_from
+        self._search_hits = list(sess.search_hits)
+        self._search_index = sess.search_index
+        self._last_query = sess.last_query
+        # Keep the shared Find box in sync with this tab's last query (FEATURE-01).
+        q = (sess.last_query or "").strip()
+        if self._search_edit.text() != q:
+            self._search_edit.blockSignals(True)
+            self._search_edit.setText(q)
+            self._search_edit.blockSignals(False)
+        if hasattr(self, "_left"):
+            restored = (
+                [(p, self._match_label(p, q, r)) for p, r in sess.search_hits[:200]]
+                if q and sess.search_hits
+                else []
+            )
+            self._left.set_search_hits(restored)
+            self._search_labels = list(restored)
+            self._search_labels_shown = len(self._search_labels)
+        sess.edit.add_listener(self._on_edit_changed)
+        self._canvas.set_document(sess.document)
+        self._canvas.set_edit_model(sess.edit)
+        self._left.set_document(sess.document)
+        self._center_stack.setCurrentWidget(self._canvas)
+        if sess.search_hits:
+            self._canvas.set_highlights(sess.search_hits, active=sess.search_index)
+        else:
+            self._canvas.clear_highlights()
+        # Restore page/zoom after layout has a document
+        mode = sess.zoom_mode
+        if mode == ZoomMode.MANUAL:
+            self._canvas.set_manual_zoom(sess.zoom)
+        else:
+            self._canvas.set_zoom_mode(mode)
+        self._canvas.go_to_page(min(max(0, sess.page_index), max(0, sess.document.page_count - 1)))
+
+    def _activate_session(self, index: int) -> None:
+        if index < 0 or index >= len(self._sessions):
+            return
+        if index == self._session_index and self._document is self._sessions[index].document:
+            self._tab_switching = True
+            try:
+                if self._doc_tabs.currentIndex() != index:
+                    self._doc_tabs.setCurrentIndex(index)
+            finally:
+                self._tab_switching = False
+            return
+        self._stash_active_session()
+        self._session_index = index
+        self._bind_session(self._sessions[index])
+        self._tab_switching = True
+        try:
+            if self._doc_tabs.currentIndex() != index:
+                self._doc_tabs.setCurrentIndex(index)
+        finally:
+            self._tab_switching = False
+        self._set_document_actions_enabled(True)
+        self._update_workspace_chrome()
+        self._update_title()
+        self._on_page_changed(self._canvas.focus_page)
+        self._on_zoom_changed(self._canvas.zoom)
+        self._on_edit_changed()
+        self._update_context_toolbar()
+        self._autosave.start()
+        self._doc_state_label.setText(self._document.name if self._document else "")
+
+    def _rebuild_doc_tabs(self) -> None:
+        self._tab_switching = True
+        try:
+            while self._doc_tabs.count():
+                self._doc_tabs.removeTab(0)
+            for sess in self._sessions:
+                self._doc_tabs.addTab(sess.tab_title())
+            if self._sessions:
+                self._doc_tabs.setCurrentIndex(max(0, self._session_index))
+            self._doc_tabs.setVisible(len(self._sessions) > 0)
+        finally:
+            self._tab_switching = False
+
+    def _refresh_doc_tab_titles(self) -> None:
+        for i, sess in enumerate(self._sessions):
+            if i < self._doc_tabs.count():
+                self._doc_tabs.setTabText(i, sess.tab_title())
+
+    def _cycle_doc_tab(self, delta: int) -> None:
+        """Ctrl+Tab / Ctrl+Shift+Tab — cycle document tabs (FEATURE-01).
+
+        Works while an in-place field/text editor has focus: the editor is
+        committed first so typed characters are never lost or misrouted.
+        """
+        n = len(self._sessions)
+        if n < 2:
+            return
+        if self._canvas.editor_active():
+            self._commit_field_editor()
+        nxt = (self._session_index + int(delta)) % n
+        self._activate_session(nxt)
+        self._refresh_doc_tab_titles()
+
+    def _on_doc_tab_changed(self, index: int) -> None:
+        if self._tab_switching or index < 0:
+            return
+        self._activate_session(index)
+
+    def _on_doc_tab_close(self, index: int) -> None:
+        if index < 0 or index >= len(self._sessions):
+            return
+        # Confirm against that tab's document (temporarily active if needed)
+        was = self._session_index
+        if index != was:
+            self._activate_session(index)
+        if not self._confirm_unsaved("closing"):
+            if was != index and 0 <= was < len(self._sessions):
+                self._activate_session(was)
+            return
+        self._close_session_at(index, save_session=False)
+
+    def _on_doc_tab_moved(self, from_index: int, to_index: int) -> None:
+        if self._tab_switching or from_index == to_index:
+            return
+        if not (0 <= from_index < len(self._sessions) and 0 <= to_index < len(self._sessions)):
+            return
+        sess = self._sessions.pop(from_index)
+        self._sessions.insert(to_index, sess)
+        if self._session_index == from_index:
+            self._session_index = to_index
+        elif from_index < self._session_index <= to_index:
+            self._session_index -= 1
+        elif to_index <= self._session_index < from_index:
+            self._session_index += 1
+
+    def _close_session_at(self, index: int, *, save_session: bool = True) -> None:
+        if index < 0 or index >= len(self._sessions):
+            return
+        sess = self._sessions[index]
+        if save_session and sess.edit.dirty and self._open_password_for(sess.document) is None:
+            try:
+                write_session(sess.document.path, sess.edit.to_dict())
+            except Exception:  # noqa: BLE001
+                pass
+        else:
+            try:
+                clear_session(sess.document.path)
+            except Exception:  # noqa: BLE001
+                pass
+        try:
+            sess.edit.remove_listener(self._on_edit_changed)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            sess.document.close()
+        except Exception:  # noqa: BLE001
+            pass
+        self._sessions.pop(index)
+        if not self._sessions:
+            self._session_index = -1
+            self._show_welcome_workspace()
+            return
+        next_index = min(index, len(self._sessions) - 1)
+        self._session_index = -1  # force rebind
+        self._activate_session(next_index)
+        self._rebuild_doc_tabs()
+
+    def _open_password_for(self, document: PdfDocument) -> str | None:
+        backend = getattr(document, "_backend", None)
+        return getattr(backend, "_password", None)
+
+    def _show_welcome_workspace(self) -> None:
+        self._autosave.stop()
+        self._markup_sticky = None
+        self._eraser_active = False
+        if self._canvas.region_pick_active:
+            self._canvas.cancel_region_pick(announce=False)
+        self.act_select_tool.setChecked(True)
+        self._converted_from = None
+        self._search_generation = getattr(self, "_search_generation", 0) + 1
+        self._search_hits = []
+        self._search_index = -1
+        self._canvas.clear_highlights()
+        self._canvas.set_edit_model(None)
+        self._canvas.clear_document()
+        self._left.clear_document()
+        self._inspector.clear()
+        self._edit = None
+        self._document = None
+        self.clear_analysis_progress()
+        self._doc_state_label.setText("")
+        self._center_stack.setCurrentWidget(self._welcome)
+        self._doc_tabs.setVisible(False)
+        self._tab_switching = True
+        try:
+            while self._doc_tabs.count():
+                self._doc_tabs.removeTab(0)
+        finally:
+            self._tab_switching = False
+        self._set_document_actions_enabled(False)
+        self._update_workspace_chrome()
+        self._update_context_toolbar()
+        self._update_title()
+        self._page_label.setText("No document")
+        self._zoom_label.setText("")
+        self._toolbar_zoom.setCurrentText("—")
+        self._toolbar_zoom.setEnabled(False)
+        self._fit_button.setEnabled(False)
+        self.act_highlight_fields.setEnabled(False)
+        self._page_indicator.setText("")
+        self._page_edit.setText("")
+        self._search_edit.clear()
+        self._last_query = None
+        self._dirty_label.setText("")
+        self._dirty_label.setProperty("state", "")
+        self._status.set_ready("Ready")
+        self._refresh_welcome_recent()
+
+    def _confirm_all_unsaved(self, verb: str = "closing") -> bool:
+        """Prompt Save/Don't Save/Cancel for each dirty tab (app close)."""
+        self._commit_field_editor()
+        for i, sess in enumerate(list(self._sessions)):
+            if not sess.edit.dirty:
+                continue
+            self._activate_session(i)
+            if not self._confirm_unsaved(verb):
+                return False
+        return True
 
     def _is_headless_ui(self) -> bool:
         """True for offscreen/CI — avoid modal dialogs that block forever."""
@@ -2056,55 +2406,11 @@ class MainWindow(QMainWindow):
         return self._document is not None and self._open_password() is None
 
     def close_document(self, *, save_session: bool = True) -> None:
-        if save_session and self._edit is not None and self._document is not None:
-            if self._edit.dirty and self._keeps_recovery_copy():
-                try:
-                    write_session(self._document.path, self._edit.to_dict())
-                except Exception:  # noqa: BLE001
-                    pass
-            else:
-                clear_session(self._document.path)
-        self._autosave.stop()
-        self._markup_sticky = None
-        self._eraser_active = False
-        if self._canvas.region_pick_active:
-            self._canvas.cancel_region_pick(announce=False)
-        self.act_select_tool.setChecked(True)
-        self._converted_from = None
-        self._search_generation = getattr(self, "_search_generation", 0) + 1  # stops a running search
-        self._search_hits = []
-        self._search_index = -1
-        self._canvas.clear_highlights()
-        self._canvas.set_edit_model(None)
-        self._canvas.clear_document()
-        self._left.clear_document()
-        self._inspector.clear()
-        self._edit = None
-        if self._document is not None:
-            self._document.close()
-            self._document = None
-        self._search_hits.clear()
-        self.clear_analysis_progress()
-        self._doc_state_label.setText("")
-        self._center_stack.setCurrentWidget(self._welcome)
-        self._set_document_actions_enabled(False)
-        self._update_workspace_chrome()
-        self._update_context_toolbar()
-        self._update_title()
-        self._page_label.setText("No document")
-        self._zoom_label.setText("")
-        self._toolbar_zoom.setCurrentText("—")
-        self._toolbar_zoom.setEnabled(False)
-        self._fit_button.setEnabled(False)
-        self.act_highlight_fields.setEnabled(False)
-        self._page_indicator.setText("")
-        self._page_edit.setText("")
-        self._search_edit.clear()
-        self._last_query = None
-        self._dirty_label.setText("")
-        self._dirty_label.setProperty("state", "")
-        self._status.set_ready("Ready")
-        self._refresh_welcome_recent()
+        """Close the active document tab (or clear the empty workspace)."""
+        if self._session_index < 0 or not self._sessions:
+            self._show_welcome_workspace()
+            return
+        self._close_session_at(self._session_index, save_session=save_session)
 
     def _open_password(self) -> str | None:
         """Password of the open protected PDF (memory only), to reopen it after saving."""
@@ -2237,7 +2543,7 @@ class MainWindow(QMainWindow):
             # from being drawn — or replaced text removed — a second time on the next Save.
             page = self._canvas.focus_page
             zoom, mode = self._canvas.zoom, self._canvas._canvas.zoom_mode  # noqa: SLF001
-            self._load_document(open_document(path, password=password))
+            self._load_document(open_document(path, password=password), replace_active=True)
             if mode == ZoomMode.MANUAL:
                 self._canvas.set_manual_zoom(zoom)
             else:
@@ -2342,8 +2648,10 @@ class MainWindow(QMainWindow):
             self._on_edit_changed()
             return
         page = self._canvas.focus_page
-        self._load_document(document)
+        self._load_document(document, replace_active=True)
         self._converted_from = None
+        if 0 <= self._session_index < len(self._sessions):
+            self._sessions[self._session_index].converted_from = None
         self._update_title()
         self._recent.add(dest)
         self._rebuild_recent_menu()
@@ -2354,13 +2662,14 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:  # noqa: N802
         if self._canvas.region_pick_active:
             self._canvas.cancel_region_pick(announce=False)
-        if not getattr(self, "_closing_for_update", False) and not self._confirm_unsaved("closing"):
+        if not getattr(self, "_closing_for_update", False) and not self._confirm_all_unsaved("closing"):
             event.ignore()
             return
         self._persist_preferences()
-        dirty_left = bool(self._edit and self._edit.dirty)
-        # Headless/CI keeps the crash-recovery session; interactive Don't Save already cleared it
-        self.close_document(save_session=dirty_left)
+        # Close every tab; keep recovery copies only in headless when dirty was not discarded
+        while self._sessions:
+            dirty_left = bool(self._sessions[0].edit.dirty) and self._is_headless_ui()
+            self._close_session_at(0, save_session=dirty_left)
         super().closeEvent(event)
 
     def _persist_preferences(self) -> None:
@@ -2957,6 +3266,7 @@ class MainWindow(QMainWindow):
 
     def _on_edit_changed(self) -> None:
         self._update_title()
+        self._refresh_doc_tab_titles()
         self._left.comments.mark_stale()
         if self._edit and self._edit.dirty:
             state, text = "modified", "Modified"
@@ -3850,7 +4160,7 @@ class MainWindow(QMainWindow):
         self._search_step(self._search_generation, query)
 
     def _field_hits(self, page_i: int, query: str) -> list:
-        """Form fields on the page whose current entry (also typed but not yet saved) contains *query*."""
+        """Unsaved form values and text-box overlays whose text contains *query*."""
         import fitz
 
         from engines.mupdf_backend import search_variants
@@ -3863,6 +4173,11 @@ class MainWindow(QMainWindow):
             value = str(getattr(f, "value", "") or "").casefold()
             if value and not f.is_candidate and any(q in value for q in wanted):
                 r = f.rect.normalized()
+                out.append(fitz.Rect(r.x, r.y, r.x1, r.y1))
+        for box in self._edit.objects_on_page(page_i) if hasattr(self._edit, "objects_on_page") else []:
+            text = str(getattr(box, "text", "") or "").casefold()
+            if text and any(q in text for q in wanted):
+                r = box.rect.normalized()
                 out.append(fitz.Rect(r.x, r.y, r.x1, r.y1))
         return out
 
@@ -3877,6 +4192,47 @@ class MainWindow(QMainWindow):
             snippet += "…"
         return snippet
 
+    def _match_label(self, page_i: int, query: str, rect) -> str:
+        """Results-list caption for one match (page text, form field, or text box)."""
+        if self._edit is not None:
+            try:
+                cx = (float(rect.x0) + float(rect.x1)) / 2
+                cy = (float(rect.y0) + float(rect.y1)) / 2
+            except Exception:  # noqa: BLE001
+                cx = cy = None
+            if cx is not None:
+                from core.editing.geometry import Point
+
+                pt = Point(cx, cy)
+                q = query.casefold()
+
+                def _snip(value: str) -> str:
+                    pos = value.casefold().find(q)
+                    if pos < 0:
+                        return value[:80].replace("\n", " ").strip()
+                    start = max(0, pos - 20)
+                    snip = value[start : start + 80].replace("\n", " ").strip()
+                    if start > 0:
+                        snip = "…" + snip
+                    if start + 80 < len(value):
+                        snip += "…"
+                    return snip
+
+                for f in self._edit.fields_on_page(page_i):
+                    if f.is_candidate:
+                        continue
+                    value = str(getattr(f, "value", "") or "")
+                    if value and f.rect.contains(pt):
+                        snip = _snip(value)
+                        name = (getattr(f, "name", "") or "field").strip()
+                        return f"[field {name}] {snip}" if snip else f"[field {name}]"
+                for box in self._edit.objects_on_page(page_i):
+                    value = str(getattr(box, "text", "") or "")
+                    if value and box.rect.contains(pt):
+                        snip = _snip(value)
+                        return f"[text] {snip}" if snip else "[text]"
+        return self._search_snippet(page_i, query)
+
     def _search_step(self, generation: int, query: str) -> None:
         import time
 
@@ -3889,10 +4245,11 @@ class MainWindow(QMainWindow):
             i = self._search_next_page
             self._search_next_page += 1
             rects = self._document.search_page(i, query, fields=False) + self._field_hits(i, query)
-            if rects:
-                self._search_hits.extend((i, r) for r in rects)
-                if len(self._search_labels) < 500:
-                    self._search_labels.append((i, self._search_snippet(i, query)))
+            for r in rects:
+                self._search_hits.append((i, r))
+                # One results-list row per occurrence (not one per page) — BUG-18 / BUG-27.
+                if len(self._search_labels) < 2000:
+                    self._search_labels.append((i, self._match_label(i, query, r)))
             if time.perf_counter() >= deadline:
                 break
         done = self._search_next_page >= total
@@ -3908,7 +4265,8 @@ class MainWindow(QMainWindow):
                 # added below the ones already listed: the list keeps its scroll position and selection
                 self._left.add_search_hits(self._search_labels[shown:], total=len(self._search_labels))
             self._search_labels_shown = len(self._search_labels)
-            self._canvas.set_highlights(self._search_hits)
+            active = self._search_index if self._search_index >= 0 else (-1 if not self._search_hits else 0)
+            self._canvas.set_highlights(self._search_hits, active=active)
             if self._search_index < 0 and self._search_hits:
                 self._search_index = 0
                 self._goto_hit(0)
@@ -3919,8 +4277,14 @@ class MainWindow(QMainWindow):
             return
         if not self._search_hits:
             self.statusBar().showMessage(f"No matches for “{query}”", 4000)
-        elif total > 1 and self._search_index >= 0:
-            self._goto_hit(self._search_index, move=False)
+        else:
+            pages = len({p for p, _ in self._search_hits})
+            self.statusBar().showMessage(
+                f"{len(self._search_hits)} match(es) on {pages} page(s) — F3 / Shift+F3 next/previous match",
+                6000,
+            )
+            if self._search_index >= 0:
+                self._goto_hit(self._search_index, move=False)
 
     def _find_next(self) -> None:
         if not self._search_hits:
@@ -3930,9 +4294,13 @@ class MainWindow(QMainWindow):
         self._goto_hit(self._search_index)
 
     def _goto_hit(self, hit_index: int, *, move: bool = True) -> None:
-        page_index, _ = self._search_hits[hit_index]
+        if hit_index < 0 or hit_index >= len(self._search_hits):
+            return
+        self._search_index = hit_index
+        page_index, rect = self._search_hits[hit_index]
+        self._canvas.set_active_highlight(hit_index)
         if move:
-            self._canvas.go_to_page(page_index)
+            self._canvas.ensure_pdf_rect_visible(page_index, rect)
         self.statusBar().showMessage(
             f"Match {hit_index + 1} of {len(self._search_hits)} — page {page_index + 1}"
             "   (Enter / F3 next · Shift+Enter / Shift+F3 previous)",
@@ -5014,13 +5382,26 @@ class MainWindow(QMainWindow):
         from core.convert.flatten_export import export_flattened_pdf
         from ui.convert_dialogs import choose_save
 
+        if not self._is_headless_ui():
+            answer = QMessageBox.warning(
+                self,
+                "Export Flattened PDF",
+                "A flattened PDF merges form fields and comments into the page content.\n\n"
+                "The exported copy will no longer be editable as form fields or annotations. "
+                "Your original document stays unchanged.\n\nContinue?",
+                QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel,
+            )
+            if answer != QMessageBox.StandardButton.Ok:
+                return
         dest = choose_save(self, "Export Flattened PDF", self._suggest("flattened", "pdf"), "PDF (*.pdf)")
         if not dest:
             return
         try:
-            with self._current_document(keep_protection=True) as src:
+            # Bake unsaved overlays with form flatten so printed values and shapes match the canvas.
+            with self._current_document(flatten=True, keep_protection=True) as src:
                 export_flattened_pdf(src, dest)
-            self.statusBar().showMessage(f"Wrote {dest.name}", 6000)
+            self.statusBar().showMessage(f"Wrote flattened {dest.name}", 6000)
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(self, "Flatten", str(exc))
 
@@ -5249,7 +5630,7 @@ class MainWindow(QMainWindow):
                 try:
                     cz.write_result(result, dest, password=password)
                 finally:
-                    self._load_document(open_document(dest, password=password))
+                    self._load_document(open_document(dest, password=password), replace_active=True)
                     self._canvas.go_to_page(min(page, self._document.page_count - 1))
                     self._update_title()
         except Exception as exc:  # noqa: BLE001
@@ -5350,6 +5731,8 @@ class MainWindow(QMainWindow):
     def _add_image(self) -> None:
         if self._document is None or self._edit is None:
             return
+        if self._canvas.editor_active():
+            return  # letter "I" must not open a file dialog while typing in a field
         from core.editing.image_box import ImageBox
 
         path, _ = QFileDialog.getOpenFileName(
@@ -6649,13 +7032,12 @@ class MainWindow(QMainWindow):
                 return
             new_path, new_spec = png_bytes_to_library(png), dlg.spec()
         elif img.role == "signature" and spec.get("kind") == "drawn":
-            from core.signatures.ops import strokes_to_png
             from ui.app_dialogs import SignaturePadDialog
 
             dlg = SignaturePadDialog(self)
             if dlg.exec() != dlg.DialogCode.Accepted or not dlg.strokes():
                 return
-            new_path = png_bytes_to_library(strokes_to_png(dlg.strokes()))
+            new_path = png_bytes_to_library(self._signature_png_from_pad(dlg))
         else:
             path, _ = QFileDialog.getOpenFileName(
                 self, "Replace Signature Picture" if img.role == "signature" else "Replace Image", self._doc_dir(),
@@ -6733,17 +7115,25 @@ class MainWindow(QMainWindow):
             return
         self._place_signature(stored, spec={"kind": "image"}, message="Signature picture placed — move or resize it, Delete removes it")
 
+    @staticmethod
+    def _signature_png_from_pad(dlg) -> bytes:
+        """Rasterize pad strokes using the chosen ink colour and thickness."""
+        from core.signatures.ops import strokes_to_png
+
+        c = dlg.pad.ink_color()
+        rgb = (c.red() / 255.0, c.green() / 255.0, c.blue() / 255.0)
+        return strokes_to_png(dlg.strokes(), color=rgb, line_width=max(1.5, dlg.pen_width() * 1.25))
+
     def _sig_drawn(self) -> None:
         if self._document is None or not self._confirm_signed():
             return
         from core.annotations.stamp_library import png_bytes_to_library
-        from core.signatures.ops import strokes_to_png
         from ui.app_dialogs import SignaturePadDialog
 
         dlg = SignaturePadDialog(self)
         if dlg.exec() != dlg.DialogCode.Accepted or not dlg.strokes():
             return
-        png = strokes_to_png(dlg.strokes())
+        png = self._signature_png_from_pad(dlg)
         self._place_signature(png_bytes_to_library(png), spec={"kind": "drawn"}, message=
                               "Drawn signature placed — move or resize it, Delete removes it (a picture, not a digital signature)")
 

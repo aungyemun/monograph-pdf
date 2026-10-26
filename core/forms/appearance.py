@@ -283,22 +283,41 @@ def _rstrip(text: str, a: int, b: int) -> int:
     return b
 
 
+def _content_fits(layout: _Layout, avail_w: float, h: float, pad: float, multiline: bool,
+                  line_factor: float) -> bool:
+    """True when every wrapped line of the current base size fits inside the box."""
+    if multiline:
+        top = pad
+        for a, b, _e in layout.wrap(avail_w):
+            size = layout.line_size(a, b)
+            if not _line_fits(top, size, h, pad):
+                return False
+            top += size * line_factor
+        return True
+    return layout.width(0, len(layout.text)) <= avail_w + 0.5
+
+
 def _set_base_size(layout: _Layout, field: Any, w: float, h: float, pad: float, multiline: bool,
                    line_factor: float) -> None:
     """The field's size, or for Auto (0) the size Acrobat would pick: fill the height and
-    shrink until the entry fits (down to 4 pt)."""
+    shrink until the entry fits (down to 4 pt).
+
+    Fixed sizes also shrink slightly (down to ~88% of the chosen size) when MuPDF metrics
+    would otherwise clip text that still fits in the Qt editor (BUG-09 / BUG-10). Intentional
+    overflow (long entries in small cells) still clips and is reported by ``entry_overflows``.
+    """
     avail_w = max(1.0, w - 2 * pad)
     base = float(getattr(field, "font_size", 0) or 0)
     if base <= 0:
         base = min(12.0, max(4.0, (h - 2 * pad) * 0.72)) if multiline else max(4.0, min(h * 0.72, h - 2 * pad, 24.0))
-        while base > 4:
-            layout.set_base(base)
-            if multiline:
-                if layout.block_height(layout.wrap(avail_w)) * line_factor / 1.15 <= h - 2 * pad:
-                    break
-            elif layout.width(0, len(layout.text)) <= avail_w:
-                break
-            base -= 0.5
+        floor = 4.0
+    else:
+        floor = max(4.0, base * 0.88)
+    while True:
+        layout.set_base(base)
+        if _content_fits(layout, avail_w, h, pad, multiline, line_factor) or base <= floor + 1e-6:
+            break
+        base = max(floor, base - (0.5 if floor <= 4.0 else 0.25))
     layout.set_base(base)
 
 

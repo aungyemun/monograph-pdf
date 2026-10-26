@@ -8,7 +8,7 @@ from typing import Any
 
 @dataclass
 class TextStyle:
-    font_family: str = "sans-serif"
+    font_family: str = "Helvetica"
     font_size: float = 11.0
     bold: bool = False
     italic: bool = False

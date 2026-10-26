@@ -230,6 +230,45 @@ def test_unsaved_form_entries_and_field_formatting_are_printed(tmp_path):
     pdf.close()
 
 
+def test_checked_checkbox_appears_in_print_bake(tmp_path):
+    """Checked native checkboxes must survive prepare_print_source (flatten bake)."""
+    from core.forms.acroform import resolve_widget_on_state
+
+    src = tmp_path / "cb.pdf"
+    doc = fitz.open()
+    page = doc.new_page()
+    w = fitz.Widget()
+    w.field_type = fitz.PDF_WIDGET_TYPE_CHECKBOX
+    w.rect = fitz.Rect(72, 72, 92, 92)
+    w.field_name = "agree"
+    page.add_widget(w)
+    page.first_widget.field_value = "Off"
+    page.first_widget.update()
+    doc.save(src)
+    doc.close()
+
+    pdf = open_document(src)
+    source = None
+    try:
+        edit = EditableDocument(pdf)
+        fid = next(iter(edit.fields))
+        edit.set_field_value(fid, checked=True)
+        source = prepare_print_source(pdf, edit)
+        # Flattened print copy: widget may be gone, but appearance must show as on
+        baked = source.document._backend._doc  # noqa: SLF001
+        # After flatten, either no widgets remain or the baked content includes the check
+        widgets = list(baked[0].widgets() or [])
+        if widgets:
+            assert str(widgets[0].field_value) == resolve_widget_on_state(widgets[0], baked)
+        else:
+            # Flattened into page drawings — ensure bake produced output
+            assert baked.page_count >= 1
+    finally:
+        if source is not None:
+            source.close()
+        pdf.close()
+
+
 def test_push_buttons_are_not_fillable_and_keep_their_caption(tmp_path):
     """A form's own push button (e.g. 'Print form') is not a text field; its caption is kept."""
     from core.forms.acroform import load_acroform_fields

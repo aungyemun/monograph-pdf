@@ -23,6 +23,17 @@ param(
 
 $ErrorActionPreference = "Continue"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+# Pytest / headless shells set these; a windowed GUI then starts with no titled window.
+Remove-Item Env:QT_QPA_PLATFORM, Env:MONOGRAPH_PDF_HEADLESS, Env:QT_QPA_PLATFORM_PLUGIN_PATH -ErrorAction SilentlyContinue
+# Orphaned copies left when a previous test killed uninstall.exe mid-flight.
+Get-ChildItem $env:TEMP -Filter "MonographPDF-uninstall-*.exe" -ErrorAction SilentlyContinue |
+    Where-Object { $_.LastWriteTime -lt (Get-Date).AddMinutes(-2) } |
+    Remove-Item -Force -ErrorAction SilentlyContinue
+Get-ChildItem $env:TEMP -Filter "PDFEditor-uninstall-*.exe" -ErrorAction SilentlyContinue |
+    Where-Object { $_.LastWriteTime -lt (Get-Date).AddMinutes(-2) } |
+    Remove-Item -Force -ErrorAction SilentlyContinue
+
+
 # Processes are only ever ended through handles this script holds, or - in the final cleanup - when
 # they were started after this script began AND run from one of its test folders. Nothing is ever
 # ended by program name alone; anything else is reported and left running.

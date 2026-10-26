@@ -487,14 +487,19 @@ class CompressDialog(QDialog):
         elif mode in cz.MODE_SETTINGS or mode == "custom":
             settings = cz.MODE_SETTINGS.get(mode) or (self.ppi_spin.value(), self.quality_spin.value())
             est = cz.estimate_size(self.profile, *settings)
-            self.estimate_label.setText(f"Estimated size: about {cz.format_size(est)} "
-                                        f"({_pct(est, len(self._data))}) — an estimate; Preview measures it.")
+            self.estimate_label.setText(
+                f"Estimated size: about {cz.format_size(est)} ({_pct(est, len(self._data))}). "
+                "This is a heuristic only — use Preview for a measured size before saving."
+            )
         else:
             floor = cz.estimate_size(self.profile, *cz.LADDER[-1])
             t = self.target_bytes()
             verdict = "likely reachable" if floor <= t else "probably not reachable without unacceptable loss"
-            self.estimate_label.setText(f"Target {cz.format_size(t, exact=True)}: {verdict} (estimated smallest "
-                                        f"acceptable size about {cz.format_size(floor)}). Preview measures it.")
+            self.estimate_label.setText(
+                f"Target {cz.format_size(t, exact=True)}: {verdict} "
+                f"(estimated smallest acceptable size about {cz.format_size(floor)}). "
+                "Estimates can miss vector-heavy pages — Preview measures the real output."
+            )
         res = self._results.get(self._key())
         self._show_result(res)
 
