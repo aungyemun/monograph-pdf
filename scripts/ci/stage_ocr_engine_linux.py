@@ -41,14 +41,23 @@ def find_system_tesseract() -> Path | None:
     return Path(found).resolve() if found else None
 
 
+LOCAL_MANIFEST = ENGINE / "MANIFEST.local.json"
+
+
 def stage_wrapper(system: Path) -> None:
+    """Stage Linux OCR without dirtying the tracked ``engines/ocr/MANIFEST.json``.
+
+    Machine-local staging metadata goes to ``MANIFEST.local.json`` (gitignored via
+    ``engines/ocr/*``). The committed Windows-oriented ``MANIFEST.json`` stays unchanged
+    so source-archive builds see a clean working tree after OCR staging.
+    """
     ENGINE.mkdir(parents=True, exist_ok=True)
     wrapper = ENGINE / "tesseract"
     # Symlink so core.ocr.paths finds engines/ocr/tesseract first
     if wrapper.is_symlink() or wrapper.exists():
         wrapper.unlink()
     wrapper.symlink_to(system)
-    (ENGINE / "MANIFEST.json").write_text(
+    LOCAL_MANIFEST.write_text(
         json.dumps(
             {
                 "platform": "linux",
@@ -60,7 +69,7 @@ def stage_wrapper(system: Path) -> None:
         + "\n",
         encoding="utf-8",
     )
-    print(f"OCR engine wrapper → {system}")
+    print(f"OCR engine wrapper → {system} (local manifest {LOCAL_MANIFEST.name})")
 
 
 def download_tessdata(require: bool) -> int:

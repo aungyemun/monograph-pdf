@@ -201,6 +201,7 @@
           "sha256": "be28e1bd8a3185fbba52d82e7db621756bf7218e962f8bd1be8f55fa4d09a3e0",
           "urls": [
             "https://repo.msys2.org/mingw/sources/mingw-w64-glib2-2.80.2-2.src.tar.zst",
+            "https://mirror.msys2.org/mingw/sources/mingw-w64-glib2-2.80.2-2.src.tar.zst",
             "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-glib2-2.80.2-2.src.tar.zst"
           ],
           "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
@@ -237,6 +238,7 @@
           "sha256": "ee4954bcf887f28ca8bd4bbc2bbc1a1b8b154a3264d3a05ebcfdc572ecc2d23d",
           "urls": [
             "https://repo.msys2.org/mingw/sources/mingw-w64-pango-1.52.2-1.src.tar.zst",
+            "https://mirror.msys2.org/mingw/sources/mingw-w64-pango-1.52.2-1.src.tar.zst",
             "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-pango-1.52.2-1.src.tar.zst"
           ],
           "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
@@ -270,6 +272,7 @@
           "sha256": "3b6e404e5f2a13ced506c37e5c27bcecca974b3a63b3589850f1fd30aa4b9af8",
           "urls": [
             "https://repo.msys2.org/mingw/sources/mingw-w64-cairo-1.18.0-3.src.tar.zst",
+            "https://mirror.msys2.org/mingw/sources/mingw-w64-cairo-1.18.0-3.src.tar.zst",
             "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-cairo-1.18.0-3.src.tar.zst"
           ],
           "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
@@ -300,6 +303,7 @@
           "sha256": "d8ceee0255e0200377c01a4fbebe895842faf49885fc98ff19a635238ec0a51c",
           "urls": [
             "https://repo.msys2.org/mingw/sources/mingw-w64-fribidi-1.0.14-1.src.tar.zst",
+            "https://mirror.msys2.org/mingw/sources/mingw-w64-fribidi-1.0.14-1.src.tar.zst",
             "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-fribidi-1.0.14-1.src.tar.zst"
           ],
           "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
@@ -330,6 +334,7 @@
           "sha256": "6010a30c34f0f23a10f6174fd42ccaf7cabd0adb3dfe42ca435e0f7b1f977490",
           "urls": [
             "https://repo.msys2.org/mingw/sources/mingw-w64-libthai-0.1.29-3.src.tar.zst",
+            "https://mirror.msys2.org/mingw/sources/mingw-w64-libthai-0.1.29-3.src.tar.zst",
             "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-libthai-0.1.29-3.src.tar.zst"
           ],
           "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
@@ -360,6 +365,7 @@
           "sha256": "bca8a3d93f01f68390cde45edbfb89c5b2e376e5e8ce60742e16c21d37281ddc",
           "urls": [
             "https://repo.msys2.org/mingw/sources/mingw-w64-libdatrie-0.2.13-3.src.tar.zst",
+            "https://mirror.msys2.org/mingw/sources/mingw-w64-libdatrie-0.2.13-3.src.tar.zst",
             "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-libdatrie-0.2.13-3.src.tar.zst"
           ],
           "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
@@ -390,6 +396,7 @@
           "sha256": "68e0325574ee5bfcb49b3b6bb09e318356740e909b7a6f8ff936638f6af0bbc3",
           "urls": [
             "https://repo.msys2.org/mingw/sources/mingw-w64-graphite2-1.3.14-3.src.tar.zst",
+            "https://mirror.msys2.org/mingw/sources/mingw-w64-graphite2-1.3.14-3.src.tar.zst",
             "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-graphite2-1.3.14-3.src.tar.zst"
           ],
           "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
@@ -420,6 +427,7 @@
           "sha256": "709ddc76a1a6ca4c4ce31dc65282c327cfefbcb5a37447ea84f0e056a27abe96",
           "urls": [
             "https://repo.msys2.org/mingw/sources/mingw-w64-libiconv-1.17-4.src.tar.zst",
+            "https://mirror.msys2.org/mingw/sources/mingw-w64-libiconv-1.17-4.src.tar.zst",
             "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-libiconv-1.17-4.src.tar.zst"
           ],
           "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
@@ -450,6 +458,7 @@
           "sha256": "ed247fb2795bfeffb1922813da25a642bd8173ad3bfb1de12d13b2b5ef46805c",
           "urls": [
             "https://repo.msys2.org/mingw/sources/mingw-w64-gettext-0.22.5-2.src.tar.zst",
+            "https://mirror.msys2.org/mingw/sources/mingw-w64-gettext-0.22.5-2.src.tar.zst",
             "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-gettext-0.22.5-2.src.tar.zst"
           ],
           "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"
@@ -480,6 +489,7 @@
           "sha256": "402e264e13ffd10424d3217e83076d9e1e3ab0db16303a33d42a4bd4cda4088b",
           "urls": [
             "https://repo.msys2.org/mingw/sources/mingw-w64-jbigkit-2.1-5.src.tar.zst",
+            "https://mirror.msys2.org/mingw/sources/mingw-w64-jbigkit-2.1-5.src.tar.zst",
             "https://www2.futureware.at/~nickoe/msys2-mirror/mingw/sources/mingw-w64-jbigkit-2.1-5.src.tar.zst"
           ],
           "verified_by": "MSYS2 source package of the exact binary package the DLLs come from"

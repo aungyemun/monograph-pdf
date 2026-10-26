@@ -66,7 +66,8 @@ SOURCE_TOP = [
 # Never included (relative paths / name patterns)
 EXCLUDE_PARTS = {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".git", "env", ".venv"}
 EXCLUDE_PATHS = [
-    "engines/ocr/*.dll", "engines/ocr/*.exe", "engines/ocr/tessdata/*", "installer/release/*", "installer/*.exe",
+    "engines/ocr/*.dll", "engines/ocr/*.exe", "engines/ocr/tessdata/*", "engines/ocr/tesseract",
+    "engines/ocr/MANIFEST.local.json", "installer/release/*", "installer/*.exe",
     "installer/*.zip", "installer/build_release_summary.txt", "tests/outputs/*", "tests/samples/*",
     # Development checks that open the developer's own documents by name (personal data)
     "scripts/validate_real_pdfs.py", "scripts/run_live_real_pdf_qa.py",
@@ -82,7 +83,8 @@ EXCLUDE_PATHS = [
     "reports/audit/PROJECT_AUDIT.md", "reports/audit/SECURITY_AUDIT_0.1.5.md",
     "scripts/qa_*", "scripts/gui_driver.ps1", "scripts/office_open_check.ps1", "scripts/powerpoint_export.ps1",
 ]
-EXCLUDE_NAMES = ["*.pyc", "*.pyo", "*.log", ".env", ".env.*", "*.pem", "*.key", "*.pfx", "*.p12", "*.kdbx", "Thumbs.db", "desktop.ini"]
+EXCLUDE_NAMES = ["*.pyc", "*.pyo", "*.log", ".env", ".env.*", "*.pem", "*.key", "*.pfx", "*.p12", "*.kdbx",
+                 "Thumbs.db", "desktop.ini", "*.part"]
 TEXT_SUFFIXES = {".py", ".md", ".txt", ".json", ".ps1", ".bat", ".iss", ".cs", ".cff", ".ini", ".cfg", ".toml", ".xml", ".html", ".svg"}
 LICENSE_FILES = {
     "AGPL-3.0.txt": "LICENSE",
@@ -224,21 +226,34 @@ def scan_text(rel: str, data: bytes) -> list[str]:
 
 
 def _download(urls: list[str], dest: Path) -> str:
-    last = None
+    """Download the first working HTTPS URL into ``dest``. Leaves no ``*.part`` on failure."""
+    last: BaseException | None = None
+    part = dest.with_suffix(dest.suffix + ".part")
     for url in urls:
+        if not url.startswith("https://"):
+            last = RuntimeError(f"refusing non-HTTPS URL: {url}")
+            print(f"  could not download {url}: {last}", file=sys.stderr)
+            continue
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "MonographPDF-source-archive"})
-            with urllib.request.urlopen(req, timeout=120) as r, open(dest.with_suffix(dest.suffix + ".part"), "wb") as f:
+            with urllib.request.urlopen(req, timeout=120) as r, open(part, "wb") as f:
                 while True:
                     block = r.read(1 << 20)
                     if not block:
                         break
                     f.write(block)
-            dest.with_suffix(dest.suffix + ".part").replace(dest)
+            if not part.is_file() or part.stat().st_size == 0:
+                raise RuntimeError("empty download")
+            part.replace(dest)
             return url
         except Exception as exc:  # noqa: BLE001
             last = exc
-            print(f"  could not download {url}: {exc}", file=sys.stderr)
+            code = getattr(exc, "code", None)
+            detail = f"HTTP {code}" if code is not None else str(exc)
+            print(f"  could not download {url}: {detail}", file=sys.stderr)
+        finally:
+            if part.exists():
+                part.unlink(missing_ok=True)
     raise RuntimeError(f"no download address worked for {dest.name}: {last}")
 
 
@@ -253,6 +268,18 @@ def _qt_md5(md5_url: str, name: str, cache: Path) -> str | None:
     return None
 
 
+def _needs_msys2_rebuild(comp: dict, entry: dict) -> bool:
+    msys = comp.get("msys2") or {}
+    return bool(
+        msys.get("recipe_commit")
+        and (
+            entry.get("build") == "msys2-corresponding"
+            or msys.get("corresponding_source")
+            or entry["name"].endswith(".corresponding-source.tar.gz")
+        )
+    )
+
+
 def fetch_sources(manifest: dict, cache: Path, *, offline: bool, pin: bool) -> list[str]:
     """Download (once) and verify every third-party source file. Returns problems."""
     cache.mkdir(parents=True, exist_ok=True)
@@ -261,15 +288,69 @@ def fetch_sources(manifest: dict, cache: Path, *, offline: bool, pin: bool) -> l
         for entry in comp["files"]:
             local = cache / entry["name"]
             if not local.exists():
-                if offline:
-                    problems.append(f"{entry['name']}: not in the cache and --offline was given")
-                    continue
-                print(f"  downloading {entry['name']}")
-                _download(entry["urls"], local)
+                if _needs_msys2_rebuild(comp, entry):
+                    if offline:
+                        problems.append(f"{entry['name']}: not in the cache and --offline was given")
+                        continue
+                    try:
+                        from msys2_corresponding_source import materialize
+
+                        print(f"  rebuilding MSYS2 corresponding source for {comp['id']}")
+                        materialize(comp, cache, offline=False)
+                    except Exception as exc:  # noqa: BLE001
+                        problems.append(f"{entry['name']}: MSYS2 corresponding-source rebuild failed: {exc}")
+                        continue
+                else:
+                    if offline:
+                        problems.append(f"{entry['name']}: not in the cache and --offline was given")
+                        continue
+                    print(f"  downloading {entry['name']}")
+                    try:
+                        _download(entry["urls"], local)
+                    except Exception as exc:  # noqa: BLE001
+                        # Official repo.msys2.org drops old *.src.tar.zst; mirrors may still serve them.
+                        # If every URL fails and a recipe_commit is recorded, rebuild corresponding source
+                        # into a side cache name only when the manifest already expects that build.
+                        msys = comp.get("msys2") or {}
+                        if msys.get("recipe_commit") and not offline:
+                            try:
+                                from msys2_corresponding_source import materialize
+
+                                print(
+                                    f"  MSYS2 mirror failed ({exc}); "
+                                    f"attempting corresponding-source rebuild for {comp['id']}"
+                                )
+                                rebuilt = materialize(comp, cache, offline=False)
+                                expected = entry["name"]
+                                if rebuilt.name != expected:
+                                    problems.append(
+                                        f"{expected}: all download URLs failed ({exc}); "
+                                        f"rebuilt {rebuilt.name} but the manifest still pins "
+                                        f"{expected}. Run scripts/packaging/refresh_msys2_sources.py "
+                                        f"to switch this component to corresponding-source pins."
+                                    )
+                                    continue
+                                local = rebuilt
+                            except Exception as rebuild_exc:  # noqa: BLE001
+                                problems.append(
+                                    f"{entry['name']}: download failed ({exc}); "
+                                    f"MSYS2 rebuild also failed: {rebuild_exc}"
+                                )
+                                continue
+                        else:
+                            problems.append(f"{entry['name']}: download failed: {exc}")
+                            continue
+            if not local.exists():
+                problems.append(f"{entry['name']}: missing after fetch")
+                continue
             digest = sha256_of(local)
             if entry.get("sha256"):
                 if digest != entry["sha256"].lower():
-                    problems.append(f"{entry['name']}: SHA-256 {digest} does not match the recorded {entry['sha256']}")
+                    # Stale or incomplete download must not silently enter the archive.
+                    local.unlink(missing_ok=True)
+                    problems.append(
+                        f"{entry['name']}: SHA-256 {digest} does not match the recorded {entry['sha256']}"
+                    )
                 continue
             if entry.get("sha256_url"):
                 listing = cache / (entry["name"] + ".sha256")
@@ -277,6 +358,7 @@ def fetch_sources(manifest: dict, cache: Path, *, offline: bool, pin: bool) -> l
                     _download([entry["sha256_url"]], listing)
                 published = listing.read_text(encoding="utf-8", errors="replace").split()[0].lower() if listing.exists() else ""
                 if published != digest:
+                    local.unlink(missing_ok=True)
                     problems.append(f"{entry['name']}: SHA-256 {digest} does not match the publisher's {published or '(missing)'}")
                     continue
             if entry.get("md5_list"):
@@ -284,6 +366,7 @@ def fetch_sources(manifest: dict, cache: Path, *, offline: bool, pin: bool) -> l
                 h = hashlib.md5()
                 h.update(local.read_bytes())
                 if want is None or h.hexdigest() != want:
+                    local.unlink(missing_ok=True)
                     problems.append(f"{entry['name']}: MD5 does not match the publisher's list ({want})")
                     continue
             if pin:
@@ -304,7 +387,7 @@ def _readme(manifest: dict, version: str) -> str:
         "| Folder | Contents |",
         "| :--- | :--- |",
         "| `monograph-pdf/` | Corresponding Monograph PDF release source (AGPL-3.0-or-later): application, build scripts (`scripts/`), installer script (`installer/`), release tests, documentation |",
-        "| `third-party/` | Unmodified upstream source archives of the bundled AGPL / GPL / LGPL components; for the OCR engine's libraries the MSYS2 source packages (`*.src.tar.zst`: upstream archive, PKGBUILD and patches) of exactly the shipped binary packages |",
+        "| `third-party/` | Unmodified upstream source archives of the bundled AGPL / GPL / LGPL components; for the OCR engine's libraries the MSYS2 corresponding-source packages (`*.corresponding-source.tar.gz`: PKGBUILD, patches and upstream archives from the pinned recipe commit) of exactly the shipped binary packages |",
         "| `LICENSES/` | License texts: AGPL-3.0, GPL-2.0, GPL-3.0, LGPL-2.1, LGPL-3.0, MPL-1.1, GCC Runtime Library Exception |",
         "| `SOURCE_MANIFEST.json` | For every component: license, the release files it covers, the source files with SHA-256 and their download address |",
         "",
@@ -337,7 +420,7 @@ def _readme(manifest: dict, version: str) -> str:
         "3. Install Inno Setup 6 into `tools\\inno` (or system-wide).",
         "4. `installer\\build_release.bat` — tests, `MonographPDF.exe`, self-check, `uninstall.exe`, `Setup.exe`, this source archive.",
         "",
-        "The third-party archives build with their own instructions (PyMuPDF builds MuPDF from `mupdf-*-source.tar.gz`; Qt and PySide6 with CMake; the OCR libraries with the MSYS2 MINGW64 toolchain: unpack a `.src.tar.zst` and run `makepkg-mingw` in its folder).",
+        "The third-party archives build with their own instructions (PyMuPDF builds MuPDF from `mupdf-*-source.tar.gz`; Qt and PySide6 with CMake; the OCR libraries with the MSYS2 MINGW64 toolchain: unpack a `.corresponding-source.tar.gz`, place files beside the PKGBUILD, and run `makepkg-mingw`).",
         "",
         "Text files are stored exactly as committed in the repository (the repository keeps them with LF line endings); binary files are byte-identical.",
         "",
@@ -398,34 +481,39 @@ def build(out: Path, cache: Path, *, offline: bool = False, pin: bool = False, r
         record["commit"] = source.commit
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_suffix(".zip.part")
-    with zipfile.ZipFile(tmp, "w") as z:
-        def put(name: str, payload: bytes) -> None:
-            z.writestr(_zinfo(name, epoch, zipfile.ZIP_DEFLATED), payload, compresslevel=COMPRESS_LEVEL)
+    try:
+        with zipfile.ZipFile(tmp, "w") as z:
+            def put(name: str, payload: bytes) -> None:
+                z.writestr(_zinfo(name, epoch, zipfile.ZIP_DEFLATED), payload, compresslevel=COMPRESS_LEVEL)
 
-        for rel in files:
-            put(f"{top}/monograph-pdf/{rel}", data[rel])
-        for name in sorted(LICENSE_FILES):
-            put(f"{top}/LICENSES/{name}", data[LICENSE_FILES[name]])
-        for comp in manifest["components"]:
-            entry = {k: comp[k] for k in ("id", "name", "version", "license", "covers", "location") if k in comp}
-            entry["files"] = []
-            if comp["id"] == "monograph-pdf":
-                entry["files"] = [{"name": "monograph-pdf/", "count": len(files)}]
-            for f in comp["files"]:
-                arc = f"{top}/{comp['location']}{f['name']}"
-                # upstream archives are already compressed: store them as they are
-                with open(cache / f["name"], "rb") as src, z.open(_zinfo(arc, epoch, zipfile.ZIP_STORED), "w") as dst:
-                    shutil.copyfileobj(src, dst, 1 << 20)
-                entry["files"].append({"name": f["name"], "path": arc[len(top) + 1:], "sha256": f["sha256"], "source": f["urls"][0]})
-            for key in ("msys2", "binaries"):
-                if comp.get(key):
-                    entry[key] = comp[key]
-            if comp.get("notes"):
-                entry["notes"] = comp["notes"]
-            record["components"].append(entry)
-        put(f"{top}/SOURCE_MANIFEST.json", (json.dumps(record, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
-        put(f"{top}/README_SOURCE.md", _readme(manifest, version).encode("utf-8"))
-    tmp.replace(out)
+            for rel in files:
+                put(f"{top}/monograph-pdf/{rel}", data[rel])
+            for name in sorted(LICENSE_FILES):
+                put(f"{top}/LICENSES/{name}", data[LICENSE_FILES[name]])
+            for comp in manifest["components"]:
+                entry = {k: comp[k] for k in ("id", "name", "version", "license", "covers", "location") if k in comp}
+                entry["files"] = []
+                if comp["id"] == "monograph-pdf":
+                    entry["files"] = [{"name": "monograph-pdf/", "count": len(files)}]
+                for f in comp["files"]:
+                    arc = f"{top}/{comp['location']}{f['name']}"
+                    # upstream archives are already compressed: store them as they are
+                    with open(cache / f["name"], "rb") as src, z.open(_zinfo(arc, epoch, zipfile.ZIP_STORED), "w") as dst:
+                        shutil.copyfileobj(src, dst, 1 << 20)
+                    entry["files"].append({"name": f["name"], "path": arc[len(top) + 1:], "sha256": f["sha256"], "source": f["urls"][0]})
+                for key in ("msys2", "binaries"):
+                    if comp.get(key):
+                        entry[key] = comp[key]
+                if comp.get("notes"):
+                    entry["notes"] = comp["notes"]
+                record["components"].append(entry)
+            put(f"{top}/SOURCE_MANIFEST.json", (json.dumps(record, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
+            put(f"{top}/README_SOURCE.md", _readme(manifest, version).encode("utf-8"))
+        tmp.replace(out)
+    except Exception:
+        if tmp.exists():
+            tmp.unlink(missing_ok=True)
+        raise
     size = out.stat().st_size
     print(f"Wrote {out} ({size / 1048576:.1f} MB, {len(files)} Monograph PDF files, "
           f"{sum(len(c['files']) for c in manifest['components'])} third-party archives)")
