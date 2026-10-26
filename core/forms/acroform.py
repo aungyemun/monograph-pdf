@@ -33,6 +33,87 @@ def _widget_has_ap(doc: fitz.Document, widget: Any) -> bool:
         return False
 
 
+def resolve_widget_on_state(widget: Any, doc: fitz.Document | None = None) -> str:
+    """The on-state name for a checkbox/radio widget (``Yes``, ``On``, or a custom export value).
+
+    PyMuPDF exposes ``Widget.on_state`` as a *method* — never assign the unbound attribute to
+    ``field_value`` (that writes a bound-method repr and checkmarks vanish after Save).
+    """
+    on = getattr(widget, "on_state", None)
+    if callable(on):
+        try:
+            val = on()
+            if val not in (None, ""):
+                return str(val)
+        except Exception:  # noqa: BLE001
+            pass
+    elif on not in (None, ""):
+        return str(on)
+    try:
+        states = widget.button_states()
+        if isinstance(states, dict):
+            for key in ("normal", "down"):
+                names = states.get(key) or []
+                if not isinstance(names, (list, tuple)):
+                    continue
+                for name in names:
+                    s = str(name)
+                    if s and s.lower() != "off":
+                        return s
+    except Exception:  # noqa: BLE001
+        pass
+    if doc is not None:
+        try:
+            xref = int(getattr(widget, "xref", 0) or 0)
+            if xref > 0:
+                kind, ap = doc.xref_get_key(xref, "AP/N")
+                if kind == "dict" and ap:
+                    # Serialized appearance dict keys look like ``/Yes /Off`` etc.
+                    for token in str(ap).replace("<<", " ").replace(">>", " ").split():
+                        if token.startswith("/") and token[1:].lower() != "off":
+                            return token[1:]
+        except Exception:  # noqa: BLE001
+            pass
+    return "Yes"
+
+
+def clear_need_appearances(doc: fitz.Document) -> None:
+    """Force ``/NeedAppearances`` false after we write real appearance streams.
+
+    Relying on NeedAppearances alone breaks Chrome/Edge (they often ignore it). Callers must
+    still generate valid ``/AP`` streams via ``Widget.update()`` / custom appearance writers.
+    """
+    try:
+        if getattr(doc, "is_form_pdf", False):
+            doc.need_appearances(False)
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        # Also clear via catalog xref when present (covers edge cases where the setter no-ops).
+        cat = doc.pdf_catalog()
+        kind, acro = doc.xref_get_key(cat, "AcroForm")
+        if kind == "xref":
+            ax = int(str(acro).split()[0])
+            doc.xref_set_key(ax, "NeedAppearances", "false")
+        elif kind == "dict":
+            # Inline AcroForm — rewrite if NeedAppearances is present
+            if "NeedAppearances" in str(acro):
+                doc.xref_set_key(cat, "AcroForm/NeedAppearances", "false")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _widget_is_checked(widget: Any, raw_value: str) -> bool:
+    """Whether a checkbox/radio widget is currently on, using its real on-state name."""
+    value = str(raw_value or "").strip()
+    if not value or value.lower() in ("off", "no", "false", "0"):
+        return False
+    on_state = resolve_widget_on_state(widget)
+    if value == on_state or value.lstrip("/") == on_state.lstrip("/"):
+        return True
+    return value.lower() in ("yes", "on", "true", "1")
+
+
 # PDF font resource names in a field's /DA → (family shown in the UI, bold, italic)
 _DA_FONTS = {
     "helv": ("Helvetica", False, False), "hebo": ("Helvetica", True, False),
@@ -117,10 +198,7 @@ def _widget_to_field(page_index: int, widget: Any, doc: fitz.Document | None = N
 
     checked = False
     if ftype in (FieldType.CHECKBOX, FieldType.RADIO):
-        on_state = getattr(widget, "on_state", None)
-        checked = bool(raw_value and on_state and str(raw_value) == str(on_state)) or (
-            str(raw_value).lower() in ("yes", "on", "true", "1")
-        )
+        checked = _widget_is_checked(widget, raw_value)
         value = ""
     else:
         value = sanitize_field_value(name, raw_value)
@@ -234,7 +312,7 @@ def apply_field_values_to_doc(doc: fitz.Document, fields: list[FormField]) -> No
             try:
                 w.rect = rect_to_page(page, fitz.Rect(model.rect.x, model.rect.y, model.rect.x1, model.rect.y1))
                 if model.field_type in (FieldType.CHECKBOX, FieldType.RADIO):
-                    on_state = getattr(w, "on_state", None) or "Yes"
+                    on_state = resolve_widget_on_state(w, doc)
                     w.field_value = on_state if model.checked else "Off"
                 elif model.field_type == FieldType.SIGNATURE:
                     # Never invent cryptographic signature data — leave visual widget only.
@@ -249,6 +327,13 @@ def apply_field_values_to_doc(doc: fitz.Document, fields: list[FormField]) -> No
                 if getattr(model, "style_dirty", False):
                     _apply_text_style(doc, w, model)
                 w.update()
+                if model.field_type in (FieldType.CHECKBOX, FieldType.RADIO) and xref:
+                    # Ensure /AS matches /V — some viewers (Chrome) ignore /V without a matching appearance state.
+                    try:
+                        as_name = resolve_widget_on_state(w, doc) if model.checked else "Off"
+                        doc.xref_set_key(xref, "AS", f"/{as_name}")
+                    except Exception:  # noqa: BLE001
+                        pass
                 _restore_cjk_da(doc, xref, orig_da, model)
                 if model.field_type in (FieldType.TEXT, FieldType.MULTILINE, FieldType.DATE):
                     from core.forms.appearance import needs_custom_appearance, write_text_appearance
@@ -270,6 +355,8 @@ def apply_field_values_to_doc(doc: fitz.Document, fields: list[FormField]) -> No
                 write_text_appearance(doc, widget, model)
         except Exception:  # noqa: BLE001 — keep MuPDF's appearance rather than fail the save
             pass
+
+    clear_need_appearances(doc)
 
 
 def _field_dict_xref(doc: fitz.Document, xref: int) -> int:
@@ -510,7 +597,8 @@ def create_widget_on_page(
     w.field_type = type_map.get(field.field_type, getattr(fitz, "PDF_WIDGET_TYPE_TEXT", 7))
     w.field_name = field.name or f"field_{field.object_id[:8]}"
     w.rect = rect_to_page(page, fitz.Rect(field.rect.x, field.rect.y, field.rect.x1, field.rect.y1))
-    w.field_value = field.value
+    if field.field_type not in (FieldType.CHECKBOX, FieldType.RADIO):
+        w.field_value = field.value
     w.text_fontsize = field.font_size
     if field.field_type == FieldType.MULTILINE:
         w.field_flags = getattr(fitz, "PDF_TX_FIELD_IS_MULTILINE", 1 << 12)
@@ -518,6 +606,15 @@ def create_widget_on_page(
         w.choice_values = field.options
     apply_box_colors(w, field)  # background / border chosen for the new field (none = transparent)
     page.add_widget(w)
+    if field.field_type in (FieldType.CHECKBOX, FieldType.RADIO):
+        try:
+            live = page.load_widget(int(w.xref)) or w
+            on_state = resolve_widget_on_state(live, doc)
+            live.field_value = on_state if field.checked else "Off"
+            live.update()
+            doc.xref_set_key(int(live.xref), "AS", f"/{on_state if field.checked else 'Off'}")
+        except Exception:  # noqa: BLE001
+            pass
     if page.rotation:
         try:  # /MK /R: the entry reads upright on a turned page
             doc.xref_set_key(int(w.xref), "MK/R", str(int(page.rotation)))

@@ -23,6 +23,8 @@ class ImageBox:
     lock_aspect: bool = True
     # Crop in normalized image coords 0..1 (left, top, right, bottom)
     crop: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)
+    flip_h: bool = False
+    flip_v: bool = False
     z_index: int = 0
     object_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     # "signature" for a visual signature (a picture of a signature — not a certificate-based one)
@@ -43,6 +45,8 @@ class ImageBox:
             rotation=self.rotation,
             lock_aspect=self.lock_aspect,
             crop=self.crop,
+            flip_h=self.flip_h,
+            flip_v=self.flip_v,
             z_index=self.z_index,
             object_id=str(uuid.uuid4()),
             role=self.role,
@@ -66,6 +70,8 @@ class ImageBox:
             "rotation": self.rotation,
             "lock_aspect": self.lock_aspect,
             "crop": list(self.crop),
+            "flip_h": self.flip_h,
+            "flip_v": self.flip_v,
             "z_index": self.z_index,
             "role": self.role,
             "signature": dict(self.signature),
@@ -83,6 +89,8 @@ class ImageBox:
             rotation=float(data.get("rotation", 0.0)),
             lock_aspect=bool(data.get("lock_aspect", True)),
             crop=(float(crop[0]), float(crop[1]), float(crop[2]), float(crop[3])),
+            flip_h=bool(data.get("flip_h", False)),
+            flip_v=bool(data.get("flip_v", False)),
             z_index=int(data.get("z_index", 0)),
             object_id=str(data.get("object_id") or uuid.uuid4()),
             role=str(data.get("role") or ""),
@@ -106,6 +114,10 @@ def export_image_box(box: ImageBox, destination: Path) -> Path:
     w, h = im.size
     l, t, r, b = box.crop
     box_px = im.crop((int(l * w), int(t * h), int(r * w), int(b * h)))
+    if box.flip_h:
+        box_px = box_px.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+    if box.flip_v:
+        box_px = box_px.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
     if abs(box.rotation) > 0.01:
         box_px = box_px.rotate(-box.rotation, expand=True, fillcolor=(255, 255, 255))
     if box.opacity < 0.999:

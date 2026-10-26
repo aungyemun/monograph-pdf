@@ -646,7 +646,15 @@ def add_callout(
     """Free-text annotation with optional callout line (best-effort); returns the xrefs created."""
     page = _page(document, page_index)
     fr = _fitz_rect(rect)
-    annot = page.add_freetext_annot(fr, text, fontsize=10, fontname="helv", border_color=(0, 0, 0))
+    annot = page.add_freetext_annot(
+        fr,
+        text,
+        fontsize=11,
+        fontname="helv",
+        text_color=(0, 0, 0),
+        fill_color=(1, 1, 1),
+        border_color=(0, 0, 0),
+    )
     made = [int(annot.xref)]
     if callout_point is not None:
         try:

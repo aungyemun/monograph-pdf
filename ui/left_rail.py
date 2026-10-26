@@ -42,6 +42,7 @@ class LeftRail(QTabWidget):
     pageActivated = Signal(int)
     pagesReordered = Signal(list)
     searchRequested = Signal(str)
+    searchHitActivated = Signal(int)  # 0-based match index in the current search results
     bookmarkActivated = Signal(int)
     # Bookmark editing requests (index in the flat outline; -1 = none selected)
     bookmarkAddRequested = Signal(int)
@@ -247,32 +248,43 @@ class LeftRail(QTabWidget):
         return self.thumbs.selected_page_indices()
 
     def set_search_hits(self, labels: list[tuple[int, str]]) -> None:
+        """``labels``: one entry per match ``(page_index, snippet)`` in search order."""
         self._search_results.clear()
-        for page_index, snippet in labels:
-            item = QListWidgetItem(f"Page {page_index + 1}\n{snippet}")
-            item.setData(Qt.ItemDataRole.UserRole, page_index)
+        for hit_index, (page_index, snippet) in enumerate(labels):
+            item = QListWidgetItem(f"Match {hit_index + 1} · page {page_index + 1}\n{snippet}")
+            item.setData(Qt.ItemDataRole.UserRole, hit_index)
+            item.setData(Qt.ItemDataRole.UserRole + 1, page_index)
             item.setToolTip(snippet)
             self._search_results.addItem(item)
         n = len(labels)
-        self._search_count.setText("" if not n else f"Found on {n} page{'s' if n != 1 else ''}")
+        pages = len({p for p, _ in labels}) if labels else 0
+        self._search_count.setText(
+            "" if not n else f"{n} match{'es' if n != 1 else ''} on {pages} page{'s' if pages != 1 else ''}"
+        )
         if labels:
             self.setCurrentIndex(self._search_tab)
 
     def add_search_hits(self, labels: list[tuple[int, str]], *, total: int) -> None:
         """More results of a search that is still running, added below the listed ones."""
-        for page_index, snippet in labels:
-            item = QListWidgetItem(f"Page {page_index + 1}\n{snippet}")
-            item.setData(Qt.ItemDataRole.UserRole, page_index)
+        start = self._search_results.count()
+        for offset, (page_index, snippet) in enumerate(labels):
+            hit_index = start + offset
+            item = QListWidgetItem(f"Match {hit_index + 1} · page {page_index + 1}\n{snippet}")
+            item.setData(Qt.ItemDataRole.UserRole, hit_index)
+            item.setData(Qt.ItemDataRole.UserRole + 1, page_index)
             item.setToolTip(snippet)
             self._search_results.addItem(item)
-        self._search_count.setText(f"Found on {total} page{'s' if total != 1 else ''}")
+        pages_hint = ""
+        self._search_count.setText(
+            f"{total} match{'es' if total != 1 else ''}{pages_hint}"
+        )
 
     def _emit_search(self) -> None:
         self.searchRequested.emit(self._search.text())
 
     def _on_result(self, item: QListWidgetItem) -> None:
-        idx = int(item.data(Qt.ItemDataRole.UserRole))
-        self.pageActivated.emit(idx)
+        hit_index = int(item.data(Qt.ItemDataRole.UserRole))
+        self.searchHitActivated.emit(hit_index)
 
     def _on_bookmark(self, item: QListWidgetItem) -> None:
         idx = int(item.data(Qt.ItemDataRole.UserRole))

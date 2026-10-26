@@ -1,4 +1,8 @@
-"""Settings dialog (File ▸ Settings…). Currently one page: Updates."""
+"""Settings dialog (File ▸ Settings…).
+
+Application preferences only (updates, theme, etc.). Per-file metadata belongs in
+Document ▸ Document Properties — not here (FEATURE-05).
+"""
 
 from __future__ import annotations
 
@@ -112,6 +116,13 @@ class SettingsDialog(QDialog):
         self.setWindowTitle("Settings")
         self.setMinimumWidth(500)
         lay = QVBoxLayout(self)
+        hint = QLabel(
+            "Application preferences for this PC. To view or edit the open PDF’s title, author, "
+            "and other file metadata, use Document ▸ Document Properties."
+        )
+        hint.setWordWrap(True)
+        hint.setObjectName("ContextHint")
+        lay.addWidget(hint)
         self.tabs = QTabWidget()
         self.updates = UpdatesPage(prefs, controller, self)
         self.tabs.addTab(self.updates, "Updates")

@@ -30,7 +30,7 @@ class FormField:
     options: list[str] = field(default_factory=list)  # dropdown / radio export values
     checked: bool = False
     multiline: bool = False
-    font_family: str = "sans-serif"
+    font_family: str = "Helvetica"  # clean sans-serif default; black text via text_color
     font_size: float = 11.0
     bold: bool = False
     italic: bool = False

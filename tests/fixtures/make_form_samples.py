@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import fitz
@@ -257,13 +258,31 @@ def write_hybrid_xfa_like_form(path: Path) -> None:
     doc.close()
 
 
-def main() -> int:
+def main(*, force: bool | None = None) -> int:
+    """Create form fixtures. Existing files are kept unless force / MONOGRAPH_REGEN_SAMPLES."""
+    if force is None:
+        force = os.environ.get("MONOGRAPH_REGEN_SAMPLES", "").strip().lower() in ("1", "true", "yes")
     SAMPLES.mkdir(parents=True, exist_ok=True)
-    write_english_invitation_form(SAMPLES / "sample_invitation_form.pdf")
-    write_japanese_admin_form(SAMPLES / "sample_jp_admin_form.pdf")
-    write_table_itinerary(SAMPLES / "sample_itinerary_table.pdf")
-    write_hybrid_xfa_like_form(SAMPLES / "sample_hybrid_xfa_itinerary.pdf")
-    print(f"Wrote form/table fixtures to {SAMPLES}")
+    targets = [
+        (SAMPLES / "sample_invitation_form.pdf", write_english_invitation_form),
+        (SAMPLES / "sample_jp_admin_form.pdf", write_japanese_admin_form),
+        (SAMPLES / "sample_itinerary_table.pdf", write_table_itinerary),
+        (SAMPLES / "sample_hybrid_xfa_itinerary.pdf", write_hybrid_xfa_like_form),
+    ]
+    wrote = 0
+    for path, writer in targets:
+        if force or not path.is_file() or path.stat().st_size <= 0:
+            try:
+                writer(path)
+                wrote += 1
+            except OSError as exc:
+                if path.is_file():
+                    print(f"keep existing {path.name} (locked: {exc})")
+                else:
+                    raise
+        else:
+            print(f"keep existing {path.name}")
+    print(f"Wrote {wrote} form fixture(s) to {SAMPLES} (force={force})")
     return 0
 
 

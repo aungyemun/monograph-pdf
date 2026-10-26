@@ -622,7 +622,7 @@ class RotatePagesDialog(QDialog):
         self._preview_image = preview() if callable(preview) else None
         self._current_rotation = int(current_rotation) % 360
         self.setWindowTitle("Rotate Pages")
-        self.setMinimumWidth(520)
+        self.setMinimumSize(720, 480)
         root = QVBoxLayout(self)
         root.setSpacing(10)
         title = QLabel("Rotate pages")
@@ -668,13 +668,39 @@ class RotatePagesDialog(QDialog):
         left.addWidget(hint)
         left.addStretch(1)
         top.addLayout(left, 1)
+        from PySide6.QtWidgets import QScrollArea
+
+        preview_col = QVBoxLayout()
+        zoom_row = QHBoxLayout()
+        self._preview_zoom = 1.0
+        self._zoom_out = QToolButton()
+        self._zoom_out.setText("−")
+        self._zoom_out.setToolTip("Zoom out")
+        self._zoom_out.clicked.connect(lambda: self._nudge_preview_zoom(0.8))
+        self._zoom_fit = QToolButton()
+        self._zoom_fit.setText("Fit")
+        self._zoom_fit.setToolTip("Fit page in the preview")
+        self._zoom_fit.clicked.connect(lambda: self._set_preview_zoom(1.0))
+        self._zoom_in = QToolButton()
+        self._zoom_in.setText("+")
+        self._zoom_in.setToolTip("Zoom in")
+        self._zoom_in.clicked.connect(lambda: self._nudge_preview_zoom(1.25))
+        zoom_row.addWidget(self._zoom_out)
+        zoom_row.addWidget(self._zoom_fit)
+        zoom_row.addWidget(self._zoom_in)
+        zoom_row.addStretch(1)
+        preview_col.addLayout(zoom_row)
+        self._preview_scroll = QScrollArea()
+        self._preview_scroll.setWidgetResizable(False)
+        self._preview_scroll.setMinimumSize(320, 320)
+        self._preview_scroll.setStyleSheet("QScrollArea { border: 1px solid #9aa3af; border-radius: 4px; }")
         self._preview = QLabel()
-        self._preview.setFixedSize(150, 150)
         self._preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._preview.setToolTip("Preview of the current page")
-        self._preview.setStyleSheet("QLabel { border: 1px solid #9aa3af; border-radius: 4px; }")
-        top.addWidget(self._preview)
-        root.addLayout(top)
+        self._preview.setToolTip("Enlarged preview of the current page — Zoom with + / − / Fit")
+        self._preview_scroll.setWidget(self._preview)
+        preview_col.addWidget(self._preview_scroll, 1)
+        top.addLayout(preview_col, 1)
+        root.addLayout(top, 1)
 
         root.addWidget(QLabel("Pages:"))
         self._group = QButtonGroup(self)
@@ -716,6 +742,13 @@ class RotatePagesDialog(QDialog):
         """Target orientation (0, 90, 180, 270) when an exact orientation is chosen."""
         return int(self.exact.currentData())
 
+    def _nudge_preview_zoom(self, factor: float) -> None:
+        self._set_preview_zoom(max(0.4, min(4.0, float(getattr(self, "_preview_zoom", 1.0)) * factor)))
+
+    def _set_preview_zoom(self, zoom: float) -> None:
+        self._preview_zoom = float(zoom)
+        self._update_preview()
+
     def _update_preview(self) -> None:
         from PySide6.QtGui import QPixmap, QTransform
 
@@ -725,8 +758,13 @@ class RotatePagesDialog(QDialog):
             return
         turn = (self.exact_rotation() - self._current_rotation) if self.is_exact() else self.degrees()
         pm = QPixmap.fromImage(img).transformed(QTransform().rotate(turn % 360))
-        self._preview.setPixmap(pm.scaled(140, 140, Qt.AspectRatioMode.KeepAspectRatio,
-                                          Qt.TransformationMode.SmoothTransformation))
+        # Fit baseline ~300 px; zoom multiplies that (FEATURE-06 enlarged preview).
+        base = 300
+        side = max(120, int(round(base * float(getattr(self, "_preview_zoom", 1.0)))))
+        scaled = pm.scaled(side, side, Qt.AspectRatioMode.KeepAspectRatio,
+                           Qt.TransformationMode.SmoothTransformation)
+        self._preview.setPixmap(scaled)
+        self._preview.resize(scaled.size())
 
     def degrees(self) -> int:
         """Relative turn: -90 (counterclockwise), 90 (clockwise) or 180."""
