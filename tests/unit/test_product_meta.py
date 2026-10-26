@@ -162,4 +162,9 @@ def test_icons_come_from_the_new_logo_without_distortion():
 def test_old_pdf_editor_logo_is_not_an_active_resource():
     names = [p.name for p in ICONS.rglob("*") if p.is_file()]
     assert not [n for n in names if n.lower().startswith("pdf_editor") or n == "PDF_logo.png"], names
-    assert not (ICONS / "linux").exists() and not (ICONS / "macos").exists()
+    # Linux FreeDesktop icons are not shipped yet; macOS may ship monograph_pdf.icns only.
+    assert not (ICONS / "linux").exists()
+    mac = ICONS / "macos"
+    if mac.exists():
+        mac_names = sorted(p.name for p in mac.iterdir() if p.is_file())
+        assert mac_names == ["monograph_pdf.icns"], mac_names

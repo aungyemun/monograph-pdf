@@ -12,7 +12,7 @@ Monograph PDF uses **one protected `main` branch** with shared application code 
 | Platform versions | `versions/windows.txt`, `versions/linux.txt`, `versions/macos.txt` | Independent SemVer lines |
 | Windows packaging | `installer/*.iss`, `scripts/build_*.ps1`, `scripts/signing/` | Inno Setup; signed update manifests |
 | Linux packaging | `installer/linux/`, `scripts/setup_env.sh`, `scripts/vendor_ocr.sh` | Per-user install; no auto-updates yet |
-| macOS packaging | (integration branch / `macos` tip) `scripts/build_app.sh`, `package_macos.sh` | `.app` / dmg / pkg — land via macOS PR |
+| macOS packaging | `scripts/build_app.sh`, `package_macos.sh`, `vendor_ocr_macos.sh` | `.app` / dmg / pkg (ad-hoc codesign locally; Developer ID separate) |
 
 Root `VERSION` **mirrors the Windows line** so existing Windows build tools keep working.
 Runtime code must use `core.versioning.get_version()` (host OS) or
