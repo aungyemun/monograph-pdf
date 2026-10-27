@@ -18,6 +18,12 @@ done
 
 pick_python() {
   local candidates=()
+  local local_python
+  for local_python in "$ROOT/tools/python/python/bin/python3.11" "$ROOT/tools/python/bin/python3.11"; do
+    if [[ -x "$local_python" ]]; then
+      candidates+=("$local_python")
+    fi
+  done
   if command -v python3.11 >/dev/null 2>&1; then
     candidates+=("python3.11")
   fi
@@ -30,7 +36,7 @@ pick_python() {
   local c ver
   for c in "${candidates[@]}"; do
     ver="$("$c" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || true)"
-    if [[ "$ver" == "3.11" ]] || [[ "$ALLOW_OTHER" == "1" && -n "$ver" ]]; then
+    if [[ "$ver" == "3.11" ]] || [[ "$ALLOW_OTHER" == "1" && "$ver" == 3.* ]]; then
       echo "$c"
       return 0
     fi

@@ -12,7 +12,7 @@ face and the caller is told (``take_notes``):
 
 Only a subset of the glyphs actually used goes into the user's PDF (done by the caller with
 ``Document.subset_fonts``). No font file is copied anywhere else, shipped or redistributed.
-Windows only (font files are found through the registry); elsewhere nothing is embedded.
+Windows uses the font registry; macOS uses the system and user font folders.
 """
 
 from __future__ import annotations
@@ -44,8 +44,83 @@ def take_notes() -> dict[str, str]:
     return out
 
 
+_FONT_SUFFIXES = {".ttf", ".otf", ".ttc", ".otc"}
+
+
+def _index_font_file(found: dict[str, Path], path: Path) -> None:
+    """Add face-name aliases for ``path`` into ``found`` (best-effort; skip unreadable files)."""
+    try:
+        from fontTools.ttLib import TTCollection, TTFont
+    except ImportError:  # pragma: no cover
+        found.setdefault(path.stem.lower(), path)
+        return
+    try:
+        if path.suffix.lower() in {".ttc", ".otc"}:
+            coll = TTCollection(str(path), lazy=True)
+            try:
+                for font in coll.fonts:
+                    _add_names_from_ttfont(found, path, font)
+            finally:
+                coll.close()
+        else:
+            font = TTFont(str(path), lazy=True, fontNumber=0)
+            try:
+                _add_names_from_ttfont(found, path, font)
+            finally:
+                font.close()
+    except Exception:  # noqa: BLE001
+        found.setdefault(path.stem.lower().replace("-", " ").replace("_", " "), path)
+
+
+def _add_names_from_ttfont(found: dict[str, Path], path: Path, font) -> None:
+    if "name" not in font:
+        return
+    for rec in font["name"].names:
+        if rec.nameID not in (1, 4, 16):
+            continue
+        try:
+            text = rec.toUnicode().strip().lower()
+        except Exception:  # noqa: BLE001
+            continue
+        if text:
+            found.setdefault(text, path)
+
+
+def _macos_fonts(roots: tuple[Path, ...] | None = None) -> dict[str, Path]:
+    """Index TrueType / OpenType faces under the usual macOS font folders."""
+    found: dict[str, Path] = {}
+    roots = roots if roots is not None else (
+        Path.home() / "Library" / "Fonts",
+        Path("/Library/Fonts"),
+        Path("/System/Library/Fonts"),
+        Path("/System/Library/Fonts/Supplemental"),
+        Path("/Network/Library/Fonts"),
+    )
+    for root in roots:
+        if not root.is_dir():
+            continue
+        try:
+            entries = list(root.rglob("*"))
+        except OSError:
+            continue
+        for path in entries:
+            if path.suffix.lower() not in _FONT_SUFFIXES or not path.is_file():
+                continue
+            _index_font_file(found, path)
+    return found
+
+
 @lru_cache(maxsize=1)
 def _registry_fonts() -> dict[str, Path]:
+    """Lower-case face name (``arial bold``) → file, from the OS font catalogue."""
+    if sys.platform.startswith("win"):
+        return _windows_registry_fonts()
+    if sys.platform == "darwin":
+        return _macos_fonts()
+    return {}
+
+
+def _windows_registry_fonts() -> dict[str, Path]:
     """Lower-case face name (``arial bold``) → file, from the Windows font registry."""
     found: dict[str, Path] = {}
     if not sys.platform.startswith("win"):

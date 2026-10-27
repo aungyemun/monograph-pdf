@@ -34,9 +34,17 @@ def probe_pyside6() -> EngineStatus:
 
 
 def probe_qpdf() -> EngineStatus:
-    candidate = ENGINES_DIR / "qpdf" / "bin" / "qpdf.exe"
-    if candidate.is_file():
-        return EngineStatus("qpdf", True, str(candidate.relative_to(ROOT)))
+    import sys
+
+    names = ("qpdf.exe",) if sys.platform.startswith("win") else ("qpdf", "qpdf.exe")
+    for name in names:
+        candidate = ENGINES_DIR / "qpdf" / "bin" / name
+        if candidate.is_file():
+            try:
+                detail = str(candidate.relative_to(ROOT))
+            except ValueError:
+                detail = str(candidate)
+            return EngineStatus("qpdf", True, detail)
     return EngineStatus("qpdf", False, "optional structural toolkit not present")
 
 
