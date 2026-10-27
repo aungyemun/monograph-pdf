@@ -111,6 +111,14 @@ def test_child_user_guide_and_changelogs_removed():
     assert (ROOT / "CHANGELOG.md").is_file()
 
 
+def test_current_document_metadata_satisfies_windows_release_contract():
+    """User-facing metadata must still pass the actual Windows packaging verifier."""
+    from core.versioning import get_version
+    from scripts.packaging.verify_release import version_problems
+
+    assert version_problems(get_version("windows"), ROOT) == []
+
+
 def test_no_stale_doc_paths_in_source_tree():
     roots = [
         ROOT / "README.md",

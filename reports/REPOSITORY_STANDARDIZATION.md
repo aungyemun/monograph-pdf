@@ -55,8 +55,9 @@ Screenshot assets illustrate the Windows interface and are not presented as nati
 INSTALLATION, SECURITY, CONTRIBUTING, LICENSE.md, THIRD_PARTY_NOTICES and CITATION were reviewed
 and updated. SECURITY no longer offers an unpublished 0.5.0 draft as an available security upgrade.
 Contribution rules allow the existing consent-controlled network features and reserve version bumps
-for approved release work. Citation metadata is repository-wide and no longer asserts a release
-version/date for unpublished 0.5.0; application version numbers were not changed.
+for approved release work. Citation metadata retains the existing Windows 0.5.0 version field
+required by the release verifier, explains that it tracks prepared source and removes the
+unsupported release date. Application version numbers were not changed.
 Copyright remains © 2026 Aung Ye Mun. Privacy guidance includes native storage locations and manual
 Linux/macOS upgrades. Historical release notes are retained as historical records.
 
@@ -84,7 +85,8 @@ packaging/Gatekeeper acceptance is still outside this test-only workflow. Trigge
 permissions, runners, dependencies and test commands remain unchanged. The canonical-document
 test's allowed set includes the two new documentation pages; the source-archive test expects this
 public standardization report alongside the existing public security audit. All existing privacy,
-license and archive checks remain enabled.
+license and archive checks remain enabled. A real-tree metadata contract test also checks current
+documentation against the existing Windows release verifier, including its citation version field.
 All three native PR workflows are required validation before merge. Their current results are
 available in the PR Checks tab; no merge or release publication is authorized by a green test job.
 
@@ -96,13 +98,13 @@ The initial run found the new docs absent from Git's source selection because th
 committed; the source selector deliberately reads HEAD, so the archive test is rerun after commit.
 That rerun also identified the archive test's exact report inventory, which is updated to include
 this public report while retaining the existing privacy exclusions.
-Local Windows result: **115 passed, 4 skipped, 0 failed** across ten relevant test modules.
+Local Windows result: **131 passed, 4 skipped, 0 failed** across eleven relevant test modules.
 Three skipped Linux FreeDesktop cases require Linux; the fourth requires a local synthetic test
 build (`build/e2e/out`). All four remain unverified locally.
 Command: `python -m pytest -p no:cacheprovider -o addopts="" -q -rs` with
 `test_docs_canonical`, `test_installer_and_docs`, `test_product_meta`, `test_paths`,
 `test_platform_versions`, `test_macos_integration`, `test_linux_desktop`, `test_source_archive`
-and `test_release_scripts`, plus `test_code_signing_readiness`, from `tests/unit/`.
+and `test_release_scripts`, plus `test_code_signing_readiness` and `test_verify_release`, from `tests/unit/`.
 The source-archive tests use synthetic upstream
 stand-ins; no production release is built or published.
 
@@ -112,6 +114,10 @@ verified against GitHub; issue/security-report URLs resolve to login as expected
 vulnerability reporting is enabled. Branding scan: zero stale-branding findings. CFF 1.2.0 schema
 validation passes with cffconvert; the pre-existing citation BOM was removed for parser compatibility.
 Canonical LICENSE and its embedded copy remain intact and match the SPDX reference as described above.
+
+Compatibility review also verified that the retained citation version satisfies the actual release
+metadata verifier. The complete local rerun includes its synthetic release tests; no verifier was
+weakened to accept missing version metadata.
 
 The first full Linux CI run exposed an omitted direct README signing-policy link; that link was
 restored without changing the existing signing-policy test. The run otherwise had 1,872 passes
