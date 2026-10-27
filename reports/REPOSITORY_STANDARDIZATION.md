@@ -96,12 +96,14 @@ The initial run found the new docs absent from Git's source selection because th
 committed; the source selector deliberately reads HEAD, so the archive test is rerun after commit.
 That rerun also identified the archive test's exact report inventory, which is updated to include
 this public report while retaining the existing privacy exclusions.
-Local Windows result: **91 passed, 3 skipped, 0 failed** across nine relevant test modules.
-The three skipped Linux FreeDesktop cases require Linux and remain unverified locally.
+Local Windows result: **115 passed, 4 skipped, 0 failed** across ten relevant test modules.
+Three skipped Linux FreeDesktop cases require Linux; the fourth requires a local synthetic test
+build (`build/e2e/out`). All four remain unverified locally.
 Command: `python -m pytest -p no:cacheprovider -o addopts="" -q -rs` with
 `test_docs_canonical`, `test_installer_and_docs`, `test_product_meta`, `test_paths`,
 `test_platform_versions`, `test_macos_integration`, `test_linux_desktop`, `test_source_archive`
-and `test_release_scripts` from `tests/unit/`. The source-archive tests use synthetic upstream
+and `test_release_scripts`, plus `test_code_signing_readiness`, from `tests/unit/`.
+The source-archive tests use synthetic upstream
 stand-ins; no production release is built or published.
 
 Additional checks: 50 unique local link targets/anchors resolve; the official logo and three
@@ -115,8 +117,16 @@ The first full Linux CI run exposed an omitted direct README signing-policy link
 restored without changing the existing signing-policy test. The run otherwise had 1,872 passes
 and 95 skips. A fresh three-platform run validates the correction.
 
-Native CI is tracked on [PR #8](https://github.com/aungyemun/monograph-pdf/pull/8).
-Final workflow outcomes and per-platform skip counts are recorded after the CI run completes.
+Native CI evidence is tracked on [PR #8](https://github.com/aungyemun/monograph-pdf/pull/8):
+Windows CI, Linux CI and macOS CI. The PR description records completed workflow outcomes and
+per-platform pass/skip counts; the Checks tab links the full logs and JUnit artifacts for its latest
+head. Those run-specific records are the source for CI results, including skipped-test reasons,
+rather than a static claim that every platform dependency or native workflow has been verified.
+
+Final safety comparison: all pre-existing remote branch/tag refs and all seven release API records
+match the pre-change snapshot. Only the requested development branch is added. The original main
+checkout and its untracked user work remain intact; canonical LICENSE, application source, native
+installer code, resources/trust configuration and all platform version files have no diff.
 
 ## 10. Remaining risks and release follow-ups
 
