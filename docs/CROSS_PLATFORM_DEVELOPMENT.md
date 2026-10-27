@@ -1,7 +1,10 @@
-# Cross-platform development (Option B)
+# Cross-platform development
 
 Monograph PDF uses **one protected `main` branch** with shared application code and
-**independent Windows, Linux and macOS implementations**, versions and release schedules.
+**Windows, Linux and macOS adapters**, independent versions and release schedules.
+
+The [repository ownership map](REPOSITORY_LAYOUT.md) defines the stable code, packaging and resource
+boundaries. Platform integrations are on `main`; retained legacy branches are recovery sources.
 
 ## Architecture
 
@@ -12,7 +15,7 @@ Monograph PDF uses **one protected `main` branch** with shared application code 
 | Platform versions | `versions/windows.txt`, `versions/linux.txt`, `versions/macos.txt` | Independent SemVer lines |
 | Windows packaging | `installer/*.iss`, `scripts/build_*.ps1`, `scripts/signing/` | Inno Setup; signed update manifests |
 | Linux packaging | `installer/linux/`, `scripts/setup_env.sh`, `scripts/vendor_ocr.sh` | Per-user install; no auto-updates yet |
-| macOS packaging | `scripts/build_app.sh`, `package_macos.sh`, `vendor_ocr_macos.sh` | `.app` / dmg / pkg (ad-hoc codesign locally; Developer ID separate) |
+| macOS packaging | `scripts/build_app.sh`, `scripts/package_macos.sh`, `scripts/vendor_ocr_macos.sh` | `.app` / dmg / pkg (ad-hoc codesign locally; Developer ID separate) |
 
 Root `VERSION` **mirrors the Windows line** so existing Windows build tools keep working.
 Runtime code must use `core.versioning.get_version()` (host OS) or
@@ -52,7 +55,8 @@ git push -u origin HEAD
 
 Windows: run `scripts/setup_env.ps1`, `scripts/run_tests.ps1`, Inno builds.  
 Linux: `bash scripts/setup_env.sh`, `bash scripts/run_tests.sh`, `installer/linux/install.sh`.  
-macOS: use the macOS scripts once they are on `main` (see macOS integration PR).
+macOS: run `scripts/setup_env.sh`, `scripts/run_tests.sh`, `scripts/build_app.sh` and
+`scripts/package_macos.sh` on a native macOS machine. Build/package scripts are now on `main`.
 
 ## CI
 

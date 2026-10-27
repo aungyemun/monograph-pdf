@@ -11,6 +11,9 @@ First macOS line of Monograph PDF. Versioned independently of Windows (`versions
 
 ## Develop from source
 
+Use the unified `main` checkout. The retained `macos` branch is a legacy recovery source.
+Python 3.11 and native macOS build tools are required; LibreOffice is optional for Office conversion.
+
 ```bash
 bash scripts/setup_env.sh
 bash scripts/vendor_ocr_macos.sh   # optional: stage local OCR into engines/ocr

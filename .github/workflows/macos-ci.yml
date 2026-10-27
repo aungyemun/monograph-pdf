@@ -1,5 +1,5 @@
 # macOS CI for Monograph PDF (Option B). Runs on macOS; never builds or publishes a release.
-# Full .app / dmg / pkg packaging remains a local acceptance test until package scripts land on main.
+# Full .app / dmg / pkg packaging remains a native acceptance test; this workflow runs tests only.
 name: macOS CI
 
 on:
@@ -66,7 +66,7 @@ jobs:
           {
             echo "## Test categories (macOS)"
             echo "Skipped tests are SKIPPED / NOT VERIFIED — never treated as passed."
-            echo ".app / dmg / pkg packaging is a local acceptance test until scripts/build_app.sh is on main."
+            echo ".app / dmg / pkg packaging, Gatekeeper and install/upgrade remain separate native acceptance tests."
             if [ -f "$MONOGRAPH_TEST_CATEGORY_REPORT" ]; then cat "$MONOGRAPH_TEST_CATEGORY_REPORT"; fi
           } >> "$GITHUB_STEP_SUMMARY"
 

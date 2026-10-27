@@ -7,6 +7,9 @@ packaging and **independent versions** for Windows, Linux and macOS. See
 
 Windows end users run `MonographPDF.exe`. Linux and macOS use native packaging on those lines.
 
+See the [repository ownership map](REPOSITORY_LAYOUT.md) for compatibility boundaries and the
+[documentation index](README.md) for guides grouped by audience.
+
 ## Repository layout
 
 | Path | Contents |

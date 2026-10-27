@@ -31,6 +31,10 @@ This summary is for convenience only; the license text below is what applies.
   repository at the release tag. For questions about the source archive, contact
   **aungyemun25@gmail.com**.
 
+The license applies to the shared Windows, Linux and macOS source. Platform versions and packaging
+do not change the license. Third-party attribution and corresponding-source requirements remain
+component-specific; see the [dependency inventory](licenses/DEPENDENCY_INVENTORY.md).
+
 ## Licensing rationale (AGPL-3.0-or-later)
 
 Monograph PDF uses PyMuPDF / MuPDF (Artifex Software), which is licensed under AGPL-3.0, and

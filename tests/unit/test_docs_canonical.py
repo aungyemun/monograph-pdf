@@ -9,6 +9,8 @@ ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
 
 CANONICAL = {
+    "README.md",
+    "REPOSITORY_LAYOUT.md",
     "USER_GUIDE.md",
     # 0.5.0: how protected, signed and watermarked PDFs are handled by every output
     "PROTECTED_SIGNED_WATERMARKED_PDFS.md",
@@ -107,6 +109,14 @@ def test_child_user_guide_and_changelogs_removed():
     assert not (DOCS / "user_guide").exists()
     assert not (DOCS / "changelogs").exists()
     assert (ROOT / "CHANGELOG.md").is_file()
+
+
+def test_current_document_metadata_satisfies_windows_release_contract():
+    """User-facing metadata must still pass the actual Windows packaging verifier."""
+    from core.versioning import get_version
+    from scripts.packaging.verify_release import version_problems
+
+    assert version_problems(get_version("windows"), ROOT) == []
 
 
 def test_no_stale_doc_paths_in_source_tree():
