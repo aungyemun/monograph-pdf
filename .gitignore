@@ -12,11 +12,9 @@ __pycache__/
 htmlcov/
 .cache/
 
-# Build / dist intermediates (keep folders via .gitkeep)
-build/*
-!build/.gitkeep
-dist/*
-!dist/.gitkeep
+# Build / dist intermediates (created by the build scripts)
+/build/
+/dist/
 
 # Test outputs (keep structure)
 tests/outputs/logs/*
@@ -83,8 +81,7 @@ tests/integration/test_round6_real_pdfs.py
 # Third-party source downloads, local tools, OCR binaries and models (fetched by the build scripts)
 /packages/
 /tools/
-models/*
-!models/.gitkeep
+/models/
 engines/ocr/*
 !engines/ocr/MANIFEST.json
 
@@ -127,7 +124,6 @@ ENV/
 .tox/
 .nox/
 .hypothesis/
-.pytest_cache/
 /tests/outputs/**/*.png
 /tests/outputs/**/*.json
 /tests/outputs/**/*.txt
