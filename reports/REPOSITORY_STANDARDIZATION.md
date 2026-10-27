@@ -82,7 +82,9 @@ binary packages or replace release-time corresponding-source verification.
 Only macOS CI comments/summary wording changes: packaging scripts are already on main, while native
 packaging/Gatekeeper acceptance is still outside this test-only workflow. Triggers, pinned actions,
 permissions, runners, dependencies and test commands remain unchanged. The canonical-document
-test's allowed set includes the two new documentation pages; all existing checks remain enabled.
+test's allowed set includes the two new documentation pages; the source-archive test expects this
+public standardization report alongside the existing public security audit. All existing privacy,
+license and archive checks remain enabled.
 All three native PR workflows are required validation before merge. Their current results are
 available in the PR Checks tab; no merge or release publication is authorized by a green test job.
 
@@ -92,6 +94,8 @@ Local Windows validation covers canonical docs, installer/document contracts, br
 independent platform versions, Linux/macOS adapter contracts and source-archive/release scripts.
 The initial run found the new docs absent from Git's source selection because they were not yet
 committed; the source selector deliberately reads HEAD, so the archive test is rerun after commit.
+That rerun also identified the archive test's exact report inventory, which is updated to include
+this public report while retaining the existing privacy exclusions.
 Final local results and native CI links are recorded below after validation. Skips remain unverified.
 
 ## 10. Remaining risks and release follow-ups
