@@ -41,6 +41,27 @@ def test_macos_font_embedding_still_rejects_restricted_fonts(tmp_path, monkeypat
     assert "license" in sf.take_notes()["Noto Sans"]
 
 
+def test_macos_regular_family_does_not_resolve_to_first_bold_file(tmp_path):
+    regular = tmp_path / "regular.ttf"
+    regular.write_bytes((ROOT / "resources/fonts/NotoSans-Regular.ttf").read_bytes())
+    bold = tmp_path / "bold.ttf"
+    font = TTFont(str(regular))
+    try:
+        for record in font["name"].names:
+            if record.nameID in (2, 17):
+                record.string = "Bold".encode(record.getEncoding())
+            elif record.nameID == 4:
+                record.string = "Noto Sans Bold".encode(record.getEncoding())
+        font.save(str(bold))
+    finally:
+        font.close()
+    found = {}
+    sf._index_font_file(found, bold)
+    sf._index_font_file(found, regular)
+    assert found["noto sans"] == regular
+    assert found["noto sans bold"] == bold
+
+
 @pytest.mark.parametrize("platform,expected", [("darwin", "mac"), ("win32", "win"), ("linux", None)])
 def test_font_catalog_dispatch_preserves_windows_and_linux(platform, expected, monkeypatch):
     monkeypatch.setattr(sf, "sys", SimpleNamespace(platform=platform))

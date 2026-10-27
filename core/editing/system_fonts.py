@@ -75,8 +75,14 @@ def _index_font_file(found: dict[str, Path], path: Path) -> None:
 def _add_names_from_ttfont(found: dict[str, Path], path: Path, font) -> None:
     if "name" not in font:
         return
+    subfamily = (font["name"].getDebugName(17) or font["name"].getDebugName(2) or "").strip().lower()
+    regular = subfamily in {"", "regular", "normal", "roman", "book"}
     for rec in font["name"].names:
         if rec.nameID not in (1, 4, 16):
+            continue
+        # Family-only aliases must not select an arbitrary bold/italic file encountered first.
+        # Full names still make the explicit style available through _candidates().
+        if rec.nameID in (1, 16) and not regular:
             continue
         try:
             text = rec.toUnicode().strip().lower()
