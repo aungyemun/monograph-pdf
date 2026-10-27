@@ -96,7 +96,23 @@ The initial run found the new docs absent from Git's source selection because th
 committed; the source selector deliberately reads HEAD, so the archive test is rerun after commit.
 That rerun also identified the archive test's exact report inventory, which is updated to include
 this public report while retaining the existing privacy exclusions.
-Final local results and native CI links are recorded below after validation. Skips remain unverified.
+Local Windows result: **91 passed, 3 skipped, 0 failed** across nine relevant test modules.
+The three skipped Linux FreeDesktop cases require Linux and remain unverified locally.
+Command: `python -m pytest -p no:cacheprovider -o addopts="" -q -rs` with
+`test_docs_canonical`, `test_installer_and_docs`, `test_product_meta`, `test_paths`,
+`test_platform_versions`, `test_macos_integration`, `test_linux_desktop`, `test_source_archive`
+and `test_release_scripts` from `tests/unit/`. The source-archive tests use synthetic upstream
+stand-ins; no production release is built or published.
+
+Additional checks: 50 unique local link targets/anchors resolve; the official logo and three
+README screenshots decode successfully and were visually inspected. Published release links were
+verified against GitHub; issue/security-report URLs resolve to login as expected, and private
+vulnerability reporting is enabled. Branding scan: zero stale-branding findings. CFF 1.2.0 schema
+validation passes with cffconvert; the pre-existing citation BOM was removed for parser compatibility.
+Canonical LICENSE and its embedded copy remain intact and match the SPDX reference as described above.
+
+Native CI is tracked on [PR #8](https://github.com/aungyemun/monograph-pdf/pull/8).
+Final workflow outcomes and per-platform skip counts are recorded after the CI run completes.
 
 ## 10. Remaining risks and release follow-ups
 

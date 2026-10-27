@@ -1,4 +1,4 @@
-﻿cff-version: 1.2.0
+cff-version: 1.2.0
 title: "Monograph PDF"
 message: "Cite Monograph PDF and record the platform plus release tag or commit used. This repository citation does not assert a published release."
 type: software
@@ -15,8 +15,8 @@ abstract: >
   conversion, Office and image to PDF, AES-256 password protection with
   permissions, watermarks, visual signatures, true redaction and offline OCR
   (English and Japanese, with more languages installable). Monograph PDF connects
-  to the network only when the user checks for signed updates or downloads an
-  OCR language; optional Office conversion uses a locally installed suite.
+  to the network for optional update checks and explicit OCR-language downloads;
+  automatic checks are off by default. Optional Office conversion uses a locally installed suite.
 keywords:
   - PDF
   - PDF editor
