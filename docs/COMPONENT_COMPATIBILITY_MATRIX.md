@@ -11,7 +11,7 @@ Classification: **A** shared all · **B** shared two · **C** Windows · **D** L
 | Runtime paths | B/F | `platform_paths` + `app/paths` | `core/platform_paths.py`, `app/paths.py` |
 | Single-instance | F | Windows mutex; Unix `fcntl` | `app/single_instance.py` |
 | OCR discovery | F | Non-`.exe` names on Unix | `core/ocr/paths.py`, `scripts/vendor_ocr*` |
-| Fonts | C/E (+H Linux) | macOS dirs on macos tip; Linux fontconfig still TODO | `core/editing/system_fonts.py` |
+| Fonts | C/E (+H Linux) | Windows registry and macOS font folders; Linux fontconfig still TODO | `core/editing/system_fonts.py` |
 | Office conversion | A+C | COM Windows-only; LibreOffice PATH / Applications | `core/convert/office_bridge.py` |
 | Printing | A | Qt print; platform temp cleanup | `core/printing/`, `ui/print_dialog.py` |
 | Default PDF app | C+D | Windows Settings; Linux XDG (`linux_desktop`) | `ui/main_window.py`, `core/linux_desktop.py` |
