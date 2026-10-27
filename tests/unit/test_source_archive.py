@@ -310,7 +310,9 @@ def test_unpacked_source_builds_are_deterministic_too(tmp_path, monkeypatch):
 def test_rmtree_git_dir_tolerates_vanishing_maintenance_lock(tmp_path, monkeypatch):
     """Regression for macOS CI: maintenance.lock can disappear mid-rmtree (FileNotFoundError)."""
     root = tmp_path / "repo"
-    _synthetic_repo(root)
+    # Only the removal fault is under test. A live Git repository can start maintenance
+    # and remove this lock before rmtree reaches the injected unlink failure.
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0))
     git_dir = root / ".git"
     objects = git_dir / "objects"
     objects.mkdir(parents=True, exist_ok=True)
