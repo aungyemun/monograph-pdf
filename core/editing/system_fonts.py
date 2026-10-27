@@ -169,6 +169,8 @@ def _candidates(family: str, bold: bool, italic: bool) -> list[str]:
 
 
 def find_font_file(family: str, bold: bool = False, italic: bool = False) -> Path | None:
+    if not family or family.strip().lower() in _GENERIC:
+        return None  # Keep discovery consistent with load(): base-14 families use MuPDF's own face.
     reg = _registry_fonts()
     for name in _candidates(family, bold, italic):
         path = reg.get(name)

@@ -12,6 +12,17 @@ from engines import probe
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_installed_base14_font_keeps_mupdf_field_appearance(tmp_path, monkeypatch):
+    from core.forms.appearance import needs_custom_appearance
+
+    installed = tmp_path / "Helvetica.ttf"
+    installed.write_bytes((ROOT / "resources/fonts/NotoSans-Regular.ttf").read_bytes())
+    monkeypatch.setattr(sf, "_registry_fonts", lambda: {"helvetica": installed})
+    field = SimpleNamespace(value="Plain text 123", font_family="Helvetica", font_size=12)
+    assert sf.load("Helvetica") is None  # base-14 families intentionally use MuPDF's built-in face
+    assert not needs_custom_appearance(field)
+
+
 def test_macos_catalog_reads_font_names_and_collection_faces(tmp_path):
     folder = tmp_path / "Fonts 日本語"
     folder.mkdir()
