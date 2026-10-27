@@ -39,7 +39,7 @@ archives), `runtime/` (working files during development), `build/` and `dist/` (
 
 * Repository root: `README.md`, `INSTALLATION.md`, `LICENSE`, `LICENSE.md`,
   `THIRD_PARTY_NOTICES.md`, `SECURITY.md`, `CONTRIBUTING.md`, `CHANGELOG.md`, `CITATION.cff`
-* `.github/`: the Windows CI workflow, issue templates and the pull-request template
+* `.github/`: Windows, Linux and macOS CI workflows, issue templates and the pull-request template
 * `docs/`: `USER_GUIDE`, `FEATURES`, `FILE_FORMATS_AND_COMPATIBILITY`, `ARCHITECTURE`,
   `CROSS_PLATFORM_DEVELOPMENT`,
   `BUILD_AND_RUNTIME`, `RELEASE_AND_VERSIONING`, `RELEASE_CHECKLIST`, `CODE_SIGNING`,
