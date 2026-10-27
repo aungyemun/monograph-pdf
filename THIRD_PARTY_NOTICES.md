@@ -1,10 +1,16 @@
 # Monograph PDF — Third-Party Notices
 
-This document identifies the third-party software redistributed with Monograph PDF 0.5.0 (inside `MonographPDF.exe`, its `_internal` folder, `engines\ocr` and `models\tessdata`). Each component remains under its own license. The statements below do not amend those licenses.
+This inventory describes the prepared Windows 0.5.0 distribution (an unpublished draft) (inside `MonographPDF.exe`, its `_internal` folder, `engines\ocr` and `models\tessdata`). Each component remains under its own license. The statements below do not amend those licenses.
 
 License texts: `LICENSE.md` (Monograph PDF: **AGPL-3.0-or-later**; PyMuPDF/MuPDF retain upstream **AGPL-3.0**) and, in the `licenses` folder of the installation, GPL-2.0, GPL-3.0, LGPL-2.1, LGPL-3.0, MPL-1.1 and the GCC Runtime Library Exception. Corresponding Monograph PDF release source, including application, build, installer, documentation and release tests, together with the corresponding source of every bundled AGPL, GPL and LGPL component, is published with each release as `MonographPDF_0.5.0_Source.zip` (see [Corresponding source](#corresponding-source)). Local personal-document validation utilities that contain private or machine-local paths are intentionally excluded from that archive.
 
-Each bundled component keeps its own license, listed below.
+Each bundled component keeps its own license, listed below. Windows-specific DLL versions and
+redistribution terms are not a bill of materials for Linux or macOS. Those native builds use the
+same shared source but can resolve different system libraries and OCR builds; verify their actual
+package contents and corresponding sources before distribution. No native-package compliance
+claim is inferred from this Windows inventory.
+
+Project copyright: © 2026 Aung Ye Mun. Upstream copyrights remain with their respective owners.
 
 All **bundled** components listed below run locally. Monograph PDF connects to the internet only when you ask it to: **Check for Updates** / **Update Now**, sending a problem report you have approved (switched off in this release), and **OCR ▸ OCR Languages ▸ Download and Install**; these use Python's `ssl` module with the bundled OpenSSL (HTTPS with certificate verification, fixed host allow-lists). No other bundled component is used to communicate over a network. Optional external Microsoft Office / LibreOffice (not included) follow their own settings and behavior when invoked for conversion. The release build removes the parts of the bundled libraries that only serve network use (Qt network and TLS plugins, OpenCV's FFmpeg video I/O); `scripts\packaging\check_release.py` fails a build that contains a program file not listed here.
 

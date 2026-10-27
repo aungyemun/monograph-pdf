@@ -9,6 +9,8 @@ ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
 
 CANONICAL = {
+    "README.md",
+    "REPOSITORY_LAYOUT.md",
     "USER_GUIDE.md",
     # 0.5.0: how protected, signed and watermarked PDFs are handled by every output
     "PROTECTED_SIGNED_WATERMARKED_PDFS.md",

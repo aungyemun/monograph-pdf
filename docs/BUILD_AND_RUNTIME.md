@@ -1,6 +1,14 @@
 # Build and runtime
 
-## Requirements
+## Platform entry points
+
+Use unified `main` for new development. Python 3.11 is the baseline for all platforms.
+Windows setup/build details follow below; Linux uses [LINUX.md](../LINUX.md) and macOS uses
+[MACOS.md](MACOS.md). Bash setup/launch/test scripts are shared by Linux and macOS; native
+OCR staging and packaging remain platform-specific. See the [script map](../scripts/README.md).
+Release publication and production signing are separate maintainer operations.
+
+## Windows requirements
 
 * Windows 10 or 11, 64-bit
 * Python **3.11** for the development environment in `.\env` (the source is also compatible with 3.12)
@@ -105,9 +113,10 @@ See [Secure updates](SECURE_UPDATES.md#maintainer-tooling).
   before removing settings.
 * `MonographPDFUpdater.exe` finishes an automatic update after the application has closed: it runs
   this Setup silently for the existing folder and mode ([AUTOMATIC_UPGRADE_AND_CLEANUP.md](AUTOMATIC_UPGRADE_AND_CLEANUP.md)).
-* The bundled `resources/update/update_config.json` (trusted update keys, allowed hosts) and
-  `resources/diagnostics/reporting.json` (reporting endpoint) keep updates and report sending
-  disabled until production setup. `scripts\build_exe.ps1 -UpdateConfig <folder>` replaces the update
+* The bundled `resources/update/update_config.json` defines update trust and allowed hosts;
+  Windows development 0.5.0 enables update checks, with automatic checks off by default.
+  `resources/diagnostics/reporting.json` keeps report sending disabled.
+  `scripts\build_exe.ps1 -UpdateConfig <folder>` replaces the update
   configuration **in test builds only** (synthetic keys, local mock server); `verify_release.py
   --layout` fails if a release carries anything but the repository's files.
 * Earlier internal builds (installed as `PDF Editor` / `PDF_editor.exe`) are recognized so that

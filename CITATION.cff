@@ -1,13 +1,11 @@
 ﻿cff-version: 1.2.0
 title: "Monograph PDF"
-message: "If you use this software in your research, please cite it as below."
+message: "Cite Monograph PDF and record the platform plus release tag or commit used. This repository citation does not assert a published release."
 type: software
 authors:
   - family-names: "Mun"
     given-names: "Aung Ye"
     email: "aungyemun25@gmail.com"
-version: "0.5.0"
-date-released: "2026-10-25"
 license: "AGPL-3.0-or-later"
 repository-code: "https://github.com/aungyemun/monograph-pdf"
 abstract: >
@@ -27,4 +25,6 @@ keywords:
   - document conversion
   - OCR
   - Windows
+  - Linux
+  - macOS
   - offline

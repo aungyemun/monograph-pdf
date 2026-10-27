@@ -10,7 +10,10 @@ OCR language downloads (from version 0.5.0) happen only when you click **Downloa
 Sending problem reports is switched off (no reporting service yet). Versions 0.3.0 and 0.4.0 make no
 network connections at all; the same holds for earlier versions, which do not have these features.
 
-## Update checks (built in since 0.3.0, switched on from 0.5.0)
+Windows 0.5.0 remains an unpublished draft. The descriptions below refer to that development
+line; published Windows 0.4.0 has update checks disabled. Linux/macOS upgrades are manual.
+
+## Update checks (built in since 0.3.0, enabled in Windows development 0.5.0)
 
 When you choose **Help ▸ Check for Updates…**, **Check Now**, or switch on *Automatically check for
 updates* (off by default; **File ▸ Settings… ▸ Updates**), Monograph PDF connects to GitHub, which
@@ -62,6 +65,9 @@ report is shown before you decide.
 Settings, the recent-files list, working files, update downloads waiting to be installed and
 problem-report records stay in your user profile (`%APPDATA%\Monograph PDF`,
 `%LOCALAPPDATA%\Monograph PDF`); uninstalling removes them (settings only if you choose).
+On macOS these use Application Support/Caches; on Linux they use XDG data/cache roots.
+See the [platform path map](REPOSITORY_LAYOUT.md#compatibility-boundaries). Uninstall behavior is
+platform-specific; the Windows settings-removal prompt is not a macOS/Linux promise.
 Details: [SECURITY_AND_PRIVACY.md](SECURITY_AND_PRIVACY.md#data-on-disk).
 
 ## Other programs

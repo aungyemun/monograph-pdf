@@ -1,28 +1,31 @@
 # Installation
 
-## Linux (0.1.0 — first Linux line)
+Use the official [Releases](https://github.com/aungyemun/monograph-pdf/releases) and select
+the platform explicitly. Published Windows is 0.4.0; Windows 0.5.0 remains an unpublished draft.
+macOS 0.1.0 is published; Linux 0.1.0 is available from source. Development uses unified `main`.
 
-Monograph PDF **0.1.0** for Linux lives on branch
-[`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux). There is **no** published
-`v0.1.0-linux` release tag yet — build from that branch. **Unsigned** for this first line
-(signing later). See [LINUX.md](LINUX.md).
+## Linux
+
+No Linux release tag is published yet. Build from `main`; see [Linux setup](LINUX.md).
 
 ```bash
-git clone -b linux https://github.com/aungyemun/monograph-pdf.git
+git clone --branch main https://github.com/aungyemun/monograph-pdf.git
 cd monograph-pdf
 bash scripts/setup_env.sh
 bash scripts/vendor_ocr.sh
 bash scripts/dev_launch.sh
 ```
 
-Optional per-user install: `bash installer/linux/install.sh /path/to/MonographPDF` (on the linux tree).
+The optional `installer/linux/install.sh` installs an already built native application tree.
+It is not a source-to-package build command. Dependencies and OCR data must be installed before
+offline use; Office conversion needs LibreOffice.
 
-### macOS (0.1.0)
+## macOS
 
-Published release: [v0.1.0-macos-1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1)
-(zip / dmg / pkg). See [docs/MACOS.md](https://github.com/aungyemun/monograph-pdf/blob/macos/docs/MACOS.md).
-
----
+Published [v0.1.0-macos-1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1)
+provides zip/dmg/pkg assets. Compare their SHA-256 values with the release notes before opening.
+See [macOS setup, packaging and signing limitations](docs/MACOS.md). Unified source builds use
+`main`, Python 3.11 and native macOS tools. Local ad-hoc signing is not Developer ID or notarization.
 
 ## Windows
 
@@ -73,7 +76,7 @@ place; your settings and documents are kept.
 
 0.4.0 and earlier cannot update themselves (their update checks are switched off): install the current
 version with its Setup from the [Releases](https://github.com/aungyemun/monograph-pdf/releases) page
-(0.5.0 is the first published version with update checks; 0.4.1 was prepared but never published). From then on,
+(0.5.0 is planned as the first public version with update checks; 0.4.1 was prepared but never published). From then on,
 **Help ▸ Check for Updates…** can do this for you when a newer signed release exists: **Update Now** downloads and verifies the new Setup, closes Monograph PDF (after you
 save or discard open changes), installs the update in the same folder with the same choices and
 restarts Monograph PDF. An all-users installation shows Windows' administrator prompt. Details:
@@ -81,9 +84,11 @@ restarts Monograph PDF. An all-users installation shows Windows' administrator p
 
 ### Silent installation (administrators)
 
+Replace `<published-version>` with the version you actually downloaded; the 0.5.0 draft is not public.
+
 ```bat
-MonographPDF_0.5.0_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-MonographPDF_0.5.0_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="D:\Apps\Monograph PDF" /MIGRATEINSTALL
+MonographPDF_<published-version>_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+MonographPDF_<published-version>_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="D:\Apps\Monograph PDF" /MIGRATEINSTALL
 ```
 
 * Installing to the same folder upgrades the existing installation in place.

@@ -28,19 +28,25 @@ maintained, so focused changes with clear explanations and relevant tests are ap
    ```
 
    ```bash
-   # Linux (and macOS when scripts are on main)
+   # Linux and macOS
    bash scripts/setup_env.sh
    bash scripts/run_tests.sh
    ```
 
 4. Keep changes small and add or update tests for new behavior. Do not weaken existing tests.
 5. Use only synthetic test documents; do not add real documents to the repository.
-6. Bump only the relevant platform version in `versions/<platform>.txt` (Windows packaging also
+6. Do not bump versions for routine documentation or layout changes. When a release change is explicitly approved, bump only the relevant platform version in `versions/<platform>.txt` (Windows packaging also
    mirrors into root `VERSION`). Never change another platform’s version by accident.
+
+All Windows, Linux and macOS PR checks must succeed before merge. Report skipped tests separately,
+and state which native install/upgrade, printing, Office and OCR checks remain unverified. Keep shared
+PDF behavior centralized and follow the [repository ownership map](docs/REPOSITORY_LAYOUT.md).
 
 ## Project principles
 
-* **Offline only:** no network access, telemetry, analytics or online services.
+* **Offline-first:** document processing must work locally. No telemetry, analytics or document uploads.
+  Optional update checks and explicit OCR-language downloads follow the existing consent, HTTPS and
+  integrity rules; automatic update checks remain off by default.
 * **Privacy:** documents are processed only on the user's computer; nothing is collected.
 * **Licensing:** new dependencies must have a license compatible with AGPL-3.0-or-later and must be
   added to [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the
@@ -52,3 +58,5 @@ By submitting a contribution, you confirm that you have the right to contribute 
 agree to license your contribution under the
 [GNU Affero General Public License, version 3 or later](LICENSE) (AGPL-3.0-or-later), the license of
 Monograph PDF.
+
+© 2026 Aung Ye Mun
