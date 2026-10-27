@@ -71,7 +71,8 @@ Compare downloaded files with the checksums in that release's notes.
   already built application tree; it does not build a package from Python source.
 
 Windows packages are not Authenticode signed. Verify origin and checksums before deciding to
-run any package. [Download verification](docs/OFFICIAL_DOWNLOAD_VERIFICATION.md).
+run any package. [Download verification](docs/OFFICIAL_DOWNLOAD_VERIFICATION.md) ·
+[Code signing policy](docs/CODE_SIGNING_POLICY.md).
 
 ## Privacy and offline-first operation
 

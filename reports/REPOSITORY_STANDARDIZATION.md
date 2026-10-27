@@ -111,6 +111,10 @@ vulnerability reporting is enabled. Branding scan: zero stale-branding findings.
 validation passes with cffconvert; the pre-existing citation BOM was removed for parser compatibility.
 Canonical LICENSE and its embedded copy remain intact and match the SPDX reference as described above.
 
+The first full Linux CI run exposed an omitted direct README signing-policy link; that link was
+restored without changing the existing signing-policy test. The run otherwise had 1,872 passes
+and 95 skips. A fresh three-platform run validates the correction.
+
 Native CI is tracked on [PR #8](https://github.com/aungyemun/monograph-pdf/pull/8).
 Final workflow outcomes and per-platform skip counts are recorded after the CI run completes.
 
