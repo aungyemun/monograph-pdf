@@ -83,6 +83,9 @@ def _resolve_runtime_dir() -> Path:
         return Path(override)
     if _PROJECT_LAYOUT:
         return ROOT / "runtime"
+    isolated = app_env.profile_subdir("runtime")  # an isolated run of the installed program
+    if isolated is not None:
+        return isolated
     try:
         from core.platform_paths import user_local_base
 

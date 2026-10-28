@@ -13,6 +13,70 @@ os.environ.setdefault("MONOGRAPH_PDF_RUNTIME_DIR", tempfile.mkdtemp(prefix="mono
 # Update staging/status and problem-report records likewise never touch the user's real folders
 os.environ.setdefault("MONOGRAPH_PDF_UPDATES_DIR", tempfile.mkdtemp(prefix="monographpdf-test-updates-"))
 os.environ.setdefault("MONOGRAPH_PDF_DIAGNOSTICS_DIR", tempfile.mkdtemp(prefix="monographpdf-test-diagnostics-"))
+# Settings too, already at import time (the session fixture below replaces it with a pytest folder)
+os.environ.setdefault("MONOGRAPH_PDF_USER_DATA_DIR", tempfile.mkdtemp(prefix="monographpdf-test-userdata-"))
+
+
+def _real_profile_roots() -> tuple:
+    """The real user's Monograph PDF folders (read from the environment before any test changes it)."""
+    from pathlib import Path
+
+    if os.name == "nt":
+        roots = [os.environ.get("APPDATA"), os.environ.get("LOCALAPPDATA")]
+        return tuple(Path(r).resolve() / "Monograph PDF" for r in roots if r)
+    home = Path.home()
+    return tuple(p.resolve() for p in (home / ".local" / "share" / "monograph-pdf",
+                                        home / ".cache" / "monograph-pdf",
+                                        home / "Library" / "Application Support" / "Monograph PDF"))
+
+
+REAL_PROFILE_ROOTS = _real_profile_roots()
+
+
+def _profile_snapshot() -> dict:
+    """Size and modification time of every file in the real profile folders (read-only)."""
+    snap = {}
+    for root in REAL_PROFILE_ROOTS:
+        if not root.is_dir():
+            snap[str(root)] = "absent"
+            continue
+        for n, p in enumerate(root.rglob("*")):
+            if n > 20000:
+                break
+            try:
+                if p.is_file():
+                    st = p.stat()
+                    snap[str(p)] = (st.st_size, st.st_mtime_ns)
+            except OSError:
+                pass
+    return snap
+
+
+def pytest_sessionstart(session):
+    session.config._monograph_profile_snapshot = _profile_snapshot()
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Tripwire: a test run must not create, change or remove anything in the real profile.
+
+    A Monograph PDF window that the user keeps open during the run can also change these files;
+    MONOGRAPH_PDF_TEST_ALLOW_PROFILE_CHANGES=1 then reports instead of failing.
+    """
+    before = getattr(session.config, "_monograph_profile_snapshot", None)
+    if before is None:
+        return
+    after = _profile_snapshot()
+    changed = sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
+    if not changed:
+        return
+    tr = session.config.pluginmanager.get_plugin("terminalreporter")
+    msg = "PROFILE TRIPWIRE: the test run changed the real user profile:\n  " + "\n  ".join(changed[:30])
+    if tr is not None:
+        tr.write_line(msg, red=True)
+    else:
+        print(msg)
+    if os.environ.get("MONOGRAPH_PDF_TEST_ALLOW_PROFILE_CHANGES") != "1":
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -77,6 +141,7 @@ _MODULE_CATEGORIES = {
     "test_update_net.py": {"security"}, "test_update_staging.py": {"security"},
     "test_update_tls_trust.py": {"security"}, "test_update_manifest_notes.py": {"security"},
     "test_save_errors.py": {"security"}, "test_save_as_conflicts.py": {"security", "gui"},
+    "test_profile_isolation.py": {"security"},
     "test_update_install.py": {"security"}, "test_diagnostics.py": {"security"},
     "test_report_gateway.py": {"security"}, "test_update_ui.py": {"security", "gui"},
     "test_code_signing_readiness.py": {"security"}, "test_windows_runtime_packaging.py": {"security"},
