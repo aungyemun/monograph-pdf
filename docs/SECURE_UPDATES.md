@@ -76,8 +76,18 @@ installed only if all of the following hold:
 
 ### Transport
 
-* HTTPS only (`core/updates/net.py`), TLS 1.2 or later, certificate and host-name verification
-  from the Windows certificate store. Verification is never disabled; there is no HTTP fallback.
+* HTTPS only (`core/updates/net.py`), TLS 1.2 or later, certificate and host-name verification by
+  the Windows certificate chain engine (`CertGetCertificateChain` / `CertVerifyCertificateChainPolicy`
+  with the SSL policy and the server name, through the pinned `truststore` package, from 0.5.1).
+  Verification is never disabled; there is no HTTP fallback and no fallback to a weaker check (a build
+  without `truststore` refuses to connect). 0.5.0 verified with OpenSSL fed with a snapshot of the
+  Windows ROOT and CA stores, which failed on PCs where Windows had not yet installed the Sectigo
+  Public Server Authentication Root E46 on demand (GitHub's chain): OpenSSL followed the
+  "USERTrust ECC ← AAA Certificate Services" cross-certificate from the CA store to a root that was
+  not installed ("unable to get issuer certificate"). The Windows engine considers alternative
+  paths and Windows' automatic root update, like every other Windows program. Diagnosis of a TLS
+  error on a user's PC: `scripts/audit/update_tls_diagnosis.py` (connectivity, proxy / TLS
+  inspection, trust store or application).
 * Every URL, including each redirect, must be HTTPS on an allowed host: `github.com`,
   `api.github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`
   (GitHub's release download redirects). At most 5 redirects.

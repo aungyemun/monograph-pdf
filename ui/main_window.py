@@ -126,15 +126,10 @@ class MainWindow(QMainWindow):
         self.act_prev_tab.triggered.connect(lambda: self._cycle_doc_tab(-1))
         self.addAction(self.act_next_tab)
         self.addAction(self.act_prev_tab)
-        # Dedicated ApplicationShortcuts survive in-place editors that may swallow QAction keys.
-        from PySide6.QtGui import QShortcut
-
-        self._shortcut_next_tab = QShortcut(QKeySequence("Ctrl+Tab"), self)
-        self._shortcut_next_tab.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        self._shortcut_next_tab.activated.connect(lambda: self._cycle_doc_tab(1))
-        self._shortcut_prev_tab = QShortcut(QKeySequence("Ctrl+Shift+Tab"), self)
-        self._shortcut_prev_tab.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        self._shortcut_prev_tab.activated.connect(lambda: self._cycle_doc_tab(-1))
+        # Exactly one registration per key sequence: 0.5.0 also had QShortcuts with the same keys, and
+        # Qt treats two active shortcuts with one sequence as ambiguous and fires neither. The
+        # application-wide actions also fire while an in-place editor has focus (PdfCanvas.event
+        # does not claim Ctrl+Tab in ShortcutOverride); _cycle_doc_tab commits the editor first.
         self._inspector = InspectorPanel()
         # using its controls keeps the text box being typed in open (its selected words stay selected)
         self._inspector.setProperty("keepsTextEditor", True)
@@ -2590,6 +2585,8 @@ class MainWindow(QMainWindow):
             return None
         if not self._may_save_changes(overwrite=False):
             return None
+        if not self._release_destination_tab(dest, "Save a Copy"):  # last question before writing
+            return None
         from core.forms import xfa_sync
         from engines.bake_edits import bake_via_backend
 
@@ -2603,12 +2600,72 @@ class MainWindow(QMainWindow):
             else:
                 bake_via_backend(self._edit, dest)  # atomic; the editing model is not changed
         except Exception as exc:  # noqa: BLE001
-            self.report_unexpected("Save a Copy failed", exc, EventId.PDF_SAVE_FAILED,
-                                   hint="Pick a writable folder and ensure the file is not open elsewhere.")
+            self._report_save_failure("Save a Copy failed", exc, dest)
             return None
         self.statusBar().showMessage(f"Saved a copy as {dest.name}; still working on {self._document.name}", 6000)
         self._report_xfa_notes()
         return dest
+
+    def _report_save_failure(self, title: str, exc: BaseException, dest: Path) -> None:
+        """File-system problems (read-only, in use, no permission, disk full) in plain words; anything
+        else as an unexpected error. The edits stay in the open document either way."""
+        if isinstance(exc, OSError):
+            from core.save_errors import explain_save_error
+
+            diagnostics.record(EventId.PDF_SAVE_FAILED)
+            text, hint = explain_save_error(exc, dest)
+            self.report_error(title, text, hint=hint + " Your changes are still in the open document.")
+            return
+        self.report_unexpected(title, exc, EventId.PDF_SAVE_FAILED,
+                               hint="Your changes are still in the open document. Try another name or folder.")
+
+    def _release_destination_tab(self, dest: Path, title: str) -> bool:
+        """Saving over a PDF that is open in another tab (Save As, Save a Copy).
+
+        Windows cannot replace a file another tab holds open, and replacing it underneath that tab would
+        leave a tab showing a file that no longer exists in that form (0.5.0: an error naming a
+        temporary file, or — when the document had no changes and was copied byte for byte — the other
+        tab's file silently overwritten and the same file open in two tabs). The user decides
+        explicitly: close that tab (discarding its unsaved changes, if any, which the dialog names) and
+        replace the file, or cancel. Cancel is the default; nothing is changed until the choice.
+        Returns True when ``dest`` is not open in another tab (any more).
+        """
+        index = self._find_session_index(dest)
+        if index < 0 or index == self._session_index:
+            return True
+        other = self._sessions[index]
+        name = other.document.name
+        if self._is_headless_ui():
+            self.statusBar().showMessage(f"{title}: “{name}” is open in another tab; close it first.", 8000)
+            return False
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle(title)
+        box.setText(f"“{name}” is open in another tab.")
+        if other.edit.dirty:
+            box.setInformativeText(
+                f"To save as “{name}”, that tab is closed and its file is replaced by this document. "
+                "Its unsaved changes will be lost.\n\nTo keep them, choose Cancel, switch to that tab and "
+                "save it under another name first.")
+            replace = box.addButton("Discard Its Changes and Replace", QMessageBox.ButtonRole.DestructiveRole)
+        else:
+            box.setInformativeText(
+                f"To save as “{name}”, that tab is closed and its file is replaced by this document.")
+            replace = box.addButton("Close It and Replace", QMessageBox.ButtonRole.AcceptRole)
+        cancel = box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(cancel)
+        box.setEscapeButton(cancel)
+        box.exec()
+        if box.clickedButton() is not replace:
+            return False
+        me = self._sessions[self._session_index]
+        self._stash_active_session()  # keep this tab's page, zoom and search while the other closes
+        other.edit.dirty = False  # discarded by the explicit choice above
+        self._close_session_at(index, save_session=False)
+        if me in self._sessions and self._sessions[self._session_index] is not me:
+            self._activate_session(self._sessions.index(me))
+            self._rebuild_doc_tabs()
+        return self._find_session_index(dest) < 0
 
     def save_as_dialog(self) -> None:
         self._commit_field_editor()
@@ -2627,6 +2684,8 @@ class MainWindow(QMainWindow):
             dest = dest.with_suffix(dest.suffix + ".pdf") if dest.suffix else dest.with_suffix(".pdf")
         if not self._may_save_changes(overwrite=False):
             return
+        if not self._release_destination_tab(dest, "Save As"):  # last question before writing
+            return
         diagnostics.record(EventId.PDF_SAVE_STARTED)
         try:
             old_path = self._document.path
@@ -2636,12 +2695,7 @@ class MainWindow(QMainWindow):
             clear_session(old_path)
             self._report_font_notes()
         except Exception as exc:  # noqa: BLE001
-            self.report_unexpected(
-                "Save As failed",
-                exc,
-                EventId.PDF_SAVE_FAILED,
-                hint="Pick a writable folder and ensure the filename ends with .pdf.",
-            )
+            self._report_save_failure("Save As failed", exc, dest)
             return
         # Continue working on the new file, like every desktop editor does after Save As
         try:

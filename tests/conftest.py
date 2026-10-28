@@ -75,6 +75,8 @@ _MODULE_CATEGORIES = {
     # Secure updates and private error reporting (0.3.0)
     "test_update_crypto.py": {"security"}, "test_update_manifest.py": {"security"},
     "test_update_net.py": {"security"}, "test_update_staging.py": {"security"},
+    "test_update_tls_trust.py": {"security"}, "test_update_manifest_notes.py": {"security"},
+    "test_save_errors.py": {"security"}, "test_save_as_conflicts.py": {"security", "gui"},
     "test_update_install.py": {"security"}, "test_diagnostics.py": {"security"},
     "test_report_gateway.py": {"security"}, "test_update_ui.py": {"security", "gui"},
     "test_code_signing_readiness.py": {"security"}, "test_windows_runtime_packaging.py": {"security"},

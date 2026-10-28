@@ -111,6 +111,22 @@ upgrade is done with Setup.
 | B5 | **Skipped versions:** keep one test computer on 0.5.0 without updating; when a later release (e.g. 0.6.x) is out, **Check for Updates** offers it directly and **Update Now** installs it in one step; settings, recent files and documents kept | when that release is published |
 | B6 | A release that sets `min_upgrade_from` above the installed version: **Update Now** disabled with the reason; Setup from the release page works | only if such a release is made |
 
+## C. 0.5.1 maintenance acceptance (before 0.5.1 is published)
+
+Run section A with the 0.5.1 files (Help ▸ About shows 0.5.1; upgrade from **0.4.0 and from 0.5.0**),
+then these items for the three corrected defects. Use disposable copies of PDFs, never originals.
+
+| # | Test | Expected |
+|---|---|---|
+| C1 | **Check for Updates** on 0.5.0 (before upgrading) and on 0.5.1, on a PC that has rarely or never visited github.com in Edge | 0.5.0 may report *Secure connection could not be verified*; 0.5.1 reports *No update available* (or offers a newer release). If 0.5.1 fails, run `scripts\audit\update_tls_diagnosis.py` from a source checkout and attach its output |
+| C2 | Behind a proxy or antivirus that inspects HTTPS (if available) | 0.5.1 works when Windows itself trusts the inspecting certificate (as Edge does); otherwise *Secure connection could not be verified* — never a silent acceptance |
+| C3 | Open three PDFs; press **Ctrl+Tab** three times, then **Ctrl+Shift+Tab** three times, on the physical keyboard | next tab each time, wrapping from the last to the first, and back |
+| C4 | Type in a text box and in a form field, then press **Ctrl+Tab** and come back | the typed text is kept in its own document; the other tab shows no change |
+| C5 | Open A.pdf and B.pdf; edit A; **File ▸ Save As…** and choose B.pdf (confirm the Windows *Replace?* question) | message *“B.pdf” is open in another tab*; **Cancel** (default) changes nothing; **Close It and Replace** closes B's tab and saves A's content as B.pdf |
+| C6 | As C5, with unsaved changes in B as well | the button reads **Discard Its Changes and Replace** and the message says B's unsaved changes will be lost |
+| C7 | As C5 with **File ▸ Save a Copy** | same question; after Replace you keep working on A with its unsaved changes |
+| C8 | Save As onto a read-only PDF, and onto a PDF that another program keeps open | the message names *read-only* or *in use by another program*; the existing file is unchanged; the edits stay |
+
 ## Logs and failure reports
 
 * `windows_release_check.ps1 -CollectLogs` copies `%LOCALAPPDATA%\Monograph PDF\logs` into a new

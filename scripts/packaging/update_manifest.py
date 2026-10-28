@@ -170,9 +170,35 @@ def _read_secret(path: Path) -> bytes:
     return signing_key.load_secret(path)
 
 
+def normalize_notes(text: str) -> str:
+    """The release-notes text that is signed into a manifest.
+
+    0.5.0's manifest began with an invisible U+FEFF: its notes file had been saved with a UTF-8
+    byte-order mark (Windows PowerShell 5.1 ``Set-Content -Encoding UTF8`` writes one), ``utf-8``
+    decoding keeps the mark as a character and ``str.strip()`` does not remove it. Now: no byte-order
+    mark anywhere, LF line endings, Unicode NFC (composed characters, as typed), no surrounding blanks.
+    """
+    import unicodedata
+
+    text = text.replace("\ufeff", "").replace("\r\n", "\n").replace("\r", "\n")
+    return unicodedata.normalize("NFC", text).strip()
+
+
+def notes_problems(text: str) -> list[str]:
+    """Problems of release-notes text as signed (empty when it is what normalize_notes produces)."""
+    problems = []
+    if "\ufeff" in text:
+        problems.append("release notes contain a byte-order mark (U+FEFF)")
+    if "\r" in text:
+        problems.append("release notes contain CR line endings")
+    if text != text.strip():
+        problems.append("release notes start or end with blank space")
+    return problems
+
+
 def notes_text(path: Path) -> str:
-    text = path.read_text(encoding="utf-8").strip()
-    return text[:MAX_NOTES]
+    # utf-8-sig drops a leading byte-order mark; normalize_notes removes any other and the CRs
+    return normalize_notes(path.read_bytes().decode("utf-8-sig"))[:MAX_NOTES]
 
 
 def export_pkcs8(key: Path, out: Path) -> int:

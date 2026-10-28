@@ -232,6 +232,7 @@ discards it. The app itself sends nothing.
 | Area | Keys |
 | :--- | :--- |
 | File | Ctrl+O · Ctrl+S · Ctrl+Shift+S · Ctrl+W · Ctrl+P · Ctrl+, (Settings) · Ctrl+Q |
+| Document tabs | Ctrl+Tab (next) · Ctrl+Shift+Tab (previous) · Ctrl+W or Ctrl+F4 (close tab) |
 | Edit | Ctrl+Z · Ctrl+Y · Ctrl+X/C/V · Del · Ctrl+A · Ctrl+Alt+C (copy page as picture) |
 | Insert | Ctrl+B (bookmark for this page) |
 | View | Ctrl+1 / 2 / 0 · Ctrl+= / − · Ctrl+F · F8 · F9 · F11 · Ctrl+Shift+L (automatic scrolling) · mouse wheel button (scroll button) · Ctrl+/ |
