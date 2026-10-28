@@ -45,9 +45,17 @@ the latest public Windows release remains **0.4.0**.
 - **OCR language downloads** happen only when you click **Download and Install** (see Added), over
   HTTPS with certificate checks to github.com / raw.githubusercontent.com only, and the file is
   installed only if its size and SHA-256 match the pin shipped with Monograph PDF.
+- **Update checks look only at Windows releases.** The repository also publishes macOS and Linux
+  releases, and GitHub's "Latest" may point at one of them. Check for Updates now reads the list of
+  releases and takes the newest Windows release that carries a signed update manifest (all pages of
+  the list, no silent fallback); a release of another platform is never offered.
 
 ### Added
 
+- **Several PDFs open at once**, each in its own tab above the page (search results, page, zoom and
+  unsaved changes are kept per tab); opening a PDF that is already open switches to its tab. Closing a
+  tab with unsaved changes asks first.
+- **Arrow keys move** the selected shapes, text boxes, form fields and comments (Shift: 10 pt steps).
 - **Scroll button**: press the mouse wheel button on a page and a round scroll marker appears; move the
   pointer above or below it and the pages scroll that way, faster the further away (sideways too on
   wide pages). A click keeps scrolling until the next click or Esc; holding the button scrolls until it
@@ -140,6 +148,32 @@ the latest public Windows release remains **0.4.0**.
 - **Print**: the paper list is short and scrolls, the settings scroll on small screens, and “Flip on
   long edge / short edge” are no longer cut off. No text in the dialogs and the Properties panel is
   cut off at 100–150 % display scaling (checked with `scripts/audit/clipped_text_audit.py`).
+- **Forms**: text fields stay fillable after an ordinary Save (they were sometimes flattened), check
+  boxes keep their tick after Save, Save As and reopening, and printing or flattening uses the values
+  just typed. Check boxes whose "on" name is not plain ASCII (many Japanese forms) were saved ticked on
+  screen but **unticked in the value** and showed unticked after reopening; they are now saved and
+  read correctly.
+- **Form fonts**: a field whose form defines its own font (for example Times New Roman) kept it
+  only until Save, which replaced it with Helvetica for other PDF readers; the form's font is kept.
+- **Long entries in multi-line fields with Auto font size** were cut off at the bottom of the
+  field in the saved PDF; the text now shrinks until all of it fits, as in Adobe Acrobat.
+- **Japanese text in a chosen Japanese font** (MS Gothic, MS Mincho, Meiryo …) was shown on screen,
+  and its lines broken, in Yu Gothic UI / Yu Mincho, while Save used the chosen font: the screen and the
+  saved PDF now use the same font. Whether a font has a character is now asked of the font file itself
+  (the previous check gave wrong answers for non-ASCII characters).
+- **Edit Text on existing text**: the edited text keeps the original's font (MS Gothic, Yu Gothic, Times
+  New Roman … used to come out in a substitute font), and words placed one by one on the page (also
+  text saved by Monograph PDF) are edited as one run, so a longer word no longer overlaps the next.
+- **Freezes of several seconds while scrolling long documents**: when the top or bottom edge of the
+  window fell into the gap between two pages, every page from there to the end of the document was
+  drawn at once, and the page number jumped to the last page for a moment. Zooming with Ctrl + wheel
+  with the pointer between two pages no longer jumps to the end either.
+- **Find Next / Find Previous** made the page of the match the current page one match late, so page
+  commands right after a search could act on the previous page.
+- **Selecting several objects**: dragging one of several selected objects moves all of them (only the
+  one under the pointer used to move, and Delete then removed only it); a drag on empty paper also
+  selects shapes and pictures; a resize handle caught a few pixels off its centre no longer makes the
+  edge jump to the pointer.
 
 ### Added
 

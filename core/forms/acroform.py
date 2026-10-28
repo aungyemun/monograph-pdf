@@ -33,6 +33,25 @@ def _widget_has_ap(doc: fitz.Document, widget: Any) -> bool:
         return False
 
 
+def _set_button_value(doc: fitz.Document, xref: int, state: str, *, radio: bool = False) -> None:
+    """Write the check box / radio value ``/V`` with exactly the name used for ``/AS``.
+
+    PyMuPDF compares the value it is given with its own decoded on-state, so an on-state that is not
+    plain ASCII (``/#82#CD#82#A2`` — Shift-JIS "はい" in many Japanese forms) was written as
+    ``/V /Off`` although ``/AS`` showed the tick: Monograph PDF and other readers then read the box as
+    not ticked after reopening. The value belongs to the field dictionary: the widget itself, or its
+    parent when the widget is one kid of a field. A radio group's value is only set by the chosen kid.
+    """
+    target = xref
+    if doc.xref_get_key(xref, "T")[0] == "null":
+        parent = doc.xref_get_key(xref, "Parent")
+        if parent[0] == "xref":
+            target = int(parent[1].split()[0])
+    if radio and state == "Off" and target != xref:
+        return  # an unchosen radio kid must not clear the group's value
+    doc.xref_set_key(target, "V", f"/{state}")
+
+
 def resolve_widget_on_state(widget: Any, doc: fitz.Document | None = None) -> str:
     """The on-state name for a checkbox/radio widget (``Yes``, ``On``, or a custom export value).
 
@@ -111,7 +130,29 @@ def _widget_is_checked(widget: Any, raw_value: str) -> bool:
     on_state = resolve_widget_on_state(widget)
     if value == on_state or value.lstrip("/") == on_state.lstrip("/"):
         return True
+    if _pdf_name_bytes(value) == _pdf_name_bytes(on_state):
+        return True  # same name, one escaped (#82#CD…) and one decoded (non-ASCII on-state names)
     return value.lower() in ("yes", "on", "true", "1")
+
+
+def _pdf_name_bytes(name: str) -> bytes:
+    """The raw bytes of a PDF name as PyMuPDF hands it out: ``#xx``-escaped, or decoded as UTF-8 with
+    surrogate escapes for bytes that are not UTF-8 (``/V`` of a Shift-JIS on-state)."""
+    s = str(name or "").lstrip("/")
+    try:
+        raw = s.encode("utf-8", "surrogateescape")
+    except UnicodeError:
+        return s.encode("utf-8", "replace")
+    out = bytearray()
+    i = 0
+    while i < len(raw):
+        if raw[i] == 0x23 and i + 2 < len(raw) and all(c in b"0123456789abcdefABCDEF" for c in raw[i + 1:i + 3]):
+            out.append(int(raw[i + 1:i + 3], 16))
+            i += 3
+        else:
+            out.append(raw[i])
+            i += 1
+    return bytes(out)
 
 
 # PDF font resource names in a field's /DA → (family shown in the UI, bold, italic)
@@ -332,6 +373,7 @@ def apply_field_values_to_doc(doc: fitz.Document, fields: list[FormField]) -> No
                     try:
                         as_name = resolve_widget_on_state(w, doc) if model.checked else "Off"
                         doc.xref_set_key(xref, "AS", f"/{as_name}")
+                        _set_button_value(doc, xref, as_name, radio=model.field_type == FieldType.RADIO)
                     except Exception:  # noqa: BLE001
                         pass
                 _restore_cjk_da(doc, xref, orig_da, model)
@@ -467,17 +509,38 @@ def _restore_cjk_da(doc: fitz.Document, xref: int, orig_da: tuple[str, str], mod
     readers that redraw fields (Acrobat, Edge) still use a font that has the characters."""
     from core.forms.appearance import is_cjk_family
 
-    if not xref or orig_da[0] != "string" or not is_cjk_family(model.font_family):
+    if not xref or orig_da[0] != "string":
         return
     import re as _re
 
     da = orig_da[1]
+    if not is_cjk_family(model.font_family):
+        # Any other font the form itself defines (e.g. /TimesNewRoman in /AcroForm /DR) is kept too,
+        # unless the font was changed in Monograph PDF: it used to become /Helv on every Save.
+        m = _re.search(r"/([^\s/]+)\s+[\d.]+\s+Tf", da)
+        if getattr(model, "style_dirty", False) or m is None or not _form_defines_font(doc, m.group(1)):
+            return
     size = float(model.font_size or 0)
     da = _re.sub(r"(/\S+)\s+[\d.]+\s+Tf", lambda m: f"{m.group(1)} {size:g} Tf", da, count=1)
     try:
         doc.xref_set_key(xref, "DA", fitz.get_pdf_str(da))
     except Exception:  # noqa: BLE001
         pass
+
+
+def _form_defines_font(doc: fitz.Document, name: str) -> bool:
+    """True when ``/AcroForm /DR /Font`` has a font resource called ``name``."""
+    try:
+        kind, fonts = doc.xref_get_key(doc.pdf_catalog(), "AcroForm/DR/Font")
+        if kind == "xref":
+            fonts = doc.xref_object(int(fonts.split()[0]), compressed=True)
+        elif kind != "dict":
+            return False
+        import re as _re
+
+        return _re.search(r"/" + _re.escape(name) + r"(?=[\s/<>\[\]()]|$)", fonts) is not None
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def pdf_base_font(family: str) -> str:

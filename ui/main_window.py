@@ -290,8 +290,8 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ second start (single instance)
     def handle_instance_request(self, files: list[str]) -> None:
-        """Monograph PDF was started again: come to the front and open the file it was started with
-        (one document at a time), or say that it is already running."""
+        """Monograph PDF was started again: come to the front and open the (first) file it was started
+        with in a tab, or say that it is already running."""
         self.bring_to_front()
         openable = [f for f in files if is_openable(f) and Path(f).is_file()]
         if not openable:
@@ -300,7 +300,8 @@ class MainWindow(QMainWindow):
         self._pending_open = openable[0]
         if len(openable) > 1:
             self.statusBar().showMessage(
-                f"Opening {Path(openable[0]).name} — Monograph PDF shows one document at a time", 8000)
+                f"Opening {Path(openable[0]).name} — open the other {len(openable) - 1} file(s) with File ▸ Open",
+                8000)
         self._open_pending_when_free()
 
     def _open_pending_when_free(self) -> None:

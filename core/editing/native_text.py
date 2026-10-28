@@ -39,6 +39,42 @@ def clean_font_name(name: str) -> str:
     return name
 
 
+def _merge_word_spans(line: dict) -> list[dict]:
+    """Join the spans of one horizontal line that are really one run of text: same font, size,
+    colour and style, separated by no more than a word space.
+
+    Many PDFs (and text saved by Monograph PDF itself) place every word separately, so each word was a
+    span of its own: Edit Text then changed one word, and a longer word was drawn over the next one.
+    As one run the whole phrase is edited, removed and redrawn together, so nothing overlaps. Runs in
+    another style (a bold word, another colour) stay separate.
+    """
+    spans = [dict(s) for s in (line.get("spans") or [])]
+    direction = line.get("dir") or (1.0, 0.0)
+    if len(spans) < 2 or abs(float(direction[0]) - 1.0) > 1e-3 or abs(float(direction[1])) > 1e-3:
+        return spans
+    # Spaces may come from another font than the words (Monograph PDF draws them from its built-in font
+    # when the chosen font would turn them into no-break spaces): they never split a run. Space-only
+    # spans were never editable on their own.
+    spans = [s for s in spans if (s.get("text") or "").strip()]
+    merged: list[dict] = []
+    for sp in spans:
+        prev = merged[-1] if merged else None
+        if prev is not None and (prev.get("text") or "").strip() and (sp.get("text") or "").strip():
+            same = (prev.get("font") == sp.get("font") and abs(float(prev.get("size") or 0) - float(sp.get("size") or 0)) < 0.05
+                    and prev.get("color") == sp.get("color") and prev.get("flags") == sp.get("flags"))
+            pb, sb = prev.get("bbox") or (0, 0, 0, 0), sp.get("bbox") or (0, 0, 0, 0)
+            size = float(sp.get("size") or 12)
+            gap = float(sb[0]) - float(pb[2])
+            same_line = abs(float(sb[1]) - float(pb[1])) < 0.25 * size and abs(float(sb[3]) - float(pb[3])) < 0.25 * size
+            if same and same_line and -0.1 * size <= gap <= 0.6 * size:
+                sep = "" if gap < 0.12 * size or prev["text"].endswith(" ") or sp["text"].startswith(" ") else " "
+                prev["text"] = prev["text"] + sep + sp["text"]
+                prev["bbox"] = (min(pb[0], sb[0]), min(pb[1], sb[1]), max(pb[2], sb[2]), max(pb[3], sb[3]))
+                continue
+        merged.append(sp)
+    return merged
+
+
 def extract_spans(backend: Any, page_index: int) -> list[NativeSpan]:
     """Extract glyph/span geometry via PyMuPDF text dict."""
     page = backend._doc.load_page(page_index)  # noqa: SLF001 — engine-internal
@@ -49,7 +85,7 @@ def extract_spans(backend: Any, page_index: int) -> list[NativeSpan]:
         if block.get("type", 0) != 0:
             continue
         for line in block.get("lines") or []:
-            line_spans = line.get("spans") or []
+            line_spans = _merge_word_spans(line)
             for sp in line_spans:
                 text = sp.get("text") or ""
                 if not text.strip():
@@ -86,11 +122,23 @@ def span_to_textbox(span: NativeSpan) -> TextBox:
     replacement grows the box instead of breaking onto a second line."""
     from core.editing.text_box import SizeMode
 
+    family = clean_font_name(span.font) or "sans-serif"
+    try:
+        # The installed family of the span's PostScript name (MS-Gothic → MS Gothic, YuGothic-Regular →
+        # Yu Gothic, TimesNewRomanPSMT → Times New Roman): Save then embeds that font. With the raw
+        # name it was "not installed" and the edited text came out in a substitute font.
+        from core.editing.font_resolver import resolve_font
+
+        res = resolve_font(family, span.text)
+        if not res.substituted and res.resolved not in ("sans-serif", "serif", "monospace"):
+            family = res.resolved
+    except Exception:  # noqa: BLE001
+        pass
     return TextBox(
         page_index=span.page_index,
         rect=span.rect.inflate(0.5),
         text=span.text,
-        style=TextStyle(font_family=clean_font_name(span.font) or "sans-serif", font_size=span.size,
+        style=TextStyle(font_family=family, font_size=span.size,
                         text_color=span.color, bold=span.bold, italic=span.italic, padding=0.0,
                         wrap=False, line_spacing=1.0),
         size_mode=SizeMode.AUTO_SIZE,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bisect
 import os
 import time
 from collections import OrderedDict
@@ -743,14 +744,17 @@ class _CanvasWidget(QWidget):
         self._schedule_render()
 
     def page_at_y(self, y: int) -> int:
-        for i, rect in enumerate(self._layouts):
-            if rect.top() <= y <= rect.bottom():
-                return i
+        """The page at canvas height ``y``; in the gap between two pages, the page above the gap.
+
+        A y in a gap used to fall through to the *last* page: the visible range then reached to the end
+        of the document and every page after the current one was rendered at once (multi-second
+        freezes in long documents), and the current page jumped to the last page for a moment.
+        """
         if not self._layouts:
             return 0
-        if y < self._layouts[0].top():
-            return 0
-        return len(self._layouts) - 1
+        # pages are laid out top to bottom: the last page whose top is at or above y
+        i = bisect.bisect_right(self._layouts, y, key=lambda r: r.top()) - 1
+        return max(0, min(i, len(self._layouts) - 1))
 
     def page_top(self, index: int) -> int:
         if 0 <= index < len(self._layouts):
@@ -950,23 +954,31 @@ class _CanvasWidget(QWidget):
             f.object_id for f in self._edit.fields_on_page(page)
             if not f.is_candidate and not f.readonly and f.rect.normalized().intersects(rect)
         ]
+        # text boxes, shapes and pictures (shapes and pictures used to be left out of the selection)
         boxes = [
-            oid for oid, box in self._edit.objects.items()
+            oid for store in (self._edit.objects, self._edit.shapes, self._edit.images)
+            for oid, box in store.items()
             if box.page_index == page and box.rect.normalized().intersects(rect)
         ]
         if self._marquee_additive:
             before_boxes, before_fields = self._marquee_before
             fields = list(dict.fromkeys([*before_fields, *fields]))
-            boxes = list(dict.fromkeys([*(b for b in before_boxes if b in self._edit.objects), *boxes]))
+            known = (self._edit.objects, self._edit.shapes, self._edit.images)
+            boxes = list(dict.fromkeys([*(b for b in before_boxes if any(b in s for s in known)), *boxes]))
         self._edit.field_selection = fields
         self._edit.selection = boxes
         self._edit.editing_field_id = None
         self._edit.editing_object_id = None
         self._edit._notify()  # noqa: SLF001
         count = len(fields) + len(boxes)
-        if count:
+        graphics = sum(1 for b in boxes if b not in self._edit.objects)
+        if count and not graphics:
             self.requestStatus.emit(
                 f"{count} box{'es' if count != 1 else ''} selected — choose a font, size, style or colour on the toolbar"
+            )
+        elif count:
+            self.requestStatus.emit(
+                f"{count} object{'s' if count != 1 else ''} selected — drag one to move them all; Delete removes them"
             )
 
     def pdf_rect_to_widget(self, page_index: int, rect: Rect) -> QRect | None:
@@ -1912,6 +1924,20 @@ class _CanvasWidget(QWidget):
                 if best is None or key < best[0]:
                     best = (key, name)
         return best[1] if best else None
+
+    def _handle_grab_offset(self, oid: str, handle: str, press_pt: Point) -> tuple[float, float]:
+        """Where the handle really is, relative to the press (PDF points). A handle can be caught a few
+        pixels off its centre; without this offset the edge jumped to the pointer at the first move."""
+        if self._edit is None or handle in ("p0", "p1"):
+            return (0.0, 0.0)
+        box = (self._edit.get(oid) or self._edit.fields.get(oid) or self._edit.shapes.get(oid)
+               or self._edit.images.get(oid))
+        if box is None or abs(float(getattr(box, "rotation", 0.0) or 0.0)) % 360 > 0.01:
+            return (0.0, 0.0)  # a turned object: keep the previous behaviour
+        r = box.rect.normalized()
+        hx = r.x if "w" in handle else (r.x + r.w if "e" in handle else press_pt.x)
+        hy = r.y if "n" in handle else (r.y + r.h if "s" in handle else press_pt.y)
+        return (hx - press_pt.x, hy - press_pt.y)
 
     def _pdf_rect_to_widget(self, page_index: int, pdf_rect: object) -> QRect | None:
         x0 = float(getattr(pdf_rect, "x0"))
@@ -2995,6 +3021,7 @@ class _CanvasWidget(QWidget):
                     self._mode = "drag_resize"
                     self._resize_handle = handle
                     self._resize_oid = fsel.object_id
+                    self._resize_grab = self._handle_grab_offset(fsel.object_id, handle, pdf_pt)
                     self._drag_before = {fsel.object_id: Rect(*fsel.rect.as_tuple())}
                     self._live_interaction = True
                     self._shift_constrain = False
@@ -3100,6 +3127,7 @@ class _CanvasWidget(QWidget):
                 self._mode = "drag_resize"
                 self._resize_handle = handle
                 self._resize_oid = oid
+                self._resize_grab = self._handle_grab_offset(oid, handle, pdf_pt)
                 self._drag_before = self._edit.begin_transform_snapshot()
                 self._live_interaction = True
                 self._shift_constrain = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
@@ -3108,13 +3136,18 @@ class _CanvasWidget(QWidget):
 
         hit = self._edit.hit_test(page_index, pdf_pt)
         additive = bool(event.modifiers() & Qt.KeyboardModifier.ControlModifier)
+        self._collapse_on_release = None
         if hit:
-            if hit not in self._edit.selection or not additive:
+            if hit not in self._edit.selection:
                 self._edit.selection = [hit] if not additive else list(
                     dict.fromkeys([*self._edit.selection, hit])
                 )
                 self._edit.field_selection = []
                 self._edit._notify()  # noqa: SLF001
+            elif not additive and len(self._edit.selection) > 1:
+                # Pressing on one of several selected objects keeps them all selected, so a drag moves
+                # them together; a click without moving selects only this one (on release).
+                self._collapse_on_release = hit
             self._mode = "drag_move"
             self._drag_before = self._edit.begin_transform_snapshot()
             self._drag_shape_lines = {}
@@ -3314,6 +3347,8 @@ class _CanvasWidget(QWidget):
                 self._drag_perf.append((time.perf_counter() - t0) * 1000)
                 return
             base = self._drag_before.get(self._resize_oid, box.rect)
+            gx, gy = getattr(self, "_resize_grab", (0.0, 0.0))
+            pdf_pt = Point(pdf_pt.x + gx, pdf_pt.y + gy)  # the edge moves with the mouse, without a jump
             shift = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
             self._shift_constrain = shift
             shape = self._edit.shapes.get(self._resize_oid)
@@ -3490,8 +3525,13 @@ class _CanvasWidget(QWidget):
             self._live_interaction = False
             pending_field_edit = bool(getattr(self, "_field_click_edit", False)) and not moved
             self._field_click_edit = False
+            collapse = getattr(self, "_collapse_on_release", None)
+            self._collapse_on_release = None
             if moved:
                 self._edit.commit_transform(self._drag_before, name="Move")
+            elif collapse is not None and collapse in self._edit.selection:
+                self._edit.select([collapse])  # a click on one of several selected objects
+                self._end_live_interaction()
             else:
                 # Click without move: edit a previously selected text field, else keep selection
                 field_id = next(iter(self._drag_before), None)
@@ -4113,8 +4153,11 @@ class PdfCanvas(QScrollArea):
         if wr is None:
             self.go_to_page(page_index)
             return
-        self._canvas._focus_page = page_index  # noqa: SLF001
         self.ensureVisible(wr.center().x(), wr.center().y(), max(40, wr.width() // 2 + 40), max(40, wr.height() // 2 + 60))
+        # After the scroll: scrolling recomputes the focus page from the middle of the viewport, which is
+        # still the previous page when the match is only just brought into view at the edge. The page of
+        # the match is the current page (page commands, Select All and the page box act on it).
+        self._canvas._focus_page = page_index  # noqa: SLF001
         self.pageChanged.emit(page_index)
 
     def select_annotation(self, page_index: int, xref: int) -> bool:
