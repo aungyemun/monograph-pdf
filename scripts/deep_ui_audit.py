@@ -875,12 +875,18 @@ def file_save():
         check("now editing the Save As file", doc() is not None and Path(doc().path) == out, str(doc().path))
     edit().create_text_box(0, Rect(72, 420, 220, 40), text="Unsaved", auto_match=False)
     edit().mark_dirty()
+    before_close = Path(doc().path)
     MSG_QUEUE.append("cancel")
     act("File > Close")
-    check("Cancel keeps the document open", doc() is not None)
+    check("Cancel keeps the document open", doc() is not None and Path(doc().path) == before_close
+          and edit().dirty, str(doc() and doc().path))
+    closing = Path(doc().path) if doc() is not None else None
     MSG_QUEUE.append("discard")
     act("File > Close")
-    check("Don't Save closes the document", doc() is None)
+    # Documents open in tabs: Close closes this one; the other tabs stay open
+    still_open = [Path(s.document.path) for s in getattr(W, "_sessions", [])]
+    check("Don't Save closes the document", closing is not None and closing not in still_open
+          and (doc() is None or Path(doc().path) != closing), [p.name for p in still_open])
     del box
 
 

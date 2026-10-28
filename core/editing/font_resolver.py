@@ -122,7 +122,22 @@ def _match(name: str, available: set[str]) -> str | None:
     for real in families:
         if normalize_family_name(real).lower() == norm:
             return real
+    # PostScript names of embedded fonts without spaces: YuGothic → Yu Gothic,
+    # TimesNewRomanPSMT → Times New Roman, ArialMT → Arial
+    compact = _compact(norm)
+    if compact:
+        for real in families:
+            if _compact(real) == compact:
+                return real
     return None
+
+
+def _compact(name: str) -> str:
+    key = re.sub(r"[\s_\-]", "", (name or "").lower())
+    for suffix in ("psmt", "mt", "ps"):
+        if key.endswith(suffix) and len(key) > len(suffix) + 2:
+            return key[: -len(suffix)]
+    return key
 
 
 _QT_REGISTERED: set[str] = set()
@@ -185,6 +200,22 @@ def resolve_font(requested: str, sample_text: str = "") -> FontResolution:
         stack.extend(_GENERIC.get("serif" if serifish else "sans-serif", _LATIN_STACK))
 
     if text_needs_cjk(sample_text):
+        # The chosen font itself when it is installed and has every character (MS Gothic, Meiryo,
+        # MS Mincho …): the screen and the line breaks then use the font that Save embeds. It used to
+        # be replaced by the first Japanese fallback (Yu Gothic UI) on screen only.
+        if requested_key not in _GENERIC:
+            for cand in dict.fromkeys(c for c in (requested_key, stripped.replace("-", " ")) if c):
+                hit = _match(cand, available)
+                if hit and not glyph_coverage_missing(hit, sample_text):
+                    exact = _compact(normalize_family_name(hit)) == _compact(requested_key)
+                    return FontResolution(
+                        requested=original,
+                        resolved=hit,
+                        substituted=not exact,
+                        reason="" if exact else f"Exact font '{original}' unavailable; using '{hit}'.",
+                        original_pdf_font=original if "+" in original else "",
+                        source="bundled" if hit.lower() in _bundled_family_map() else "system",
+                    )
         jp = list(_SERIF_JP_STACK if serifish else _JP_STACK)
         stack = jp + stack
 
@@ -204,7 +235,7 @@ def resolve_font(requested: str, sample_text: str = "") -> FontResolution:
         hit = _match(cand, available)
         if hit:
             source = "bundled" if cand.lower() in bundled or hit.lower() in bundled else "system"
-            substituted = normalize_family_name(hit).lower() != normalize_family_name(requested_key).lower()
+            substituted = _compact(normalize_family_name(hit)) != _compact(normalize_family_name(requested_key))
             if requested_key in _GENERIC:
                 substituted = True
             reason = ""

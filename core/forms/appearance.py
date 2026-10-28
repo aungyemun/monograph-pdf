@@ -56,10 +56,13 @@ def needs_custom_appearance(field: Any) -> bool:
 
 
 def _auto_text_too_wide(field: Any, value: str) -> bool:
-    """Auto size on one line: MuPDF sizes by height only and cuts long entries off. Acrobat
-    shrinks the text to fit the width — so do we (the field stays "Auto" in the PDF)."""
-    if float(getattr(field, "font_size", 0) or 0) > 0 or getattr(field, "multiline", False):
+    """Auto size: MuPDF sizes by height only and cuts long entries off (one line: at the right edge;
+    several lines: at the bottom). Acrobat shrinks the text until all of it fits — so do we (the
+    field stays "Auto" in the PDF)."""
+    if float(getattr(field, "font_size", 0) or 0) > 0:
         return False
+    if getattr(field, "multiline", False):
+        return True  # the shrink-to-fit layout of write_text_appearance (_set_base_size)
     rect = getattr(field, "rect", None)
     w, h = float(getattr(rect, "w", 0) or 0), float(getattr(rect, "h", 0) or 0)
     if w <= 4 or h <= 4:

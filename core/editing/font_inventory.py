@@ -254,6 +254,9 @@ def build_font_inventory(doc: Any | None = None, *, force_refresh: bool = False)
     return inv
 
 
+_RAW_FONTS: dict = {}  # family → QRawFont (the coverage check runs while painting)
+
+
 def glyph_coverage_missing(family: str, text: str) -> list[str]:
     """Return characters in *text* that *family* cannot render (best-effort via Qt)."""
     if not text:
@@ -265,13 +268,29 @@ def glyph_coverage_missing(family: str, text: str) -> list[str]:
         if QApplication.instance() is None:
             return []
         qf = QFont(family)
-        metrics = QFontMetricsF(qf)
+        # The font file itself, asked by code point. PySide6 6.8's one-character str overloads
+        # (QFontMetricsF.inFont, QRawFont.supportsCharacter) answer wrongly for non-ASCII characters
+        # (Arial "had" ゴ, MS Gothic "lacked" Ｍ and 緑), and inFontUcs4 counts Qt's fallback fonts.
+        from PySide6.QtGui import QFontDatabase, QRawFont
+
+        raw = _RAW_FONTS.get(family)
+        if raw is None:
+            # QRawFont.fromFont crashes Qt when its font database is empty (offscreen platform without
+            # a font folder): only ask it when there are fonts; otherwise the old check is used.
+            raw = QRawFont.fromFont(qf) if QFontDatabase.families() else QRawFont()
+            if len(_RAW_FONTS) > 64:
+                _RAW_FONTS.clear()
+            _RAW_FONTS[family] = raw
+        metrics = None if raw.isValid() else QFontMetricsF(qf)
         missing: list[str] = []
         for ch in text:
             if ch.isspace():
                 continue
             try:
-                if hasattr(metrics, "inFont") and not metrics.inFont(ch):
+                if raw.isValid():
+                    if not raw.supportsCharacter(ord(ch)):
+                        missing.append(ch)
+                elif hasattr(metrics, "inFont") and not metrics.inFont(ch):
                     missing.append(ch)
             except Exception:  # noqa: BLE001
                 continue
