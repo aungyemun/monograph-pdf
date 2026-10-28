@@ -121,6 +121,9 @@ def test_no_network_use_during_typical_work(window, tmp_path, monkeypatch):
     doc.new_page().insert_text((72, 72), "Offline check page")
     doc.save(src)
     doc.close()
+    # the path under test exports the current state; on a real display the app first asks
+    # "save first?" (and, for flattening, confirms) — offscreen runs skip those questions
+    monkeypatch.setattr(window, "_is_headless_ui", lambda: True)
     with NetworkAttempts() as guard:
         assert window.open_path(src)
         _add_text(window)

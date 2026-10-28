@@ -90,6 +90,9 @@ def test_exports_include_unsaved_edits(window, tmp_path, monkeypatch, method, ex
     dest = tmp_path / f"out.{ext}"
     _save_to(monkeypatch, dest)
     monkeypatch.setattr(window, "_selected_pages", lambda: [0])
+    # the path under test exports the current state; on a real display the app first asks
+    # "save first?" (and, for flattening, confirms) — offscreen runs skip those questions
+    monkeypatch.setattr(window, "_is_headless_ui", lambda: True)
     getattr(window, method)()
     assert dest.exists(), method
     text = dest.read_text(encoding="utf-8") if ext == "txt" else _flat(dest)
