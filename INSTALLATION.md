@@ -1,7 +1,7 @@
 # Installation
 
 Use the official [Releases](https://github.com/aungyemun/monograph-pdf/releases) and select
-the platform explicitly. Published Windows is 0.4.0; Windows 0.5.0 remains an unpublished draft.
+the platform explicitly. Published Windows is 0.5.0.
 macOS 0.1.0 is published; Linux 0.1.0 is available from source. Development uses unified `main`.
 
 ## Linux
@@ -29,9 +29,8 @@ See [macOS setup, packaging and signing limitations](docs/MACOS.md). Unified sou
 
 ## Windows
 
-**Published:** [v0.4.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.4.0).
-**Prepared (not public yet):** 0.5.0 (draft). Do not use the repository-wide GitHub “Latest” link
-for Windows downloads while it may point at macOS.
+**Published:** [v0.5.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.0). Do not use the repository-wide GitHub “Latest” link
+for Windows downloads: it may point at macOS.
 
 Monograph PDF is installed with a standard Windows installer. Everything it needs — including
 Python, Qt and the OCR engine — is included, and no internet connection is required.
@@ -76,7 +75,7 @@ place; your settings and documents are kept.
 
 0.4.0 and earlier cannot update themselves (their update checks are switched off): install the current
 version with its Setup from the [Releases](https://github.com/aungyemun/monograph-pdf/releases) page
-(0.5.0 is planned as the first public version with update checks; 0.4.1 was prepared but never published). From then on,
+(0.5.0 is the first public version with update checks; 0.4.1 was prepared but never published). From then on,
 **Help ▸ Check for Updates…** can do this for you when a newer signed release exists: **Update Now** downloads and verifies the new Setup, closes Monograph PDF (after you
 save or discard open changes), installs the update in the same folder with the same choices and
 restarts Monograph PDF. An all-users installation shows Windows' administrator prompt. Details:
@@ -84,7 +83,7 @@ restarts Monograph PDF. An all-users installation shows Windows' administrator p
 
 ### Silent installation (administrators)
 
-Replace `<published-version>` with the version you actually downloaded; the 0.5.0 draft is not public.
+Replace `<published-version>` with the version you actually downloaded (for example 0.5.0).
 
 ```bat
 MonographPDF_<published-version>_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART

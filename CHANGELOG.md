@@ -7,16 +7,14 @@ platform-specific release tags — GitHub’s repository-wide “Latest” badge
 
 | Platform | Latest published | Notes |
 | :--- | :--- | :--- |
-| Windows | **[0.4.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.4.0)** | **0.5.0** prepared on `main` (draft; not publicly released yet) |
+| Windows | **[0.5.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.0)** | First Windows release with signed update checks |
 | macOS | **[0.1.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1)** (`v0.1.0-macos-1`) | First macOS line |
 | Linux | — | **0.1.0** on branch [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux); **no** `v0.1.0-linux` tag yet |
 
-## [0.5.0] — 2026-10-25
+## [0.5.0] — 2026-10-28
 
-Windows line — prepared on this date but **not yet publicly released** (draft). Changes after 0.4.1.
-Versions 0.4.1 and 0.4.2 were never released; their changes are part of 0.5.0. This is the first
-Windows release **intended** to ship with signed update checks switched on; until it is published,
-the latest public Windows release remains **0.4.0**.
+Windows line. Changes after 0.4.0: versions 0.4.1 and 0.4.2 were never released; their changes are
+part of 0.5.0. This is the first Windows release with signed update checks switched on.
 
 ### Security
 

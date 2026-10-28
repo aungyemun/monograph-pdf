@@ -43,6 +43,5 @@ current development behavior is not proof that a feature shipped in an older rel
 * [Changelog](../CHANGELOG.md) and [official releases](https://github.com/aungyemun/monograph-pdf/releases)
 
 `docs/releases/` keeps historical release notes; `reports/` holds dated engineering evidence.
-A draft note is not evidence of publication. Windows 0.5.0 remains unpublished; its draft and
-the superseded 0.4.1 draft both lack the update-manifest asset listed in their notes. This is a
-release follow-up, not authorization to create, sign or publish assets.
+A draft note is not evidence of publication. The 0.4.1 draft was superseded by 0.5.0 and never
+published.

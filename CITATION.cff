@@ -1,12 +1,13 @@
 cff-version: 1.2.0
 title: "Monograph PDF"
-message: "Cite Monograph PDF and record the platform plus release tag or commit used. The version field tracks prepared Windows source, not a published release."
+message: "Cite Monograph PDF and record the platform plus release tag or commit used. The version field is the Windows release."
 type: software
 authors:
   - family-names: "Mun"
     given-names: "Aung Ye"
     email: "aungyemun25@gmail.com"
 version: "0.5.0"
+date-released: "2026-10-28"
 license: "AGPL-3.0-or-later"
 repository-code: "https://github.com/aungyemun/monograph-pdf"
 abstract: >

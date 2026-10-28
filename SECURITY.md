@@ -8,8 +8,8 @@ vulnerabilities privately, including the exact platform, version and build commi
 
 | Platform/version | Distribution status |
 | :--- | :--- |
-| Windows 0.4.0 | Latest published Windows release; predates protection fixes prepared in 0.5.0 |
-| Windows 0.5.0 | Unpublished draft/development line; do not describe it as an available upgrade |
+| Windows 0.5.0 | Latest published Windows release (security fixes for protected PDFs, signed update checks) |
+| Windows 0.4.0 | Previous release; predates the protection fixes of 0.5.0 — upgrade with the 0.5.0 Setup |
 | Windows 0.4.1 / 0.4.2 | Never published; changes folded into 0.5.0 |
 | macOS 0.1.0 | Published as v0.1.0-macos-1; independent platform line |
 | Linux 0.1.0 | Source-only line; no published Linux release tag |
@@ -46,9 +46,9 @@ Fixes are described in the [changelog](CHANGELOG.md) of the release that contain
 Monograph PDF is designed to operate offline: it has no telemetry and never uploads documents.
 From 0.3.0 exactly two modules may use the network — the update checker and the problem-report
 sender — each only for a purpose the user controls (checked by tests). Update checks are switched on
-in Windows development **0.5.0** (still an unpublished draft) (only when the user asks, or after switching on
+in Windows **0.5.0** (only when the user asks, or after switching on
 automatic checks, which are off by default); in 0.3.0 and 0.4.0 they are off. Sending problem reports is switched off (no reporting
-service yet). In development **0.5.0**, the OCR Languages dialog can download one optional OCR language file when
+service yet). In **0.5.0**, the OCR Languages dialog can download one optional OCR language file when
 the user clicks **Download and Install**; it goes through the update checker's HTTPS code (host
 allow-list, certificate verification) and the file is installed only if its pinned SHA-256 matches.
 Nothing else in Monograph PDF makes network connections.

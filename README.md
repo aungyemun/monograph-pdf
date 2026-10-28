@@ -19,7 +19,7 @@ development from `main`. A development version is not a published download.
 
 | Platform | Published distribution | Current development line |
 | :--- | :--- | :--- |
-| Windows 10/11, x64 | [v0.4.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.4.0) | 0.5.0; unpublished draft |
+| Windows 10/11, x64 | [v0.5.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.0) | 0.5.0; bug fixes go into 0.5.1 |
 | macOS 13+, Apple silicon | [v0.1.0-macos-1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1) | 0.1.0; unified source on main |
 | Linux, x86_64 | No published Linux release | 0.1.0; build from main |
 
@@ -64,7 +64,6 @@ Choose a platform-specific release rather than relying on the repository-wide La
 Compare downloaded files with the checksums in that release's notes.
 
 * **Windows:** download the published Setup executable; see [installation and upgrades](INSTALLATION.md#windows).
-  0.5.0 is still a draft and is not offered here as a public release.
 * **macOS:** use the zip/dmg/pkg from the published macOS release and follow the
   [macOS guide](docs/MACOS.md). Local builds use ad-hoc signing, not Developer ID or notarization.
 * **Linux:** follow the [source setup guide](LINUX.md). The per-user installer consumes an

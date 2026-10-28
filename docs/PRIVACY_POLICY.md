@@ -10,10 +10,10 @@ OCR language downloads (from version 0.5.0) happen only when you click **Downloa
 Sending problem reports is switched off (no reporting service yet). Versions 0.3.0 and 0.4.0 make no
 network connections at all; the same holds for earlier versions, which do not have these features.
 
-Windows 0.5.0 remains an unpublished draft. The descriptions below refer to that development
-line; published Windows 0.4.0 has update checks disabled. Linux/macOS upgrades are manual.
+The descriptions below refer to Windows 0.5.0; Windows 0.4.0 and earlier have update checks
+disabled. Linux/macOS upgrades are manual.
 
-## Update checks (built in since 0.3.0, enabled in Windows development 0.5.0)
+## Update checks (built in since 0.3.0, enabled in Windows 0.5.0)
 
 When you choose **Help ▸ Check for Updates…**, **Check Now**, or switch on *Automatically check for
 updates* (off by default; **File ▸ Settings… ▸ Updates**), Monograph PDF connects to GitHub, which
