@@ -360,6 +360,15 @@ def apply_field_values_to_doc(doc: fitz.Document, fields: list[FormField]) -> No
                     pass
                 else:
                     w.field_value = model.value
+                    if not model.value and xref and model.field_type in (
+                        FieldType.TEXT, FieldType.MULTILINE, FieldType.DATE
+                    ):
+                        # A field the user cleared: PyMuPDF's Widget.update() writes a value only
+                        # when it is non-empty, so the previously saved /V — and an appearance that
+                        # still showed the old text — were kept. Write the empty value on the field
+                        # dictionary (the parent for kid widgets); update() then rebuilds an empty
+                        # appearance from it.
+                        doc.xref_set_key(_field_dict_xref(doc, xref), "V", "()")
                 try:
                     w.text_fontsize = model.font_size
                 except Exception:  # noqa: BLE001

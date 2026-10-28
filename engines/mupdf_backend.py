@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +15,38 @@ from core.page_info import PageContent, PageContentKind, PageInfo
 
 # Heuristic: mostly images + little text => scanned/image page
 _SCAN_TEXT_THRESHOLD = 40
+
+_ANNOT_FLAG_HIDDEN = 2  # PDF annotation flag bit 2 (ISO 32000-1, 12.5.3)
+
+
+@contextmanager
+def _widgets_hidden(doc: fitz.Document, page: fitz.Page, xrefs: Iterable[int]) -> Iterator[None]:
+    """Leave the given form-field widgets of ``page`` out of a rendering.
+
+    A field whose value is being changed still has its *saved* appearance stream (the old text);
+    drawing that under the new value showed both (ghost / overlapping text). The widgets get the
+    Hidden flag for the duration of the rendering and their exact previous ``/F`` entry back
+    afterwards, so nothing is left changed in the document. Only widgets of this page are touched;
+    other xrefs are ignored."""
+    wanted = {int(x) for x in xrefs or () if int(x) > 0}
+    restore: list[tuple[int, str, str]] = []
+    try:
+        if wanted:
+            try:
+                own = {int(w.xref) for w in (page.widgets() or [])}
+            except Exception:  # noqa: BLE001
+                own = set()
+            for xref in sorted(wanted & own):
+                kind, value = doc.xref_get_key(xref, "F")
+                flags = int(value) if kind == "int" else 0
+                if flags & _ANNOT_FLAG_HIDDEN:
+                    continue
+                restore.append((xref, kind, value))
+                doc.xref_set_key(xref, "F", str(flags | _ANNOT_FLAG_HIDDEN))
+        yield
+    finally:
+        for xref, kind, value in reversed(restore):
+            doc.xref_set_key(xref, "F", value if kind != "null" else "null")
 
 
 class MuPdfBackend:
@@ -297,13 +331,19 @@ class MuPdfBackend:
         *,
         scale: float,
         clip: tuple[float, float, float, float] | None = None,
+        hidden_widgets: Iterable[int] = (),
     ) -> tuple[bytes, int, int, int]:
         """RGB samples of the page (or of ``clip``, display space in points) at ``scale`` pixels per
-        point: (samples, width, height, stride). No PNG encoding — used for the on-screen view."""
+        point: (samples, width, height, stride). No PNG encoding — used for the on-screen view.
+
+        ``hidden_widgets``: xrefs of form-field widgets on this page whose saved appearance is out of
+        date (the field is being edited and the window draws its new value). They are left out of
+        this picture only; the document is unchanged afterwards."""
         page = self._doc.load_page(page_index)
         matrix = fitz.Matrix(scale, scale)
         area = fitz.Rect(clip) & page.rect if clip is not None else None
-        pix = page.get_pixmap(matrix=matrix, alpha=False, clip=area, colorspace=fitz.csRGB)
+        with _widgets_hidden(self._doc, page, hidden_widgets):
+            pix = page.get_pixmap(matrix=matrix, alpha=False, clip=area, colorspace=fitz.csRGB)
         return bytes(pix.samples), pix.width, pix.height, pix.stride
 
     def render_thumbnail_png(self, page_index: int, max_edge_px: int = 160) -> bytes:
