@@ -28,7 +28,9 @@ def test_bundle_symlinks_climb_out_of_their_own_directory():
 def test_build_does_not_copy_the_dev_wrapper_into_the_bundle():
     assert 'cp -R "$ROOT/engines/ocr"' not in BUILD_APP  # dev wrapper + Windows MANIFEST.json
     assert "stage_ocr_macos.py" in BUILD_APP
-    assert 'sign_file "$RES/engines/ocr/bin/tesseract"' in BUILD_APP
+    # the published conda-forge signatures are kept (bytes = inventory) and verified, never re-signed
+    assert '"$RES/engines/ocr/"*) continue' in BUILD_APP
+    assert 'codesign --verify --strict "$f"' in BUILD_APP
 
 
 def test_resolve_skips_system_libraries(tmp_path):

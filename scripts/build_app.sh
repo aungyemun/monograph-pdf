@@ -183,6 +183,21 @@ if [[ -n "$DANGLING" ]]; then
   echo "$DANGLING" >&2
   exit 1
 fi
+# OCR provenance: the staged engine must equal the recorded inventory byte for byte, with every
+# package's license present (scripts/packaging/macos_ocr_sources.py; corresponding source is
+# produced and checked by package_macos.sh).
+if [[ -d "$RES/engines/ocr/bin" ]]; then
+  cp "$ROOT/scripts/packaging/macos_ocr_sources.json" "$RES/engines/ocr/THIRD_PARTY_OCR_SOURCES.json"
+  "$PY" scripts/packaging/macos_ocr_sources.py check "$RES/engines/ocr" \
+    "$ROOT/scripts/packaging/macos_ocr_sources.json" ""
+fi
+# No builder-specific paths (home folder, checkout) may ship inside the app.
+LEAKS="$(grep -rlF -- "$HOME/" "$APP" 2>/dev/null || true)"
+if [[ -n "$LEAKS" ]]; then
+  echo "ERROR: the bundle contains the builder's home path ($HOME):" >&2
+  echo "$LEAKS" >&2
+  exit 1
+fi
 
 # Executable bit on the launcher
 if [[ -f "$MACOS_DIR/MonographPDF" ]]; then
@@ -196,15 +211,16 @@ sign_file() {
     || codesign --force --sign - --timestamp=none "$target"
 }
 
-# dylib / so / bundle binaries inside the app (innermost → outer)
+# dylib / so / bundle binaries inside the app (innermost → outer). The OCR engine keeps the
+# conda-forge ad-hoc signatures it was published with, so its bytes stay identical to the
+# inventoried packages (macos_ocr_sources.json); those signatures are verified instead.
 while IFS= read -r -d '' f; do
+  case "$f" in "$RES/engines/ocr/"*) continue ;; esac
   sign_file "$f"
 done < <(find "$APP" \( -name "*.dylib" -o -name "*.so" -o -name "*.bundle" \) -type f -print0 2>/dev/null || true)
-
-# Helper executables (bundled OCR engine)
-if [[ -f "$RES/engines/ocr/bin/tesseract" ]]; then
-  sign_file "$RES/engines/ocr/bin/tesseract"
-fi
+while IFS= read -r -d '' f; do
+  codesign --verify --strict "$f" || { echo "ERROR: invalid signature on bundled OCR file $f" >&2; exit 1; }
+done < <(find "$RES/engines/ocr/bin" "$RES/engines/ocr/lib" -type f -print0 2>/dev/null || true)
 
 # Framework binaries
 while IFS= read -r -d '' fw; do

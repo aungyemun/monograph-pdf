@@ -6,6 +6,11 @@ wrapper cannot be shipped. This copies the real Mach-O binary to ``<dest>/bin/te
 the transitive closure of its non-system dylibs to ``<dest>/lib`` — the binary already carries
 ``LC_RPATH @loader_path/../lib``, so no install names need rewriting.
 
+Files are copied from the extracted conda *package*, not from the installed environment: on install
+conda patches the environment's own path into some libraries (OpenSSL, curl, krb5, libxml2, …),
+which would ship the builder's home folder and make the binaries differ per machine. The package
+bytes carry conda-forge's neutral placeholder prefix and equal the published package exactly.
+
 Licensing: every conda package that owns a staged file has its license files copied to
 ``<dest>/licenses/<package>/`` and is listed (name, version, build, license, package URL) in
 ``<dest>/THIRD_PARTY_OCR.json``. Copyleft components (e.g. lzo GPL-2.0-or-later, libiconv
@@ -33,8 +38,15 @@ https://github.com/tesseract-ocr/tesseract
 The macOS build of Monograph PDF includes a conda-forge build of Tesseract under
 engines/ocr/bin with the libraries it needs under engines/ocr/lib. Each library's
 license is in engines/ocr/licenses/<package>/ and THIRD_PARTY_OCR.json lists
-package versions, licenses and download URLs. Language data (eng, jpn, osd) under
+package versions, licenses and download URLs; THIRD_PARTY_OCR_SOURCES.json records
+each package's provenance (published package, feedstock commit, upstream sources
+and SHA-256 of every bundled file). Language data (eng, jpn, osd) under
 models/tessdata comes from tessdata_fast and keeps its upstream licensing.
+
+lzo (GPL-2.0-or-later) and libiconv (LGPL-2.1) are copyleft. Their complete
+corresponding source (upstream release archive, conda-forge recipe, patches and build
+scripts) is published with every Monograph PDF for macOS release, in the folder
+MonographPDF_<version>_macOS_OCR_Corresponding_Source next to the .dmg.
 """
 
 
@@ -119,6 +131,18 @@ def write_licenses(prefix: Path, dest: Path, staged: list[str]) -> list[dict]:
     return inventory
 
 
+def package_file(prefix: Path, rel: str, owners: dict[str, dict]) -> Path:
+    """The unpatched file for ``rel`` (``bin/…`` / ``lib/…``) inside its extracted conda package."""
+    target = (prefix / rel).resolve().relative_to(prefix.resolve()).as_posix()
+    record = owners.get(target) or owners.get(rel)
+    if record is None:
+        raise LookupError(f"{rel} is not owned by any conda package in {prefix}")
+    path = (Path(record["extracted_package_dir"]) / target).resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"{path} missing — the conda package cache was cleaned; re-run vendor_ocr_macos.sh")
+    return path
+
+
 def stage(prefix: Path, dest: Path) -> list[str]:
     src_bin = prefix / "bin" / "tesseract"
     lib_dir = prefix / "lib"
@@ -129,10 +153,11 @@ def stage(prefix: Path, dest: Path) -> list[str]:
         shutil.rmtree(dest)
     (dest / "bin").mkdir(parents=True)
     (dest / "lib").mkdir()
-    shutil.copy2(src_bin, dest / "bin" / "tesseract")
+    owners = _owners(prefix)
+    shutil.copy2(package_file(prefix, "bin/tesseract", owners), dest / "bin" / "tesseract")
     for name in names:
         # Copy the real file under the referenced name (no symlinks inside the signed bundle).
-        shutil.copy2((lib_dir / name).resolve(), dest / "lib" / name)
+        shutil.copy2(package_file(prefix, f"lib/{name}", owners), dest / "lib" / name)
     write_licenses(prefix, dest, ["bin/tesseract"] + [f"lib/{n}" for n in names])
     return names
 

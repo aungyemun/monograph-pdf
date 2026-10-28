@@ -61,5 +61,13 @@ bash scripts/package_macos.sh
   linked from outside the bundle.
   Each bundled conda package's license is copied to `engines/ocr/licenses/<package>/` and listed
   in `engines/ocr/THIRD_PARTY_OCR.json`. lzo (GPL-2.0-or-later) and libiconv (LGPL-2.1) are
-  copyleft: a published Mac release must offer their corresponding source.
+  copyleft; `package_macos.sh` writes their corresponding source (upstream archive verified
+  against the recipe's SHA-256, recipe, patches, build scripts, licenses) to
+  `MonographPDF_<version>_macOS_OCR_Corresponding_Source/` and adds it to `SHA256SUMS.txt`.
+* OCR provenance: `scripts/vendor_ocr_macos.sh` installs the exact builds in
+  `scripts/packaging/macos_ocr_env.lock`; `scripts/packaging/macos_ocr_sources.json` records every
+  bundled file's SHA-256. The bundle ships the published package files unmodified (their own
+  ad-hoc signatures are verified, not replaced), so a build fails if the environment drifts. After
+  changing the OCR environment, regenerate with `macos_ocr_sources.py lock`, `inventory` and
+  `sources` (see the script's docstring).
 * Microsoft Office COM conversion is Windows-only; LibreOffice works when installed.

@@ -22,10 +22,19 @@ macOS line only; the Windows version is unchanged.
   its dylibs into the bundle with each package's license and an inventory (`THIRD_PARTY_OCR.json`),
   and refuses dangling symlinks.
 - `package_macos.sh` retries `hdiutil create` when it fails with "Resource busy".
+- The bundled OCR libraries carried the build machine's folder path (conda writes the install path
+  into OpenSSL, curl, krb5, libxml2, libtesseract). The build now ships the unmodified published
+  conda-forge files, keeps their own signatures, and fails if the builder's home path is anywhere in
+  the app.
 - Check for Updates on macOS could offer the Windows line; it now explains that Mac updates are
   downloaded from GitHub Releases.
 
 ### Added
+- OCR provenance and corresponding source: `scripts/packaging/macos_ocr_env.lock` pins the exact
+  conda-forge builds; `scripts/packaging/macos_ocr_sources.json` records each bundled package, its
+  feedstock commit, upstream sources (SHA-256 from the package's own recipe) and the hash of every
+  bundled file. `package_macos.sh` publishes verified corresponding source for the copyleft
+  libraries (lzo, libiconv) next to the .dmg and fails on any missing license, source or mismatch.
 - Opening PDFs from Finder, Open With and the Dock icon.
 - Make Monograph PDF the Default PDF App on macOS through LaunchServices.
 - Application-menu roles for About, Settings… and Quit; dark mode follows the system appearance.

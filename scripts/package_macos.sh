@@ -67,12 +67,25 @@ mkdir -p "$EXTRACT"
 ditto -x -k "$ZIP" "$EXTRACT"
 codesign --verify "$EXTRACT/MonographPDF.app"
 
+# Corresponding source for the copyleft OCR libraries (GPL/LGPL), rebuilt from the verified
+# upstream archives + exact recipes and checked against the hashes recorded in the inventory.
+SOURCES="$OUT/MonographPDF_${VERSION}_macOS_OCR_Corresponding_Source"
+rm -rf "$SOURCES"
+INVENTORY_COPY="$ROOT/build/macos_ocr_sources.json"
+cp "$ROOT/scripts/packaging/macos_ocr_sources.json" "$INVENTORY_COPY"
+MONOGRAPH_OCR_SOURCE_CACHE="$ROOT/build/macos-ocr-source-cache" \
+  "$PY" scripts/packaging/macos_ocr_sources.py sources "$ROOT/tools/ocr-env" "$INVENTORY_COPY" "$SOURCES"
+cp "$ROOT/scripts/packaging/macos_ocr_sources.json" "$SOURCES/THIRD_PARTY_OCR_SOURCES.json"
+"$PY" scripts/packaging/macos_ocr_sources.py check "$APP/Contents/Resources/engines/ocr" \
+  "$ROOT/scripts/packaging/macos_ocr_sources.json" "$SOURCES"
+
 (
   cd "$OUT"
   shasum -a 256 \
     "MonographPDF_${VERSION}_macOS.zip" \
     "MonographPDF_${VERSION}_macOS.dmg" \
     "MonographPDF_${VERSION}_macOS.pkg" \
+    "$(basename "$SOURCES")"/*.tar.gz \
     | tee SHA256SUMS.txt
   ls -lh "MonographPDF_${VERSION}_macOS".*
 )

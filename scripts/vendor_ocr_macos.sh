@@ -28,9 +28,17 @@ if [[ ! -x "$MM" ]]; then
   fi
 fi
 
+# Exact builds (URL + SHA-256) so the bundled binaries match the recorded provenance and
+# corresponding source (scripts/packaging/macos_ocr_sources.json).
+LOCK="$ROOT/scripts/packaging/macos_ocr_env.lock"
 if [[ ! -x "$ROOT/tools/ocr-env/bin/tesseract" ]]; then
-  echo "Creating tools/ocr-env with conda-forge tesseract…"
-  "$MM" create -y -p "$ROOT/tools/ocr-env" -c conda-forge "tesseract=5.5.3"
+  if [[ -f "$LOCK" ]]; then
+    echo "Creating tools/ocr-env from $LOCK…"
+    "$MM" create -y -p "$ROOT/tools/ocr-env" --file "$LOCK"
+  else
+    echo "Creating tools/ocr-env with conda-forge tesseract (unpinned)…"
+    "$MM" create -y -p "$ROOT/tools/ocr-env" -c conda-forge "tesseract=5.5.3"
+  fi
 fi
 
 cat > engines/ocr/tesseract <<'WRAP'
