@@ -156,8 +156,9 @@ def test_mac_question_boxes_get_a_visible_icon_only_on_cocoa(qapp, monkeypatch):
 
     box = QMessageBox()
     box.setIcon(QMessageBox.Icon.Question)
-    theme.mac_question_icon(box)  # offscreen platform: unchanged
-    assert box.icon() == QMessageBox.Icon.Question
+    if qapp.platformName().lower() != "cocoa":
+        theme.mac_question_icon(box)  # offscreen / other platforms: unchanged
+        assert box.icon() == QMessageBox.Icon.Question
     pm = QPixmap(64, 64)
     pm.fill()
     monkeypatch.setattr(theme.sys, "platform", "darwin")
