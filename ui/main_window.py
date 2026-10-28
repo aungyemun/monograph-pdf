@@ -3687,9 +3687,16 @@ class MainWindow(QMainWindow):
             self._fit_button.setDefaultAction(self.act_actual)
         self._fit_button.setText("Fit")
 
+    def _zoom_unchanged(self, percent: float) -> bool:
+        """The box only lost focus (or its text matched a list item): editingFinished fires then, and an
+        editable QComboBox also emits activated for a matching item. Re-applying the zoom already shown
+        would leave Fit mode and re-lay out the pages, closing a text box just opened for typing (on
+        macOS the zoom box has keyboard focus when the window opens)."""
+        return abs(percent - round(self._canvas.zoom * 100)) < 0.5
+
     def _on_toolbar_zoom_chosen(self, index: int) -> None:
         data = self._toolbar_zoom.itemData(index)
-        if data is None:
+        if data is None or self._zoom_unchanged(float(data)):
             return
         self._canvas.set_manual_zoom(float(data) / 100.0)
 
@@ -3701,6 +3708,8 @@ class MainWindow(QMainWindow):
             self._on_zoom_changed(self._canvas.zoom)
             return
         value = max(10.0, min(800.0, value))
+        if self._zoom_unchanged(value):
+            return
         self._canvas.set_manual_zoom(value / 100.0)
 
     def _toggle_monitor_colors(self, on: bool) -> None:

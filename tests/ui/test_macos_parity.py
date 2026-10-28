@@ -121,3 +121,52 @@ def test_mac_shortcuts_avoid_system_reserved_keys(main_window):
     assert QKeySequence("F11") not in w.act_fullscreen.shortcuts()  # Show Desktop on macOS
     assert w.act_fullscreen.shortcuts()
     assert "⌘" in w._page_edit.toolTip() and "Ctrl+G" not in w._page_edit.toolTip()
+
+
+def test_leaving_zoom_box_unchanged_keeps_text_box_open_and_fit_mode(main_window, tmp_path):
+    # On macOS the toolbar zoom box has keyboard focus when the window opens; moving focus into a
+    # text box fired editingFinished, re-applied the same zoom and closed the new editor at once.
+    import shutil
+    from pathlib import Path
+
+    from core.editing.geometry import Rect
+
+    w = main_window
+    src = tmp_path / "work.pdf"
+    shutil.copy(Path(__file__).resolve().parents[1] / "samples" / "sample_text.pdf", src)
+    assert w.open_path(src)
+    inner = w._canvas._canvas
+    mode = inner.zoom_mode
+    box = w._edit.create_text_box(0, Rect(72, 72, 200, 40), text="Hello")
+    assert inner.open_text_editor(box.object_id)
+    w._toolbar_zoom.lineEdit().editingFinished.emit()  # focus left the box, text unchanged
+    assert inner._text_editor is not None
+    assert inner.zoom_mode == mode
+    w._toolbar_zoom.setEditText("150%")  # a typed new zoom still applies
+    w._toolbar_zoom.lineEdit().editingFinished.emit()
+    assert abs(w._canvas.zoom - 1.5) < 1e-6
+
+
+def test_mac_question_boxes_get_a_visible_icon_only_on_cocoa(qapp, monkeypatch):
+    # Qt's macOS question glyph is near-black and vanishes on the dark theme
+    from PySide6.QtGui import QIcon, QPixmap
+    from PySide6.QtWidgets import QMessageBox
+
+    from ui import theme
+
+    box = QMessageBox()
+    box.setIcon(QMessageBox.Icon.Question)
+    theme.mac_question_icon(box)  # offscreen platform: unchanged
+    assert box.icon() == QMessageBox.Icon.Question
+    pm = QPixmap(64, 64)
+    pm.fill()
+    monkeypatch.setattr(theme.sys, "platform", "darwin")
+    cocoa = SimpleNamespace(platformName=lambda: "cocoa", windowIcon=lambda: QIcon(pm))
+    # replace the module's name only — never patch Qt's own class (it is shared by every test)
+    monkeypatch.setattr(theme, "QGuiApplication", SimpleNamespace(instance=lambda: cocoa))
+    theme.mac_question_icon(box)
+    assert box.icon() == QMessageBox.Icon.NoIcon and not box.iconPixmap().isNull()
+    warn = QMessageBox()
+    warn.setIcon(QMessageBox.Icon.Warning)
+    theme.mac_question_icon(warn)  # other icons are visible already
+    assert warn.icon() == QMessageBox.Icon.Warning
