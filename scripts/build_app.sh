@@ -162,15 +162,26 @@ PY
 
 # --- Stage OCR / tessdata BEFORE any final signature ---
 mkdir -p "$RES/engines" "$RES/models" "$MACOS_DIR/engines" "$MACOS_DIR/models"
-if [[ -d "$ROOT/engines/ocr" ]]; then
-  rm -rf "$RES/engines/ocr"
-  cp -R "$ROOT/engines/ocr" "$RES/engines/ocr"
-  ln -sfn "../Resources/engines/ocr" "$MACOS_DIR/engines/ocr"
+# engines/ocr/tesseract in the source tree is a dev wrapper into tools/ocr-env (never bundled),
+# so stage the real binary and its dylib closure instead. Symlinks live in Contents/MacOS/<dir>/,
+# hence two levels up to reach Contents/Resources.
+if [[ -x "$ROOT/tools/ocr-env/bin/tesseract" ]]; then
+  "$PY" scripts/packaging/stage_ocr_macos.py "$ROOT/tools/ocr-env" "$RES/engines/ocr"
+  ln -sfn "../../Resources/engines/ocr" "$MACOS_DIR/engines/ocr"
+else
+  echo "WARNING: tools/ocr-env missing — OCR will be unavailable in this build (run scripts/vendor_ocr_macos.sh)." >&2
 fi
 if [[ -d "$ROOT/models/tessdata" ]]; then
   rm -rf "$RES/models/tessdata"
   cp -R "$ROOT/models/tessdata" "$RES/models/tessdata"
-  ln -sfn "../Resources/models/tessdata" "$MACOS_DIR/models/tessdata"
+  ln -sfn "../../Resources/models/tessdata" "$MACOS_DIR/models/tessdata"
+fi
+# Fail the build on any dangling symlink inside the bundle.
+DANGLING="$(find "$APP" -type l ! -exec test -e {} \; -print)"
+if [[ -n "$DANGLING" ]]; then
+  echo "ERROR: dangling symlinks in bundle:" >&2
+  echo "$DANGLING" >&2
+  exit 1
 fi
 
 # Executable bit on the launcher
@@ -190,6 +201,11 @@ while IFS= read -r -d '' f; do
   sign_file "$f"
 done < <(find "$APP" \( -name "*.dylib" -o -name "*.so" -o -name "*.bundle" \) -type f -print0 2>/dev/null || true)
 
+# Helper executables (bundled OCR engine)
+if [[ -f "$RES/engines/ocr/bin/tesseract" ]]; then
+  sign_file "$RES/engines/ocr/bin/tesseract"
+fi
+
 # Framework binaries
 while IFS= read -r -d '' fw; do
   bin="$fw/Versions/Current/$(basename "${fw%.framework}")"
@@ -208,6 +224,17 @@ codesign --force --sign - --timestamp=none --identifier "$IDENTIFIER" "$APP"
 echo "Verifying ad-hoc signature…"
 codesign --verify --verbose=2 "$APP"
 codesign -dv --verbose=2 "$APP" 2>&1 | head -20
+
+# The bundled OCR engine must run from inside the app with no project tools/ on the path.
+if [[ -x "$RES/engines/ocr/bin/tesseract" ]]; then
+  env -u DYLD_LIBRARY_PATH -u DYLD_FALLBACK_LIBRARY_PATH "$RES/engines/ocr/bin/tesseract" --version | head -1
+  BAD_REFS="$(otool -L "$RES/engines/ocr/bin/tesseract" "$RES/engines/ocr/lib/"*.dylib | grep -E '^\s+/' | grep -vE '^\s+(/usr/lib/|/System/)' || true)"
+  if [[ -n "$BAD_REFS" ]]; then
+    echo "ERROR: bundled OCR links outside the app:" >&2
+    echo "$BAD_REFS" >&2
+    exit 1
+  fi
+fi
 
 # Confirm Info.plist version survived signing
 SHORT="$("$PY" -c "import plistlib; print(plistlib.load(open('$APP/Contents/Info.plist','rb'))['CFBundleShortVersionString'])")"

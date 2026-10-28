@@ -161,8 +161,8 @@ def detect_system_dark() -> bool:
             return int(value) == 0
         except Exception:  # noqa: BLE001
             pass
-    if sys.platform == "darwin":
-        return app_env.get("FORCE_DARK") == "1"
+    if sys.platform == "darwin" and app_env.get("FORCE_DARK") == "1":
+        return True
     # Qt 6.5+: platform colour scheme
     try:
         hints = QGuiApplication.styleHints()

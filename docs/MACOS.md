@@ -45,6 +45,21 @@ bash scripts/package_macos.sh
 
 * Single-instance handover uses an `fcntl` file lock.
 * **Show in Folder** reveals the file in Finder (`open -R`).
-* **Default PDF App** opens System Settings.
-* Automatic Windows installers / Authenticode update installation are Windows-only.
+* **Default PDF App** asks LaunchServices to open PDFs with the installed app (macOS may ask
+  you to confirm); if that fails it explains Finder ▸ Get Info ▸ Open with ▸ Change All….
+* PDFs opened from Finder, **Open With** or dropped on the Dock icon arrive as `QFileOpenEvent`s and
+  open in the running window (also on a cold start).
+* About, Settings… and Quit sit in the application menu by menu role.
+* Dark mode follows the system appearance (`FORCE_DARK=1` still forces it).
+* Shortcuts shown as Ctrl in the User Guide use ⌘ Command. Exceptions: switch document tabs with
+  Control+Tab / Control+Shift+Tab or ⌘⇧] / ⌘⇧[ (⌘Tab is the system app switcher); full screen is
+  Control+⌘F (F11 is Show Desktop).
+* Automatic updates are not available on macOS yet: **Check for Updates** says so instead of
+  reading the Windows release line. Download new Mac versions (`.dmg`) from GitHub Releases.
+* The `.app` carries its own Tesseract (`Contents/Resources/engines/ocr/bin` + `lib`), staged by
+  `scripts/packaging/stage_ocr_macos.py`; the build fails on dangling symlinks or OCR libraries
+  linked from outside the bundle.
+  Each bundled conda package's license is copied to `engines/ocr/licenses/<package>/` and listed
+  in `engines/ocr/THIRD_PARTY_OCR.json`. lzo (GPL-2.0-or-later) and libiconv (LGPL-2.1) are
+  copyleft: a published Mac release must offer their corresponding source.
 * Microsoft Office COM conversion is Windows-only; LibreOffice works when installed.

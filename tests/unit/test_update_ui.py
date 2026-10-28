@@ -240,7 +240,9 @@ def test_remind_me_later_postpones_that_version(window, monkeypatch):
 
 def test_startup_is_offline_unless_automatic_checks_are_switched_on(window, monkeypatch):
     from app.offline_guard import NetworkAttempts
+    import ui.update_dialogs as ud
 
+    monkeypatch.setattr(ud.sys, "platform", "win32")  # macOS never auto-checks the Windows line
     monkeypatch.setattr(window._updates, "_config", make_config())
     started = []
     monkeypatch.setattr(window._updates, "check", lambda **k: started.append(k))

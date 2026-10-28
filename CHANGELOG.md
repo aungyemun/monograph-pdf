@@ -11,6 +11,26 @@ platform-specific release tags — GitHub’s repository-wide “Latest” badge
 | macOS | **[0.1.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1)** (`v0.1.0-macos-1`) | First macOS line |
 | Linux | — | **0.1.0** on branch [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux); **no** `v0.1.0-linux` tag yet |
 
+## [Unreleased — macOS]
+
+macOS line only; the Windows version is unchanged.
+
+### Fixed
+- OCR did not work in the installed macOS app (`.dmg`, `.pkg`, zip): the bundle linked
+  `engines/ocr` and `models/tessdata` one directory too shallow, and shipped the development
+  wrapper that runs `tools/ocr-env` instead of a real Tesseract. The build now stages the binary and
+  its dylibs into the bundle with each package's license and an inventory (`THIRD_PARTY_OCR.json`),
+  and refuses dangling symlinks.
+- `package_macos.sh` retries `hdiutil create` when it fails with "Resource busy".
+- Check for Updates on macOS could offer the Windows line; it now explains that Mac updates are
+  downloaded from GitHub Releases.
+
+### Added
+- Opening PDFs from Finder, Open With and the Dock icon.
+- Make Monograph PDF the Default PDF App on macOS through LaunchServices.
+- Application-menu roles for About, Settings… and Quit; dark mode follows the system appearance.
+- Mac keys for document tabs (Control+Tab, ⌘⇧] / ⌘⇧[) and full screen (Control+⌘F); tooltips show ⌘.
+
 ## [0.5.0] — 2026-10-28
 
 Windows line. Changes after 0.4.0: versions 0.4.1 and 0.4.2 were never released; their changes are

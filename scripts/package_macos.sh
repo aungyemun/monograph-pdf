@@ -36,7 +36,19 @@ rm -rf "$STAGE"
 mkdir -p "$STAGE"
 ditto "$APP" "$STAGE/MonographPDF.app"
 ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname "Monograph PDF $VERSION" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+# hdiutil intermittently fails with "Resource busy" while Spotlight/fseventsd still holds the
+# temporary volume; retry a few times before giving up.
+for attempt in 1 2 3 4 5; do
+  if hdiutil create -volname "Monograph PDF $VERSION" -srcfolder "$STAGE" -ov -format UDZO "$DMG"; then
+    break
+  fi
+  if [[ "$attempt" == 5 ]]; then
+    echo "ERROR: hdiutil create failed after $attempt attempts." >&2
+    exit 1
+  fi
+  echo "hdiutil create failed (attempt $attempt); retrying in $((attempt * 3)) s…" >&2
+  sleep $((attempt * 3))
+done
 rm -rf "$STAGE"
 
 PKG_ROOT="$ROOT/build/pkg_root"
