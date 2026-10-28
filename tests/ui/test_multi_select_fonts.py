@@ -93,7 +93,9 @@ def _fields(w):
 
 
 def test_rectangle_drag_from_the_margin_selects_every_box_it_touches(win, qtbot):
-    _drag(qtbot, win, (20, 190), (380, 230))  # first row, first two columns
+    # first row, first two columns; end in the 370–380 gap, not on the third cell's edge (x = 380),
+    # which counts as touching or not depending on the window's scale (e.g. Retina on macOS)
+    _drag(qtbot, win, (20, 190), (375, 230))
     fields = _fields(win)
     assert set(win._edit.field_selection) == {fields[0].object_id, fields[1].object_id}  # noqa: SLF001
     assert _inner(win).field_editor is None  # selecting does not start typing

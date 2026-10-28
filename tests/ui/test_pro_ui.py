@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -115,7 +116,7 @@ def test_no_duplicate_shortcuts(window):
         ("act_find_prev", "Shift+F3"),
         ("act_goto", "Ctrl+G"),
         ("act_exit", "Ctrl+Q"),
-        ("act_fullscreen", "F11"),
+        ("act_fullscreen", "Meta+Ctrl+F" if sys.platform == "darwin" else "F11"),  # F11 = Show Desktop on macOS
         ("act_user_guide", "F1"),
         ("act_rotate_cw", "Ctrl+R"),
     ],

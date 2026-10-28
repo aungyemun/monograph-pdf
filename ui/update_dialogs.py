@@ -3,6 +3,7 @@ download / verify / prepare progress before handing over to the update helper.""
 
 from __future__ import annotations
 
+import sys
 import threading
 import time
 
@@ -23,7 +24,7 @@ from PySide6.QtWidgets import (
 from core.diagnostics import EventId, diagnostics
 from core.updates import config as update_config
 from core.updates import install_target, manager, messages, staging
-from core.updates.manager import CheckResult, UpdateError, UpdateStatus
+from core.updates.manager import MACOS_UPDATES_TEXT, CheckResult, UpdateError, UpdateStatus
 from core.updates.state import UpdateState
 from core.versioning import get_version
 
@@ -243,6 +244,11 @@ class UpdateController(QObject):
     def check(self, *, manual: bool, channel: str | None = None) -> None:
         if self._worker is not None and self._worker.isRunning():
             return
+        if sys.platform == "darwin":
+            # Signed manifests and the installer handoff are the Windows line (0.5.x): a 0.1.x Mac
+            # build must never be offered a Windows installer as a "newer" version.
+            self._checked(CheckResult(UpdateStatus.NOT_CONFIGURED, MACOS_UPDATES_TEXT, get_version()), manual)
+            return
         prefs = self._window._prefs
         diagnostics.record(EventId.UPDATE_CHECK_STARTED)
         self.status_changed.emit(CheckResult(UpdateStatus.CHECKING, "Checking for updates…", get_version()))
@@ -251,6 +257,8 @@ class UpdateController(QObject):
         self._worker.start()
 
     def maybe_auto_check(self) -> None:
+        if sys.platform == "darwin":
+            return
         prefs = self._window._prefs
         if prefs.update_auto_check and self._config.usable and UpdateState.load().due(prefs.update_interval_hours):
             self.check(manual=False)

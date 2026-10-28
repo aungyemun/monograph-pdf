@@ -1,0 +1,1057 @@
+{
+  "schema": 1,
+  "platform": "macos-arm64",
+  "engine": "tesseract",
+  "components": [
+    {
+      "id": "macos-ocr-bzip2",
+      "name": "bzip2",
+      "version": "1.0.8",
+      "build": "h4e30115_10",
+      "license": "bzip2-1.0.6",
+      "copyleft": false,
+      "home": "https://gitlab.com/bzip2/bzip2",
+      "conda_package": {
+        "fn": "bzip2-1.0.8-h4e30115_10.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/bzip2-1.0.8-h4e30115_10.conda",
+        "sha256": "8ec22f0ba25cbfc2e64d70cf29459eccd7ffdf6436f6a6ff15bbfef799f7d4f6",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/bzip2-feedstock",
+        "commit": "f0f345e062aed39aa7f500c0746efed2dcea6971"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://gitlab.com/bzip2/bzip2/-/archive/bzip2-1.0.8/bzip2-bzip2-1.0.8.tar.gz"
+          ],
+          "sha256": "db106b740252669664fd8f3a1c69fe7f689d5cd4b132f82ba82b9afba27627df",
+          "fn": "bzip2-bzip2-1.0.8.tar.gz"
+        }
+      ],
+      "patches": {
+        "0001-cross.patch": "d589062eecb8c0247e087113d1938a10360d4d69846fb90193178e04c1f69772",
+        "0002-Windows-Make-library-name-lowercase.patch": "1e508465556fc26ef90fd7ad02415a5d000c7f66e2a85efbfbaa07c2757c220f",
+        "0003-Windows-Add-dyn-lib-build-rename-libbz2_static.patch": "0f47e20a9010b4b39b619fa2f6b21865829b62e1fd66d95a2582bcc8b88b9c47"
+      },
+      "binaries": {
+        "engines/ocr/lib/libbz2.dylib": "2bf4d65c31ce1290d272dc6e84556d1decae7bdc90785caea83487677dfc65ac"
+      },
+      "license_dir": "engines/ocr/licenses/bzip2",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-giflib",
+      "name": "giflib",
+      "version": "5.2.2",
+      "build": "hd20048c_1",
+      "license": "MIT",
+      "copyleft": false,
+      "home": "http://giflib.sourceforge.net",
+      "conda_package": {
+        "fn": "giflib-5.2.2-hd20048c_1.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/giflib-5.2.2-hd20048c_1.conda",
+        "sha256": "be9b4cf253c7d3bf20ccc9ff278ea7ec6f144ebbe8fdc9a131d18c35ff49692f",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/giflib-feedstock",
+        "commit": "ab669636b5ea8c982aedc48ca104f2f08c8c8a77"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://downloads.sourceforge.net/project/giflib/giflib-5.x/giflib-5.2.2.tar.gz"
+          ],
+          "sha256": "be7ffbd057cadebe2aa144542fd90c6838c6a083b5e8a9048b8ee3b66b29d5fb",
+          "fn": "giflib-5.2.2.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/libgif.7.dylib": "ec3c57a3db41e7a32535407cb49feeef3ed63972837c0c81f26e0275268aae12"
+      },
+      "license_dir": "engines/ocr/licenses/giflib",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-icu",
+      "name": "icu",
+      "version": "78.3",
+      "build": "py310h579977c_2",
+      "license": "MIT",
+      "copyleft": false,
+      "home": "https://icu.unicode.org/",
+      "conda_package": {
+        "fn": "icu-78.3-py310h579977c_2.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/icu-78.3-py310h579977c_2.conda",
+        "sha256": "6cdb5dee54c72e56ab189fb3ad33cb28533553d42590e7e831160248f4416a43",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/icu-feedstock",
+        "commit": "72c98272513977fda6ffa2dd7a4e6f67a77976c9"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/unicode-org/icu/releases/download/release-78.3/icu4c-78.3-sources.tgz"
+          ],
+          "sha256": "3a2e7a47604ba702f345878308e6fefeca612ee895cf4a5f222e7955fabfe0c0",
+          "fn": "icu4c-78.3-sources.tgz"
+        },
+        {
+          "urls": [
+            "https://github.com/unicode-org/icu/releases/download/release-78.3/icu4c-78.3-data.zip"
+          ],
+          "sha256": "9d8b3899096aeb83e4e21ef8a40fec9e03b28db18c48452efac882ce25a91e27",
+          "fn": "icu4c-78.3-data.zip"
+        }
+      ],
+      "patches": {
+        "mach-port-t.patch": "ed7d471c67396a168bfa9f9ee016490a1046c2fb038cc1b63b937611a8bb1e0e"
+      },
+      "binaries": {
+        "engines/ocr/lib/libicudata.78.dylib": "bc00cc5bf0d5c45e562f47fe27f6a7b9e956c5d167c7e8233b4b2c3f22f8cbbc",
+        "engines/ocr/lib/libicuuc.78.dylib": "20062b2bd5de7f6ba8dbf053a68c04823d41992bd7783653dce2e574ec92b550"
+      },
+      "license_dir": "engines/ocr/licenses/icu",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-krb5",
+      "name": "krb5",
+      "version": "1.22.2",
+      "build": "h34f8a20_2",
+      "license": "MIT",
+      "copyleft": false,
+      "home": "http://web.mit.edu/kerberos/",
+      "conda_package": {
+        "fn": "krb5-1.22.2-h34f8a20_2.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/krb5-1.22.2-h34f8a20_2.conda",
+        "sha256": "aaea1d42b07769920db2af7471ece9399d2613448863da64ad8272998db5db34",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/krb5-feedstock",
+        "commit": "39e6b3c27e0762e320d9518e069c3df9f26b5bf9"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/krb5/krb5/archive/krb5-1.22.2-final.tar.gz"
+          ],
+          "sha256": "289f5bb81d1f2f8d5eecebe56a056aeed95d35fd9bb4a7071c5dd7ad4b3fe888",
+          "fn": "krb5-1.22.2-final.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/libcom_err.3.0.dylib": "82aa3b096baf49f11fd4d5eb1642e9ff3417c9c8857ebb48971c4bae0b59272d",
+        "engines/ocr/lib/libgssapi_krb5.2.2.dylib": "0250c365cfe2abbba351719d64b3277ab99e6124c577f3cee6ffe6fbd9356e38",
+        "engines/ocr/lib/libk5crypto.3.1.dylib": "30880c6c952d996d59131ab64c2164d4f8cbece35f62fc63bb38efceb222878f",
+        "engines/ocr/lib/libkrb5.3.3.dylib": "562556243543fe95a40ae80317a0b5dcb12de312a10b10ea047eca1941934aa2",
+        "engines/ocr/lib/libkrb5support.1.1.dylib": "d50aac644b95858b8738639a8318348b2d95efdb2a8b6ce7a96cfa88f2cf635c"
+      },
+      "license_dir": "engines/ocr/licenses/krb5",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-leptonica",
+      "name": "leptonica",
+      "version": "1.87.0",
+      "build": "hbd60906_1",
+      "license": "BSD-2-Clause",
+      "copyleft": false,
+      "home": "https://github.com/DanBloomberg/leptonica",
+      "conda_package": {
+        "fn": "leptonica-1.87.0-hbd60906_1.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/leptonica-1.87.0-hbd60906_1.conda",
+        "sha256": "1f9c620c37f04e5997f38bc0caef5c835bd5f1e07631aef196068d628879fbea",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/leptonica-feedstock",
+        "commit": "920fce346222be437f5b615392f2e53fe8fda919"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/DanBloomberg/leptonica/releases/download/1.87.0/leptonica-1.87.0.tar.gz"
+          ],
+          "sha256": "c73363397f96eb1295602bf44d708a994ad42046c791bf03ea0505d829bdb6a7",
+          "fn": "leptonica-1.87.0.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/libleptonica.6.dylib": "164c077b4cc7af93fd544fca673790c4f07067f5b4a6f54cd70c0e87cf0a2d3a"
+      },
+      "license_dir": "engines/ocr/licenses/leptonica",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-lerc",
+      "name": "lerc",
+      "version": "4.2.0",
+      "build": "h1eee2c3_0",
+      "license": "Apache-2.0",
+      "copyleft": false,
+      "home": "https://github.com/Esri/lerc",
+      "conda_package": {
+        "fn": "lerc-4.2.0-h1eee2c3_0.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/lerc-4.2.0-h1eee2c3_0.conda",
+        "sha256": "c97aa17d16d2ac332ba9f184e82ce8f72dcb10e9a10c5f299030be2d44e191b9",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/lerc-feedstock",
+        "commit": "11a9b9cedb32ef23cd0dc48743e0a354fc4f7342"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/Esri/lerc/archive/v4.2.0.tar.gz"
+          ],
+          "sha256": "a1fb593ed1fcb5b38800caf3c4454f872745202e961d00d745e53d81447e17c9",
+          "fn": "v4.2.0.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/libLerc.4.dylib": "57f26850831e8de547d921e456a84f2ee7f5f3905ace24efdb368ae8b7254ea1"
+      },
+      "license_dir": "engines/ocr/licenses/lerc",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-libarchive",
+      "name": "libarchive",
+      "version": "3.8.9",
+      "build": "gpl_h76147b0_101",
+      "license": "BSD-2-Clause",
+      "copyleft": false,
+      "home": "http://www.libarchive.org/",
+      "conda_package": {
+        "fn": "libarchive-3.8.9-gpl_h76147b0_101.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libarchive-3.8.9-gpl_h76147b0_101.conda",
+        "sha256": "cee5639cdfc5121339516e2cdf2f8338e376ca6ac42a45bba77b8b7e199b8305",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/libarchive-feedstock",
+        "commit": "8702d4c08d57d3251ba945b6af3b230f6a714ce2"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/libarchive/libarchive/archive/v3.8.9.tar.gz"
+          ],
+          "sha256": "744346f6bca195c8f894f847bb32a16e9bcae6002624a58fadc81e80f595b3cb",
+          "fn": "v3.8.9.tar.gz"
+        }
+      ],
+      "patches": {
+        "0001-Add-lib-to-CMAKE_FIND_LIBRARY_PREFIXES-for-lzma.patch": "07f0aacca104f182ea7a4e3061c44444827b1d8fc3bd2c06a6fe2dc802410f73"
+      },
+      "binaries": {
+        "engines/ocr/lib/libarchive.13.dylib": "daf95fc345e09c4a67917adcadd4ca64b77949b97d20bde5dc10890bdbc87c6a"
+      },
+      "license_dir": "engines/ocr/licenses/libarchive",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-libcurl",
+      "name": "libcurl",
+      "version": "8.23.0",
+      "build": "h6651222_0",
+      "license": "curl",
+      "copyleft": false,
+      "home": "http://curl.haxx.se/",
+      "conda_package": {
+        "fn": "libcurl-8.23.0-h6651222_0.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libcurl-8.23.0-h6651222_0.conda",
+        "sha256": "d9f60525b665e50da15c84fcb4e74e6b1f0a56ea4c89a02d4258f23c3fe1f02c",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/curl-feedstock",
+        "commit": "d770c46d773d7e2c81555d606720c3d6435b216f"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "http://curl.haxx.se/download/curl-8.23.0.tar.bz2"
+          ],
+          "sha256": "95b22eb32bf6d1fa6e3e9463bdb61cece3efc56d86576a9b3cbd428246a6d854",
+          "fn": "curl-8.23.0.tar.bz2"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/libcurl.4.dylib": "65c15d7312bafb49dd9870c03fe17f01ac625a1f71bdefbad233ba26884bc933"
+      },
+      "license_dir": "engines/ocr/licenses/libcurl",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-libcxx",
+      "name": "libcxx",
+      "version": "23.1.4",
+      "build": "h55c6f16_2",
+      "license": "Apache-2.0 WITH LLVM-exception",
+      "copyleft": false,
+      "home": "http://libcxx.llvm.org/",
+      "conda_package": {
+        "fn": "libcxx-23.1.4-h55c6f16_2.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libcxx-23.1.4-h55c6f16_2.conda",
+        "sha256": "9c390b4f403db32346754ccef6b84b7e5d9b70cb6d76258fd23b05f2db2ab216",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/libcxx-feedstock",
+        "commit": "f1a6ecf281e73a53a1aa00a94e10b453831a6860"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-23.1.4.tar.gz"
+          ],
+          "sha256": "3e1c70b30f623976c2046d94b8eeab6cac536f107914cb4ed7bac572a03131db",
+          "fn": "llvmorg-23.1.4.tar.gz"
+        }
+      ],
+      "patches": {
+        "0002-custom-error-message-for-old-sdk.patch": "3ac2ba9ce2fbddfca1085a025ab1352e673f14c8f826a2a8b7276d1f3f6c6d3d",
+        "0003-disable-_LIBCPP_AVAILABILITY_HAS_INIT_PRIMARY_EXCEPT.patch": "e30e462abfc7c4f555d77d39291486dbd7b7a556d414ab87acfaaaa30c080a75",
+        "0004-Work-around-stray-nostdlib-flags-causing-errors-with.patch": "7178e70cbed7e26397c60bf48b0a30255910dff4dd96faaea375c56af1f726b3",
+        "0005-patch-__libcpp_tzdb_directory-to-allow-use-on-osx.patch": "e729e7fb580d33876beb629e0423c46db50fc9221c37c7d25eb888c1ad80476d",
+        "0006-make-headers-platform-neutral-for-conda-forge.patch": "12ee04072060eb39dd6a1ffaca9f9ab124760c2ebc17c803dc5729870840db18",
+        "0007-Fix-compiling-with-gcc.patch": "29c07c4d36899d64e1de1f6ef3650c8c0b0940e6204cd1768adc5149689f42a2"
+      },
+      "binaries": {
+        "engines/ocr/lib/libc++.1.dylib": "208b112ac4111903cccdd281051fc6060a70cee7fedb0f567e37cc6089e5aa79"
+      },
+      "license_dir": "engines/ocr/licenses/libcxx",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-libdeflate",
+      "name": "libdeflate",
+      "version": "1.25",
+      "build": "he7e0567_1",
+      "license": "MIT",
+      "copyleft": false,
+      "home": "https://github.com/ebiggers/libdeflate",
+      "conda_package": {
+        "fn": "libdeflate-1.25-he7e0567_1.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libdeflate-1.25-he7e0567_1.conda",
+        "sha256": "d896f4aa4ce4c590c2838678cb1917356fdb461d2a189991c0280c818c362172",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/libdeflate-feedstock",
+        "commit": "995dda5e8253e79324b87cb9b2fcf8cd40357ed2"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/ebiggers/libdeflate/archive/v1.25.tar.gz"
+          ],
+          "sha256": "d11473c1ad4c57d874695e8026865e38b47116bbcb872bfc622ec8f37a86017d",
+          "fn": "v1.25.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/libdeflate.0.dylib": "437b94b784446f3faed68125e0c00a580005e0220d4712facc683cd6980ea8bc"
+      },
+      "license_dir": "engines/ocr/licenses/libdeflate",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-libiconv",
+      "name": "libiconv",
+      "version": "1.18",
+      "build": "he4c29f2_3",
+      "license": "LGPL-2.1-only",
+      "copyleft": true,
+      "home": "https://www.gnu.org/software/libiconv/",
+      "conda_package": {
+        "fn": "libiconv-1.18-he4c29f2_3.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libiconv-1.18-he4c29f2_3.conda",
+        "sha256": "689a14968267f2f97c07112fca5636e7d756036b9aee969911267c20bd3eea1f",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/libiconv-feedstock",
+        "commit": "c7fdcb1b68d6579a08d0c5dc5f34cbbf38780538"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "http://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.18.tar.gz"
+          ],
+          "sha256": "3b08f5f4f9b4eb82f151a7040bfd6fe6c6fb922efe4b1659c66ea933276965e8",
+          "fn": "libiconv-1.18.tar.gz"
+        }
+      ],
+      "patches": {
+        "utf_8_mac.patch": "1f522172809a154e54f77b21636f2e0e883c990f58d0f4c869f35cb0dbbcde64"
+      },
+      "binaries": {
+        "engines/ocr/lib/libiconv.2.dylib": "6254ff68033b1b62ae44a57d5d83145f9a6602fb13dd232b8b29b8affb6b1f43"
+      },
+      "license_dir": "engines/ocr/licenses/libiconv",
+      "corresponding_source": {
+        "archive": "libiconv-1.18-he4c29f2_3.corresponding-source.tar.gz",
+        "sha256": "ebd2d2d5a2daa45b57410985844deda0e0d0ae6f525678efd3e0f8bfded1ce2c",
+        "upstream": [
+          {
+            "fn": "libiconv-1.18.tar.gz",
+            "sha256": "3b08f5f4f9b4eb82f151a7040bfd6fe6c6fb922efe4b1659c66ea933276965e8",
+            "downloaded_from": "cache"
+          }
+        ],
+        "verified_by": "upstream archive SHA-256 equals the hash in the package's own rendered recipe; recipe and patches copied from the exact binary package"
+      }
+    },
+    {
+      "id": "macos-ocr-libjpeg-turbo",
+      "name": "libjpeg-turbo",
+      "version": "3.2.1",
+      "build": "hb001647_0",
+      "license": "IJG AND BSD-3-Clause AND Zlib",
+      "copyleft": false,
+      "home": "http://www.libjpeg-turbo.org/",
+      "conda_package": {
+        "fn": "libjpeg-turbo-3.2.1-hb001647_0.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libjpeg-turbo-3.2.1-hb001647_0.conda",
+        "sha256": "957469c69b3b9c9e6ae48dc1267c5c9dfe0db9e1aefa5fa9abf9798224aa23c9",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/libjpeg-turbo-feedstock",
+        "commit": "eaba022619084e71822b47c9c65316045c6efc65"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/libjpeg-turbo/libjpeg-turbo/archive/3.2.1.tar.gz"
+          ],
+          "sha256": "6f5819c51649bce2571a23b1b0cd41eae2f57fc3f8908c7ec9e7047efb65ca13",
+          "fn": "3.2.1.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/libjpeg.8.dylib": "80ce19144f00366bee5578ce78fa24623b97e576cdb7886fbdc34f8ca3ce321d"
+      },
+      "license_dir": "engines/ocr/licenses/libjpeg-turbo",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-liblzma",
+      "name": "liblzma",
+      "version": "5.8.3",
+      "build": "h8088a28_1",
+      "license": "0BSD",
+      "copyleft": false,
+      "home": "http://tukaani.org/xz/",
+      "conda_package": {
+        "fn": "liblzma-5.8.3-h8088a28_1.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/liblzma-5.8.3-h8088a28_1.conda",
+        "sha256": "23d0630046a3e8b164d8f80f2b74ed2605af2e7050ab9913018056402fae4311",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/xz-feedstock",
+        "commit": "bc37fbf54469221332fc589c1404294a159f403b"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/tukaani-project/xz/releases/download/v5.8.3/xz-5.8.3.tar.gz"
+          ],
+          "sha256": "3d3a1b973af218114f4f889bbaa2f4c037deaae0c8e815eec381c3d546b974a0",
+          "fn": "xz-5.8.3.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/liblzma.5.dylib": "bec041a8e5a3a8a5b83fb1c0b9ea6d9d5c8575ea046ce2489f2ef266b834e247"
+      },
+      "license_dir": "engines/ocr/licenses/liblzma",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-libnghttp2",
+      "name": "libnghttp2",
+      "version": "1.68.1",
+      "build": "h435687b_1",
+      "license": "MIT",
+      "copyleft": false,
+      "home": "http://github.com/nghttp2/nghttp2",
+      "conda_package": {
+        "fn": "libnghttp2-1.68.1-h435687b_1.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libnghttp2-1.68.1-h435687b_1.conda",
+        "sha256": "445440d8cccccb6585f71d1eb7c949d64a2af2ced5481d924621424ff3b6a398",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/nghttp2-feedstock",
+        "commit": "e15954f89745f04fde47402004f074c7e62fe28b"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/nghttp2/nghttp2/releases/download/v1.68.1/nghttp2-1.68.1.tar.gz"
+          ],
+          "sha256": "ceb434c1f9dfe2a9d305b6b797786fb9227484dfa88508d14ca1c50263db55d3",
+          "fn": "nghttp2-1.68.1.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/libnghttp2.14.dylib": "d189be787ea80f848bf77ec2acc360ce18dc6f165928893e8391f52961e9acce"
+      },
+      "license_dir": "engines/ocr/licenses/libnghttp2",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-libpng",
+      "name": "libpng",
+      "version": "1.6.59",
+      "build": "hf5e6511_0",
+      "license": "zlib-acknowledgement",
+      "copyleft": false,
+      "home": "http://www.libpng.org/pub/png/libpng.html",
+      "conda_package": {
+        "fn": "libpng-1.6.59-hf5e6511_0.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libpng-1.6.59-hf5e6511_0.conda",
+        "sha256": "4de4dc4cb7432c328c1eaf4f7cc9c6b48c073eab1e9c6723d4533e6d57e7d595",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/libpng-feedstock",
+        "commit": "fb861d8ff886d5bfe7fc4f01c6545d59779798ff"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://downloads.sourceforge.net/project/libpng/libpng16/1.6.59/libpng-1.6.59.tar.gz"
+          ],
+          "sha256": "86a3e4b501f7f50e392c4e456ea158893e9a595b1c63eb88c7bb9f6cf8772dad",
+          "fn": "libpng-1.6.59.tar.gz"
+        }
+      ],
+      "patches": {
+        "0001-Include-pkg-config-files-in-the-Windows-packages-too.patch": "1fe817e3a91201194c7db24717b186f74f3490c9062952e5e0ade62c5774dab5",
+        "0002-Ensure-that-lm-is-not-included-in-Windows-pkg-config.patch": "eda8bb8c284aebaac6a8049a20f048c712c9023c3039f877e6876ffcb4876819"
+      },
+      "binaries": {
+        "engines/ocr/lib/libpng16.16.dylib": "ff478fa5132d0707aa8011f0b64cadbb6aa973a2b5b928bfb9378bffab2c6aba"
+      },
+      "license_dir": "engines/ocr/licenses/libpng",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-libpsl",
+      "name": "libpsl",
+      "version": "0.23.1",
+      "build": "hdb0c161_1",
+      "license": "MIT",
+      "copyleft": false,
+      "home": "https://github.com/rockdaboot/libpsl",
+      "conda_package": {
+        "fn": "libpsl-0.23.1-hdb0c161_1.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libpsl-0.23.1-hdb0c161_1.conda",
+        "sha256": "c8c3153df39abedf3413483f672151ad70f1adb0c06c192bdf7ec432c3616b07",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/libpsl-feedstock",
+        "commit": "d93d163e4ace3c8de663d880c0381630b65d4590"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/rockdaboot/libpsl/releases/download/0.23.1/libpsl-0.23.1.tar.gz"
+          ],
+          "sha256": "8fbb03054556498ba9c4cc48fcaa36a4483748c6504a65bdb9ba348f555b0e56",
+          "fn": "libpsl-0.23.1.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/libpsl.5.dylib": "02efccbd65f8dc47fde79fea72812f80dc1ae5076b2887731cd3e9c2d0ba6ace"
+      },
+      "license_dir": "engines/ocr/licenses/libpsl",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-libssh2",
+      "name": "libssh2",
+      "version": "1.11.1",
+      "build": "hbf2880b_1",
+      "license": "BSD-3-Clause",
+      "copyleft": false,
+      "home": "https://www.libssh2.org/",
+      "conda_package": {
+        "fn": "libssh2-1.11.1-hbf2880b_1.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libssh2-1.11.1-hbf2880b_1.conda",
+        "sha256": "a056e518c3d2d09fbb1778cea80c0c95338fb24adf1a817bbf90fb484850a304",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/libssh2-feedstock",
+        "commit": "e5701cd76588f38d76a9fd704185ffc88184c102"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://www.libssh2.org/download/libssh2-1.11.1.tar.gz"
+          ],
+          "sha256": "d9ec76cbe34db98eec3539fe2c899d26b0c837cb3eb466a56b0f109cabf658f7",
+          "fn": "libssh2-1.11.1.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/libssh2.1.dylib": "a12a0487d0943eb84ec9e33920f89b7a3e1911bb93e3379bd2c7cea5afd73efb"
+      },
+      "license_dir": "engines/ocr/licenses/libssh2",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-libtiff",
+      "name": "libtiff",
+      "version": "4.7.2",
+      "build": "hf67920b_1",
+      "license": "HPND",
+      "copyleft": false,
+      "home": "http://www.libtiff.org/",
+      "conda_package": {
+        "fn": "libtiff-4.7.2-hf67920b_1.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libtiff-4.7.2-hf67920b_1.conda",
+        "sha256": "847d22a86ae28f66d3888702698254d25bb4eac3a0f64c1fabfb1842ac00be4c",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/libtiff-feedstock",
+        "commit": "69b00df993d8c9571dbd2aa423e50a10f1adfeda"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://download.osgeo.org/libtiff/tiff-4.7.2.tar.gz"
+          ],
+          "sha256": "672bd7d10aee4606171afb864f3570b83340f6a33e2c186dc0512f7145ffdf6a",
+          "fn": "tiff-4.7.2.tar.gz"
+        }
+      ],
+      "patches": {
+        "use_unix_io.patch": "ebab3a00ad525718fe852e30d56f19d6296dce4b8aa93e0879a1d3253c391025"
+      },
+      "binaries": {
+        "engines/ocr/lib/libtiff.6.dylib": "e786a6c22b5671886bb64b41490c808b5d62340b28c9b4f81fb4877b78b8e5b0"
+      },
+      "license_dir": "engines/ocr/licenses/libtiff",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-libwebp-base",
+      "name": "libwebp-base",
+      "version": "1.6.0",
+      "build": "h202fb40_1",
+      "license": "BSD-3-Clause",
+      "copyleft": false,
+      "home": "https://developers.google.com/speed/webp",
+      "conda_package": {
+        "fn": "libwebp-base-1.6.0-h202fb40_1.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libwebp-base-1.6.0-h202fb40_1.conda",
+        "sha256": "0ff54650d470c7e54cbeffdd53a8c063e055a7bcf784388c0385ce5c4741b0f4",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/libwebp-base-feedstock",
+        "commit": "b8a54ec0653ea0ac18e509fc889f1fc8f0b90233"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "http://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.6.0.tar.gz"
+          ],
+          "sha256": "e4ab7009bf0629fd11982d4c2aa83964cf244cffba7347ecd39019a9e38c4564",
+          "fn": "libwebp-1.6.0.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/libsharpyuv.0.dylib": "ecb7298734d45ab30051dcb22629fb16c3c309f30316ef7e0647503433e4176d",
+        "engines/ocr/lib/libwebp.7.dylib": "b264e287f68db2303a7e5575d311b6889e9a7a2203726701c03c6601df655bda",
+        "engines/ocr/lib/libwebpmux.3.dylib": "39dd0fdb4ec9def1de5dd1206d2037d697b1edc50dfff452e2e08e4c4e549a69"
+      },
+      "license_dir": "engines/ocr/licenses/libwebp-base",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-libxml2-16",
+      "name": "libxml2-16",
+      "version": "2.15.4",
+      "build": "heb56d2d_1",
+      "license": "MIT",
+      "copyleft": false,
+      "home": "http://xmlsoft.org/",
+      "conda_package": {
+        "fn": "libxml2-16-2.15.4-heb56d2d_1.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libxml2-16-2.15.4-heb56d2d_1.conda",
+        "sha256": "1acd4dd49c6f54440dc172ab469d0e2c7c3c02de5b1f21158a233eb585ec3c38",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/libxml2-feedstock",
+        "commit": "2aea8424bab23ebc32ac1493984e90e73cda28dd"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://gitlab.gnome.org/GNOME/libxml2/-/archive/v2.15.4/libxml2-v2.15.4.tar.gz"
+          ],
+          "sha256": "a569ee9c59eabb197a0d5047046d757ee14c86fb2d4a734555b633cb5584ad25",
+          "fn": "libxml2-v2.15.4.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/libxml2.16.dylib": "c5cbf100af59b3ea4d38eaae10311140d1fc9534f849ef2ba5691ac7addbd2cb"
+      },
+      "license_dir": "engines/ocr/licenses/libxml2-16",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-libzlib",
+      "name": "libzlib",
+      "version": "1.3.2",
+      "build": "h8088a28_3",
+      "license": "Zlib",
+      "copyleft": false,
+      "home": "http://zlib.net/",
+      "conda_package": {
+        "fn": "libzlib-1.3.2-h8088a28_3.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libzlib-1.3.2-h8088a28_3.conda",
+        "sha256": "a18fa5d5bac452401459f966cf0d872224e8080c4ff93c77e168d43ab42ef9d7",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/zlib-feedstock",
+        "commit": "044fc2361e1c5f1a35c8f417f1434a585e627297"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "http://zlib.net/zlib-1.3.2.tar.gz",
+            "https://gnupg.org/ftp/gcrypt/zlib/zlib-1.3.2.tar.gz"
+          ],
+          "sha256": "bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16",
+          "fn": "zlib-1.3.2.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/libz.1.dylib": "8020844faf07e3a0a3058cf2eb8cc859ee3981297cdb3f3620db0714e2813b77"
+      },
+      "license_dir": "engines/ocr/licenses/libzlib",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-llvm-openmp",
+      "name": "llvm-openmp",
+      "version": "23.1.4",
+      "build": "hdb3d66b_0",
+      "license": "Apache-2.0 WITH LLVM-exception",
+      "copyleft": false,
+      "home": "http://openmp.llvm.org/",
+      "conda_package": {
+        "fn": "llvm-openmp-23.1.4-hdb3d66b_0.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/llvm-openmp-23.1.4-hdb3d66b_0.conda",
+        "sha256": "cc6d67df56d4ea967e17d938d3108cdf7d971531350df9e7fc5e18cb89066a70",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/openmp-feedstock",
+        "commit": "423f01d8555189ac07b5f9a80b958dea0c42328c"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-23.1.4.zip"
+          ],
+          "sha256": "1033074747807458eb54aad341877db5838fac8d9f0392be543b50cef857d025",
+          "fn": "llvmorg-23.1.4.zip"
+        }
+      ],
+      "patches": {
+        "0001-don-t-build-z_Linux_asm.S-with-MSVC-ensure-__kmp_inv.patch": "e90c78a745a547a38037dea5e2ff313a0993eb6bfba1163486f3b1e3250ad806"
+      },
+      "binaries": {
+        "engines/ocr/lib/libomp.dylib": "05f5c23432707cc2fd3371e15afca50ed16f9c96d79be8a7bc3223355b22ed8f"
+      },
+      "license_dir": "engines/ocr/licenses/llvm-openmp",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-lz4-c",
+      "name": "lz4-c",
+      "version": "1.10.0",
+      "build": "hdca3b7d_2",
+      "license": "BSD-2-Clause",
+      "copyleft": false,
+      "home": "https://www.lz4.org/",
+      "conda_package": {
+        "fn": "lz4-c-1.10.0-hdca3b7d_2.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/lz4-c-1.10.0-hdca3b7d_2.conda",
+        "sha256": "1887867b393eb3c2b336deaffcf228574821ea1e0dcb9ef7bf6c9f59cec40f03",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/lz4-c-feedstock",
+        "commit": "7739afba01c0c2ec6ce7d9c9fab6c9818d7d6f22"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/lz4/lz4/archive/v1.10.0.tar.gz"
+          ],
+          "sha256": "537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b",
+          "fn": "v1.10.0.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/liblz4.1.dylib": "5a446dc1c9b486ace1d907a2107ae7ac999d09d72ac8a584c38732b75e1909a5"
+      },
+      "license_dir": "engines/ocr/licenses/lz4-c",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-lzo",
+      "name": "lzo",
+      "version": "2.10",
+      "build": "h74c22ad_1003",
+      "license": "GPL-2.0-or-later",
+      "copyleft": true,
+      "home": "http://www.oberhumer.com/opensource/lzo/",
+      "conda_package": {
+        "fn": "lzo-2.10-h74c22ad_1003.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/lzo-2.10-h74c22ad_1003.conda",
+        "sha256": "95d5f16bfa62ff50980a5e0329920bb2b5ec66d0e0d6c87954603713c3519ece",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/lzo-feedstock",
+        "commit": "d8595a3cb3261df0c3e777fd44b63ae9f9107e2d"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "http://www.oberhumer.com/opensource/lzo/download/lzo-2.10.tar.gz"
+          ],
+          "sha256": "c0f892943208266f9b6543b3ae308fab6284c5c90e627931446fb49b4221a072",
+          "fn": "lzo-2.10.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/liblzo2.2.dylib": "984e41ccc22c223fa65adf788315d6692c310584f95612908976cf68b4fa2b7c"
+      },
+      "license_dir": "engines/ocr/licenses/lzo",
+      "corresponding_source": {
+        "archive": "lzo-2.10-h74c22ad_1003.corresponding-source.tar.gz",
+        "sha256": "7e81eace4ce54175a6a9850471149efb470d244579fd4da100fbc1a46b1a716c",
+        "upstream": [
+          {
+            "fn": "lzo-2.10.tar.gz",
+            "sha256": "c0f892943208266f9b6543b3ae308fab6284c5c90e627931446fb49b4221a072",
+            "downloaded_from": "cache"
+          }
+        ],
+        "verified_by": "upstream archive SHA-256 equals the hash in the package's own rendered recipe; recipe and patches copied from the exact binary package"
+      }
+    },
+    {
+      "id": "macos-ocr-openjpeg",
+      "name": "openjpeg",
+      "version": "2.5.4",
+      "build": "h4d1e80c_2",
+      "license": "BSD-2-Clause",
+      "copyleft": false,
+      "home": "http://www.openjpeg.org/",
+      "conda_package": {
+        "fn": "openjpeg-2.5.4-h4d1e80c_2.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/openjpeg-2.5.4-h4d1e80c_2.conda",
+        "sha256": "e71bd04b5d0e39f39a3c039d021d3b76cd65bee3032e7f859ab7082f0ace8be5",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/openjpeg-feedstock",
+        "commit": "00d4e8f7d73043cb46153df594d005aef33e05c7"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/uclouvain/openjpeg/archive/v2.5.4.tar.gz"
+          ],
+          "sha256": "a695fbe19c0165f295a8531b1e4e855cd94d0875d2f88ec4b61080677e27188a",
+          "fn": "v2.5.4.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/libopenjp2.7.dylib": "c6e75cff03473ad11b6e7dc9e282c817f5b2ebe337a9bbbd6fee95d93656f385"
+      },
+      "license_dir": "engines/ocr/licenses/openjpeg",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-openssl",
+      "name": "openssl",
+      "version": "3.6.5",
+      "build": "h55eecbc_0",
+      "license": "Apache-2.0",
+      "copyleft": false,
+      "home": "https://www.openssl.org/",
+      "conda_package": {
+        "fn": "openssl-3.6.5-h55eecbc_0.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/openssl-3.6.5-h55eecbc_0.conda",
+        "sha256": "44fbc526456571a9fb8fa18157f6f269d4d4bd40eef20183a93b9c9296f94497",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/openssl-feedstock",
+        "commit": "f0c4979996e075ca6fb7efbd6b65d4fe2cc1fe6f"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/openssl/openssl/releases/download/openssl-3.6.5/openssl-3.6.5.tar.gz"
+          ],
+          "sha256": "a2157c2830efdec3788939b00c9b0638306d3f0bbb76dc4832ee503bb397df98",
+          "fn": "openssl-3.6.5.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/libcrypto.3.dylib": "75928f86cd12c1c6b9d46d75ad12c214f5c22a977148f1441008628183defb3f",
+        "engines/ocr/lib/libssl.3.dylib": "186ccda1086e78d7098a2182fd6f9c6aafe67f86d5e5ee12b9563aae8ede59e3"
+      },
+      "license_dir": "engines/ocr/licenses/openssl",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-tesseract",
+      "name": "tesseract",
+      "version": "5.5.3",
+      "build": "h32d8946_0",
+      "license": "Apache-2.0",
+      "copyleft": false,
+      "home": "https://github.com/tesseract-ocr/tesseract",
+      "conda_package": {
+        "fn": "tesseract-5.5.3-h32d8946_0.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/tesseract-5.5.3-h32d8946_0.conda",
+        "sha256": "0cf8e4a5a47c067f4c32058bf226ae18cb2b239bf93ae54f52e5a57b3b3d589b",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/tesseract-feedstock",
+        "commit": "568e7986182393275d0cda725438219077d489b5"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/tesseract-ocr/tesseract/archive/5.5.3.tar.gz"
+          ],
+          "sha256": "9218e62793116d42a9f6d14cd9348518b27f382096eea3d0f2d1a24616bb5884",
+          "fn": "5.5.3.tar.gz"
+        },
+        {
+          "urls": [
+            "https://github.com/tesseract-ocr/tessdata_fast/archive/4.1.0.tar.gz"
+          ],
+          "sha256": "d0e3bb6f3b4e75748680524a1d116f2bfb145618f8ceed55b279d15098a530f9",
+          "fn": "4.1.0.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/bin/tesseract": "db942d7d648135b778b048370f628a10713d6c2d7eec6eb9b423593dc1abab7a",
+        "engines/ocr/lib/libtesseract.5.dylib": "6824a424779d2aa806c97feafe668e629e990f78b3d9860c36a672aef4209e2d"
+      },
+      "license_dir": "engines/ocr/licenses/tesseract",
+      "corresponding_source": null
+    },
+    {
+      "id": "macos-ocr-zstd",
+      "name": "zstd",
+      "version": "1.5.7",
+      "build": "hf451053_7",
+      "license": "BSD-3-Clause",
+      "copyleft": false,
+      "home": "http://www.zstd.net/",
+      "conda_package": {
+        "fn": "zstd-1.5.7-hf451053_7.conda",
+        "url": "https://conda.anaconda.org/conda-forge/osx-arm64/zstd-1.5.7-hf451053_7.conda",
+        "sha256": "da867f5092eb0cb746d353694f0098031fd9817a4ce7d5743121209ae0f406ca",
+        "channel": "conda-forge",
+        "subdir": "osx-arm64"
+      },
+      "feedstock": {
+        "url": "https://github.com/conda-forge/zstd-feedstock",
+        "commit": "24c0f94340c0875e1a3bb815611276850f7cd7ca"
+      },
+      "upstream_sources": [
+        {
+          "urls": [
+            "https://github.com/facebook/zstd/archive/v1.5.7.tar.gz"
+          ],
+          "sha256": "37d7284556b20954e56e1ca85b80226768902e2edabd3b649e9e72c0c9012ee3",
+          "fn": "v1.5.7.tar.gz"
+        }
+      ],
+      "patches": {},
+      "binaries": {
+        "engines/ocr/lib/libzstd.1.dylib": "94dde7b52917a03b23b96d7ec895a814f246b3f16423bc9d51bf27a224af5625"
+      },
+      "license_dir": "engines/ocr/licenses/zstd",
+      "corresponding_source": null
+    }
+  ]
+}

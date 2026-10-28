@@ -11,6 +11,47 @@ platform-specific release tags — GitHub’s repository-wide “Latest” badge
 | macOS | **[0.1.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1)** (`v0.1.0-macos-1`) | First macOS line |
 | Linux | — | **0.1.0** on branch [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux); **no** `v0.1.0-linux` tag yet |
 
+## [Unreleased — macOS]
+
+macOS line only; the Windows version is unchanged.
+
+### Fixed
+- OCR did not work in the installed macOS app (`.dmg`, `.pkg`, zip): the bundle linked
+  `engines/ocr` and `models/tessdata` one directory too shallow, and shipped the development
+  wrapper that runs `tools/ocr-env` instead of a real Tesseract. The build now stages the binary and
+  its dylibs into the bundle with each package's license and an inventory (`THIRD_PARTY_OCR.json`),
+  and refuses dangling symlinks.
+- `package_macos.sh` retries `hdiutil create` when it fails with "Resource busy".
+- The bundled OCR libraries carried the build machine's folder path (conda writes the install path
+  into OpenSSL, curl, krb5, libxml2, libtesseract). The build now ships the unmodified published
+  conda-forge files, keeps their own signatures, and fails if the builder's home path is anywhere in
+  the app.
+- Check for Updates on macOS could offer the Windows line; it now explains that Mac updates are
+  downloaded from GitHub Releases.
+
+### Added
+- Professional macOS installers:
+  - A guided `.pkg` for Installer.app with welcome, read-me, license (AGPL-3.0), disk space and
+    completion screens, and branded artwork. It installs exactly into `/Applications`, upgrades in
+    place, refuses to downgrade a newer installed version, and runs no install scripts.
+  - A drag-and-drop `.dmg` with a designed Finder window (app, arrow, Applications, volume icon).
+  - A `ditto` `.zip`.
+  - `scripts/packaging/verify_macos_release.py` checks every format, and any FAIL stops packaging.
+- macOS signing modes: development (ad-hoc, default) and production (Developer ID with Hardened
+  Runtime, notarization and stapling). Production needs Apple credentials and is not claimed
+  without them.
+- The app is named "Monograph PDF" in Finder, Spotlight, Launchpad, the Dock and the menu bar,
+  while its bundle stays `MonographPDF.app`.
+- OCR provenance and corresponding source: `scripts/packaging/macos_ocr_env.lock` pins the exact
+  conda-forge builds; `scripts/packaging/macos_ocr_sources.json` records each bundled package, its
+  feedstock commit, upstream sources (SHA-256 from the package's own recipe) and the hash of every
+  bundled file. `package_macos.sh` publishes verified corresponding source for the copyleft
+  libraries (lzo, libiconv) next to the .dmg and fails on any missing license, source or mismatch.
+- Opening PDFs from Finder, Open With and the Dock icon.
+- Make Monograph PDF the Default PDF App on macOS through LaunchServices.
+- Application-menu roles for About, Settings… and Quit; dark mode follows the system appearance.
+- Mac keys for document tabs (Control+Tab, ⌘⇧] / ⌘⇧[) and full screen (Control+⌘F); tooltips show ⌘.
+
 ## [0.5.0] — 2026-10-28
 
 Windows line. Changes after 0.4.0: versions 0.4.1 and 0.4.2 were never released; their changes are

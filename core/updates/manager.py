@@ -81,6 +81,10 @@ class UpdateError(Exception):
         self.code = code
 
 
+MACOS_UPDATES_TEXT = ("Automatic updates are not available on macOS yet. Download new Mac versions "
+                      "(.dmg) from the Monograph PDF releases page on GitHub.")
+
+
 # Platform-suffixed tags (v0.1.0-macos-1, v0.1.0-linux, …) are other OS lines in this repository.
 # They must never be selected as Windows update candidates even if GitHub marks them Latest.
 _PLATFORM_PRE_PREFIXES = ("macos", "linux", "darwin", "osx", "windows-arm", "win-arm")

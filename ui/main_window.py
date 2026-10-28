@@ -71,6 +71,11 @@ def is_openable(path: str) -> bool:
 __all__ = ("MainWindow", "create_application")
 
 
+def _native_keys(portable: str) -> str:
+    """A shortcut as the platform writes it (Ctrl+F on Windows, ⌘F on macOS)."""
+    return QKeySequence(portable).toString(QKeySequence.SequenceFormat.NativeText)
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -116,12 +121,16 @@ class MainWindow(QMainWindow):
         self._doc_tabs.currentChanged.connect(self._on_doc_tab_changed)
         self._doc_tabs.tabCloseRequested.connect(self._on_doc_tab_close)
         self._doc_tabs.tabMoved.connect(self._on_doc_tab_moved)
+        # macOS: Qt's "Ctrl" is Command, and Command+Tab belongs to the system app switcher. Use the
+        # Control key (Qt "Meta") plus the Safari / Finder Command+Shift+] / [ pair instead.
+        next_keys = ("Meta+Tab", "Ctrl+}") if sys.platform == "darwin" else ("Ctrl+Tab",)
+        prev_keys = ("Meta+Shift+Tab", "Ctrl+{") if sys.platform == "darwin" else ("Ctrl+Shift+Tab",)
         self.act_next_tab = QAction("Next Document Tab", self)
-        self.act_next_tab.setShortcut(QKeySequence("Ctrl+Tab"))
+        self.act_next_tab.setShortcuts([QKeySequence(k) for k in next_keys])
         self.act_next_tab.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
         self.act_next_tab.triggered.connect(lambda: self._cycle_doc_tab(1))
         self.act_prev_tab = QAction("Previous Document Tab", self)
-        self.act_prev_tab.setShortcut(QKeySequence("Ctrl+Shift+Tab"))
+        self.act_prev_tab.setShortcuts([QKeySequence(k) for k in prev_keys])
         self.act_prev_tab.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
         self.act_prev_tab.triggered.connect(lambda: self._cycle_doc_tab(-1))
         self.addAction(self.act_next_tab)
@@ -129,12 +138,14 @@ class MainWindow(QMainWindow):
         # Dedicated ApplicationShortcuts survive in-place editors that may swallow QAction keys.
         from PySide6.QtGui import QShortcut
 
-        self._shortcut_next_tab = QShortcut(QKeySequence("Ctrl+Tab"), self)
-        self._shortcut_next_tab.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        self._shortcut_next_tab.activated.connect(lambda: self._cycle_doc_tab(1))
-        self._shortcut_prev_tab = QShortcut(QKeySequence("Ctrl+Shift+Tab"), self)
-        self._shortcut_prev_tab.setContext(Qt.ShortcutContext.ApplicationShortcut)
-        self._shortcut_prev_tab.activated.connect(lambda: self._cycle_doc_tab(-1))
+        self._tab_shortcuts = []
+        for keys, step in ((next_keys, 1), (prev_keys, -1)):
+            for key in keys:
+                sc = QShortcut(QKeySequence(key), self)
+                sc.setContext(Qt.ShortcutContext.ApplicationShortcut)
+                sc.activated.connect(lambda step=step: self._cycle_doc_tab(step))
+                self._tab_shortcuts.append(sc)
+        self._shortcut_next_tab, self._shortcut_prev_tab = self._tab_shortcuts[0], self._tab_shortcuts[len(next_keys)]
         self._inspector = InspectorPanel()
         # using its controls keeps the text box being typed in open (its selected words stay selected)
         self._inspector.setProperty("keepsTextEditor", True)
@@ -168,14 +179,14 @@ class MainWindow(QMainWindow):
         self._page_edit.setObjectName("ToolbarPageEdit")
         self._page_edit.setValidator(QIntValidator(1, 99999, self))
         self._page_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._page_edit.setToolTip("Current page — type a number and press Enter  (Ctrl+G)")
+        self._page_edit.setToolTip(f"Current page — type a number and press Enter  ({_native_keys('Ctrl+G')})")
         self._page_edit.setAccessibleName("Page number")
         self._page_edit.returnPressed.connect(self._on_page_edit)
         self._search_edit = QLineEdit()
         self._search_edit.setObjectName("ToolbarSearch")
         self._search_edit.setPlaceholderText("Find in document…")
         self._search_edit.setClearButtonEnabled(True)
-        self._search_edit.setToolTip("Find text  (Ctrl+F) — Enter: next · Shift+Enter: previous · Esc: clear")
+        self._search_edit.setToolTip(f"Find text  ({_native_keys('Ctrl+F')}) — Enter: next · Shift+Enter: previous · Esc: clear")
         self._search_edit.setAccessibleName("Find in document")
         # A fixed width: the clear (×) button appearing while typing used to widen the box, and the
         # zoom and page controls next to it jumped to the left on every first key press
@@ -370,6 +381,7 @@ class MainWindow(QMainWindow):
         self.act_exit = QAction("E&xit", self)
         self.act_exit.setShortcut(QKeySequence.StandardKey.Quit)
         self.act_exit.triggered.connect(self.close)
+        self.act_exit.setMenuRole(QAction.MenuRole.QuitRole)
 
         self.act_undo = QAction("&Undo", self)
         self.act_undo.setShortcut(QKeySequence.StandardKey.Undo)
@@ -824,6 +836,11 @@ class MainWindow(QMainWindow):
         self.act_settings = QAction("Se&ttings…", self)
         self.act_settings.setShortcut(QKeySequence("Ctrl+,"))
         self.act_settings.triggered.connect(self._show_settings)
+        # macOS: put these in the application menu (About / Settings… / Quit) by role, not by
+        # Qt's text heuristics, which miss the localized and "…" titles.
+        self.act_about.setMenuRole(QAction.MenuRole.AboutRole)
+        self.act_settings.setMenuRole(QAction.MenuRole.PreferencesRole)
+        self.act_check_updates.setMenuRole(QAction.MenuRole.ApplicationSpecificRole)
 
         self.act_toggle_left = QAction("Toggle &Left Panel", self)
         self.act_toggle_left.setShortcut(QKeySequence("F9"))
@@ -1112,9 +1129,11 @@ class MainWindow(QMainWindow):
             self._make_default_app,
             tip="Open Windows settings to choose Monograph PDF for .pdf files",
         )
-        # Windows registry handler; Linux XDG via core.linux_desktop. macOS opens System Settings
-        # (wired separately); hide until that path is verified on the Mac integration branch.
-        self.act_default_app.setVisible(sys.platform.startswith(("win", "linux")))
+        # Windows registry handler; Linux XDG via core.linux_desktop; macOS LaunchServices
+        # (core.macos_desktop) with Finder "Get Info" instructions as the fallback.
+        if sys.platform == "darwin":
+            self.act_default_app.setStatusTip("Use Monograph PDF as the default app for PDF documents")
+            self.act_default_app.setToolTip("Use Monograph PDF as the default app for PDF documents")
         set_action_icon(self.act_default_app, "default_app")
         self.act_select_all = new("Select &All", self._select_all, "Ctrl+A")
         self.act_deselect = new("D&eselect All", self._deselect_all, "Ctrl+Shift+A")
@@ -1123,6 +1142,8 @@ class MainWindow(QMainWindow):
         self.act_last = new("&Last Page", self._last_page, "End")
         self.act_goto = new("&Go to Page…", self._go_to_page_dialog, "Ctrl+G")
         self.act_fullscreen = new("F&ull Screen", self._toggle_fullscreen, "F11", checkable=True)
+        if sys.platform == "darwin":  # F11 is Show Desktop on macOS; use Control+Command+F
+            self.act_fullscreen.setShortcuts([QKeySequence("Meta+Ctrl+F")])
         self.act_autoscroll = new(
             "Automatic &Scrolling", self._toggle_autoscroll, "Ctrl+Shift+L", checkable=True,
             tip="Scroll through the pages at a steady speed: ↓ / ↑ change the speed, Esc stops. "
@@ -3666,9 +3687,16 @@ class MainWindow(QMainWindow):
             self._fit_button.setDefaultAction(self.act_actual)
         self._fit_button.setText("Fit")
 
+    def _zoom_unchanged(self, percent: float) -> bool:
+        """The box only lost focus (or its text matched a list item): editingFinished fires then, and an
+        editable QComboBox also emits activated for a matching item. Re-applying the zoom already shown
+        would leave Fit mode and re-lay out the pages, closing a text box just opened for typing (on
+        macOS the zoom box has keyboard focus when the window opens)."""
+        return abs(percent - round(self._canvas.zoom * 100)) < 0.5
+
     def _on_toolbar_zoom_chosen(self, index: int) -> None:
         data = self._toolbar_zoom.itemData(index)
-        if data is None:
+        if data is None or self._zoom_unchanged(float(data)):
             return
         self._canvas.set_manual_zoom(float(data) / 100.0)
 
@@ -3680,6 +3708,8 @@ class MainWindow(QMainWindow):
             self._on_zoom_changed(self._canvas.zoom)
             return
         value = max(10.0, min(800.0, value))
+        if self._zoom_unchanged(value):
+            return
         self._canvas.set_manual_zoom(value / 100.0)
 
     def _toggle_monitor_colors(self, on: bool) -> None:
@@ -7918,6 +7948,13 @@ class MainWindow(QMainWindow):
         from PySide6.QtGui import QDesktopServices
 
         if sys.platform == "darwin":
+            if getattr(sys, "frozen", False):  # LaunchServices only knows the installed .app
+                from core.macos_desktop import set_default_pdf_handler
+
+                ok, detail = set_default_pdf_handler()
+                if ok:
+                    QMessageBox.information(self, "Default PDF App", detail)
+                    return
             QMessageBox.information(
                 self,
                 "Default PDF App",

@@ -161,8 +161,8 @@ def detect_system_dark() -> bool:
             return int(value) == 0
         except Exception:  # noqa: BLE001
             pass
-    if sys.platform == "darwin":
-        return app_env.get("FORCE_DARK") == "1"
+    if sys.platform == "darwin" and app_env.get("FORCE_DARK") == "1":
+        return True
     # Qt 6.5+: platform colour scheme
     try:
         hints = QGuiApplication.styleHints()
@@ -625,6 +625,22 @@ def fit_combo_popup(combo) -> None:
         pass
 
 
+def mac_question_icon(box) -> None:
+    """macOS: Qt's question-mark icon is a thin near-black glyph, invisible on the dark theme (the
+    information / warning / critical icons are fine). Show the app icon instead, as macOS alerts do."""
+    if sys.platform != "darwin" or box.icon() != box.Icon.Question:
+        return
+    app = QGuiApplication.instance()
+    if app is None or app.platformName().lower() != "cocoa":
+        return
+    icon = app.windowIcon()
+    if icon.isNull():  # no app icon set (e.g. some test setups): the clearly visible information icon
+        from PySide6.QtWidgets import QStyle
+
+        icon = box.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation)
+    box.setIconPixmap(icon.pixmap(64, 64))
+
+
 class _SpinBoxWidthFilter:
     """Gives every spin box room for its longest value before it is first shown.
 
@@ -650,10 +666,12 @@ class _SpinBoxWidthFilter:
                         except Exception:  # noqa: BLE001 — sizing is cosmetic
                             pass
                     elif event.type() == QEvent.Type.Show:
-                        from PySide6.QtWidgets import QComboBox
+                        from PySide6.QtWidgets import QComboBox, QMessageBox
 
                         if isinstance(obj, QComboBox):
                             fit_combo_popup(obj)
+                        elif isinstance(obj, QMessageBox):
+                            mac_question_icon(obj)
                 return False
 
         self.filter = _Filter()
