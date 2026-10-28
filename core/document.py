@@ -155,9 +155,14 @@ class PdfDocument:
         self._ensure_open()
         return self._backend.render_png(page_index, zoom=zoom, dpr=dpr, alpha=alpha)
 
-    def render_rgb(self, page_index: int, *, scale: float, clip=None) -> tuple[bytes, int, int, int]:
-        """RGB samples for the screen: (samples, width, height, stride); ``clip`` in display points."""
+    def render_rgb(
+        self, page_index: int, *, scale: float, clip=None, hidden_widgets=()
+    ) -> tuple[bytes, int, int, int]:
+        """RGB samples for the screen: (samples, width, height, stride); ``clip`` in display points.
+        ``hidden_widgets``: form-field widget xrefs whose out-of-date saved appearance is left out."""
         self._ensure_open()
+        if hidden_widgets:
+            return self._backend.render_rgb(page_index, scale=scale, clip=clip, hidden_widgets=hidden_widgets)
         return self._backend.render_rgb(page_index, scale=scale, clip=clip)
 
     def render_thumbnail_png(self, page_index: int, max_edge_px: int = 160) -> bytes:
