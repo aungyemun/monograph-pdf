@@ -159,6 +159,12 @@ def stage(prefix: Path, dest: Path) -> list[str]:
         # Copy the real file under the referenced name (no symlinks inside the signed bundle).
         shutil.copy2(package_file(prefix, f"lib/{name}", owners), dest / "lib" / name)
     write_licenses(prefix, dest, ["bin/tesseract"] + [f"lib/{n}" for n in names])
+    # Conda package files can be group-writable; an app bundle ships 755 code and 644 data.
+    for path in dest.rglob("*"):
+        if path.is_dir():
+            path.chmod(0o755)
+        else:
+            path.chmod(0o755 if path.parent.name in ("bin", "lib") else 0o644)
     return names
 
 

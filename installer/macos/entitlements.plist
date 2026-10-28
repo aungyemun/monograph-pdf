@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hardened Runtime entitlements for Developer ID builds of Monograph PDF (production mode only).
+  The app is not sandboxed. Python's ctypes / cffi trampolines need writable+executable memory;
+  nothing else is relaxed (library validation stays on: every bundled library is signed with the
+  same Team ID by scripts/build_app.sh).
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+</dict>
+</plist>

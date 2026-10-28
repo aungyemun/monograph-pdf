@@ -25,14 +25,55 @@ bash scripts/run_tests.sh
 
 ```bash
 bash scripts/build_app.sh
-# → dist/MonographPDF.app  (OCR staged, Info.plist = 0.1.0, ad-hoc codesigned)
+# → dist/MonographPDF.app  (OCR staged, Info.plist = 0.1.0, signed)
 
 bash scripts/package_macos.sh
-# → dist/release/MonographPDF_<macos-version>_macOS.{zip,dmg,pkg}
-# → dist/release/SHA256SUMS.txt
+# → dist/release/MonographPDF_<macos-version>_macOS.pkg   guided installer (Installer.app)
+# → dist/release/MonographPDF_<macos-version>_macOS.dmg   drag-and-drop disk image
+# → dist/release/MonographPDF_<macos-version>_macOS.zip   portable app archive
+# → dist/release/MonographPDF_<macos-version>_macOS_OCR_Corresponding_Source/
+# → dist/release/SHA256SUMS.txt, verification.json
 ```
 
-**Signing:** `build_app.sh` applies an **ad-hoc** signature (`codesign -s -`) after all resources are in place. That is for local development validation only. It is **not** Apple Developer ID signing and does **not** satisfy Gatekeeper distribution or notarization.
+### Installer formats
+
+| Format | For | What the user sees |
+| :--- | :--- | :--- |
+| `.pkg` | Most users (like Windows Setup.exe) | Installer.app: Welcome (product, version, macOS 13+), Read Me (requirements, steps, "your data is kept"), License (AGPL-3.0), disk space, Install, completion page with how to open PDFs |
+| `.dmg` | Users who prefer drag and drop | A Finder window with the app on the left, an arrow, and Applications on the right; one line of instruction |
+| `.zip` | Portable use / archiving | `MonographPDF.app`, extracted with Finder or `ditto -x -k` |
+
+* **Install location:** the `.pkg` installs exactly `/Applications/MonographPDF.app` for all users. It does
+  not relocate into a copy the user moved elsewhere, so it never leaves two copies. It upgrades in place
+  and refuses to replace a newer version with an older one. It runs **no** install scripts.
+* **User data:** settings and recent files (`~/Library/Application Support/Monograph PDF`) are never
+  touched by installing, upgrading or removing the app. To uninstall, drag the app to the Trash. The
+  `.pkg` receipt can be removed with `sudo pkgutil --forget com.aungyemun.monographpdf`.
+* **Architecture:** Apple silicon (arm64), macOS 13 or later. The bundled Python, Qt and OCR builds are
+  arm64-only, and the `.pkg` refuses Intel Macs with a clear message rather than installing an app that
+  cannot start. An Intel or universal build would need x86_64 Python, Qt and OCR builds; it is not
+  produced or verified here.
+* **Artwork:** generated at package time by `scripts/packaging/macos_installer.py` from the brand images
+  in `resources/icons/source` and the page templates in `installer/macos/`.
+* **Verification:** `scripts/packaging/verify_macos_release.py` checks the app as it comes out of each
+  format. It covers identity, version, minimum macOS, architecture, strict signature, symlinks, the
+  builder path, the OCR inventory and licenses, and Tesseract running. It also checks the DMG layout
+  files, the `.pkg` screens, location, relocation and scripts, the checksums and the corresponding
+  source. Any FAIL stops `package_macos.sh`.
+
+### Signing
+
+| Mode | How | Result |
+| :--- | :--- | :--- |
+| Development (default) | `bash scripts/build_app.sh && bash scripts/package_macos.sh` | Ad-hoc signed app, unsigned `.pkg`. For local testing only: Gatekeeper rejects it on other Macs, and it is **not notarized**. |
+| Production | `MONOGRAPH_MACOS_SIGN_IDENTITY="Developer ID Application: Name (TEAMID)"` for both scripts, plus `MONOGRAPH_MACOS_INSTALLER_IDENTITY="Developer ID Installer: Name (TEAMID)"` and `MONOGRAPH_NOTARY_PROFILE=<profile>` for `package_macos.sh` | Every Mach-O (the OCR engine included) is signed with Hardened Runtime, a secure timestamp and `installer/macos/entitlements.plist`. The app, `.dmg` and `.pkg` are notarized with `notarytool` and stapled. Verification requires Gatekeeper acceptance. |
+
+Create the notary profile once with
+`xcrun notarytool store-credentials <profile> --apple-id <id> --team-id <TEAMID>` (an app-specific
+password is entered there, not in these scripts). Production mode refuses to run without the
+identities in the keychain. `MONOGRAPH_MACOS_SKIP_NOTARIZE=1` tests signing only, and its output is not
+notarized. Apple signing needs Apple-issued Developer ID certificates; the Windows update-manifest key
+cannot sign macOS code or packages.
 
 ## User data locations
 

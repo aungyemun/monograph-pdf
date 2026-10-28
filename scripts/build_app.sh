@@ -6,10 +6,17 @@
 #   2) Write Info.plist (version, bundle id, PDF UTI)
 #   3) Stage OCR + tessdata into Resources
 #   4) Icons / permissions
-#   5) Ad-hoc codesign nested Mach-O then the .app
+#   5) Codesign nested Mach-O then the .app
 #   6) codesign --verify
 #
-# Ad-hoc signing (- identity) is for local/dev validation only — not Developer ID / notarization.
+# Signing modes:
+#   development (default)  ad-hoc ("-") for local testing only — not Developer ID / not notarized.
+#                          The OCR engine keeps its published conda-forge signatures.
+#   production             MONOGRAPH_MACOS_SIGN_IDENTITY="Developer ID Application: Name (TEAMID)"
+#                          Hardened Runtime + secure timestamp + installer/macos/entitlements.plist
+#                          on every Mach-O, the OCR engine included (required for notarization);
+#                          its provenance is checked against the inventory before signing.
+#                          scripts/package_macos.sh then notarizes and staples.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -136,14 +143,22 @@ if plist_path.is_file():
     with plist_path.open("rb") as fh:
         data = plistlib.load(fh)
 data.update({
-    "CFBundleName": "Monograph PDF",
-    "CFBundleDisplayName": "Monograph PDF",
+    # Base names match the bundle's file name (MonographPDF.app, the path earlier versions used);
+    # en.lproj/InfoPlist.strings gives the name people see, "Monograph PDF", in the Dock, menu bar,
+    # Finder, Spotlight and Launchpad (Finder only localizes when the file name equals the base name).
+    "CFBundleName": "MonographPDF",
+    "CFBundleDisplayName": "MonographPDF",
     "CFBundleIdentifier": "$IDENTIFIER",
     "CFBundleVersion": "$BUNDLE_VERSION",
     "CFBundleShortVersionString": "$VERSION",
     "CFBundleExecutable": "MonographPDF",
     "CFBundlePackageType": "APPL",
     "LSMinimumSystemVersion": "13.0",
+    "LSArchitecturePriority": ["arm64"],
+    "LSHasLocalizedDisplayName": True,
+    "CFBundleDevelopmentRegion": "en",
+    "LSApplicationCategoryType": "public.app-category.productivity",
+    "NSHumanReadableCopyright": "© 2026 Aung Ye Mun. AGPL-3.0-or-later.",
     "NSHighResolutionCapable": True,
     "CFBundleDocumentTypes": [{
         "CFBundleTypeName": "PDF Document",
@@ -159,6 +174,9 @@ with plist_path.open("wb") as fh:
     plistlib.dump(data, fh)
 print("Wrote", plist_path, "version", data["CFBundleShortVersionString"])
 PY
+
+mkdir -p "$RES/en.lproj"
+printf '"CFBundleDisplayName" = "Monograph PDF";\n"CFBundleName" = "Monograph PDF";\n' > "$RES/en.lproj/InfoPlist.strings"
 
 # --- Stage OCR / tessdata BEFORE any final signature ---
 mkdir -p "$RES/engines" "$RES/models" "$MACOS_DIR/engines" "$MACOS_DIR/models"
@@ -204,20 +222,39 @@ if [[ -f "$MACOS_DIR/MonographPDF" ]]; then
   chmod a+x "$MACOS_DIR/MonographPDF"
 fi
 
-# --- Ad-hoc codesign (nested Mach-O first, then bundle). Do not modify the .app after this. ---
+# --- Codesign (nested Mach-O first, then bundle). Do not modify the .app after this. ---
+SIGN_IDENTITY="${MONOGRAPH_MACOS_SIGN_IDENTITY:--}"
+ENTITLEMENTS="$ROOT/installer/macos/entitlements.plist"
+if [[ "$SIGN_IDENTITY" == "-" ]]; then
+  SIGN_MODE="development"
+  SIGN_OPTS=(--timestamp=none)
+else
+  SIGN_MODE="production"
+  if ! security find-identity -v -p codesigning | grep -qF "$SIGN_IDENTITY"; then
+    echo "ERROR: signing identity not found in the keychain: $SIGN_IDENTITY" >&2
+    exit 1
+  fi
+  SIGN_OPTS=(--timestamp --options runtime)
+fi
+echo "Signing mode: $SIGN_MODE"
 sign_file() {
   local target="$1"
-  codesign --force --sign - --timestamp=none --identifier "$IDENTIFIER" "$target" 2>/dev/null \
-    || codesign --force --sign - --timestamp=none "$target"
+  codesign --force --sign "$SIGN_IDENTITY" "${SIGN_OPTS[@]}" --identifier "$IDENTIFIER" "$target" 2>/dev/null \
+    || codesign --force --sign "$SIGN_IDENTITY" "${SIGN_OPTS[@]}" "$target"
 }
 
-# dylib / so / bundle binaries inside the app (innermost → outer). The OCR engine keeps the
-# conda-forge ad-hoc signatures it was published with, so its bytes stay identical to the
+# dylib / so / bundle binaries inside the app (innermost → outer). In development the OCR engine
+# keeps the conda-forge ad-hoc signatures it was published with, so its bytes stay identical to the
 # inventoried packages (macos_ocr_sources.json); those signatures are verified instead.
 while IFS= read -r -d '' f; do
-  case "$f" in "$RES/engines/ocr/"*) continue ;; esac
+  if [[ "$SIGN_MODE" == "development" ]]; then
+    case "$f" in "$RES/engines/ocr/"*) continue ;; esac
+  fi
   sign_file "$f"
 done < <(find "$APP" \( -name "*.dylib" -o -name "*.so" -o -name "*.bundle" \) -type f -print0 2>/dev/null || true)
+if [[ "$SIGN_MODE" == "production" && -f "$RES/engines/ocr/bin/tesseract" ]]; then
+  sign_file "$RES/engines/ocr/bin/tesseract"
+fi
 while IFS= read -r -d '' f; do
   codesign --verify --strict "$f" || { echo "ERROR: invalid signature on bundled OCR file $f" >&2; exit 1; }
 done < <(find "$RES/engines/ocr/bin" "$RES/engines/ocr/lib" -type f -print0 2>/dev/null || true)
@@ -231,14 +268,20 @@ while IFS= read -r -d '' fw; do
   sign_file "$fw"
 done < <(find "$APP" -name "*.framework" -type d -print0 2>/dev/null || true)
 
-# Main executable then the .app itself
-if [[ -f "$MACOS_DIR/MonographPDF" ]]; then
-  sign_file "$MACOS_DIR/MonographPDF"
+# Main executable then the .app itself (entitlements only on the main executable and the bundle)
+ENT_OPTS=()
+if [[ "$SIGN_MODE" == "production" ]]; then
+  ENT_OPTS=(--entitlements "$ENTITLEMENTS")
 fi
-codesign --force --sign - --timestamp=none --identifier "$IDENTIFIER" "$APP"
+if [[ -f "$MACOS_DIR/MonographPDF" ]]; then
+  codesign --force --sign "$SIGN_IDENTITY" "${SIGN_OPTS[@]}" ${ENT_OPTS[@]+"${ENT_OPTS[@]}"} \
+    --identifier "$IDENTIFIER" "$MACOS_DIR/MonographPDF"
+fi
+codesign --force --sign "$SIGN_IDENTITY" "${SIGN_OPTS[@]}" ${ENT_OPTS[@]+"${ENT_OPTS[@]}"} \
+  --identifier "$IDENTIFIER" "$APP"
 
-echo "Verifying ad-hoc signature…"
-codesign --verify --verbose=2 "$APP"
+echo "Verifying $SIGN_MODE signature…"
+codesign --verify --deep --strict --verbose=2 "$APP"
 codesign -dv --verbose=2 "$APP" 2>&1 | head -20
 
 # The bundled OCR engine must run from inside the app with no project tools/ on the path.
@@ -259,4 +302,8 @@ if [[ "$SHORT" != "$VERSION" ]]; then
   exit 1
 fi
 
-echo "Built: $APP (macOS $VERSION, ad-hoc signed — not Developer ID / not notarized)"
+if [[ "$SIGN_MODE" == "production" ]]; then
+  echo "Built: $APP (macOS $VERSION, Developer ID signed, Hardened Runtime — not yet notarized)"
+else
+  echo "Built: $APP (macOS $VERSION, ad-hoc signed — not Developer ID / not notarized)"
+fi
