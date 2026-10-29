@@ -114,7 +114,8 @@ upgrade is done with Setup.
 ## C. 0.5.1 maintenance acceptance (before 0.5.1 is published)
 
 Run section A with the 0.5.1 files (Help ▸ About shows 0.5.1; upgrade from **0.4.0 and from 0.5.0**),
-then these items for the three corrected defects. Use disposable copies of PDFs, never originals.
+then these items for the corrected defects. Use disposable copies of PDFs, never originals.
+Ctrl+Tab items (C3, C4) need the **physical keyboard**: input simulated by a program does not count.
 
 | # | Test | Expected |
 |---|---|---|
@@ -126,6 +127,11 @@ then these items for the three corrected defects. Use disposable copies of PDFs,
 | C6 | As C5, with unsaved changes in B as well | the button reads **Discard Its Changes and Replace** and the message says B's unsaved changes will be lost |
 | C7 | As C5 with **File ▸ Save a Copy** | same question; after Replace you keep working on A with its unsaved changes |
 | C8 | Save As onto a read-only PDF, and onto a PDF that another program keeps open | the message names *read-only* or *in use by another program*; the existing file is unchanged; the edits stay |
+| C9 | A PDF form whose fields already hold saved text: double-click a field, replace its text, press Enter; repeat on another field | only the new text is shown — no old text under or beside it — before and after Save |
+| C10 | Save, close, reopen and edit the same field five times; one of the times, clear it (select all, Delete) | after every reopen the field shows exactly the last saved entry; a cleared field stays empty |
+| C11 | Untick a ticked checkbox, choose a radio button; **Edit ▸ Undo**, **Edit ▸ Redo**; Save | the form's own tick / dot is shown for the new state (no "☐ / ☑" symbol over the old one); Undo and Redo restore each step; the saved file matches the screen |
+| C12 | Line tool (`L`): click once on the page without moving; then drag a line; Save; print preview | the click draws nothing (the tool stays on); the dragged line is drawn and saved; no stray dot in the print preview |
+| C13 | Fill a field as the User Guide describes: click (selects), click again / double-click / Enter / Space (types); Tab to the next field | behaves as described in *Forms, tables and layout* |
 
 ## Logs and failure reports
 
