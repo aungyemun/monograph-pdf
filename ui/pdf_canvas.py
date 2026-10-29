@@ -34,7 +34,7 @@ from core.editing.edit_model import EditableDocument, EditTool, WorkspaceMode
 from core.editing.geometry import Point, Rect
 from core.editing.text_box import TextAlign, TextBox, VAlign
 from core.editing.text_layout import layout_text_box
-from core.forms.display import should_paint_field_overlay, visible_field_content
+from core.forms.display import should_paint_field_overlay, stale_appearance_widgets, visible_field_content
 from core.forms.fields import FieldType, effective_valign
 from core.page_info import PageInfo
 from core.render_cache import RenderCache, RenderKey
@@ -401,7 +401,49 @@ class _CanvasWidget(QWidget):
         """Draw every page again (after a change of how pixels are shown, e.g. the monitor profile)."""
         self._cache.clear()
         self._tiles.clear()
+        self._rendered_hidden = {}
         self.update()
+
+    # --- form fields being changed: their saved appearance stays out of the picture ----------
+
+    def _stale_field_widgets(self, page_index: int) -> tuple[int, ...]:
+        if self._edit is None:
+            return ()
+        try:
+            return stale_appearance_widgets(self._edit.fields_on_page(page_index))
+        except Exception:  # noqa: BLE001
+            return ()
+
+    def _render_page_rgb(self, page_index: int, scale: float, clip=None):
+        """Render for the screen without the out-of-date appearances of fields being changed
+        (the overlay draws their current value); remembers which widgets were left out."""
+        hidden = self._stale_field_widgets(page_index)
+        rendered = getattr(self, "_rendered_hidden", None)
+        if rendered is None:
+            rendered = self._rendered_hidden = {}
+        rendered[page_index] = hidden
+        extra = {"clip": clip} if clip is not None else {}
+        if hidden:
+            extra["hidden_widgets"] = hidden
+        return self._document.render_rgb(page_index, scale=scale, **extra)
+
+    def _refresh_stale_field_pages(self) -> None:
+        """Render again the pages whose set of fields being changed differs from their picture
+        (a field was just changed, undone, or saved)."""
+        if self._edit is None or self._document is None or self._document.is_closed or not self._layouts:
+            return
+        rendered = getattr(self, "_rendered_hidden", None) or {}
+        pages = set(rendered)
+        try:
+            pages |= {int(f.page_index) for f in self._edit.fields.values()}
+        except Exception:  # noqa: BLE001
+            pass
+        changed = [
+            i for i in sorted(pages)
+            if 0 <= i < len(self._layouts) and rendered.get(i, ()) != self._stale_field_widgets(i)
+        ]
+        if changed:
+            self.refresh_page_content(changed)
 
     def clear_document(self) -> None:
         self._annot_sel = None
@@ -411,6 +453,7 @@ class _CanvasWidget(QWidget):
             self._edit.remove_listener(self._on_edit_changed)
         self._cache.clear()
         self._tiles.clear()
+        self._rendered_hidden = {}
         self.close_note_popup()
         self._document = None
         self._edit = None
@@ -466,12 +509,14 @@ class _CanvasWidget(QWidget):
             else:
                 self.update()
             return
+        self._refresh_stale_field_pages()
         self.editModelChanged.emit()
         self.selectionChanged.emit()
         self.update()
 
     def _end_live_interaction(self) -> None:
         self._live_interaction = False
+        self._refresh_stale_field_pages()
         self.editModelChanged.emit()
         self.selectionChanged.emit()
         self.update()
@@ -1035,11 +1080,11 @@ class _CanvasWidget(QWidget):
             try:
                 if self._cache.get(key) is None:
                     if full_px <= MAX_PAGE_PIXELS:
-                        self._cache.put(key, self._to_pixmap(self._document.render_rgb(i, scale=scale), dpr))
+                        self._cache.put(key, self._to_pixmap(self._render_page_rgb(i, scale), dpr))
                     else:
                         # low-resolution base for the whole page (shown while tiles are missing)
                         base = scale * (BASE_PAGE_PIXELS / full_px) ** 0.5
-                        pix = self._to_pixmap(self._document.render_rgb(i, scale=base), 1.0)
+                        pix = self._to_pixmap(self._render_page_rgb(i, base), 1.0)
                         self._cache.put(key, pix)
                 if full_px > MAX_PAGE_PIXELS and first <= i <= last:
                     self._render_tiles(i, visible, scale, dpr)
@@ -1081,10 +1126,10 @@ class _CanvasWidget(QWidget):
                 continue
             try:
                 if full_px <= MAX_PAGE_PIXELS:
-                    self._cache.put(key, self._to_pixmap(self._document.render_rgb(i, scale=scale), dpr))
+                    self._cache.put(key, self._to_pixmap(self._render_page_rgb(i, scale), dpr))
                 else:
                     base = scale * (BASE_PAGE_PIXELS / full_px) ** 0.5
-                    self._cache.put(key, self._to_pixmap(self._document.render_rgb(i, scale=base), 1.0))
+                    self._cache.put(key, self._to_pixmap(self._render_page_rgb(i, base), 1.0))
                     old = {k: self._tiles.pop(k) for k in stale_tiles}
                     self._render_tiles(i, visible, scale, dpr)
                     del old  # kept until the new tiles exist
@@ -1117,7 +1162,7 @@ class _CanvasWidget(QWidget):
                     self._tiles_pending = True  # the low-resolution page shows here meanwhile
                     return
                 clip = (tx * TILE_PX / scale, ty * TILE_PX / scale, (tx + 1) * TILE_PX / scale, (ty + 1) * TILE_PX / scale)
-                self._tiles[key] = self._to_pixmap(self._document.render_rgb(i, scale=scale, clip=clip), dpr)
+                self._tiles[key] = self._to_pixmap(self._render_page_rgb(i, scale, clip=clip), dpr)
                 self._tiles_this_pass = getattr(self, "_tiles_this_pass", 0) + 1
                 while len(self._tiles) > MAX_TILES:
                     self._tiles.popitem(last=False)
