@@ -95,7 +95,7 @@ Opening a PDF never changes it. Edits are written only when you save.
 - Double-click a text box to type in it. Select a shape to change its **Line** and **Fill** color on the context toolbar
 - **Colors**: every color button opens the same color picker — a large color field with hue strip, the current and new color side by side, Hex (or a color name such as *navy*) and R G B values, standard colors, your recent colors, and **Pick from Screen** (click anywhere to take its color; Esc cancels). For text, it shows the contrast against white paper
 - **Pictures**: **Insert ▸ Image** (`I`). With a picture selected, **In Front of Text** (it covers what is under it) or **Behind Text** (the page's text and lines show through it, as if printed on the paper beneath them — also on scanned pages) is on the Image toolbar, in **Edit ▸ Selected Image** and in the Properties panel (*Placement*), together with opacity and rotation
-- While typing in a text box or field, Ctrl+Z / Ctrl+Y undo and redo typing and paste; after you leave, **Edit ▸ Undo** / **Edit ▸ Redo** cover the session
+- While typing in a text box or field, Ctrl+Z / Ctrl+Y undo and redo typing and paste; after you leave, **Edit ▸ Undo** / **Edit ▸ Redo** cover the session — including form-field entries (each finished entry, checkbox or radio click, and **Clear Field** is one step)
 - Arrange: Ctrl+] / Ctrl+[ · **Edit ▸ Align & Distribute**
 - **Edit ▸ Copy Page as Picture** (Ctrl+Alt+C) — the current page as shown, including unsaved changes, at 150 dpi, ready to paste into another program
 - Unsaved documents show `*` in the title; recovery copies are kept for unprotected PDFs only

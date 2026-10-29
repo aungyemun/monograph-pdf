@@ -137,3 +137,23 @@ def stale_appearance_widgets(fields) -> tuple[int, ...]:
         if xref > 0:
             out.add(xref)
     return tuple(sorted(out))
+
+_BUTTONS = (FieldType.CHECKBOX, FieldType.RADIO)
+
+
+def pending_button_states(fields) -> dict[int, bool]:
+    """Checkbox / radio widgets changed in the window but not saved yet: widget xref -> checked.
+
+    Their saved appearance shows the old state. The page is rendered with the widget's own
+    appearance for the new state instead (see ``MuPdfBackend.render_rgb``), which keeps the form's
+    real check mark or dot — not the old state with a substitute glyph drawn over it."""
+    out: dict[int, bool] = {}
+    for field in fields or ():
+        if not getattr(field, "is_acroform", False) or getattr(field, "is_candidate", False):
+            continue
+        if field.field_type not in _BUTTONS or not getattr(field, "value_dirty", False):
+            continue
+        xref = int(getattr(field, "xref", 0) or 0)
+        if xref > 0:
+            out[xref] = bool(field.checked)
+    return out

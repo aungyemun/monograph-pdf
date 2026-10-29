@@ -123,3 +123,58 @@ def test_only_changed_existing_text_fields_are_left_out():
     ]
     assert stale_appearance_widgets(fields) == (11, 13, 17)
     assert stale_appearance_widgets([]) == ()
+
+
+def _checkbox_form(path: Path, checked: bool) -> Path:
+    doc = fitz.open()
+    page = doc.new_page()
+    w = fitz.Widget()
+    w.field_type = fitz.PDF_WIDGET_TYPE_CHECKBOX
+    w.field_name = "agree"
+    w.rect = fitz.Rect(100, 100, 130, 130)
+    w.field_value = checked
+    page.add_widget(w)
+    doc.save(path)
+    doc.close()
+    return path
+
+
+def test_checkbox_shown_in_its_new_state_with_its_own_appearance(tmp_path):
+    """A changed checkbox is drawn with the form's own on / off appearance, exactly as it will look
+    after Save — the document itself is unchanged by that."""
+    on_pdf = open_document(_checkbox_form(tmp_path / "on.pdf", True))
+    off_pdf = open_document(_checkbox_form(tmp_path / "off.pdf", False))
+    try:
+        clip = (95, 95, 135, 135)
+        saved_on = on_pdf.render_rgb(0, scale=3, clip=clip)[0]
+        saved_off = off_pdf.render_rgb(0, scale=3, clip=clip)[0]
+        assert saved_on != saved_off
+        doc = on_pdf._backend._doc  # noqa: SLF001
+        xref = doc[0].first_widget.xref
+        assert on_pdf.button_state_previewable(xref)
+        before = _objects(doc)
+        as_before = doc.xref_get_key(xref, "AS")
+        # unchecked in the window, not saved yet: looks like a saved unchecked box
+        assert on_pdf.render_rgb(0, scale=3, clip=clip, widget_states={xref: False})[0] == saved_off
+        assert on_pdf.render_rgb(0, scale=3, clip=clip, widget_states={xref: True})[0] == saved_on
+        assert doc.xref_get_key(xref, "AS") == as_before
+        assert _objects(doc) == before
+        # xrefs that are not widgets of the page are ignored
+        on_pdf.render_rgb(0, scale=1, widget_states={doc.pdf_catalog(): False, 99999: True})
+        assert _objects(doc) == before
+    finally:
+        on_pdf.close()
+        off_pdf.close()
+
+
+def test_only_changed_existing_buttons_get_a_pending_state():
+    from core.forms.display import pending_button_states
+
+    fields = [
+        _field(xref=21, is_acroform=True, value_dirty=True, field_type=FieldType.CHECKBOX, checked=True),
+        _field(xref=22, is_acroform=True, value_dirty=True, field_type=FieldType.RADIO, checked=False),
+        _field(xref=23, is_acroform=True, field_type=FieldType.CHECKBOX, checked=True),  # unchanged
+        _field(xref=0, is_acroform=False, value_dirty=True, field_type=FieldType.CHECKBOX),  # user-placed
+        _field(xref=25, is_acroform=True, value_dirty=True, field_type=FieldType.TEXT),
+    ]
+    assert pending_button_states(fields) == {21: True, 22: False}

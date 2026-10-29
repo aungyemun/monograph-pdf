@@ -13,8 +13,9 @@ platform-specific release tags — GitHub’s repository-wide “Latest” badge
 
 ## [0.5.1] — Unreleased
 
-Windows line. Maintenance release for three defects found after 0.5.0 was published, and the
-release-notes text of signed update manifests. Linux 0.1.0 and macOS 0.1.0 are unchanged.
+Windows line. Maintenance release for defects found after 0.5.0 was published (update check, tab
+shortcuts, Save As onto an open file, editing filled-in PDF forms) and the release-notes text of
+signed update manifests. Linux 0.1.0 and macOS 0.1.0 are unchanged.
 
 ### Fixed
 
@@ -46,6 +47,21 @@ release-notes text of signed update manifests. Linux 0.1.0 and macOS 0.1.0 are u
 - **Save errors in plain words**: read-only file, file in use by another program, no permission for
   the folder, missing folder and full disk are named as such (they used to show Windows' message with
   the internal temporary file name and a generic "Pick a writable folder" hint).
+- **Changing an already filled PDF form field showed the old value under the new one** (overlapping
+  or "doubled" characters) until the document was saved: the page picture still contained the
+  field's saved appearance while the new value was drawn over it. The window now leaves that
+  out-of-date appearance out of the picture; only the current value is shown. The saved file was not
+  affected and the document is not changed by this.
+- **Clearing a field that already had a saved value did not clear it**: after Save the old text was
+  still there (the PDF library used for saving writes a field value only when it is not empty). The
+  empty value is now saved and the field shows nothing; it can be filled again.
+- **Ticking or unticking a PDF checkbox or radio button showed the old state with a substitute
+  "☐" / "☑" symbol drawn over it** until Save. The window now shows the form's own check mark or dot
+  for the new state, exactly as it looks after saving.
+- **Form-field entries could not be undone once committed** (Ctrl+Z worked only while the field was
+  still being typed in). Text typed into a field, checkbox and radio clicks, **Clear Field** and
+  values entered in the Properties panel are now on **Edit ▸ Undo / Redo** — one step per entry;
+  an undone entry is not saved.
 
 ### Changed
 

@@ -106,3 +106,48 @@ def test_new_value_is_not_drawn_over_the_old_one(window, qtbot, tmp_path):
         assert widget.field_value == "I"
         assert doc[0].get_textbox(widget.rect).strip() == "I"
     qtbot.waitUntil(lambda: _dark_in_right_part(w) == 0, timeout=5000)
+
+
+def _checkbox_form(path: Path) -> Path:
+    import fitz
+
+    doc = fitz.open()
+    page = doc.new_page()
+    w = fitz.Widget()
+    w.field_type = fitz.PDF_WIDGET_TYPE_CHECKBOX
+    w.field_name = "agree"
+    w.rect = fitz.Rect(100, 100, 140, 140)
+    w.field_value = True
+    page.add_widget(w)
+    doc.save(path)
+    doc.close()
+    return path
+
+
+def _dark_inside(win) -> int:
+    from PySide6.QtGui import QColor
+
+    inner = win._canvas.widget()  # noqa: SLF001
+    field = next(iter(win._edit.fields.values()))  # noqa: SLF001
+    wr = inner.pdf_rect_to_widget(field.page_index, field.rect)
+    img = inner.grab().toImage()
+    n = 0
+    for x in range(wr.left() + 4, wr.right() - 4):
+        for y in range(wr.top() + 4, wr.bottom() - 4):
+            c = QColor(img.pixel(x, y))
+            if c.red() < 90 and c.green() < 90 and c.blue() < 90:
+                n += 1
+    return n
+
+
+def test_unticked_checkbox_shows_neither_old_tick_nor_glyph_and_undo_restores(window, qtbot, tmp_path):
+    w = window
+    assert w.open_path(_checkbox_form(tmp_path / "cb.pdf"))
+    qtbot.waitUntil(lambda: _dark_inside(w) > 30, timeout=5000)  # the saved tick
+    ticked = _dark_inside(w)
+    fid = next(iter(w._edit.fields))  # noqa: SLF001
+    w._edit.set_field_value(fid, checked=False)  # noqa: SLF001
+    qtbot.waitUntil(lambda: _dark_inside(w) == 0, timeout=5000)  # no old tick, no "☐" glyph
+    w._undo()  # noqa: SLF001 — Edit ▸ Undo
+    assert next(iter(w._edit.fields.values())).checked  # noqa: SLF001
+    qtbot.waitUntil(lambda: abs(_dark_inside(w) - ticked) <= 2, timeout=5000)  # the form's own tick again

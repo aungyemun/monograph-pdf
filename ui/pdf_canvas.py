@@ -34,7 +34,12 @@ from core.editing.edit_model import EditableDocument, EditTool, WorkspaceMode
 from core.editing.geometry import Point, Rect
 from core.editing.text_box import TextAlign, TextBox, VAlign
 from core.editing.text_layout import layout_text_box
-from core.forms.display import should_paint_field_overlay, stale_appearance_widgets, visible_field_content
+from core.forms.display import (
+    pending_button_states,
+    should_paint_field_overlay,
+    stale_appearance_widgets,
+    visible_field_content,
+)
 from core.forms.fields import FieldType, effective_valign
 from core.page_info import PageInfo
 from core.render_cache import RenderCache, RenderKey
@@ -414,17 +419,52 @@ class _CanvasWidget(QWidget):
         except Exception:  # noqa: BLE001
             return ()
 
+    def _pending_buttons(self, page_index: int) -> dict[int, bool]:
+        if self._edit is None:
+            return {}
+        try:
+            return pending_button_states(self._edit.fields_on_page(page_index))
+        except Exception:  # noqa: BLE001
+            return {}
+
+    def _page_form_state(self, page_index: int) -> tuple:
+        """What the page picture depends on: left-out text widgets, pending checkbox / radio states."""
+        return (self._stale_field_widgets(page_index), tuple(sorted(self._pending_buttons(page_index).items())))
+
+    def _button_previewable(self, field) -> bool:
+        """A changed PDF checkbox / radio is shown by the page picture itself (its own on / off
+        appearance), so the overlay draws no substitute glyph for it."""
+        if not field.is_acroform or field.field_type not in (FieldType.CHECKBOX, FieldType.RADIO):
+            return False
+        xref = int(field.xref or 0)
+        if xref <= 0 or self._document is None:
+            return False
+        cache = getattr(self, "_previewable", None)
+        if cache is None:
+            cache = self._previewable = {}
+        if xref not in cache:
+            check = getattr(self._document, "button_state_previewable", None)
+            try:
+                cache[xref] = bool(check(xref)) if check else False
+            except Exception:  # noqa: BLE001
+                cache[xref] = False
+        return cache[xref]
+
     def _render_page_rgb(self, page_index: int, scale: float, clip=None):
         """Render for the screen without the out-of-date appearances of fields being changed
-        (the overlay draws their current value); remembers which widgets were left out."""
+        (the overlay draws their current value) and with changed checkboxes / radio buttons in
+        their new state; remembers what the picture was rendered with."""
         hidden = self._stale_field_widgets(page_index)
+        states = self._pending_buttons(page_index)
         rendered = getattr(self, "_rendered_hidden", None)
         if rendered is None:
             rendered = self._rendered_hidden = {}
-        rendered[page_index] = hidden
+        rendered[page_index] = (hidden, tuple(sorted(states.items())))
         extra = {"clip": clip} if clip is not None else {}
         if hidden:
             extra["hidden_widgets"] = hidden
+        if states:
+            extra["widget_states"] = states
         return self._document.render_rgb(page_index, scale=scale, **extra)
 
     def _refresh_stale_field_pages(self) -> None:
@@ -440,7 +480,7 @@ class _CanvasWidget(QWidget):
             pass
         changed = [
             i for i in sorted(pages)
-            if 0 <= i < len(self._layouts) and rendered.get(i, ()) != self._stale_field_widgets(i)
+            if 0 <= i < len(self._layouts) and rendered.get(i, ((), ())) != self._page_form_state(i)
         ]
         if changed:
             self.refresh_page_content(changed)
@@ -454,6 +494,7 @@ class _CanvasWidget(QWidget):
         self._cache.clear()
         self._tiles.clear()
         self._rendered_hidden = {}
+        self._previewable = {}
         self.close_note_popup()
         self._document = None
         self._edit = None
@@ -1421,6 +1462,9 @@ class _CanvasWidget(QWidget):
             policy = should_paint_field_overlay(
                 field, forms_mode=forms_mode, highlight_fillable=highlight
             )
+            if policy == "content" and self._button_previewable(field):
+                # The page picture shows the new state with the form's own appearance
+                policy = "chrome" if forms_mode else ("highlight" if highlight and not field.readonly else "none")
             selected = field.object_id in self._edit.field_selection
             focused = field.object_id == getattr(self._edit, "editing_field_id", None)
             hovered = field.object_id == self._hover_field_id
