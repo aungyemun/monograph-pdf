@@ -454,10 +454,14 @@ class EditableDocument:
             if kwargs.get(key) is not None:
                 setattr(shape, key, kwargs[key])
         if sk in (ShapeKind.LINE, ShapeKind.ARROW):
+            from core.editing.shape_box import is_degenerate_line
+
             shape.x0 = float(kwargs.get("x0", rect.x))
             shape.y0 = float(kwargs.get("y0", rect.y))
             shape.x1 = float(kwargs.get("x1", rect.x1))
             shape.y1 = float(kwargs.get("y1", rect.y1))
+            if is_degenerate_line(shape):
+                return None  # both ends on one point (a click, not a drag): nothing to draw or save
             shape.sync_rect_from_line()
         if sk == ShapeKind.FREEHAND:
             from core.editing.freehand import simplify

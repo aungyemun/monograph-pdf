@@ -62,6 +62,14 @@ signed update manifests. Linux 0.1.0 and macOS 0.1.0 are unchanged.
   still being typed in). Text typed into a field, checkbox and radio clicks, **Clear Field** and
   values entered in the Properties panel are now on **Edit ▸ Undo / Redo** — one step per entry;
   an undone entry is not saved.
+- **A single click with the Line or Arrow tool added an invisible zero-length line to the page**,
+  which Save wrote into the PDF and which printed as a small dot. A click without dragging now draws
+  nothing (the tool stays on for the drag); such a line left in a recovered editing session is not
+  written on Save. Short lines that are actually dragged — also tiny ones drawn zoomed in — are kept.
+  This was already the case in 0.5.0.
+- User Guide: how to fill a form field is described correctly (a first click selects the field;
+  a second click, double-click, Enter or Space starts typing; while a field is only selected, letter
+  keys are tool shortcuts).
 
 ### Changed
 

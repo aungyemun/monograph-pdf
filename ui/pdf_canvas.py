@@ -908,6 +908,21 @@ class _CanvasWidget(QWidget):
         sy = layout.height() / max(page.display_height_pt, 1.0)
         return sx, sy
 
+    # A press and release of the Line / Arrow tool closer than this (screen pixels) is a click, not a
+    # drag: no line is drawn. Measured on screen, so short lines can still be drawn when zoomed in.
+    LINE_CLICK_PX = 3.0
+
+    def _line_click(self, page_index: int) -> bool:
+        if self._create_origin is None or self._create_current is None:
+            return True
+        try:
+            sx, sy = self._scale(page_index)
+        except (IndexError, TypeError):
+            sx = sy = 1.0
+        dx = (self._create_current.x - self._create_origin.x) * sx
+        dy = (self._create_current.y - self._create_origin.y) * sy
+        return (dx * dx + dy * dy) ** 0.5 < self.LINE_CLICK_PX
+
     def widget_to_pdf(self, pos: QPoint) -> tuple[int, Point] | None:
         page_index = self.page_at_y(pos.y())
         if page_index < 0 or page_index >= len(self._layouts):
@@ -3518,6 +3533,7 @@ class _CanvasWidget(QWidget):
             )
             if self._shape_create_kind:
                 kind = self._shape_create_kind
+                drawn = True
                 if kind == "freehand":
                     pts = self._freehand_points or [
                         (self._create_origin.x, self._create_origin.y),
@@ -3526,6 +3542,10 @@ class _CanvasWidget(QWidget):
                     # about half a screen pixel: jitter goes, the hand's shape stays
                     self._edit.create_shape(self._press_page, Rect(0, 0, 1, 1), kind, points=pts,
                                             tolerance=0.6 / max(self._zoom, 0.25))
+                elif kind in ("line", "arrow") and self._line_click(self._press_page):
+                    # A click without dragging draws nothing (it used to leave a zero-length line in
+                    # the saved PDF, printed as a dot). The tool stays on for the drag.
+                    drawn = False
                 elif kind in ("line", "arrow"):
                     end = constrain_line_angle(
                         self._create_origin, self._create_current, snap=self._shift_constrain
@@ -3556,9 +3576,12 @@ class _CanvasWidget(QWidget):
                     # handle for an oval (Shift while resizing keeps the proportions)
                     self._edit.create_shape(self._press_page, rect, kind, lock_aspect=False)
                 self._live_interaction = False
-                self._edit.tool = EditTool.SELECT
-                self.set_tool(EditTool.SELECT)
-                self.requestStatus.emit(f"{kind.title()} created")
+                if drawn:
+                    self._edit.tool = EditTool.SELECT
+                    self.set_tool(EditTool.SELECT)
+                    self.requestStatus.emit(f"{kind.title()} created")
+                else:
+                    self.requestStatus.emit(f"{kind.title()} — drag on the page to draw it")
                 self._shape_create_kind = None
                 self._freehand_points = []
                 self._end_live_interaction()

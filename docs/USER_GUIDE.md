@@ -102,7 +102,12 @@ Opening a PDF never changes it. Edits are written only when you save.
 
 ## Forms, tables and layout
 
-- Fill fields in Select mode (click and type; Tab / Shift+Tab). Mixed Japanese and Latin entries are supported.
+- Fill fields in Select mode:
+  - **Text fields:** a first click selects the field (it can then be moved). To type in it, click it again, double-click it, or press **Enter** or **Space** while it is selected. While a field is only selected, letter keys are tool shortcuts (for example `T` Text Box), not typing.
+  - **Finish an entry:** **Enter** in a one-line field, **Ctrl+Enter** in a multi-line field (there Enter starts a new line), **Esc**, or a click outside. The entry is kept in each case.
+  - **Tab / Shift+Tab** move to the next / previous field.
+  - **Checkboxes and radio buttons:** one click ticks or chooses them; **Space** toggles a selected one.
+  - Mixed Japanese and Latin entries are supported.
 - Press in a field and drag to select its words; the font, size, bold, italic and color on the toolbar then change only those words.
 - To change several boxes at once, drag a rectangle from empty paper (or the grey margin) across the fields and text boxes, or Ctrl+click them; the toolbar's font, size, A+ / A−, bold, italic, color and alignment then apply to every selected box (one **Edit ▸ Undo** step).
 - Text boxes, pictures, shapes and fields stay on the page while you drag them or move them with the arrow keys: anything past the page edge would not show in other PDF apps or print.
