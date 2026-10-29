@@ -208,7 +208,9 @@ def test_unicode_updates_folder(tmp_path, monkeypatch, name):
 
 @pytest.mark.skipif(not sys.platform.startswith("win"), reason="Windows default location")
 def test_default_location_is_local_appdata(monkeypatch):
+    # normal use: no redirect at all (a redirected user-data folder would contain it, 0.5.1)
     monkeypatch.delenv("MONOGRAPH_PDF_UPDATES_DIR")
+    monkeypatch.delenv("MONOGRAPH_PDF_USER_DATA_DIR", raising=False)
     root = staging.updates_root()
     assert root.parts[-2:] == ("Monograph PDF", "Updates")
     assert "Local" in root.parts or os.environ.get("LOCALAPPDATA", "") in str(root)

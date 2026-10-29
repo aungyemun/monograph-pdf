@@ -1,8 +1,14 @@
 """HTTPS access for update checks and downloads — the only network code of the updater.
 
-* HTTPS only, with certificate and host-name verification (``ssl.create_default_context``: the
-  Windows certificate store on Windows). TLS verification is never disabled; there is no HTTP
-  fallback.
+* HTTPS only, with certificate and host-name verification. TLS verification is never disabled; there
+  is no HTTP fallback and no fallback to a weaker check.
+* On Windows the server's certificate chain and host name are verified by the Windows certificate
+  chain engine (``CertGetCertificateChain`` / ``CertVerifyCertificateChainPolicy`` through the
+  ``truststore`` package), the same verifier Windows itself uses. Unlike OpenSSL fed with a snapshot
+  of the certificate stores, it considers alternative certification paths and lets Windows install a
+  trusted root on demand. 0.5.0 used OpenSSL with that snapshot and failed on GitHub's Sectigo chain
+  on PCs where Windows had not installed the Sectigo E46 root yet ("unable to get issuer
+  certificate"). Elsewhere (and in tests with their own CA file) OpenSSL verifies as before.
 * Every URL, including each redirect target, must be HTTPS on a host from the bundled allow-list
   (GitHub's release download redirects stay inside it). At most 5 redirects.
 * Response sizes are bounded; downloads stream to disk in chunks and can be cancelled.
@@ -14,6 +20,7 @@ from __future__ import annotations
 
 import socket
 import ssl
+import sys
 import threading
 import urllib.error
 import urllib.request
@@ -59,10 +66,27 @@ class _Redirects(urllib.request.HTTPRedirectHandler):
         return new
 
 
+def _system_trust_context() -> ssl.SSLContext:
+    """TLS client context that trusts the operating system's certificate authorities."""
+    if sys.platform == "win32":
+        try:
+            import truststore
+        except ImportError:  # a broken build: refuse instead of silently using the 0.5.0 verifier
+            raise NetworkError("Windows certificate verification is not available in this build", "tls") from None
+        # No load_verify_locations / load_default_certs: the Windows chain engine with the Windows
+        # trusted roots is the only trust source (truststore's custom-CA path then stays unused).
+        return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    return ssl.create_default_context()
+
+
 def _context(config: UpdateConfig) -> ssl.SSLContext:
-    ctx = ssl.create_default_context(cafile=str(config.ca_file) if config.ca_file else None)
+    if config.ca_file:
+        # test builds only: trust exactly this CA (a local HTTPS test server), nothing else
+        ctx = ssl.create_default_context(cafile=str(config.ca_file))
+    else:
+        ctx = _system_trust_context()
     ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-    # create_default_context already sets these; checked so a future edit cannot weaken them
+    # both contexts start with these (PROTOCOL_TLS_CLIENT defaults); checked so a future edit cannot weaken them
     if ctx.verify_mode != ssl.CERT_REQUIRED or not ctx.check_hostname:
         raise NetworkError("certificate verification is required", "tls")
     return ctx
@@ -95,7 +119,13 @@ def _classify(exc: BaseException) -> NetworkError:
         return NetworkError(f"the update server answered HTTP {exc.code}", "http")
     reason = getattr(exc, "reason", exc)
     if isinstance(reason, ssl.SSLError) or isinstance(exc, ssl.SSLError):
-        return NetworkError("the secure connection to the update server could not be verified", "tls")
+        err = reason if isinstance(reason, ssl.SSLError) else exc
+        # the verifier's own reason (an untrusted root suggests a TLS-inspecting proxy, a name
+        # mismatch a wrong host, an expired certificate a wrong clock) — kept in the detail for
+        # diagnosis; the dialog text stays the general explanation from messages.py
+        why = getattr(err, "verify_message", "") or getattr(err, "reason", "") or ""
+        text = "the secure connection to the update server could not be verified"
+        return NetworkError(f"{text} ({why})" if why else text, "tls")
     if isinstance(reason, (socket.timeout, TimeoutError)) or isinstance(exc, (socket.timeout, TimeoutError)):
         return NetworkError("the update server did not respond in time", "timeout")
     if isinstance(reason, socket.gaierror) or isinstance(exc, socket.gaierror):

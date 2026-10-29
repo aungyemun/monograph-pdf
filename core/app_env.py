@@ -51,6 +51,23 @@ def is_true(name: str) -> bool:
     return get(name).lower() in ("1", "true", "yes")
 
 
+def profile_subdir(name: str):
+    """``<MONOGRAPH_PDF_USER_DATA_DIR>/<name>`` when the user-data folder is redirected, else None.
+
+    Only the tests, the build's and Setup's self-check, and audit harnesses redirect the user-data
+    folder. Every other per-user location (diagnostics, update staging, caches, the installed
+    program's runtime folder) then defaults to a folder inside it, so an isolated run can never write
+    to — or consume records in — the real ``%APPDATA%`` / ``%LOCALAPPDATA%\\Monograph PDF`` folders,
+    even when only this one variable is set. (Up to 0.5.1's development, problem-report records and
+    update state of such runs went to the real folders unless each had its own override.)
+    A location's own override (``DIAGNOSTICS_DIR`` and so on) still wins.
+    """
+    from pathlib import Path
+
+    base = get("USER_DATA_DIR")
+    return Path(base) / name if base else None
+
+
 def set(name: str, value: str) -> None:  # noqa: A001 - mirrors os.environ semantics
     """Set ``MONOGRAPH_PDF_<name>`` for this process and its children (a stale legacy value is dropped)."""
     os.environ[PREFIX + name] = value

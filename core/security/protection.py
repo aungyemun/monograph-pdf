@@ -272,13 +272,33 @@ def save_copy(doc: fitz.Document, destination: Path, **kwargs) -> Path:
 
 
 def copy_file_exactly(document, destination: Path) -> Path:
-    """Byte-for-byte copy of the file on disk (keeps digital signatures valid and the protection as is)."""
+    """Byte-for-byte copy of the file on disk (keeps digital signatures valid and the protection as is).
+
+    Replacing an existing file is atomic, as for every other save: the copy is written to a temporary
+    file beside it and swapped in, so the existing file stays intact if the copy fails (disk full,
+    locked, read-only). A new file that cannot be completed is removed again. (0.5.0 copied straight
+    onto the destination, so a failed copy left a truncated, unreadable file behind.)
+    """
+    import os
     import shutil
+    import uuid
 
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    if Path(document.path).resolve() != destination.resolve():
-        shutil.copyfile(document.path, destination)
+    if Path(document.path).resolve() == destination.resolve():
+        return destination
+    part = (destination.with_name(f".{destination.stem}.{uuid.uuid4().hex[:8]}.part")
+            if destination.exists() else destination)
+    try:
+        shutil.copyfile(document.path, part)
+        if part != destination:
+            os.replace(part, destination)
+    except BaseException:
+        try:
+            part.unlink()
+        except OSError:
+            pass
+        raise
     return destination
 
 

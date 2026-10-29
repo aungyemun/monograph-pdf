@@ -11,6 +11,83 @@ platform-specific release tags — GitHub’s repository-wide “Latest” badge
 | macOS | **[0.1.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1)** (`v0.1.0-macos-1`) | First macOS line |
 | Linux | — | **0.1.0** on branch [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux); **no** `v0.1.0-linux` tag yet |
 
+## [0.5.1] — Unreleased
+
+Windows line. Maintenance release for defects found after 0.5.0 was published (update check, tab
+shortcuts, Save As onto an open file, editing filled-in PDF forms) and the release-notes text of
+signed update manifests. Linux 0.1.0 and macOS 0.1.0 are unchanged.
+
+### Fixed
+
+- **Check for Updates could report "Secure connection could not be verified" on a correctly
+  connected PC.** GitHub's certificate chains through the Sectigo Public Server Authentication
+  Root E46. 0.5.0 verified it with OpenSSL fed with a snapshot of the Windows certificate stores; on
+  PCs where Windows had not yet installed that root on demand, OpenSSL followed a cross-certificate
+  from the intermediate store to a root that is not installed ("unable to get issuer certificate").
+  Certificates are now verified by the Windows certificate chain engine (the verifier Windows itself
+  uses, through the pinned `truststore` 0.10.5 package), which considers alternative certification
+  paths and lets Windows install trusted roots. Host-name verification, TLS 1.2 or later, the host
+  allow-list, the signed update manifest and the SHA-256 check of the installer are unchanged; there
+  is no fallback to a weaker check. The OCR language download uses the same code.
+- **Ctrl+Tab and Ctrl+Shift+Tab did nothing.** Each key sequence was registered twice, which Qt
+  treats as ambiguous and then triggers neither. They again select the next / previous document tab
+  (wrapping around), also while a text box or form field is being edited (the typing is kept in its
+  own document).
+- **Save As (and Save a Copy) onto a PDF that is open in another tab.** 0.5.0 failed with an error
+  naming an internal temporary file ("Access is denied: '….part' -> 'B.pdf' … Pick a writable
+  folder"), or — when the document had no unsaved changes — overwrote the other tab's file
+  underneath it and showed the same file in two tabs. Now Monograph PDF says that the file is open in
+  another tab and asks: **Close It and Replace** (or **Discard Its Changes and Replace** when that tab
+  has unsaved changes, which the dialog names), or **Cancel** (the default). Nothing is written before
+  the choice.
+- **A Save As of an unchanged document that failed part-way (for example on a full disk) left the
+  existing destination truncated and unreadable**, and a failed copy to a new name left a partial
+  file. The byte-for-byte copy now goes through a temporary file like every other save: the existing
+  file is kept intact and nothing partial is left behind.
+- **Save errors in plain words**: read-only file, file in use by another program, no permission for
+  the folder, missing folder and full disk are named as such (they used to show Windows' message with
+  the internal temporary file name and a generic "Pick a writable folder" hint).
+- **Changing an already filled PDF form field showed the old value under the new one** (overlapping
+  or "doubled" characters) until the document was saved: the page picture still contained the
+  field's saved appearance while the new value was drawn over it. The window now leaves that
+  out-of-date appearance out of the picture; only the current value is shown. The saved file was not
+  affected and the document is not changed by this.
+- **Clearing a field that already had a saved value did not clear it**: after Save the old text was
+  still there (the PDF library used for saving writes a field value only when it is not empty). The
+  empty value is now saved and the field shows nothing; it can be filled again.
+- **Ticking or unticking a PDF checkbox or radio button showed the old state with a substitute
+  "☐" / "☑" symbol drawn over it** until Save. The window now shows the form's own check mark or dot
+  for the new state, exactly as it looks after saving.
+- **Form-field entries could not be undone once committed** (Ctrl+Z worked only while the field was
+  still being typed in). Text typed into a field, checkbox and radio clicks, **Clear Field** and
+  values entered in the Properties panel are now on **Edit ▸ Undo / Redo** — one step per entry;
+  an undone entry is not saved.
+- **A single click with the Line or Arrow tool added an invisible zero-length line to the page**,
+  which Save wrote into the PDF and which printed as a small dot. A click without dragging now draws
+  nothing (the tool stays on for the drag); such a line left in a recovered editing session is not
+  written on Save. Short lines that are actually dragged — also tiny ones drawn zoomed in — are kept.
+  This was already the case in 0.5.0.
+- User Guide: how to fill a form field is described correctly (a first click selects the field;
+  a second click, double-click, Enter or Space starts typing; while a field is only selected, letter
+  keys are tool shortcuts).
+
+### Changed
+
+- Release tooling: the release notes signed into `MonographPDF_update_manifest.json` are normalized
+  (no byte-order mark, LF line endings, Unicode NFC). The 0.5.0 manifest's notes began with an
+  invisible U+FEFF because the notes file had been saved with a UTF-8 byte-order mark; the published
+  0.5.0 manifest is not changed. `verify_release.py` and `validate_release_notes.py` now reject a
+  byte-order mark.
+- `scripts/audit/update_tls_diagnosis.py` separates connectivity, proxy / TLS-inspection, trust-store
+  and application causes of an update-check TLS error.
+
+### Not yet verified
+
+- Installation, upgrade from 0.4.0 and 0.5.0, uninstallation, Unicode installation paths and
+  Japanese Windows are verified by the maintainer on real Windows before publication.
+- The update check on a Windows installation whose certificate store has never installed the Sectigo
+  E46 root was reproduced with a controlled trust set, not on a freshly installed PC.
+
 ## [0.5.0] — 2026-10-28
 
 Windows line. Changes after 0.4.0: versions 0.4.1 and 0.4.2 were never released; their changes are

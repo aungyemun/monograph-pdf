@@ -397,3 +397,25 @@ class FieldStyleCommand(Command):
 
     def undo(self) -> None:
         self._apply(self.before)
+
+class FieldValueCommand(Command):
+    """A form-field value change (text, formatting or checked state) of one field together with
+    the copies that share its value (same name) or its radio group. ``before`` / ``after``: field id
+    -> state from ``EditableDocument.field_states``."""
+
+    def __init__(self, model: "EditableDocument", before: dict[str, dict], after: dict[str, dict], *,
+                 mergeable: bool = False) -> None:
+        self.model = model
+        self.before = before
+        self.after = after
+        self.mergeable = mergeable  # successive text changes of the same field (inspector typing)
+
+    @property
+    def name(self) -> str:
+        return "Fill Form Field"
+
+    def execute(self) -> None:
+        self.model.apply_field_states(self.after)
+
+    def undo(self) -> None:
+        self.model.apply_field_states(self.before)

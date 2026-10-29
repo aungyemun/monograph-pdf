@@ -43,7 +43,7 @@ PYPI_LICENSES = {
     "python-docx": "MIT", "openpyxl": "MIT", "python-pptx": "MIT", "Pillow": "MIT-CMU", "pdf2docx": "GPL-3.0-only",
     "opencv-python-headless": "Apache-2.0", "numpy": "BSD-3-Clause", "fonttools": "MIT", "fire": "Apache-2.0",
     "termcolor": "MIT", "lxml": "BSD-3-Clause", "typing_extensions": "PSF-2.0", "et_xmlfile": "MIT",
-    "XlsxWriter": "BSD-2-Clause", "colorama": "BSD-3-Clause",
+    "XlsxWriter": "BSD-2-Clause", "colorama": "BSD-3-Clause", "truststore": "MIT",
 }
 # Build and test tools (never shipped) are not part of the SBOM of the release.
 NOT_SHIPPED = {"pytest", "pytest-qt", "pyinstaller", "pytest-timeout", "pyinstaller-hooks-contrib", "altgraph",

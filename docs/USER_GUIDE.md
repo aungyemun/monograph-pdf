@@ -95,14 +95,19 @@ Opening a PDF never changes it. Edits are written only when you save.
 - Double-click a text box to type in it. Select a shape to change its **Line** and **Fill** color on the context toolbar
 - **Colors**: every color button opens the same color picker — a large color field with hue strip, the current and new color side by side, Hex (or a color name such as *navy*) and R G B values, standard colors, your recent colors, and **Pick from Screen** (click anywhere to take its color; Esc cancels). For text, it shows the contrast against white paper
 - **Pictures**: **Insert ▸ Image** (`I`). With a picture selected, **In Front of Text** (it covers what is under it) or **Behind Text** (the page's text and lines show through it, as if printed on the paper beneath them — also on scanned pages) is on the Image toolbar, in **Edit ▸ Selected Image** and in the Properties panel (*Placement*), together with opacity and rotation
-- While typing in a text box or field, Ctrl+Z / Ctrl+Y undo and redo typing and paste; after you leave, **Edit ▸ Undo** / **Edit ▸ Redo** cover the session
+- While typing in a text box or field, Ctrl+Z / Ctrl+Y undo and redo typing and paste; after you leave, **Edit ▸ Undo** / **Edit ▸ Redo** cover the session — including form-field entries (each finished entry, checkbox or radio click, and **Clear Field** is one step)
 - Arrange: Ctrl+] / Ctrl+[ · **Edit ▸ Align & Distribute**
 - **Edit ▸ Copy Page as Picture** (Ctrl+Alt+C) — the current page as shown, including unsaved changes, at 150 dpi, ready to paste into another program
 - Unsaved documents show `*` in the title; recovery copies are kept for unprotected PDFs only
 
 ## Forms, tables and layout
 
-- Fill fields in Select mode (click and type; Tab / Shift+Tab). Mixed Japanese and Latin entries are supported.
+- Fill fields in Select mode:
+  - **Text fields:** a first click selects the field (it can then be moved). To type in it, click it again, double-click it, or press **Enter** or **Space** while it is selected. While a field is only selected, letter keys are tool shortcuts (for example `T` Text Box), not typing.
+  - **Finish an entry:** **Enter** in a one-line field, **Ctrl+Enter** in a multi-line field (there Enter starts a new line), **Esc**, or a click outside. The entry is kept in each case.
+  - **Tab / Shift+Tab** move to the next / previous field.
+  - **Checkboxes and radio buttons:** one click ticks or chooses them; **Space** toggles a selected one.
+  - Mixed Japanese and Latin entries are supported.
 - Press in a field and drag to select its words; the font, size, bold, italic and color on the toolbar then change only those words.
 - To change several boxes at once, drag a rectangle from empty paper (or the grey margin) across the fields and text boxes, or Ctrl+click them; the toolbar's font, size, A+ / A−, bold, italic, color and alignment then apply to every selected box (one **Edit ▸ Undo** step).
 - Text boxes, pictures, shapes and fields stay on the page while you drag them or move them with the arrow keys: anything past the page edge would not show in other PDF apps or print.
@@ -232,6 +237,7 @@ discards it. The app itself sends nothing.
 | Area | Keys |
 | :--- | :--- |
 | File | Ctrl+O · Ctrl+S · Ctrl+Shift+S · Ctrl+W · Ctrl+P · Ctrl+, (Settings) · Ctrl+Q |
+| Document tabs | Ctrl+Tab (next) · Ctrl+Shift+Tab (previous) · Ctrl+W or Ctrl+F4 (close tab) |
 | Edit | Ctrl+Z · Ctrl+Y · Ctrl+X/C/V · Del · Ctrl+A · Ctrl+Alt+C (copy page as picture) |
 | Insert | Ctrl+B (bookmark for this page) |
 | View | Ctrl+1 / 2 / 0 · Ctrl+= / − · Ctrl+F · F8 · F9 · F11 · Ctrl+Shift+L (automatic scrolling) · mouse wheel button (scroll button) · Ctrl+/ |

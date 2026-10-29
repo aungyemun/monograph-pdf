@@ -155,10 +155,25 @@ class PdfDocument:
         self._ensure_open()
         return self._backend.render_png(page_index, zoom=zoom, dpr=dpr, alpha=alpha)
 
-    def render_rgb(self, page_index: int, *, scale: float, clip=None) -> tuple[bytes, int, int, int]:
-        """RGB samples for the screen: (samples, width, height, stride); ``clip`` in display points."""
+    def render_rgb(
+        self, page_index: int, *, scale: float, clip=None, hidden_widgets=(), widget_states=None
+    ) -> tuple[bytes, int, int, int]:
+        """RGB samples for the screen: (samples, width, height, stride); ``clip`` in display points.
+        ``hidden_widgets``: form-field widget xrefs whose out-of-date saved appearance is left out;
+        ``widget_states``: checkbox / radio xref -> checked, shown with the widget's own appearance."""
         self._ensure_open()
-        return self._backend.render_rgb(page_index, scale=scale, clip=clip)
+        extra = {}
+        if hidden_widgets:
+            extra["hidden_widgets"] = hidden_widgets
+        if widget_states:
+            extra["widget_states"] = widget_states
+        return self._backend.render_rgb(page_index, scale=scale, clip=clip, **extra)
+
+    def button_state_previewable(self, xref: int) -> bool:
+        """The checkbox / radio widget has its own on and off appearances (see render_rgb)."""
+        self._ensure_open()
+        check = getattr(self._backend, "button_state_previewable", None)
+        return bool(check(xref)) if check else False
 
     def render_thumbnail_png(self, page_index: int, max_edge_px: int = 160) -> bytes:
         self._ensure_open()

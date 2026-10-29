@@ -34,7 +34,12 @@ from core.editing.edit_model import EditableDocument, EditTool, WorkspaceMode
 from core.editing.geometry import Point, Rect
 from core.editing.text_box import TextAlign, TextBox, VAlign
 from core.editing.text_layout import layout_text_box
-from core.forms.display import should_paint_field_overlay, visible_field_content
+from core.forms.display import (
+    pending_button_states,
+    should_paint_field_overlay,
+    stale_appearance_widgets,
+    visible_field_content,
+)
 from core.forms.fields import FieldType, effective_valign
 from core.page_info import PageInfo
 from core.render_cache import RenderCache, RenderKey
@@ -401,7 +406,84 @@ class _CanvasWidget(QWidget):
         """Draw every page again (after a change of how pixels are shown, e.g. the monitor profile)."""
         self._cache.clear()
         self._tiles.clear()
+        self._rendered_hidden = {}
         self.update()
+
+    # --- form fields being changed: their saved appearance stays out of the picture ----------
+
+    def _stale_field_widgets(self, page_index: int) -> tuple[int, ...]:
+        if self._edit is None:
+            return ()
+        try:
+            return stale_appearance_widgets(self._edit.fields_on_page(page_index))
+        except Exception:  # noqa: BLE001
+            return ()
+
+    def _pending_buttons(self, page_index: int) -> dict[int, bool]:
+        if self._edit is None:
+            return {}
+        try:
+            return pending_button_states(self._edit.fields_on_page(page_index))
+        except Exception:  # noqa: BLE001
+            return {}
+
+    def _page_form_state(self, page_index: int) -> tuple:
+        """What the page picture depends on: left-out text widgets, pending checkbox / radio states."""
+        return (self._stale_field_widgets(page_index), tuple(sorted(self._pending_buttons(page_index).items())))
+
+    def _button_previewable(self, field) -> bool:
+        """A changed PDF checkbox / radio is shown by the page picture itself (its own on / off
+        appearance), so the overlay draws no substitute glyph for it."""
+        if not field.is_acroform or field.field_type not in (FieldType.CHECKBOX, FieldType.RADIO):
+            return False
+        xref = int(field.xref or 0)
+        if xref <= 0 or self._document is None:
+            return False
+        cache = getattr(self, "_previewable", None)
+        if cache is None:
+            cache = self._previewable = {}
+        if xref not in cache:
+            check = getattr(self._document, "button_state_previewable", None)
+            try:
+                cache[xref] = bool(check(xref)) if check else False
+            except Exception:  # noqa: BLE001
+                cache[xref] = False
+        return cache[xref]
+
+    def _render_page_rgb(self, page_index: int, scale: float, clip=None):
+        """Render for the screen without the out-of-date appearances of fields being changed
+        (the overlay draws their current value) and with changed checkboxes / radio buttons in
+        their new state; remembers what the picture was rendered with."""
+        hidden = self._stale_field_widgets(page_index)
+        states = self._pending_buttons(page_index)
+        rendered = getattr(self, "_rendered_hidden", None)
+        if rendered is None:
+            rendered = self._rendered_hidden = {}
+        rendered[page_index] = (hidden, tuple(sorted(states.items())))
+        extra = {"clip": clip} if clip is not None else {}
+        if hidden:
+            extra["hidden_widgets"] = hidden
+        if states:
+            extra["widget_states"] = states
+        return self._document.render_rgb(page_index, scale=scale, **extra)
+
+    def _refresh_stale_field_pages(self) -> None:
+        """Render again the pages whose set of fields being changed differs from their picture
+        (a field was just changed, undone, or saved)."""
+        if self._edit is None or self._document is None or self._document.is_closed or not self._layouts:
+            return
+        rendered = getattr(self, "_rendered_hidden", None) or {}
+        pages = set(rendered)
+        try:
+            pages |= {int(f.page_index) for f in self._edit.fields.values()}
+        except Exception:  # noqa: BLE001
+            pass
+        changed = [
+            i for i in sorted(pages)
+            if 0 <= i < len(self._layouts) and rendered.get(i, ((), ())) != self._page_form_state(i)
+        ]
+        if changed:
+            self.refresh_page_content(changed)
 
     def clear_document(self) -> None:
         self._annot_sel = None
@@ -411,6 +493,8 @@ class _CanvasWidget(QWidget):
             self._edit.remove_listener(self._on_edit_changed)
         self._cache.clear()
         self._tiles.clear()
+        self._rendered_hidden = {}
+        self._previewable = {}
         self.close_note_popup()
         self._document = None
         self._edit = None
@@ -466,12 +550,14 @@ class _CanvasWidget(QWidget):
             else:
                 self.update()
             return
+        self._refresh_stale_field_pages()
         self.editModelChanged.emit()
         self.selectionChanged.emit()
         self.update()
 
     def _end_live_interaction(self) -> None:
         self._live_interaction = False
+        self._refresh_stale_field_pages()
         self.editModelChanged.emit()
         self.selectionChanged.emit()
         self.update()
@@ -822,6 +908,21 @@ class _CanvasWidget(QWidget):
         sy = layout.height() / max(page.display_height_pt, 1.0)
         return sx, sy
 
+    # A press and release of the Line / Arrow tool closer than this (screen pixels) is a click, not a
+    # drag: no line is drawn. Measured on screen, so short lines can still be drawn when zoomed in.
+    LINE_CLICK_PX = 3.0
+
+    def _line_click(self, page_index: int) -> bool:
+        if self._create_origin is None or self._create_current is None:
+            return True
+        try:
+            sx, sy = self._scale(page_index)
+        except (IndexError, TypeError):
+            sx = sy = 1.0
+        dx = (self._create_current.x - self._create_origin.x) * sx
+        dy = (self._create_current.y - self._create_origin.y) * sy
+        return (dx * dx + dy * dy) ** 0.5 < self.LINE_CLICK_PX
+
     def widget_to_pdf(self, pos: QPoint) -> tuple[int, Point] | None:
         page_index = self.page_at_y(pos.y())
         if page_index < 0 or page_index >= len(self._layouts):
@@ -1035,11 +1136,11 @@ class _CanvasWidget(QWidget):
             try:
                 if self._cache.get(key) is None:
                     if full_px <= MAX_PAGE_PIXELS:
-                        self._cache.put(key, self._to_pixmap(self._document.render_rgb(i, scale=scale), dpr))
+                        self._cache.put(key, self._to_pixmap(self._render_page_rgb(i, scale), dpr))
                     else:
                         # low-resolution base for the whole page (shown while tiles are missing)
                         base = scale * (BASE_PAGE_PIXELS / full_px) ** 0.5
-                        pix = self._to_pixmap(self._document.render_rgb(i, scale=base), 1.0)
+                        pix = self._to_pixmap(self._render_page_rgb(i, base), 1.0)
                         self._cache.put(key, pix)
                 if full_px > MAX_PAGE_PIXELS and first <= i <= last:
                     self._render_tiles(i, visible, scale, dpr)
@@ -1081,10 +1182,10 @@ class _CanvasWidget(QWidget):
                 continue
             try:
                 if full_px <= MAX_PAGE_PIXELS:
-                    self._cache.put(key, self._to_pixmap(self._document.render_rgb(i, scale=scale), dpr))
+                    self._cache.put(key, self._to_pixmap(self._render_page_rgb(i, scale), dpr))
                 else:
                     base = scale * (BASE_PAGE_PIXELS / full_px) ** 0.5
-                    self._cache.put(key, self._to_pixmap(self._document.render_rgb(i, scale=base), 1.0))
+                    self._cache.put(key, self._to_pixmap(self._render_page_rgb(i, base), 1.0))
                     old = {k: self._tiles.pop(k) for k in stale_tiles}
                     self._render_tiles(i, visible, scale, dpr)
                     del old  # kept until the new tiles exist
@@ -1117,7 +1218,7 @@ class _CanvasWidget(QWidget):
                     self._tiles_pending = True  # the low-resolution page shows here meanwhile
                     return
                 clip = (tx * TILE_PX / scale, ty * TILE_PX / scale, (tx + 1) * TILE_PX / scale, (ty + 1) * TILE_PX / scale)
-                self._tiles[key] = self._to_pixmap(self._document.render_rgb(i, scale=scale, clip=clip), dpr)
+                self._tiles[key] = self._to_pixmap(self._render_page_rgb(i, scale, clip=clip), dpr)
                 self._tiles_this_pass = getattr(self, "_tiles_this_pass", 0) + 1
                 while len(self._tiles) > MAX_TILES:
                     self._tiles.popitem(last=False)
@@ -1376,6 +1477,9 @@ class _CanvasWidget(QWidget):
             policy = should_paint_field_overlay(
                 field, forms_mode=forms_mode, highlight_fillable=highlight
             )
+            if policy == "content" and self._button_previewable(field):
+                # The page picture shows the new state with the form's own appearance
+                policy = "chrome" if forms_mode else ("highlight" if highlight and not field.readonly else "none")
             selected = field.object_id in self._edit.field_selection
             focused = field.object_id == getattr(self._edit, "editing_field_id", None)
             hovered = field.object_id == self._hover_field_id
@@ -3429,6 +3533,7 @@ class _CanvasWidget(QWidget):
             )
             if self._shape_create_kind:
                 kind = self._shape_create_kind
+                drawn = True
                 if kind == "freehand":
                     pts = self._freehand_points or [
                         (self._create_origin.x, self._create_origin.y),
@@ -3437,6 +3542,10 @@ class _CanvasWidget(QWidget):
                     # about half a screen pixel: jitter goes, the hand's shape stays
                     self._edit.create_shape(self._press_page, Rect(0, 0, 1, 1), kind, points=pts,
                                             tolerance=0.6 / max(self._zoom, 0.25))
+                elif kind in ("line", "arrow") and self._line_click(self._press_page):
+                    # A click without dragging draws nothing (it used to leave a zero-length line in
+                    # the saved PDF, printed as a dot). The tool stays on for the drag.
+                    drawn = False
                 elif kind in ("line", "arrow"):
                     end = constrain_line_angle(
                         self._create_origin, self._create_current, snap=self._shift_constrain
@@ -3467,9 +3576,12 @@ class _CanvasWidget(QWidget):
                     # handle for an oval (Shift while resizing keeps the proportions)
                     self._edit.create_shape(self._press_page, rect, kind, lock_aspect=False)
                 self._live_interaction = False
-                self._edit.tool = EditTool.SELECT
-                self.set_tool(EditTool.SELECT)
-                self.requestStatus.emit(f"{kind.title()} created")
+                if drawn:
+                    self._edit.tool = EditTool.SELECT
+                    self.set_tool(EditTool.SELECT)
+                    self.requestStatus.emit(f"{kind.title()} created")
+                else:
+                    self.requestStatus.emit(f"{kind.title()} — drag on the page to draw it")
                 self._shape_create_kind = None
                 self._freehand_points = []
                 self._end_live_interaction()
