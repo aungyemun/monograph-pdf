@@ -62,6 +62,12 @@ signed update manifests. Linux 0.1.0 and macOS 0.1.0 are unchanged.
   still being typed in). Text typed into a field, checkbox and radio clicks, **Clear Field** and
   values entered in the Properties panel are now on **Edit ▸ Undo / Redo** — one step per entry;
   an undone entry is not saved.
+- **Text pasted into a form field from a web page, chat or word processor kept that program's font
+  and size** (for example "Segoe UI" 6.9 pt). Japanese in such text was drawn in a gothic fallback
+  font and looked bold beside the form's Mincho text, in the editor and in the saved PDF. Pasted text
+  now takes the field's own font and size and continues the look of the text it is pasted into; only
+  bold, italic and real colours are kept. A character missing from a word's own font is drawn in the
+  field's font when that font has it.
 - **A single click with the Line or Arrow tool added an invisible zero-length line to the page**,
   which Save wrote into the PDF and which printed as a small dot. A click without dragging now draws
   nothing (the tool stays on for the drag); such a line left in a recovered editing session is not
@@ -83,8 +89,8 @@ signed update manifests. Linux 0.1.0 and macOS 0.1.0 are unchanged.
 
 ### Not yet verified
 
-- Installation, upgrade from 0.4.0 and 0.5.0, uninstallation, Unicode installation paths and
-  Japanese Windows are verified by the maintainer on real Windows before publication.
+- Installation, upgrade from 0.4.0 and 0.5.0, uninstallation and Unicode installation paths are
+  verified by the maintainer on a real English Windows test PC before publication.
 - The update check on a Windows installation whose certificate store has never installed the Sectigo
   E46 root was reproduced with a controlled trust set, not on a freshly installed PC.
 
