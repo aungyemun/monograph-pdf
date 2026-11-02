@@ -11,7 +11,7 @@ platform-specific release tags — GitHub’s repository-wide “Latest” badge
 | macOS | **[0.1.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1)** (`v0.1.0-macos-1`) | First macOS line |
 | Linux | — | **0.1.0** on branch [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux); **no** `v0.1.0-linux` tag yet |
 
-## [0.5.1] — Unreleased
+## [0.5.1] — 2026-11-02
 
 Windows line. Maintenance release for defects found after 0.5.0 was published (update check, tab
 shortcuts, Save As onto an open file, editing filled-in PDF forms) and the release-notes text of
@@ -87,12 +87,14 @@ signed update manifests. Linux 0.1.0 and macOS 0.1.0 are unchanged.
 - `scripts/audit/update_tls_diagnosis.py` separates connectivity, proxy / TLS-inspection, trust-store
   and application causes of an update-check TLS error.
 
-### Not yet verified
+### Not verified
 
-- Installation, upgrade from 0.4.0 and 0.5.0, uninstallation and Unicode installation paths are
-  verified by the maintainer on a real English Windows test PC before publication.
+- Installation for all users (per machine) was not repeated for 0.5.1; installation for the current
+  user, upgrade from 0.4.0 and 0.5.0, uninstallation, reinstallation and Unicode installation paths
+  were tested on Windows 11 (English).
 - The update check on a Windows installation whose certificate store has never installed the Sectigo
-  E46 root was reproduced with a controlled trust set, not on a freshly installed PC.
+  E46 root was reproduced with a controlled trust set, not on a freshly installed PC; a TLS-inspecting
+  proxy was not tested.
 
 ## [0.5.0] — 2026-10-28
 
