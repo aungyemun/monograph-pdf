@@ -47,9 +47,9 @@ Fixes are described in the [changelog](CHANGELOG.md) of the release that contain
 Monograph PDF is designed to operate offline: it has no telemetry and never uploads documents.
 From 0.3.0 exactly two modules may use the network — the update checker and the problem-report
 sender — each only for a purpose the user controls (checked by tests). Update checks are switched on
-in Windows **0.5.0** (only when the user asks, or after switching on
+from Windows **0.5.0** (only when the user asks, or after switching on
 automatic checks, which are off by default); in 0.3.0 and 0.4.0 they are off. Sending problem reports is switched off (no reporting
-service yet). In **0.5.0**, the OCR Languages dialog can download one optional OCR language file when
+service yet). From **0.5.0**, the OCR Languages dialog can download one optional OCR language file when
 the user clicks **Download and Install**; it goes through the update checker's HTTPS code (host
 allow-list, certificate verification) and the file is installed only if its pinned SHA-256 matches.
 Nothing else in Monograph PDF makes network connections.
@@ -65,7 +65,7 @@ Nothing else in Monograph PDF makes network connections.
 | **Working files** | Windows uses `%APPDATA%\Monograph PDF` and `%LOCALAPPDATA%\Monograph PDF`; macOS uses Application Support/Caches; Linux uses XDG data/cache roots ([path map](docs/REPOSITORY_LAYOUT.md#compatibility-boundaries)). No recovery copy is kept for password-protected PDFs. |
 | **Offline operation** | Qt's network and TLS modules are removed from the release build; Python's HTTPS support is used only by the update, problem-report and OCR-language-download code. The built-in self-check (also run by Setup) fails if a network connection is attempted while it runs. |
 | **Updates (from 0.5.0; off in 0.3.0 and 0.4.0)** | Only Ed25519-signed release manifests verified against built-in keys are accepted; the installer must match the signed SHA-256 and size; downgrades, expired (validity at most 730 days) or replayed manifests and foreign hosts are refused; Update Now is required before anything is downloaded; HTTPS with certificate verification; the installed copy is never replaced by the running program. [Secure updates](docs/SECURE_UPDATES.md) |
-| **Problem reports (sending switched off in 0.3.0, 0.4.0 and 0.5.0)** | Approved technical fields only, shown in full before sending; sent only after **Send to Developer**; the reporting gateway can only file issues in one private repository. [Error reporting](docs/ERROR_REPORTING.md) |
+| **Problem reports (sending switched off in 0.3.0 through 0.5.1)** | Approved technical fields only, shown in full before sending; sent only after **Send to Developer**; the reporting gateway can only file issues in one private repository. [Error reporting](docs/ERROR_REPORTING.md) |
 | **Office conversion** | Uses the locally installed Microsoft Office (macros force-disabled) or LibreOffice (a temporary profile with macros disabled). These applications run independently and follow their own settings, including network access. |
 | **External programs** | Started only by their full system or installation path, never found through the current folder. |
 

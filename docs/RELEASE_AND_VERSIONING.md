@@ -6,7 +6,7 @@ Independent platform lines (Option B):
 
 | Platform | File | Current |
 | :--- | :--- | :--- |
-| Windows | `versions/windows.txt` | 0.5.0 |
+| Windows | `versions/windows.txt` | 0.5.1 |
 | Linux | `versions/linux.txt` | 0.1.0 |
 | macOS | `versions/macos.txt` | 0.1.0 |
 

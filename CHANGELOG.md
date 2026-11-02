@@ -7,9 +7,9 @@ platform-specific release tags — GitHub’s repository-wide “Latest” badge
 
 | Platform | Latest published | Notes |
 | :--- | :--- | :--- |
-| Windows | **[0.5.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.0)** | First Windows release with signed update checks |
+| Windows | **[0.5.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.1)** | Maintenance release of 0.5.0 (0.5.0 was the first Windows release with signed update checks) |
 | macOS | **[0.1.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1)** (`v0.1.0-macos-1`) | First macOS line |
-| Linux | — | **0.1.0** on branch [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux); **no** `v0.1.0-linux` tag yet |
+| Linux | — | **0.1.0**, built from `main` (legacy branch [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux) kept for recovery); **no** `v0.1.0-linux` tag yet |
 
 ## [0.5.1] — 2026-11-02
 

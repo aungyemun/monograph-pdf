@@ -32,6 +32,8 @@ can be attached to a release, but are not part of the three release files checke
 
 | Release | Tag → commit | Evidence |
 | :--- | :--- | :--- |
+| 0.5.1 (2026-11-02) | `v0.5.1` → `d5f5c43` | Production build from a clean tree at `d5f5c43`; `verify_release.py --before-signing` (including the provenance check) passed; the four assets downloaded from the release draft were byte-identical to the local release files and `verify_release.py --notes` passed against them |
+| 0.5.0 (2026-10-28) | `v0.5.0` → `2fb62f6` | Release notes name build commit `2fb62f6`; a post-publication provenance check is not recorded in this table |
 | 0.4.0 (2026-10-23) | `v0.4.0` → `fc411e2` | **About** and the provenance record name `fc411e2` with a clean tree; `provenance.py verify --require-published` and `verify_release.py --notes` passed against the files downloaded from the published release |
 | 0.3.0 (2026-10-22) | `v0.3.0` → `96c36b9` | **About** and the provenance record name `96c36b9` with a clean tree; `provenance.py verify --require-published` and `verify_release.py --notes` passed against the files downloaded from the published release |
 
