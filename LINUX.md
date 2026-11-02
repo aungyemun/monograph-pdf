@@ -2,7 +2,7 @@
 
 Linux uses an independent version (`versions/linux.txt`, currently 0.1.0) in the unified `main`
 tree. There is no published Linux release tag. The retained `linux` branch is a legacy source,
-not the starting point for new development. The Windows 0.5.0 release is not a Linux package.
+not the starting point for new development. The Windows releases (currently 0.5.1) are not Linux packages.
 
 ## Requirements and source setup
 
