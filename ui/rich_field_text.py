@@ -16,8 +16,13 @@ from core.forms.rich_text import STYLE_KEYS, char_styles, normalize_runs, runs_f
 _P = {key: int(QTextFormat.Property.UserProperty) + 101 + i for i, key in enumerate(STYLE_KEYS)}
 
 
-def char_format(style: tuple, px_per_pt: float) -> QTextCharFormat:
-    """Character format for one style tuple (family, size, bold, italic, color); None = inherit."""
+def char_format(style: tuple, px_per_pt: float, fallback: list[str] | None = None) -> QTextCharFormat:
+    """Character format for one style tuple (family, size, bold, italic, color); None = inherit.
+
+    ``fallback``: the field's own font families. A word given its own font draws characters that
+    font lacks (Japanese in Segoe UI or Arial) in the field's font, as the saved appearance does
+    (``core.forms.appearance``), instead of a system fallback face of another style.
+    """
     family, size, bold, italic, color = style
     fmt = QTextCharFormat()
     fmt.setProperty(_P["family"], family or "")
@@ -28,7 +33,7 @@ def char_format(style: tuple, px_per_pt: float) -> QTextCharFormat:
     font = QFont()
     specified = False
     if family:
-        font.setFamilies([family])
+        font.setFamilies([family] + [f for f in (fallback or []) if f and f != family])
         specified = True
     if size:
         font.setPixelSize(max(1, int(round(float(size) * px_per_pt))))
@@ -92,6 +97,8 @@ def apply_runs(doc: QTextDocument, runs: list[dict], px_per_pt: float) -> None:
     """Give every character of ``doc`` the format of its run (no runs = plain base font)."""
     text = doc.toPlainText()
     styles = char_styles(normalize_runs(runs), text)
+    base = doc.defaultFont()
+    fallback = list(base.families() or ([base.family()] if base.family() else []))
     cur = QTextCursor(doc)
     cur.beginEditBlock()
     start = 0
@@ -101,7 +108,7 @@ def apply_runs(doc: QTextDocument, runs: list[dict], px_per_pt: float) -> None:
             end += 1
         cur.setPosition(start)
         cur.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
-        cur.setCharFormat(char_format(styles[start], px_per_pt))
+        cur.setCharFormat(char_format(styles[start], px_per_pt, fallback))
         start = end
     cur.endEditBlock()
 
@@ -145,10 +152,19 @@ def style_at(doc: QTextDocument, position: int) -> tuple:
     return styles[min(max(0, position), len(styles) - 1)]
 
 
-def insert_html_fragment(editor, html: str, px_per_pt: float, base_pt: float) -> bool:
-    """Paste HTML into a field editor, mapping bold/italic/font/size/colour onto run styles.
+def _is_body_text_color(color: QColor) -> bool:
+    """Black and the near-black greys web pages and apps use for ordinary text (#1f1f1f, #333,
+    #24292f …): not a colour the user picked, so pasted text keeps the field's own colour."""
+    r, g, b = color.red(), color.green(), color.blue()
+    return max(r, g, b) <= 0x60 and max(r, g, b) - min(r, g, b) <= 0x18
 
-    Returns False when the fragment has no usable text (caller should fall back to plain paste).
+
+def insert_html_fragment(editor, html: str, px_per_pt: float, base_pt: float) -> bool:
+    """Paste HTML into a field editor, keeping bold, italic and real colours as run styles.
+
+    The source's font family, size and ordinary near-black text colour are not kept: pasted text
+    looks like text typed at the same place (it continues the format of the neighbouring words). Returns False when nothing worth keeping is left (the
+    caller then pastes the plain text).
     """
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QTextCursor
@@ -168,25 +184,18 @@ def insert_html_fragment(editor, html: str, px_per_pt: float, base_pt: float) ->
             if frag.isValid():
                 fmt = frag.charFormat()
                 font = fmt.font()
-                families = font.families() or ([font.family()] if font.family() else [])
-                family = families[0] if families else None
-                px, pt = font.pixelSize(), font.pointSizeF()
-                size = None
-                if px > 0 and px_per_pt > 0:
-                    size = round(px / px_per_pt, 1)
-                elif pt > 0:
-                    size = float(pt)
-                if size is not None and abs(size - float(base_pt or 0)) < 0.3:
-                    size = None
                 brush = fmt.foreground()
                 color = None
-                if brush.style() != Qt.BrushStyle.NoBrush:
-                    name = brush.color().name()
-                    if name.lower() not in ("#000000", "#000"):
-                        color = name
+                if brush.style() != Qt.BrushStyle.NoBrush and not _is_body_text_color(brush.color()):
+                    color = brush.color().name()
+                # Font family and size are the source program's (a web page, chat or word processor
+                # usually sets "Segoe UI", "Meiryo", 11pt …), not something the user chose: pasted
+                # text takes the field's own font and size, like typed text. A Latin family without
+                # Japanese glyphs also turned pasted Japanese into a heavier gothic fallback beside
+                # the form's Mincho text (looked bold).
                 st = (
-                    family if family and family.lower() not in ("sans-serif", "serif", "monospace") else None,
-                    size,
+                    None,
+                    None,
                     True if font.bold() else None,
                     True if font.italic() else None,
                     color,
@@ -211,10 +220,19 @@ def insert_html_fragment(editor, html: str, px_per_pt: float, base_pt: float) ->
     full_text, existing = runs_from_document(live)
     full_styles = char_styles(existing, full_text)
     paste_styles = char_styles(normalize_runs(runs), plain)
+    # Like typed text, pasted text continues the look of the text it is pasted into (the
+    # character before it, else the one after it): a size or font given to the field's words
+    # stays; bold / italic / colour from the source are added on top
+    if start > 0 and start - 1 < len(full_styles):
+        around = full_styles[start - 1]
+    elif start + len(plain) < len(full_styles):
+        around = full_styles[start + len(plain)]
+    else:
+        around = (None,) * len(STYLE_KEYS)
     for i, st in enumerate(paste_styles):
         idx = start + i
         if idx < len(full_styles):
-            full_styles[idx] = st
+            full_styles[idx] = tuple(a if v is None else v for v, a in zip(st, around))
     apply_runs(live, runs_from_char_styles(full_text, full_styles), px_per_pt)
     cur.setPosition(end)
     editor.setTextCursor(cur)

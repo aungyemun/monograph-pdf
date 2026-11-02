@@ -49,6 +49,9 @@ def updates_root() -> Path:
     override = app_env.get("UPDATES_DIR")
     if override:
         return Path(override)
+    isolated = app_env.profile_subdir("Updates")
+    if isolated is not None:
+        return isolated
     if sys.platform.startswith("win"):
         base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
         return Path(base) / DATA_FOLDER_NAME / "Updates"

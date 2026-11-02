@@ -15,6 +15,7 @@ from core.editing.edit_commands import (
     DeleteObjectsCommand,
     DuplicateCommand,
     FieldStyleCommand,
+    FieldValueCommand,
     GroupCommand,
     LayerCommand,
     ReplaceNativeTextCommand,
@@ -453,10 +454,14 @@ class EditableDocument:
             if kwargs.get(key) is not None:
                 setattr(shape, key, kwargs[key])
         if sk in (ShapeKind.LINE, ShapeKind.ARROW):
+            from core.editing.shape_box import is_degenerate_line
+
             shape.x0 = float(kwargs.get("x0", rect.x))
             shape.y0 = float(kwargs.get("y0", rect.y))
             shape.x1 = float(kwargs.get("x1", rect.x1))
             shape.y1 = float(kwargs.get("y1", rect.y1))
+            if is_degenerate_line(shape):
+                return None  # both ends on one point (a click, not a drag): nothing to draw or save
             shape.sync_rect_from_line()
         if sk == ShapeKind.FREEHAND:
             from core.editing.freehand import simplify
@@ -1033,6 +1038,7 @@ class EditableDocument:
         f = self.fields.get(field_id)
         if f is None or f.readonly:
             return
+        before = self.field_states(self._linked_field_ids(f))
         if checked is not None:
             f.checked = checked
             f.value_dirty = True
@@ -1063,9 +1069,91 @@ class EditableDocument:
                     other.value = value
                     other.runs = [dict(r) for r in f.runs]
                     other.value_dirty = True
+        self._record_field_change(
+            before, typing=checked is None and field_id == self.editing_field_id, mergeable=checked is None
+        )
         self.dirty = True
         if notify:
             self._notify()
+
+    # --- Undo / Redo of form-field values ------------------------------------------------------
+
+    _FIELD_STATE_KEYS = ("value", "runs", "checked", "value_dirty", "appearance_dirty", "style_dirty")
+
+    def _linked_field_ids(self, field: Any) -> list[str]:
+        """The field, the copies sharing its value (same name) and, for a radio button, its group."""
+        from core.forms.fields import FieldType
+
+        ids = [field.object_id] + [o.object_id for o in self.same_field_widgets(field)]
+        if field.field_type == FieldType.RADIO and field.name:
+            ids += [
+                o.object_id for o in self.fields.values()
+                if o is not field and o.name == field.name and o.field_type == FieldType.RADIO
+            ]
+        return list(dict.fromkeys(ids))
+
+    def field_states(self, field_ids: Iterable[str]) -> dict[str, dict]:
+        out: dict[str, dict] = {}
+        for fid in field_ids:
+            f = self.fields.get(fid)
+            if f is not None:
+                out[fid] = {k: copy.deepcopy(getattr(f, k, None)) for k in self._FIELD_STATE_KEYS}
+        return out
+
+    def apply_field_states(self, states: dict[str, dict]) -> None:
+        """Put fields back to recorded states (Undo / Redo of a field change). Fields that no
+        longer exist (another document loaded) are skipped."""
+        for fid, state in states.items():
+            f = self.fields.get(fid)
+            if f is None:
+                continue
+            for k, v in state.items():
+                setattr(f, k, copy.deepcopy(v))
+        self.dirty = True
+
+    def _record_field_change(self, before: dict[str, dict], *, typing: bool, mergeable: bool) -> None:
+        """Make a field change undoable. While a field is being typed in, the state from before
+        the editing is kept and one step is recorded when the entry is committed."""
+        pending = getattr(self, "_field_pending", None)
+        if typing:
+            pending = self._field_pending = pending or {}
+            for fid, state in before.items():
+                pending.setdefault(fid, state)
+            return
+        if pending and set(pending) & set(before):
+            before = {**before, **{k: v for k, v in pending.items()}}
+            self._field_pending = None
+        after = self.field_states(before)
+        if self._same_field_content(after, before):
+            return
+        top = self.commands.top()
+        if (
+            mergeable
+            and isinstance(top, FieldValueCommand)
+            and top.mergeable
+            and set(top.after) == set(after)
+            and top.after == before
+        ):
+            top.after = after  # successive edits of one entry (inspector typing): one Undo step
+            return
+        self.commands.push_executed(FieldValueCommand(self, before, after, mergeable=mergeable))
+
+    def _commit_pending_field_change(self) -> None:
+        pending = getattr(self, "_field_pending", None)
+        self._field_pending = None
+        if not pending:
+            return
+        after = self.field_states(pending)
+        if not self._same_field_content(after, pending):
+            self.commands.push_executed(FieldValueCommand(self, pending, after))
+
+    @staticmethod
+    def _same_field_content(a: dict[str, dict], b: dict[str, dict]) -> bool:
+        """No visible change (value, word formats, checked) — change flags alone are not a step."""
+        keys = ("value", "runs", "checked")
+        return set(a) == set(b) and all(
+            {k: a[f].get(k) for k in keys} == {k: b[f].get(k) for k in keys} for f in a
+        )
 
     def set_field_rich_text(self, field_id: str, value: str, runs: list[dict], *, notify: bool = True) -> bool:
         """Text plus its mixed formatting (from the in-place editor). True when anything changed."""
@@ -1079,6 +1167,7 @@ class EditableDocument:
             runs = []
         if value == f.value and runs == f.runs:
             return False
+        before = self.field_states(self._linked_field_ids(f))
         for target in [f, *self.same_field_widgets(f)]:
             if target.readonly:
                 continue
@@ -1087,6 +1176,7 @@ class EditableDocument:
             target.value_dirty = True
             target.appearance_dirty = True
             target.style_dirty = True
+        self._record_field_change(before, typing=field_id == self.editing_field_id, mergeable=False)
         self.dirty = True
         if notify:
             self._notify()
@@ -1110,10 +1200,13 @@ class EditableDocument:
         f = self.fields.get(field_id)
         if f is None or f.readonly or f.is_candidate:
             return False
+        self._commit_pending_field_change()  # a previous entry that was never committed
         self.editing_field_id = field_id
         self.editing_object_id = None
         self.field_selection = [field_id]
         self.selection = []
+        # The state before typing starts: Undo after the entry returns exactly to it
+        self._field_pending = self.field_states(self._linked_field_ids(f))
         self._notify()
         return True
 
@@ -1122,6 +1215,7 @@ class EditableDocument:
         if fid and fid in self.fields:
             self.fields[fid].value_dirty = True
             self.dirty = True
+        self._commit_pending_field_change()
         self.editing_field_id = None
         self._notify()
 

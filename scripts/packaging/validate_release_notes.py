@@ -112,6 +112,8 @@ def validate(text: str, version: str, *, artifacts: Path | None = None, changelo
     p = r.problems
     if not re.fullmatch(r"\d+\.\d+\.\d+", version):
         p.append(f"version {version!r} is not x.y.z")
+    if chr(0xFEFF) in text:  # 0.5.0: a BOM in the notes file ended up in the signed update manifest
+        p.append("the notes contain a byte-order mark (U+FEFF); save the file as UTF-8 without BOM")
     for no, line in enumerate(text.splitlines(), 1):
         for pat, kind in PLACEHOLDER_PATTERNS:
             for m in pat.finditer(line):

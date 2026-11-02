@@ -59,6 +59,9 @@ def legacy_user_data_dir() -> Path | None:
 
 
 def user_cache_dir() -> Path:
+    isolated = app_env.profile_subdir("Cache")
+    if isolated is not None:
+        return isolated
     if sys.platform.startswith("win"):
         base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
         return Path(base) / DATA_FOLDER_NAME / "Cache"

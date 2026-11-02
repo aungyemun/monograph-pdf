@@ -228,6 +228,9 @@ def manifest_problems(folder: Path, version: str, setup: Path, release_root: Pat
         problems.append(f"{MANIFEST_NAME} size or SHA-256 differs from {setup.name}")
     if rel.expires - now < timedelta(days=MIN_VALID_DAYS):
         problems.append(f"{MANIFEST_NAME} expires {format_time(rel.expires)} (less than {MIN_VALID_DAYS} days)")
+    import update_manifest  # same folder; the normalization the signing step applies
+
+    problems += [f"{MANIFEST_NAME}: {p}" for p in update_manifest.notes_problems(rel.release_notes)]
     return problems, (f"sequence {rel.sequence}, signed by {', '.join(rel.key_ids)}, "
                       f"expires {format_time(rel.expires)}")
 

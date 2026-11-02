@@ -1,7 +1,7 @@
 # Installation
 
 Use the official [Releases](https://github.com/aungyemun/monograph-pdf/releases) and select
-the platform explicitly. Published Windows is 0.5.0.
+the platform explicitly. Published Windows is 0.5.1.
 macOS 0.1.0 is published; Linux 0.1.0 is available from source. Development uses unified `main`.
 
 ## Linux
@@ -29,7 +29,7 @@ See [macOS setup, packaging and signing limitations](docs/MACOS.md). Unified sou
 
 ## Windows
 
-**Published:** [v0.5.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.0). Do not use the repository-wide GitHub “Latest” link
+**Published:** [v0.5.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.1). Do not use the repository-wide GitHub “Latest” link
 for Windows downloads: it may point at macOS.
 
 Monograph PDF is installed with a standard Windows installer. Everything it needs — including
@@ -83,7 +83,7 @@ restarts Monograph PDF. An all-users installation shows Windows' administrator p
 
 ### Silent installation (administrators)
 
-Replace `<published-version>` with the version you actually downloaded (for example 0.5.0).
+Replace `<published-version>` with the version you actually downloaded (for example 0.5.1).
 
 ```bat
 MonographPDF_<published-version>_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART

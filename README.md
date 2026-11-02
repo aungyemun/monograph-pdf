@@ -19,7 +19,7 @@ development from `main`. A development version is not a published download.
 
 | Platform | Published distribution | Current development line |
 | :--- | :--- | :--- |
-| Windows 10/11, x64 | [v0.5.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.0) | 0.5.0; bug fixes go into 0.5.1 |
+| Windows 10/11, x64 | [v0.5.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.1) | 0.5.1 |
 | macOS 13+, Apple silicon | [v0.1.0-macos-1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1) | 0.1.0; unified source on main |
 | Linux, x86_64 | No published Linux release | 0.1.0; build from main |
 
@@ -79,7 +79,7 @@ Document processing works locally, without telemetry or document uploads. After 
 OCR engines and language data are installed, normal editing and OCR work without a connection.
 Source setup and dependency downloads can require internet access.
 
-Windows development 0.5.0 includes signed update checks. Manual checks contact GitHub;
+Windows 0.5.0 and later include signed update checks. Manual checks contact GitHub;
 automatic checks are optional and off by default. Installing an update requires **Update Now**.
 Published Windows 0.4.0 has update checks disabled. Linux/macOS use manual upgrades.
 Optional OCR language downloads require **Download and Install**; **Install from File** works offline.

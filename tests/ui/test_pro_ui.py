@@ -996,10 +996,20 @@ def test_filled_field_gets_no_added_border(window, qtbot, tmp_path):
     w._edit.selection = []  # noqa: SLF001
     inner = w._canvas.widget()  # noqa: SLF001
     inner.update()
-    qtbot.wait(150)
-    img = inner.grab().toImage()
     wr = inner.pdf_rect_to_widget(field.page_index, field.rect)
     assert wr is not None
+
+    # The page image is rendered asynchronously after opening; until it arrives the page shows the
+    # white placeholder (field outlines are drawn over it at once). A fixed wait alone was not always
+    # enough under full-suite load (the white placeholder was sampled inside the field). Wait until an
+    # untouched page area below the field shows the page's tint, i.e. the page is drawn.
+    def page_drawn() -> bool:
+        probe = QColor(inner.grab().toImage().pixel(wr.center().x(), wr.bottom() + 60))
+        return probe.lightness() > 150 and probe.blue() > probe.red()
+
+    qtbot.waitUntil(page_drawn, timeout=5000)
+    qtbot.wait(150)
+    img = inner.grab().toImage()
     # Edges and the empty right half of the box keep the page's tint: no dark border, no white fill
     pts = [(x, y) for x in range(wr.left() + wr.width() // 2, wr.right() - 2, 9) for y in (wr.top(), wr.bottom(), wr.center().y())]
     for x, y in pts:

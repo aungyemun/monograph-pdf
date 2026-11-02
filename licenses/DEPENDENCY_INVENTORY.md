@@ -1,4 +1,4 @@
-# Dependency inventory (Monograph PDF 0.5.0)
+# Dependency inventory (Monograph PDF 0.5.1)
 
 Every third-party component that is shipped with, or used to build or test, Monograph PDF. The release build enforces the shipped part: `scripts\packaging\check_release.py` fails when a program file (`.exe`, `.dll`, `.pyd`) does not belong to a component listed in its `RELEASE_COMPONENTS` table, or when that component is missing from `THIRD_PARTY_NOTICES.md`. Python packages are pinned in `requirements.txt`; the Tesseract build is recorded in `engines\ocr\MANIFEST.json`.
 
@@ -23,6 +23,7 @@ Status: **Runtime** = shipped in Setup.exe; **Build** = used only to produce the
 | lxml | 6.1.3 | XML for the Office writers | lxml.de | BSD-3-Clause | Runtime | lxml authors (libxml2/libxslt: MIT) | Parses only XML Monograph PDF writes |
 | Pillow | 12.3.0 | Image import / export | python-pillow.org | MIT-CMU | Runtime | Secret Labs AB, Fredrik Lundh, Jeffrey A. Clark | Keep current: image decoders process untrusted files |
 | packaging, typing_extensions | 24.2, 4.16.0 | Version parsing, typing | PyPA, python/typing_extensions | Apache-2.0 OR BSD-2-Clause, PSF | Runtime | PyPA; PSF | — |
+| truststore | 0.10.5 | Windows: TLS certificate verification with the Windows certificate chain engine (`core/updates/net.py`) | github.com/sethmlarson/truststore (PyPI) | MIT | Runtime | Seth Michael Larson, David Glick | Pure Python (ctypes to crypt32); no network access of its own; never disables verification; pinned — review its changelog before upgrading |
 | Tesseract OCR + Leptonica + support libraries | 5.4.0.20240606, Leptonica 1.84.1 | Offline OCR (separate process) | github.com/tesseract-ocr/tesseract, MSYS2 MinGW-w64 build | Apache-2.0; libraries as listed in THIRD_PARTY_NOTICES.md | Runtime | Google LLC and contributors | Built without libcurl (no URL input); started only with full path and fixed arguments; GPL/LGPL libraries (GLib 2.80.2, Pango 1.52.2, cairo 1.18.0, FriBidi 1.0.14, libthai 0.1.29, libdatrie 0.2.13, Graphite2 1.3.14, libiconv 1.17, gettext 0.22.5, JBIG-KIT 2.1; MSYS2 builds) with source and build recipes in the source archive |
 | tessdata_fast (eng, jpn, osd) | vendored 2026-10-07 | OCR models | github.com/tesseract-ocr/tessdata_fast | Apache-2.0 | Runtime | Google LLC | Never downloaded at runtime |
 | Noto Sans / Serif / Sans CJK JP | — | Fallback fonts | notofonts | OFL-1.1 | Runtime | Google LLC, Adobe | `fetch_fallback_fonts.py` downloads them at development time only |

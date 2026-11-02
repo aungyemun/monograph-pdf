@@ -364,6 +364,8 @@ def test_installed_copy_keeps_working_files_in_localappdata(tmp_path, monkeypatc
     assert not (install / "runtime").exists()  # no write probe into the installation folder
     monkeypatch.setattr(paths, "_PROJECT_LAYOUT", False)
     monkeypatch.delenv("MONOGRAPH_PDF_RUNTIME_DIR", raising=False)
+    # normal use: no redirect at all (a redirected user-data folder would contain it, 0.5.1)
+    monkeypatch.delenv("MONOGRAPH_PDF_USER_DATA_DIR", raising=False)
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "Local"))
     runtime = paths._resolve_runtime_dir()  # noqa: SLF001
     assert runtime == tmp_path / "Local" / "Monograph PDF" / "runtime"

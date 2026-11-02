@@ -53,6 +53,22 @@ def dash_pattern(style: str, width: float) -> list[float] | None:
     return [max(0.01, v) for v in p] if p else None
 
 
+# A line (or arrow) whose ends are closer than this, in points, has no direction or length: it is
+# what a click without dragging used to create. Drawn with round caps it shows as a dot. Any real
+# line, however short, is far longer (the window needs a drag of at least 3 screen pixels).
+DEGENERATE_LINE_PT = 0.01
+
+
+def is_degenerate_line(shape: Any) -> bool:
+    """True for a line / arrow shape whose two end points coincide."""
+    try:
+        dx = float(shape.x1) - float(shape.x0)
+        dy = float(shape.y1) - float(shape.y0)
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return (dx * dx + dy * dy) ** 0.5 < DEGENERATE_LINE_PT
+
+
 def head_length(width: float, head_size: float = 0.0) -> float:
     """Length of an arrow head in points: ``head_size`` when set, else in proportion to the line."""
     return float(head_size) if head_size and head_size > 0 else max(6.0, 4.0 * float(width) + 3.0)

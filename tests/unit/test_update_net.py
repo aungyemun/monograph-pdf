@@ -148,6 +148,16 @@ def test_untrusted_certificate_fails_without_fallback(server, cfg):
     assert e.value.kind == "tls"
 
 
+def test_certificate_for_another_host_name_is_refused(server, cfg):
+    # the test certificate names 127.0.0.1 only; "localhost" resolves to the same server
+    base, _ = server
+    url = base.replace("127.0.0.1", "localhost") + "/ok.json"
+    with pytest.raises(net.NetworkError) as e:
+        net.fetch_bytes(replace(cfg, allowed_hosts=("127.0.0.1", "localhost")), url, 1000)
+    assert e.value.kind == "tls"
+    assert "localhost" in str(e.value)  # the verifier's reason names the host it refused
+
+
 def test_size_limits(server, cfg):
     base, _ = server
     with pytest.raises(net.NetworkError) as e:
