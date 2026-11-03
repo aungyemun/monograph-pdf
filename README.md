@@ -1,102 +1,88 @@
 # Monograph PDF
 
-<img src="resources/icons/source/monograph_pdf_logo_512.png" alt="Official Monograph PDF logo" width="160">
+<img src="resources/icons/source/monograph_pdf_logo_512.png" alt="Monograph PDF logo" width="160">
 
-An open-source desktop PDF editor for Windows, Linux and macOS. View, edit, annotate,
-organize, convert and protect documents on your computer, without an account or cloud service.
+A free, open-source PDF editor for Windows, Linux and macOS. View, edit, annotate, organize,
+convert and protect PDFs on your own computer — no account, no cloud, no telemetry.
 
-[Download releases](https://github.com/aungyemun/monograph-pdf/releases) ·
+[Download](https://github.com/aungyemun/monograph-pdf/releases) ·
 [Installation](INSTALLATION.md) · [User guide](docs/USER_GUIDE.md) ·
 [Documentation](docs/README.md) · [Contributing](CONTRIBUTING.md)
 
-![Monograph PDF document workspace with bookmarks and document properties](docs/images/monograph-pdf-ui.png)
+![Monograph PDF workspace with bookmarks and document properties](docs/images/monograph-pdf-ui.png)
 
-## Platforms and releases
+## Downloads
 
-The shared application is developed on `main`. Each platform has an independent version and
-release schedule. Legacy `linux` and `macos` branches are retained for recovery; start new
-development from `main`. A development version is not a published download.
+Each platform has its own version and release.
 
-| Platform | Published distribution | Current development line |
-| :--- | :--- | :--- |
-| Windows 10/11, x64 | [v0.5.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.1) | 0.5.1 |
-| macOS 13+, Apple silicon | [v0.1.1-macos](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-macos) | 0.1.1 (ad-hoc signed, not notarized); unified source on main |
-| Linux, x86_64 | [v0.1.1-linux](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-linux) | 0.1.1; unified source on main |
+| Platform | Latest release |
+| :--- | :--- |
+| Windows 10/11, x64 | [0.5.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.1) — Setup installer |
+| macOS 13+, Apple silicon | [0.1.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1) — zip, dmg or pkg |
+| Linux x86_64 (glibc 2.43+, e.g. Ubuntu 26.04) | [0.1.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-linux) — tar.gz with `install.sh` |
 
-macOS Intel, Windows ARM and mobile platforms are not verified targets. CI exercises shared
-code and offscreen UI behavior; it does not certify native installers, physical printing or
-every desktop environment. See [testing and acceptance limits](docs/TESTING.md).
+Download only from the official releases page and check each file against the release's SHA-256
+checksums ([how to verify](docs/OFFICIAL_DOWNLOAD_VERIFICATION.md)). Windows and macOS packages are
+not code-signed, so Windows SmartScreen or macOS Gatekeeper may warn; Linux archives are
+GPG-signed. See the [Code signing policy](docs/CODE_SIGNING_POLICY.md) and the
+[installation guide](INSTALLATION.md) for each platform.
+
+Windows ARM, Intel Macs and mobile devices have not been tested.
 
 ## Features
 
-These describe the current source tree. Published versions can differ; consult their release notes.
-
-| Area | Capabilities |
+| Area | What you can do |
 | :--- | :--- |
-| View and annotate | Search, thumbnails, bookmarks, comments, highlights, shapes and print preview |
-| Edit and forms | Text and image editing, text boxes, fillable fields, form design and flattening |
-| Organize | Merge, split, insert, remove, rotate, crop and reorder pages |
-| Page design | Headers, footers, page numbers, Bates numbering, watermarks and backgrounds |
-| Convert | PDF to Word, Excel, PowerPoint, images and text; images and Office documents to PDF |
-| Compress and OCR | Image compression; offline Tesseract OCR with English/Japanese and optional language packs |
-| Protect | Passwords and permissions, redaction, hidden-information removal and visual signatures |
+| View and annotate | Search, thumbnails, bookmarks, comments, highlights, shapes, print preview |
+| Edit and forms | Edit text and images, add text boxes, fill, design and flatten forms |
+| Organize | Merge, split, insert, delete, rotate, crop and reorder pages |
+| Page design | Headers, footers, page numbers, Bates numbering, watermarks, backgrounds |
+| Convert | PDF to Word, Excel, PowerPoint, images and text; images and Office files to PDF |
+| Compress and OCR | Image compression; offline OCR (English and Japanese, more languages optional) |
+| Protect | Passwords and permissions, redaction, hidden-data removal, visual signatures |
 
-Office-to-PDF conversion needs locally installed Microsoft Office on Windows or LibreOffice
-on Windows/Linux/macOS. PDF-to-Office conversion is best-effort for complex layouts. Optional
-OCR packs are checked against pinned size and SHA-256 values; recognition quality for all
-45 optional languages has not been validated. Signatures are visual, not certificate-based.
-Read the [feature guide](docs/FEATURES.md) and [security limitations](docs/SECURITY_AND_PRIVACY.md).
+Good to know:
 
-## Screenshots
+* Office-to-PDF needs Microsoft Office (Windows) or LibreOffice installed locally.
+* PDF-to-Office output is best-effort for complex layouts.
+* Signatures are visual, not certificate-based digital signatures.
+
+Details: [feature guide](docs/FEATURES.md) · [security notes](docs/SECURITY_AND_PRIVACY.md).
 
 <p>
   <img src="docs/images/monograph-pdf-editing-comments.png" alt="Annotations and review comments" width="49%">
   <img src="docs/images/monograph-pdf-forms.png" alt="Fillable PDF form" width="49%">
 </p>
 
-These repository screenshots illustrate the interface; they are not native acceptance evidence
-for every operating system. [More screenshots](docs/FEATURES.md#screenshots).
+[More screenshots](docs/FEATURES.md#screenshots)
 
-## Installation
+## Privacy
 
-Use only the official [GitHub Releases](https://github.com/aungyemun/monograph-pdf/releases).
-Choose a platform-specific release rather than relying on the repository-wide Latest label.
-Compare downloaded files with the checksums in that release's notes.
+* Documents are processed only on your computer. Nothing is uploaded, and there is no telemetry.
+* Editing and OCR work fully offline once installed.
+* Windows update checks are signed and optional (automatic checks are off by default); an update
+  installs only when you click **Update Now**. Linux and macOS are upgraded manually.
+* Extra OCR languages download only when you click **Download and Install**, and are verified
+  before use; **Install from File** works offline.
 
-* **Windows:** download the published Setup executable; see [installation and upgrades](INSTALLATION.md#windows).
-* **macOS:** use the zip/dmg/pkg from the published macOS release and follow the
-  [macOS guide](docs/MACOS.md). Local builds use ad-hoc signing, not Developer ID or notarization.
-* **Linux:** follow the [source setup guide](LINUX.md). The per-user installer consumes an
-  already built application tree; it does not build a package from Python source.
+Read the [privacy policy](docs/PRIVACY_POLICY.md) and [security policy](SECURITY.md). Report
+vulnerabilities [privately](https://github.com/aungyemun/monograph-pdf/security/advisories/new).
 
-Windows packages are not Authenticode signed. Verify origin and checksums before deciding to
-run any package. [Download verification](docs/OFFICIAL_DOWNLOAD_VERIFICATION.md) ·
-[Code signing policy](docs/CODE_SIGNING_POLICY.md).
+## Build from source
 
-## Privacy and offline-first operation
-
-Document processing works locally, without telemetry or document uploads. After dependencies,
-OCR engines and language data are installed, normal editing and OCR work without a connection.
-Source setup and dependency downloads can require internet access.
-
-Windows 0.5.0 and later include signed update checks. Manual checks contact GitHub;
-automatic checks are optional and off by default. Installing an update requires **Update Now**.
-Published Windows 0.4.0 has update checks disabled. Linux/macOS use manual upgrades.
-Optional OCR language downloads require **Download and Install**; **Install from File** works offline.
-Problem-report sending remains disabled. External Office suites follow their own network settings.
-
-Settings and working data use Windows AppData, macOS Application Support/Caches, or Linux XDG
-locations. See the [privacy policy](docs/PRIVACY_POLICY.md),
-[security policy](SECURITY.md) and [platform path map](docs/REPOSITORY_LAYOUT.md#compatibility-boundaries).
-Report vulnerabilities [privately](https://github.com/aungyemun/monograph-pdf/security/advisories/new).
-
-## Build and test from source
-
-Use Python 3.11 and start from the unified development branch:
+Requires Python 3.11. All development happens on `main`.
 
 ```bash
-git clone --branch main https://github.com/aungyemun/monograph-pdf.git
+git clone https://github.com/aungyemun/monograph-pdf.git
 cd monograph-pdf
+```
+
+Linux and macOS:
+
+```bash
+bash scripts/setup_env.sh
+bash scripts/dev_launch.sh
+bash scripts/run_tests.sh
 ```
 
 Windows (PowerShell):
@@ -107,37 +93,23 @@ powershell -ExecutionPolicy Bypass -File scripts\dev_launch.ps1
 powershell -ExecutionPolicy Bypass -File scripts\run_tests.ps1
 ```
 
-Linux/macOS (Bash):
+OCR setup and packaging are covered in [Build and runtime](docs/BUILD_AND_RUNTIME.md),
+[Linux](LINUX.md) and [macOS](docs/MACOS.md). The [repository layout](docs/REPOSITORY_LAYOUT.md)
+explains where shared and platform-specific code lives.
 
-```bash
-bash scripts/setup_env.sh
-# Optional OCR setup: vendor_ocr.sh on Linux, vendor_ocr_macos.sh on macOS.
-bash scripts/dev_launch.sh
-bash scripts/run_tests.sh
-```
+## Contributing
 
-Native packaging needs additional tools. Follow [Build and runtime](docs/BUILD_AND_RUNTIME.md),
-[Linux](LINUX.md) or [macOS](docs/MACOS.md). Never use development build commands to publish a release.
-Windows, Linux and macOS CI run on pull requests; skipped tests are reported separately from passes.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Report bugs with the
+[issue templates](https://github.com/aungyemun/monograph-pdf/issues/new/choose), and attach only
+sample documents — never confidential files.
 
-## Developer documentation and contributions
+## License
 
-The [documentation index](docs/README.md) groups user, platform, security and maintainer guides.
-The [repository layout](docs/REPOSITORY_LAYOUT.md) defines shared code, platform adapters,
-packaging entry points, resources and test ownership without duplicating platform implementations.
+© 2026 Aung Ye Mun. Licensed under the GNU Affero General Public License, version 3 or later
+(AGPL-3.0-or-later): full text in [LICENSE](LICENSE), summary in [LICENSE.md](LICENSE.md).
+Third-party components keep their own licenses: see [notices](THIRD_PARTY_NOTICES.md) and the
+[dependency inventory](licenses/DEPENDENCY_INVENTORY.md). Complete corresponding source is the
+Source archive attached to each release.
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Report bugs using the
-[issue templates](https://github.com/aungyemun/monograph-pdf/issues/new/choose) with synthetic
-sample documents; do not attach confidential files.
-
-## License and attribution
-
-© 2026 Aung Ye Mun. Monograph PDF is licensed under the **GNU Affero General Public License,
-version 3 or (at your option) any later version** (AGPL-3.0-or-later).
-[LICENSE](LICENSE) contains the complete official text; [LICENSE.md](LICENSE.md) provides a summary.
-Third-party components retain their own licenses: [notices](THIRD_PARTY_NOTICES.md) and
-[dependency inventory](licenses/DEPENDENCY_INVENTORY.md). Use the corresponding Source.zip
-listed with a binary release; GitHub's automatic source archives omit third-party source archives.
-
-For research attribution, use [CITATION.cff](CITATION.cff) and record the platform plus the exact
-release tag or commit used. [Changelog](CHANGELOG.md).
+To cite Monograph PDF, use [CITATION.cff](CITATION.cff) with the platform and release tag.
+History: [CHANGELOG.md](CHANGELOG.md).
