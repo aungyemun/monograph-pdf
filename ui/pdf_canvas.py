@@ -85,6 +85,11 @@ def resize_rect(base: Rect, handle: str, pt: Point, *, keep_ratio: bool, square:
     return Rect(nx0, ny0, w, h)
 
 
+
+# Tab with these held switches documents (Ctrl+Tab; Control+Tab on macOS, Qt's Meta) instead of
+# moving between form fields
+_TAB_SWITCH_MODS = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier
+
 class ZoomMode(str, Enum):
     MANUAL = "manual"
     FIT_WIDTH = "fit_width"
@@ -3002,7 +3007,7 @@ class _CanvasWidget(QWidget):
                 if self._handle_editor_undo_redo_keys(key, mods):
                     return True
                 multiline = not getattr(obj, "single_line", False)
-                if key == Qt.Key.Key_Tab and not (mods & Qt.KeyboardModifier.ControlModifier):
+                if key == Qt.Key.Key_Tab and not (mods & _TAB_SWITCH_MODS):
                     self.tab_to_next_field(reverse=bool(mods & Qt.KeyboardModifier.ShiftModifier))
                     return True
                 if key == Qt.Key.Key_Backtab:
@@ -3740,6 +3745,9 @@ class _CanvasWidget(QWidget):
             if typing:
                 ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
                 alt = bool(mods & Qt.KeyboardModifier.AltModifier)
+                # Meta is the Control key on macOS: Control+Tab switches documents there (⌘Tab is the
+                # system app switcher), so it is a shortcut, not a Tab typed into the box
+                meta = bool(mods & Qt.KeyboardModifier.MetaModifier)
                 # Keep clipboard / undo / redo / select-all inside the editor, not the window stack
                 if ctrl and not alt and key in (
                     Qt.Key.Key_Z,
@@ -3751,7 +3759,7 @@ class _CanvasWidget(QWidget):
                 ):
                     event.accept()
                     return True
-                plain = not (ctrl or alt)
+                plain = not (ctrl or alt or meta)
                 editing_keys = {
                     Qt.Key.Key_Delete,
                     Qt.Key.Key_Backspace,
@@ -3880,7 +3888,7 @@ class _CanvasWidget(QWidget):
         if key == Qt.Key.Key_Tab and (
             self._edit.editing_field_id or self._edit.field_selection or self._edit.fields
         ):
-            if not (mod & Qt.KeyboardModifier.ControlModifier):
+            if not (mod & _TAB_SWITCH_MODS):
                 self.tab_to_next_field(reverse=bool(mod & Qt.KeyboardModifier.ShiftModifier))
                 return
 

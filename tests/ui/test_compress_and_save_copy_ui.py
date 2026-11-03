@@ -96,6 +96,8 @@ def test_preview_measures_and_compress_returns_result(qtbot):
     dlg.unit.setCurrentText("KB")
     dlg.size_spin.setValue(500)
     dlg.preview_btn.click()
+    # offscreen runs the worker synchronously; on a real display it runs in a thread
+    qtbot.waitUntil(lambda: dlg.result_ is not None and dlg._worker is None, timeout=60_000)  # noqa: SLF001
     assert dlg.result_ is not None and dlg.result_.target_met and dlg.result_.output_bytes <= 500_000
     assert "achieved" in dlg.result_label.text() and "bytes" in dlg.result_label.text()
     assert dlg.new_view.pixmap() is not None and not dlg.new_view.pixmap().isNull()
@@ -112,11 +114,21 @@ def test_compress_includes_unsaved_edits_and_never_touches_the_source(window, tm
     _edit(window)
 
     def fake_exec(dlg):
+        from PySide6.QtTest import QTest
+
         dlg.mode_buttons["balanced"].setChecked(True)
         dlg._on_ok()  # noqa: SLF001
+        # like the real modal exec(): keep events flowing until a threaded run (real display) finishes
+        for _ in range(1200):
+            if dlg._worker is None:  # noqa: SLF001
+                break
+            QTest.qWait(50)
         return dlg.result()
 
     monkeypatch.setattr(compress_dialog.CompressDialog, "exec", fake_exec)
+    # the path under test compresses the current state; on a real display the app first asks
+    # Save / Save As / Cancel (offscreen runs skip that question), so take the same path everywhere
+    monkeypatch.setattr(window, "_is_headless_ui", lambda: True)
     dest = tmp_path / "out" / "photos 写真-compressed.pdf"
     dest.parent.mkdir()
     from PySide6.QtWidgets import QFileDialog

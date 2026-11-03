@@ -7,6 +7,9 @@ import tempfile
 
 import pytest
 
+# Live native-UI runs (MONOGRAPH_PDF_LIVE_UI=1): answer and photograph real dialogs; off otherwise
+pytest_plugins = ["tests.live_ui"]
+
 # Working files (recovery drafts, temp conversions, caches) go to a throwaway folder, never the
 # project's own runtime folder. Set before any test imports app.paths.
 os.environ.setdefault("MONOGRAPH_PDF_RUNTIME_DIR", tempfile.mkdtemp(prefix="monographpdf-test-runtime-"))

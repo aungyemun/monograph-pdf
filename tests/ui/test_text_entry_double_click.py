@@ -9,6 +9,8 @@ import os
 import fitz
 import pytest
 
+from tests.ui.note_answers import answer_note_text
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("MONOGRAPH_PDF_HEADLESS", "1")
 pytest.importorskip("pytestqt")
@@ -85,8 +87,6 @@ def test_new_text_box_opens_for_typing(win, qtbot):
 
 @pytest.mark.parametrize("kind", ["note", "callout"])
 def test_comment_double_click_asks_for_its_text(win, qtbot, monkeypatch, kind):
-    from PySide6.QtWidgets import QInputDialog
-
     from core.annotations.ops import add_callout, add_text_comment
     from core.editing.geometry import Point, Rect
 
@@ -100,12 +100,7 @@ def test_comment_double_click_asks_for_its_text(win, qtbot, monkeypatch, kind):
     w._after_annotation(0, "")  # noqa: SLF001
     _select_tool(w)
     asked = []
-
-    def fake(parent, title, label, current, *a, **k):
-        asked.append(current)
-        return ("Edited text", True)
-
-    monkeypatch.setattr(QInputDialog, "getMultiLineText", staticmethod(fake))
+    answer_note_text(monkeypatch, "Edited text", asked)
     _double_click_at(w, x, y, qtbot)
     assert asked and asked[0].startswith("Old"), f"double-click did not open the {kind} for editing"
     annot = next(iter(w._document._backend._doc[0].annots()))  # noqa: SLF001

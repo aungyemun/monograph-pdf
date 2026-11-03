@@ -87,6 +87,9 @@ def main(argv: list[str] | None = None) -> int:
              "anything behaves strangely."))
 
     app = create_application(argv)
+    from app import file_open
+
+    file_router = file_open.install(app)  # Finder / Dock opens arrive as events, not argv
     crash.install_qt_message_handler()
     app.aboutToQuit.connect(session.end)
     mark("qapplication")
@@ -130,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
     session.start()
     window = MainWindow()
     window_ref.append(window)
+    file_router.attach(window)
     mark("mainwindow_ctor")
     window.show()
     splash.close()

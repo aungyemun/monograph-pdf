@@ -8,6 +8,8 @@ import os
 import fitz
 import pytest
 
+from tests.ui.note_answers import answer_note_text
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("MONOGRAPH_PDF_HEADLESS", "1")
 pytest.importorskip("pytestqt")
@@ -64,11 +66,9 @@ def test_new_note_has_the_clean_bubble_look(win):
 
 
 def test_editing_and_recolouring_keep_the_look_and_undo_restores(win, monkeypatch):
-    from PySide6.QtWidgets import QInputDialog
-
     xref = _add_note(win)
     ref = win._annot_ref(0, xref)  # noqa: SLF001
-    monkeypatch.setattr(QInputDialog, "getMultiLineText", staticmethod(lambda *a, **k: ("Updated text", True)))
+    answer_note_text(monkeypatch, "Updated text")
     win._comment_edit_text(ref)  # noqa: SLF001
     page = win._document._backend._doc.load_page(0)  # noqa: SLF001
     assert next(a for a in page.annots() if a.xref == xref).info["content"] == "Updated text"

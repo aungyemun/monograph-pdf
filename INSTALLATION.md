@@ -2,7 +2,7 @@
 
 Use the official [Releases](https://github.com/aungyemun/monograph-pdf/releases) and select
 the platform explicitly. Published Windows is 0.5.1.
-macOS 0.1.0 and Linux 0.1.1 are published. Development uses unified `main`.
+macOS 0.1.1 and Linux 0.1.1 are published. Development uses unified `main`.
 
 ## Linux
 
@@ -32,7 +32,7 @@ offline use; Office conversion needs LibreOffice.
 
 ## macOS
 
-Published [v0.1.0-macos-1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1)
+Published [v0.1.1-macos](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-macos)
 provides zip/dmg/pkg assets. Compare their SHA-256 values with the release notes before opening.
 See [macOS setup, packaging and signing limitations](docs/MACOS.md). Unified source builds use
 `main`, Python 3.11 and native macOS tools. Local ad-hoc signing is not Developer ID or notarization.

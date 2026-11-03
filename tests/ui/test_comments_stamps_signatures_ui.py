@@ -9,6 +9,8 @@ from pathlib import Path
 import fitz
 import pytest
 
+from tests.ui.note_answers import answer_note_text
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("MONOGRAPH_PDF_HEADLESS", "1")
 
@@ -62,13 +64,11 @@ def _panel_kinds(w):
 
 
 def test_comments_panel_lists_imported_and_new_comments_and_deletes_with_undo(win, qtbot, monkeypatch):
-    from PySide6.QtWidgets import QInputDialog
-
     w, src = win
     w.act_show_comments.trigger()
     assert w._left.currentWidget() is w._left.comments  # noqa: SLF001
     assert _panel_kinds(w) == [(0, "Text")]  # the imported note
-    monkeypatch.setattr(QInputDialog, "getMultiLineText", lambda *a, **k: ("My note", True))
+    answer_note_text(monkeypatch, "My note")
     w.act_annot_comment.trigger()
     _drag(qtbot, w, 0, 150, 300, 150, 300)
     assert sorted(_panel_kinds(w)) == [(0, "Text"), (0, "Text")]
@@ -76,7 +76,7 @@ def test_comments_panel_lists_imported_and_new_comments_and_deletes_with_undo(wi
     mine = next(c for c in panel.comments() if c.rect[0] < 300)
     assert panel.select(mine.page_index, mine.xref)
     # edit the text from the panel (undoable)
-    monkeypatch.setattr(QInputDialog, "getMultiLineText", lambda *a, **k: ("Edited note", True))
+    answer_note_text(monkeypatch, "Edited note")
     panel.editTextRequested.emit(mine)
     from core.annotations import list_annotations
 

@@ -12,7 +12,7 @@ vulnerabilities privately, including the exact platform, version and build commi
 | Windows 0.5.0 | Previous release (security fixes for protected PDFs, signed update checks) — upgrade with the 0.5.1 Setup |
 | Windows 0.4.0 | Previous release; predates the protection fixes of 0.5.0 — upgrade with the 0.5.0 Setup |
 | Windows 0.4.1 / 0.4.2 | Never published; changes folded into 0.5.0 |
-| macOS 0.1.0 | Published as v0.1.0-macos-1; independent platform line |
+| macOS 0.1.1 | Published as v0.1.1-macos; ad-hoc signed, not notarized; independent platform line |
 | Linux 0.1.1 | Latest published Linux release (v0.1.1-linux, GPG-signed archives) |
 | Linux 0.1.0 | Never published; folded into 0.1.1 |
 | Older Windows releases | Superseded; consult published release notes before upgrading |
