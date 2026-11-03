@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Local commit-msg hook: reject AI-assistant Co-authored-by trailers (human co-authors are fine).
+# Install:  cp scripts/ci/commit-msg .git/hooks/commit-msg && chmod +x .git/hooks/commit-msg
+# Bypass for a deliberate exception:  MONOGRAPH_ALLOW_AI_TRAILER=1 git commit ...
+set -euo pipefail
+[[ "${MONOGRAPH_ALLOW_AI_TRAILER:-}" == "1" ]] && exit 0
+ROOT="$(git rev-parse --show-toplevel)"
+PY="$ROOT/env/bin/python"
+[[ -x "$PY" ]] || PY="$(command -v python3 || command -v python)"
+exec "$PY" "$ROOT/scripts/ci/check_commit_trailers.py" --message-file "$1"

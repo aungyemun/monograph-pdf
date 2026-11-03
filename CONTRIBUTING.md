@@ -35,7 +35,11 @@ maintained, so focused changes with clear explanations and relevant tests are ap
 
 4. Keep changes small and add or update tests for new behavior. Do not weaken existing tests.
 5. Use only synthetic test documents; do not add real documents to the repository.
-6. Do not bump versions for routine documentation or layout changes. When a release change is explicitly approved, bump only the relevant platform version in `versions/<platform>.txt` (Windows packaging also
+6. Commit under your own name. Do not add `Co-authored-by` trailers or "Generated with …" lines for
+   AI assistants (Claude, Cursor, Copilot and similar); human co-authors are welcome. The
+   *Commit message check* workflow rejects them; install the same check locally with
+   `cp scripts/ci/commit-msg .git/hooks/commit-msg`.
+7. Do not bump versions for routine documentation or layout changes. When a release change is explicitly approved, bump only the relevant platform version in `versions/<platform>.txt` (Windows packaging also
    mirrors into root `VERSION`). Never change another platform’s version by accident.
 
 All Windows, Linux and macOS PR checks must succeed before merge. Report skipped tests separately,
