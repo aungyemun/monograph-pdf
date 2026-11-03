@@ -45,6 +45,9 @@ def diagnostics_dir() -> Path:
     override = app_env.get("DIAGNOSTICS_DIR")
     if override:
         return Path(override)
+    isolated = app_env.profile_subdir("Diagnostics")
+    if isolated is not None:
+        return isolated
     if sys.platform.startswith("win"):
         base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
         return Path(base) / DATA_FOLDER_NAME / "Diagnostics"

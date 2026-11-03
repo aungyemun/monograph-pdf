@@ -69,6 +69,10 @@ class CommandStack:
         self._undo.clear()
         self._redo.clear()
 
+    def top(self) -> Command | None:
+        """The command Undo would revert next (None when there is none)."""
+        return self._undo[-1] if self._undo else None
+
     @property
     def can_undo_now(self) -> bool:
         return bool(self._undo)

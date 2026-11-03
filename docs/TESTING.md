@@ -40,6 +40,26 @@ cleanup of just its own processes:
 that `run_isolated.py` ends the whole command tree on timeout while an unrelated process survives.
 If a process's ownership cannot be established, it is left running and reported.
 
+### Profile isolation
+
+No test, harness or self-check may read, change or consume anything in the real
+`%APPDATA%\Monograph PDF` or `%LOCALAPPDATA%\Monograph PDF` (settings, recent files, problem-report
+records, update state, runtime folder). From 0.5.1, setting `MONOGRAPH_PDF_USER_DATA_DIR` is enough:
+diagnostics, update staging, caches and the installed program's runtime folder then default to
+folders inside it (`core/app_env.py: profile_subdir`); a location's own override still wins.
+
+* `tests/conftest.py` redirects all of them and ends every run with a **profile tripwire**: if any
+  file in the real profile folders was created, changed or removed during the run, the run fails and
+  lists the files (`MONOGRAPH_PDF_TEST_ALLOW_PROFILE_CHANGES=1` reports instead, for a run during
+  which you keep Monograph PDF open yourself).
+* `tests/unit/test_profile_isolation.py` checks every location under a redirect, the unchanged
+  default locations, the test session itself, and runs the real self-check with `APPDATA` /
+  `LOCALAPPDATA` pointed at planted folders that must stay byte-identical.
+* Manual or GUI acceptance of a build: start it only with
+  `scripts\audit\launch_isolated.ps1 -Exe dist\MonographPDF\MonographPDF.exe -Profile <folder>`
+  (never by double-clicking or through a launcher that does not pass the environment). It prints the
+  process ID; end the run by closing that window.
+
 ## Test categories
 
 Every test is marked with one or more categories (rules in `tests/conftest.py`), and each run ends

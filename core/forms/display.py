@@ -111,3 +111,49 @@ def should_paint_field_overlay(
     if highlight_fillable and not getattr(field, "readonly", False):
         return "highlight"
     return "none"
+
+
+# Field kinds whose overlay draws the whole value (text). Their saved appearance shows the old value.
+_TEXT_LIKE = (FieldType.TEXT, FieldType.MULTILINE, FieldType.DATE, FieldType.DROPDOWN)
+
+
+def stale_appearance_widgets(fields) -> tuple[int, ...]:
+    """Widget xrefs whose saved appearance (/AP) no longer matches what the window shows.
+
+    An existing PDF text field that is being changed (new value, style or position) is painted by
+    the canvas overlay (``should_paint_field_overlay`` -> ``content``). Its appearance stream in the
+    open document still holds the previously saved text; rendering it under the overlay showed the
+    old and the new value on top of each other until the next Save regenerated the appearance.
+    Those widgets are left out of the on-screen page rendering. Nothing in the document changes."""
+    out: set[int] = set()
+    for field in fields or ():
+        if not getattr(field, "is_acroform", False) or getattr(field, "is_candidate", False):
+            continue
+        if field.field_type not in _TEXT_LIKE:
+            continue
+        if not (getattr(field, "value_dirty", False) or getattr(field, "appearance_dirty", False)):
+            continue
+        xref = int(getattr(field, "xref", 0) or 0)
+        if xref > 0:
+            out.add(xref)
+    return tuple(sorted(out))
+
+_BUTTONS = (FieldType.CHECKBOX, FieldType.RADIO)
+
+
+def pending_button_states(fields) -> dict[int, bool]:
+    """Checkbox / radio widgets changed in the window but not saved yet: widget xref -> checked.
+
+    Their saved appearance shows the old state. The page is rendered with the widget's own
+    appearance for the new state instead (see ``MuPdfBackend.render_rgb``), which keeps the form's
+    real check mark or dot — not the old state with a substitute glyph drawn over it."""
+    out: dict[int, bool] = {}
+    for field in fields or ():
+        if not getattr(field, "is_acroform", False) or getattr(field, "is_candidate", False):
+            continue
+        if field.field_type not in _BUTTONS or not getattr(field, "value_dirty", False):
+            continue
+        xref = int(getattr(field, "xref", 0) or 0)
+        if xref > 0:
+            out[xref] = bool(field.checked)
+    return out

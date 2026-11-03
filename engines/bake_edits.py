@@ -416,11 +416,13 @@ def _bake_shape(targets: "_OverlayTargets", shape) -> None:
         if min(angle, 360.0 - angle) > 0.01:
             centre = fitz.Point((shape.rect.x + shape.rect.x1) / 2, (shape.rect.y + shape.rect.y1) / 2)
             morph = (centre, fitz.Matrix(-angle))  # MuPDF turns counter-clockwise on the page
-        from core.editing.shape_box import dash_pattern, line_geometry
+        from core.editing.shape_box import dash_pattern, is_degenerate_line, line_geometry
 
         pattern = dash_pattern(getattr(shape, "stroke_style", "solid"), width)
         dashes = ("[" + " ".join(f"{v:.2f}" for v in pattern) + "] 0") if pattern else None
         kind = getattr(getattr(shape, "kind", None), "value", "rectangle")
+        if kind in ("line", "arrow") and is_degenerate_line(shape):
+            return  # a line with both ends on one point is invisible and printed as a dot: never written
         if kind in ("line", "arrow"):
             # the same geometry as on screen (core.editing.shape_box.line_geometry)
             start, end = shape.heads() if hasattr(shape, "heads") else ("none", "filled" if kind == "arrow" else "none")

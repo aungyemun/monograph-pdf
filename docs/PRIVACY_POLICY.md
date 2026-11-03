@@ -10,10 +10,10 @@ OCR language downloads (from version 0.5.0) happen only when you click **Downloa
 Sending problem reports is switched off (no reporting service yet). Versions 0.3.0 and 0.4.0 make no
 network connections at all; the same holds for earlier versions, which do not have these features.
 
-The descriptions below refer to Windows 0.5.0; Windows 0.4.0 and earlier have update checks
+The descriptions below refer to Windows 0.5.0 and 0.5.1; Windows 0.4.0 and earlier have update checks
 disabled. Linux/macOS upgrades are manual.
 
-## Update checks (built in since 0.3.0, enabled in Windows 0.5.0)
+## Update checks (built in since 0.3.0, enabled from Windows 0.5.0)
 
 When you choose **Help ▸ Check for Updates…**, **Check Now**, or switch on *Automatically check for
 updates* (off by default; **File ▸ Settings… ▸ Updates**), Monograph PDF connects to GitHub, which
@@ -22,7 +22,7 @@ hosts the project's releases (`github.com`, `api.github.com`, `objects.githubuse
 click **Update Now**, it downloads that version's installer from the same place.
 
 * Sent: an ordinary HTTPS request with the program's name and version
-  (`MonographPDF/0.3.0 (+updater)`). As with any internet connection, GitHub sees your IP address.
+  (for example `MonographPDF/0.5.1 (+updater)`). As with any internet connection, GitHub sees your IP address.
 * Not sent: documents, file names, settings, account data, identifiers of you or your computer.
 * GitHub's own privacy statement applies to its servers:
   https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement

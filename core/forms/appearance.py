@@ -201,24 +201,37 @@ class _Layout:
         self._latin: dict[tuple, fitz.Font | None] = {}
         styles = char_styles(list(getattr(field, "runs", None) or []), text)
         self._styles = [resolve(dict(zip(STYLE_KEYS, st)), field) for st in styles]
+        self._field_family = resolve({}, field)["family"]
         self.items: list[tuple[fitz.Font, float, dict]] = []
         self.widths: list[float] = []
         # Letter spacing (text boxes): extra advance after every character, in points
         self.tracking = float(getattr(field, "character_spacing", 0.0) or 0.0)
 
-    def _font(self, ch: str, style: dict) -> fitz.Font:
-        key = (style["family"], style["bold"], style["italic"])
+    def _load(self, family: str, bold: bool, italic: bool) -> fitz.Font | None:
+        key = (family, bold, italic)
         if key not in self._latin:
-            if is_cjk_family(style["family"]):
+            if is_cjk_family(family):
                 from core.editing import system_fonts
 
                 self._latin[key] = system_fonts.load(*key)  # an embeddable Japanese system font, else the built-in CJK font
             else:
                 self._latin[key] = _latin_font(*key)
-        latin = self._latin[key]
+        return self._latin[key]
+
+    def _font(self, ch: str, style: dict) -> fitz.Font:
+        latin = self._load(style["family"], style["bold"], style["italic"])
         if ch == " " and latin is not None and not _space_safe(latin):
             return self.cjk  # spaces from a font that maps them to U+00A0 come from the built-in font
-        return latin if (latin is not None and _latin_has(latin, ch)) else self.cjk
+        if latin is not None and _latin_has(latin, ch):
+            return latin
+        # A character the word's own font lacks (Japanese in Segoe UI / Arial): the field's own
+        # font when it has it, so those words match the rest of the form instead of switching to
+        # the built-in gothic (which looks bold beside Mincho text)
+        if style["family"] != self._field_family and is_cjk_family(self._field_family):
+            own = self._load(self._field_family, style["bold"], style["italic"])
+            if own is not None and own is not latin and _latin_has(own, ch):
+                return own
+        return self.cjk
 
     def set_base(self, base: float) -> None:
         """Lay the characters out with ``base`` as the size of text without its own size."""
