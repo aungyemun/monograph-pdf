@@ -18,13 +18,13 @@ Each platform has its own version and release.
 | Platform | Latest release |
 | :--- | :--- |
 | Windows 10/11, x64 | [0.5.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.1) — Setup installer |
-| macOS 13+, Apple silicon | [0.1.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1) — zip, dmg or pkg |
+| macOS 13+, Apple silicon | [0.1.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-macos) — pkg, dmg or zip |
 | Linux x86_64 (glibc 2.43+, e.g. Ubuntu 26.04) | [0.1.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-linux) — tar.gz with `install.sh` |
 
 Download only from the official releases page and check each file against the release's SHA-256
-checksums ([how to verify](docs/OFFICIAL_DOWNLOAD_VERIFICATION.md)). Windows and macOS packages are
-not code-signed, so Windows SmartScreen or macOS Gatekeeper may warn; Linux archives are
-GPG-signed. See the [Code signing policy](docs/CODE_SIGNING_POLICY.md) and the
+checksums ([how to verify](docs/OFFICIAL_DOWNLOAD_VERIFICATION.md)). Windows packages are not
+code-signed, so SmartScreen may warn. macOS packages are ad-hoc signed and not notarized, so
+Gatekeeper blocks the first open (Control-click ▸ **Open**). Linux archives are GPG-signed. See the [Code signing policy](docs/CODE_SIGNING_POLICY.md) and the
 [installation guide](INSTALLATION.md) for each platform.
 
 Windows ARM, Intel Macs and mobile devices have not been tested.
@@ -108,8 +108,8 @@ sample documents — never confidential files.
 © 2026 Aung Ye Mun. Licensed under the GNU Affero General Public License, version 3 or later
 (AGPL-3.0-or-later): full text in [LICENSE](LICENSE), summary in [LICENSE.md](LICENSE.md).
 Third-party components keep their own licenses: see [notices](THIRD_PARTY_NOTICES.md) and the
-[dependency inventory](licenses/DEPENDENCY_INVENTORY.md). Complete corresponding source is the
-Source archive attached to each release.
+[dependency inventory](licenses/DEPENDENCY_INVENTORY.md). Which source archives each release
+includes is listed in [LICENSE.md](LICENSE.md#source-code).
 
 To cite Monograph PDF, use [CITATION.cff](CITATION.cff) with the platform and release tag.
 History: [CHANGELOG.md](CHANGELOG.md).

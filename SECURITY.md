@@ -2,95 +2,72 @@
 
 ## Supported versions
 
-Security fixes are developed on shared `main`; distributed fixes require a new platform release.
-A draft is not an available security update. Consult the platform release notes and report suspected
-vulnerabilities privately, including the exact platform, version and build commit.
+Security fixes are made on `main` and reach users only in a new platform release. Use the latest
+release for your platform.
 
-| Platform/version | Distribution status |
-| :--- | :--- |
-| Windows 0.5.1 | Latest published Windows release (maintenance release of 0.5.0: update-check certificate verification, saving, forms) |
-| Windows 0.5.0 | Previous release (security fixes for protected PDFs, signed update checks) — upgrade with the 0.5.1 Setup |
-| Windows 0.4.0 | Previous release; predates the protection fixes of 0.5.0 — upgrade with the 0.5.0 Setup |
-| Windows 0.4.1 / 0.4.2 | Never published; changes folded into 0.5.0 |
-| macOS 0.1.1 | Published as v0.1.1-macos; ad-hoc signed, not notarized; independent platform line |
-| Linux 0.1.1 | Latest published Linux release (v0.1.1-linux, GPG-signed archives) |
-| Linux 0.1.0 | Never published; folded into 0.1.1 |
-| Older Windows releases | Superseded; consult published release notes before upgrading |
+| Platform | Supported | Not supported |
+| :--- | :--- | :--- |
+| Windows | **0.5.1** | 0.5.0 and earlier: upgrade with the 0.5.1 Setup. 0.4.0 and earlier predate the protected-PDF fixes of 0.5.0. |
+| macOS | **0.1.1** | 0.1.0 |
+| Linux | **0.1.1** | — (0.1.0 was never published) |
 
-Development fixes do not establish that an older binary is safe. Until a corrected Windows release
-is published, do not rely on older export/copy commands to retain PDF password protection. Verify
-output protection independently before sharing sensitive documents. See [release status](README.md#platforms-and-releases).
+Windows 0.4.1 and 0.4.2 were never published; their changes are in 0.5.0. A fix on `main` does not
+make an older release safe. Before sharing a sensitive document, confirm that the output is
+protected as you expect.
 
 ## Reporting a vulnerability
 
-Please report security problems **privately** — do not open a public GitHub issue.
+Report security problems **privately**, never in a public issue:
 
-* **Preferred:** GitHub private vulnerability reporting —
-  [Report a vulnerability](https://github.com/aungyemun/monograph-pdf/security/advisories/new)
-  (Security tab ▸ **Report a vulnerability**; requires a GitHub account).
+* **Preferred:** [GitHub private vulnerability reporting](https://github.com/aungyemun/monograph-pdf/security/advisories/new)
+  (Security tab ▸ **Report a vulnerability**).
 * **Alternative:** email **aungyemun25@gmail.com**.
 
-Monograph PDF is maintained by one person; reports are handled as quickly as possible, but no fixed
-response time can be promised.
+Please include:
 
-Include, where possible:
+* the platform and version (**Help ▸ About Monograph PDF**) and your operating-system version;
+* the steps to reproduce the problem and what you expected;
+* a sample file, **only if it contains no confidential information**. Remove personal paths and
+  document contents from logs and screenshots.
 
-* the Monograph PDF version (**Help ▸ About Monograph PDF**) and your operating-system version;
-* the steps to reproduce the problem and what you expected to happen;
-* a sample file that triggers it, **only if it contains no confidential information**. Please
-  remove personal paths and document contents from logs and screenshots, and do not send
-  confidential PDFs unless asked.
-
-Fixes are described in the [changelog](CHANGELOG.md) of the release that contains them.
+Monograph PDF is maintained by one person. Reports are handled as quickly as possible, but no
+response time is guaranteed. Fixes are listed in the [changelog](CHANGELOG.md).
 
 ## Security design
 
-Monograph PDF is designed to operate offline: it has no telemetry and never uploads documents.
-From 0.3.0 exactly two modules may use the network — the update checker and the problem-report
-sender — each only for a purpose the user controls (checked by tests). Update checks are switched on
-from Windows **0.5.0** (only when the user asks, or after switching on
-automatic checks, which are off by default); in 0.3.0 and 0.4.0 they are off. Sending problem reports is switched off (no reporting
-service yet). From **0.5.0**, the OCR Languages dialog can download one optional OCR language file when
-the user clicks **Download and Install**; it goes through the update checker's HTTPS code (host
-allow-list, certificate verification) and the file is installed only if its pinned SHA-256 matches.
-Nothing else in Monograph PDF makes network connections.
+Monograph PDF works offline. It has no telemetry and never uploads documents. Only three features
+can use the network, and only when you ask:
 
-| Area | How it is protected |
+* **Update checks (Windows):** on request, or automatically if you switch that on (off by default).
+* **OCR language downloads:** only after **Download and Install**.
+* **Problem reports:** switched off in every release so far.
+
+| Area | Protection |
 | :--- | :--- |
-| **Installation** | Setup is not code-signed; check the SHA-256 checksum against `SHA256SUMS.txt` or the release page before running it. |
-| **Opening documents** | PDFs are read with MuPDF. Opening a file does not write to it. PDF JavaScript is not executed, and actions and links are never run or followed automatically. |
+| **Downloads** | Check every file against the release's SHA-256 checksums. Windows and macOS packages are not code-signed (macOS is ad-hoc signed, not notarized); Linux archives are GPG-signed. |
+| **Opening documents** | PDFs are read with MuPDF and never modified by opening. PDF JavaScript is not executed; actions and links are never run or followed automatically. |
 | **Encryption** | AES-256 (AES-128 optional). Passwords are kept in memory only. |
-| **Permission restrictions** | Printing, copying and editing permissions are respected by compliant PDF readers but are not a cryptographic protection: anyone who can open the file can bypass them with other software. |
-| **Redaction** | Applied redactions remove the marked page content (text, image pixels, vector graphics) and overlapping form fields, comments and links, rather than placing a visible overlay. Text inside pictures is not detected. Verification and limitations: [Security and Privacy](docs/SECURITY_AND_PRIVACY.md#redaction). |
-| **Hidden information** | **Protect ▸ Remove Hidden Information** writes a cleaned copy and removes only the categories it lists; content that is part of the pages (including layers that are turned off) is kept. Limits: [Security and Privacy](docs/SECURITY_AND_PRIVACY.md#hidden-information). |
-| **Working files** | Windows uses `%APPDATA%\Monograph PDF` and `%LOCALAPPDATA%\Monograph PDF`; macOS uses Application Support/Caches; Linux uses XDG data/cache roots ([path map](docs/REPOSITORY_LAYOUT.md#compatibility-boundaries)). No recovery copy is kept for password-protected PDFs. |
-| **Offline operation** | Qt's network and TLS modules are removed from the release build; Python's HTTPS support is used only by the update, problem-report and OCR-language-download code. The built-in self-check (also run by Setup) fails if a network connection is attempted while it runs. |
-| **Updates (from 0.5.0; off in 0.3.0 and 0.4.0)** | Only Ed25519-signed release manifests verified against built-in keys are accepted; the installer must match the signed SHA-256 and size; downgrades, expired (validity at most 730 days) or replayed manifests and foreign hosts are refused; Update Now is required before anything is downloaded; HTTPS with certificate verification; the installed copy is never replaced by the running program. [Secure updates](docs/SECURE_UPDATES.md) |
-| **Problem reports (sending switched off in 0.3.0 through 0.5.1)** | Approved technical fields only, shown in full before sending; sent only after **Send to Developer**; the reporting gateway can only file issues in one private repository. [Error reporting](docs/ERROR_REPORTING.md) |
-| **Office conversion** | Uses the locally installed Microsoft Office (macros force-disabled) or LibreOffice (a temporary profile with macros disabled). These applications run independently and follow their own settings, including network access. |
-| **External programs** | Started only by their full system or installation path, never found through the current folder. |
+| **Permissions** | Print, copy and edit restrictions are honored by compliant readers but are not cryptographic: other software can ignore them. |
+| **Redaction** | Removes the marked content (text, image pixels, vector graphics) and overlapping fields, comments and links; it is not an overlay. Text inside images is not detected. [Details](docs/SECURITY_AND_PRIVACY.md#redaction) |
+| **Hidden information** | **Protect ▸ Remove Hidden Information** writes a cleaned copy and removes only the listed categories; page content, including hidden layers, is kept. [Details](docs/SECURITY_AND_PRIVACY.md#hidden-information) |
+| **Working files** | Stored in the user profile (Windows AppData, macOS Application Support/Caches, Linux XDG folders). No recovery copy is kept for password-protected PDFs. [Path map](docs/REPOSITORY_LAYOUT.md#compatibility-boundaries) |
+| **Network code** | Only the update, OCR-download and problem-report modules may connect (enforced by tests), over HTTPS with certificate checks and a host allow-list. The Windows build removes Qt's network and TLS modules; the Linux and macOS builds still include them, unused. The built-in self-check fails if any connection is attempted. |
+| **Updates (Windows 0.5.0+)** | Only Ed25519-signed manifests verified against built-in keys are accepted. The installer must match the signed size and SHA-256. Downgrades, expired or replayed manifests and unknown hosts are refused. Nothing downloads before **Update Now**. [Secure updates](docs/SECURE_UPDATES.md) |
+| **OCR language files** | Installed only if the pinned size and SHA-256 match. |
+| **Office conversion** | Uses local Microsoft Office (macros disabled) or LibreOffice (temporary profile, macros disabled). These programs follow their own settings, including network access. |
+| **External programs** | Started by full path only, never looked up in the current folder. |
 
-More detail: [Security and Privacy](docs/SECURITY_AND_PRIVACY.md) · Security audit of the 0.2 line:
-[SECURITY_AUDIT_0.2.0.md](reports/audit/SECURITY_AUDIT_0.2.0.md)
-
-## Main bundled components
-
-| Component | License |
-| :--- | :--- |
-| Monograph PDF | AGPL-3.0-or-later |
-| PyMuPDF / MuPDF | AGPL-3.0 |
-| Qt for Python (PySide6) | LGPL-3.0 |
-| pdf2docx | GPL-3.0 |
-| Tesseract OCR | Apache-2.0 |
-| Python | PSF-2.0 |
-
-Complete list with versions: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+More detail: [Security and Privacy](docs/SECURITY_AND_PRIVACY.md) ·
+[Error reporting](docs/ERROR_REPORTING.md) ·
+[Security audit of the 0.2 line](reports/audit/SECURITY_AUDIT_0.2.0.md)
 
 ## Out of scope
 
 * Vulnerabilities in Microsoft Office or LibreOffice themselves
-* Modified builds or installations that were changed after Setup
-* Weak passwords chosen by the user — Monograph PDF unlocks files only with the correct password and
-  does not attempt to recover or guess passwords
+* Builds or installations modified after download
+* Weak passwords: Monograph PDF opens protected files only with the correct password and never
+  tries to recover or guess one
+
+Third-party component licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 © 2026 Aung Ye Mun

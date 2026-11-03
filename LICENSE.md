@@ -10,37 +10,42 @@ This program is distributed in the hope that it will be useful, but WITHOUT ANY 
 even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 Affero General Public License below for more details.
 
-The full license text is reproduced below and, unchanged, in the file [`LICENSE`](LICENSE).
+The full license text follows below and, unchanged, in [`LICENSE`](LICENSE).
 
 ## What this means in practice
 
 This summary is for convenience only; the license text below is what applies.
 
-* You may use, copy and share Monograph PDF for any purpose, including commercial and professional
-  work, free of charge.
-* When distributing Monograph PDF, modified or not, you must comply with the applicable source-code
-  availability, licensing and notice requirements of the GNU AGPL and of the licenses of the bundled
-  components.
-* Section 13 of the AGPL contains additional source-code availability requirements for modified
-  versions that support interaction with users over a network.
-* Monograph PDF is provided without any warranty (sections 15 and 16).
-* The corresponding source of every release is published next to the installer as
-  `MonographPDF_<version>_Source.zip`. It contains the application, build scripts, installer,
-  documentation and tests, and the corresponding source of the bundled AGPL, GPL and LGPL
-  components. The **Source code** archives that GitHub adds to each release contain only the
-  repository at the release tag. For questions about the source archive, contact
-  **aungyemun25@gmail.com**.
+* You may use, copy and share Monograph PDF for any purpose, including commercial work, free of
+  charge.
+* If you distribute it, modified or not, you must follow the source-code, license and notice
+  requirements of the GNU AGPL and of each bundled component's license.
+* If you modify it and let people use it over a network, section 13 requires you to offer them the
+  source of your version.
+* There is no warranty (sections 15 and 16).
 
-The license applies to the shared Windows, Linux and macOS source. Platform versions and packaging
-do not change the license. Third-party attribution and corresponding-source requirements remain
-component-specific; see the [dependency inventory](licenses/DEPENDENCY_INVENTORY.md).
+The license covers the shared Windows, Linux and macOS source; platform versions and packaging do
+not change it.
+
+## Source code
+
+| Release | Source published with it |
+| :--- | :--- |
+| Windows | `MonographPDF_<version>_Source.zip`: the application, build scripts, installer, documentation, tests and the corresponding source of the bundled AGPL, GPL and LGPL components |
+| Linux | `MonographPDF_<version>_Linux_Source.tar.gz`: the application source at the release tag |
+| macOS | Corresponding source of the bundled copyleft OCR libraries; the application source is the repository at the release tag |
+
+GitHub's automatic **Source code** archives contain only the repository at the release tag. For the
+source of any bundled third-party component of a Linux or macOS release, or other questions about
+source code, contact **aungyemun25@gmail.com**. Component details:
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the
+[dependency inventory](licenses/DEPENDENCY_INVENTORY.md).
 
 ## Licensing rationale (AGPL-3.0-or-later)
 
-Monograph PDF uses PyMuPDF / MuPDF (Artifex Software), which is licensed under AGPL-3.0, and
-pdf2docx, which is licensed under GPL-3.0. To distribute Monograph PDF together with these
-components, the application as a whole is licensed under AGPL-3.0-or-later. Each third-party
-component keeps its own license; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Monograph PDF uses PyMuPDF / MuPDF (Artifex Software, AGPL-3.0) and pdf2docx (GPL-3.0). To
+distribute the application with these components, it is licensed as a whole under
+AGPL-3.0-or-later. Each third-party component keeps its own license.
 
 ## GNU Affero General Public License, version 3
 
