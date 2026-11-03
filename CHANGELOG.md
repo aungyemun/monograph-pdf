@@ -356,9 +356,9 @@ fixes, OCR language-download pinning, update checks that only consider Windows r
 
 ## Linux 0.1.0 — 2026-10-25 (branch only — never published)
 
-First **Linux** build on branch [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux).
-Versioning is independent of the Windows line. **No** `v0.1.0-linux` (or other Linux) release tag
-has been published yet — clone the branch and build from source. See [LINUX.md](LINUX.md).
+First **Linux** build on the former `linux` branch (retired 2026-11-04; its tip is kept as tag
+[`backup-pre-unification-2026-10-25-linux`](https://github.com/aungyemun/monograph-pdf/tree/backup-pre-unification-2026-10-25-linux)). Never published; superseded by Linux 0.1.1
+from `main`. See [LINUX.md](LINUX.md).
 
 ### Added (Linux)
 

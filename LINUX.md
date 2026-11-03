@@ -1,8 +1,8 @@
 # Monograph PDF for Linux
 
 Linux uses an independent version (`versions/linux.txt`, currently 0.1.1) in the unified `main`
-tree. The latest published Linux release is [v0.1.1-linux](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-linux). The retained `linux` branch is a
-legacy source, not the starting point for new development. The Windows releases (currently 0.5.1) are not Linux packages.
+tree. The latest published Linux release is [v0.1.1-linux](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-linux). The former `linux` branch was
+retired on 2026-11-04; its last tip is kept as tag `backup-pre-unification-2026-10-25-linux`. The Windows releases (currently 0.5.1) are not Linux packages.
 
 ## Requirements and source setup
 
