@@ -8,7 +8,7 @@ Independent platform lines (Option B):
 | :--- | :--- | :--- |
 | Windows | `versions/windows.txt` | 0.5.1 |
 | Linux | `versions/linux.txt` | 0.1.1 |
-| macOS | `versions/macos.txt` | 0.1.0 |
+| macOS | `versions/macos.txt` | 0.1.1 |
 
 Root `VERSION` **mirrors the Windows line** for existing Windows packaging tools. Runtime and scripts
 must use `core.versioning.get_version()` / `scripts/read_version.py` (`--platform` / `--all`).

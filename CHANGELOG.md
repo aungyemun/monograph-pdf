@@ -8,7 +8,7 @@ platform-specific release tags — GitHub’s repository-wide “Latest” badge
 | Platform | Latest published | Notes |
 | :--- | :--- | :--- |
 | Windows | **[0.5.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.1)** | Maintenance release of 0.5.0 (0.5.0 was the first Windows release with signed update checks) |
-| macOS | **[0.1.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1)** (`v0.1.0-macos-1`) | First macOS line |
+| macOS | **[0.1.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-macos)** (`v0.1.1-macos`) | Working bundled OCR, native integration, guided installers; ad-hoc signed (not notarized) |
 | Linux | **[0.1.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-linux)** (`v0.1.1-linux`) | First published Linux release (0.1.0 was never published); GPG-signed |
 
 ## [0.5.1] — 2026-11-02
@@ -96,9 +96,11 @@ signed update manifests. Linux 0.1.0 and macOS 0.1.0 are unchanged.
   E46 root was reproduced with a controlled trust set, not on a freshly installed PC; a TLS-inspecting
   proxy was not tested.
 
-## [Unreleased — macOS]
+## macOS 0.1.1 — 2026-11-04
 
-macOS line only; the Windows version is unchanged.
+macOS line ([`v0.1.1-macos`](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-macos)),
+built from unified `main`; it includes every shared fix of Windows 0.5.1. The Windows and Linux
+versions are unchanged. Builds are ad-hoc signed and **not notarized** (no Developer ID).
 
 ### Fixed
 - OCR did not work in the installed macOS app (`.dmg`, `.pkg`, zip): the bundle linked

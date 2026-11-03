@@ -1,6 +1,6 @@
 # Monograph PDF for macOS
 
-First macOS line of Monograph PDF. Versioned independently of Windows (`versions/macos.txt`; currently **0.1.0**). Windows remains on its own SemVer (`versions/windows.txt`).
+First macOS line of Monograph PDF. Versioned independently of Windows (`versions/macos.txt`; currently **0.1.1**). Windows remains on its own SemVer (`versions/windows.txt`).
 
 | | |
 | :--- | :--- |
@@ -25,7 +25,7 @@ bash scripts/run_tests.sh
 
 ```bash
 bash scripts/build_app.sh
-# → dist/MonographPDF.app  (OCR staged, Info.plist = 0.1.0, signed)
+# → dist/MonographPDF.app  (OCR staged, Info.plist = 0.1.1, signed)
 
 bash scripts/package_macos.sh
 # → dist/release/MonographPDF_<macos-version>_macOS.pkg   guided installer (Installer.app)
