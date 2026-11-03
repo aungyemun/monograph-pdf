@@ -9,6 +9,7 @@ keys through Qt's shortcut system.
 from __future__ import annotations
 
 import os
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -18,6 +19,11 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("MONOGRAPH_PDF_HEADLESS", "1")
 
 pytest.importorskip("pytestqt")
+
+# macOS: Qt's Ctrl is Command and Command+Tab is the system app switcher, so document tabs use the
+# Control key there (Qt "Meta"); every other platform uses Ctrl+Tab.
+MAC = sys.platform == "darwin"
+NEXT_KEY, PREV_KEY = ("Meta+Tab", "Meta+Shift+Tab") if MAC else ("Ctrl+Tab", "Ctrl+Shift+Tab")
 fitz = pytest.importorskip("fitz")
 
 from PySide6.QtCore import Qt  # noqa: E402
@@ -81,12 +87,16 @@ def _press(win, key, mods) -> None:
     QApplication.processEvents()
 
 
+def _tab_mod():
+    return Qt.KeyboardModifier.MetaModifier if MAC else Qt.KeyboardModifier.ControlModifier
+
+
 def _ctrl_tab(win) -> None:
-    _press(win, Qt.Key.Key_Tab, Qt.KeyboardModifier.ControlModifier)
+    _press(win, Qt.Key.Key_Tab, _tab_mod())
 
 
 def _ctrl_shift_tab(win) -> None:
-    _press(win, Qt.Key.Key_Backtab, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)
+    _press(win, Qt.Key.Key_Backtab, _tab_mod() | Qt.KeyboardModifier.ShiftModifier)
 
 
 def _open_three(win, tmp_path) -> None:
@@ -112,8 +122,8 @@ def _registrations(win) -> dict[str, list[object]]:
 
 def test_tab_keys_have_exactly_one_registration(window):
     regs = _registrations(window)
-    assert len(regs["Ctrl+Tab"]) == 1, regs["Ctrl+Tab"]
-    assert len(regs["Ctrl+Shift+Tab"]) == 1, regs["Ctrl+Shift+Tab"]
+    assert len(regs[NEXT_KEY]) == 1, regs[NEXT_KEY]
+    assert len(regs[PREV_KEY]) == 1, regs[PREV_KEY]
 
 
 def test_no_two_window_shortcuts_share_a_key_sequence(window):
