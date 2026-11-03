@@ -1,4 +1,4 @@
-# Unification hygiene (do not delete yet)
+# Unification hygiene
 
 ## Recovery (created 2026-10-25)
 
@@ -9,7 +9,8 @@
 | `backup/pre-unification-2026-10-25/macos` | `0bae21d2d5fcf8384067d99b9586358b7ffd7518` |
 | `backup/pre-unification-2026-10-25/release-v0.5.0` | `a45667fecf532026088b73e0a959278332320d69` |
 
-Annotated tags: `backup-pre-unification-2026-10-25-{main,linux,macos,release-v0.5.0}`.
+Annotated tags: `backup-pre-unification-2026-10-25-{main,linux,macos,release-v0.5.0}`. These tags are
+the recovery points; the `backup/pre-unification-2026-10-25/*` branches no longer exist on GitHub.
 
 Offline bundle (outside repo): `%USERPROFILE%\MonographPDF-recovery\pre-unification-2026-10-25\`.
 
@@ -17,15 +18,15 @@ Offline bundle (outside repo): `%USERPROFILE%\MonographPDF-recovery\pre-unificat
 
 | Branch | Reason |
 | :--- | :--- |
-| `linux` | Unique work; retire only after Linux PC confirms sync + integration merged |
-| `macos` | Unique work; retire only after Mac confirms sync + macOS integration merged |
-| `release/v0.5.0` | Release provenance pin (`a45667fe`); delete only after explicit approval |
-| `feature/v0.3.0-secure-updates-diagnostics` | History already on main ancestry; candidate for later deletion |
-| `backup/pre-unification-2026-10-25/*` | Recovery — keep |
+| `macos` | Legacy macOS 0.1.0 line; tip equals tag `v0.1.0-macos-1` |
 
-## Not deleted in this stage
+## Branches retired
 
-* No remote `linux` / `macos` deletion
-* No tag rewrites
-* No published release changes
-* No signing keys
+| Branch | Date | Kept as |
+| :--- | :--- | :--- |
+| `linux` | 2026-11-04 | Tag `backup-pre-unification-2026-10-25-linux` (`bc5fa58`); Linux now releases from `main` (v0.1.1-linux) |
+| `release/v0.5.0` | 2026-11-04 | Merged into `main`; tags `v0.5.0` and `backup-pre-unification-2026-10-25-release-v0.5.0` (`a45667f`) |
+| `feature/v0.3.0-secure-updates-diagnostics` | before 2026-11-04 | History on `main` ancestry |
+| `backup/pre-unification-2026-10-25/*` | before 2026-11-04 | The annotated backup tags above |
+
+Retiring a branch needs explicit maintainer approval and a tag (or `main` ancestry) that keeps its tip.

@@ -55,6 +55,8 @@ def test_install_script_desktop_entry_prefers_png(tmp_path):
         **os.environ,
         "XDG_DATA_HOME": str(xdg / "data"),
         "XDG_BIN_HOME": str(xdg / "bin"),
+        # xdg-mime writes mimeapps.list here; never touch the real user's default PDF app.
+        "XDG_CONFIG_HOME": str(xdg / "config"),
     }
     import subprocess
 
@@ -72,3 +74,36 @@ def test_install_script_desktop_entry_prefers_png(tmp_path):
     assert "monograph_pdf_256.png" in desk
     assert ".ico" not in desk
     assert "StartupWMClass=MonographPDF" in desk
+
+
+def test_install_script_finds_icon_in_pyinstaller_layout(tmp_path):
+    """A PyInstaller onedir build keeps resources under _internal/; Icon= must still be a PNG path."""
+    src = tmp_path / "src"
+    icons = src / "_internal" / "resources" / "icons" / "windows"
+    icons.mkdir(parents=True)
+    (src / "VERSION").write_text("0.1.1\n", encoding="utf-8")
+    (src / "MonographPDF").write_bytes(b"#!/bin/true\n")
+    (src / "MonographPDF").chmod(0o755)
+    (icons / "monograph_pdf_256.png").write_bytes(b"png256")
+    xdg = tmp_path / "xdg"
+    env = {
+        **os.environ,
+        "XDG_DATA_HOME": str(xdg / "data"),
+        "XDG_BIN_HOME": str(xdg / "bin"),
+        "XDG_CONFIG_HOME": str(xdg / "config"),
+    }
+    import subprocess
+
+    root = Path(__file__).resolve().parents[2]
+    proc = subprocess.run(
+        ["bash", str(root / "installer" / "linux" / "install.sh"), str(src)],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    desk = (xdg / "data" / "applications" / "monograph-pdf.desktop").read_text(encoding="utf-8")
+    dest = xdg / "data" / "Monograph PDF"
+    assert f"Icon={dest / '_internal' / 'resources' / 'icons' / 'windows' / 'monograph_pdf_256.png'}" in desk
+    assert '"version":"0.1.1"' in (dest / ".monograph-installed").read_text(encoding="utf-8")

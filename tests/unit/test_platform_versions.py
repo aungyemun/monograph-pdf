@@ -9,7 +9,7 @@ def test_host_version_matches_platform_file():
     plat = versioning.current_platform()
     assert versioning.get_version() == versioning.get_version(plat)
     assert versioning.get_version("windows") == "0.5.1"
-    assert versioning.get_version("linux") == "0.1.0"
+    assert versioning.get_version("linux") == "0.1.1"
     assert versioning.get_version("macos") == "0.1.0"
 
 
@@ -22,7 +22,7 @@ def test_windows_root_version_mirrors_windows_line():
 def test_all_platform_versions():
     assert versioning.all_platform_versions() == {
         "windows": "0.5.1",
-        "linux": "0.1.0",
+        "linux": "0.1.1",
         "macos": "0.1.0",
     }
 

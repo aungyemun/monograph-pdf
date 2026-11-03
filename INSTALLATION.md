@@ -2,11 +2,21 @@
 
 Use the official [Releases](https://github.com/aungyemun/monograph-pdf/releases) and select
 the platform explicitly. Published Windows is 0.5.1.
-macOS 0.1.0 is published; Linux 0.1.0 is available from source. Development uses unified `main`.
+macOS 0.1.0 and Linux 0.1.1 are published. Development uses unified `main`.
 
 ## Linux
 
-No Linux release tag is published yet. Build from `main`; see [Linux setup](LINUX.md).
+Download `MonographPDF_0.1.1_Linux_x86_64.tar.gz`, `SHA256SUMS.txt` and `SHA256SUMS.txt.asc` from
+[v0.1.1-linux](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-linux), verify, then install per user:
+
+```bash
+gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt
+sha256sum -c --ignore-missing SHA256SUMS.txt
+tar -xzf MonographPDF_0.1.1_Linux_x86_64.tar.gz
+bash MonographPDF/install.sh MonographPDF
+```
+
+To build from source instead, see [Linux setup](LINUX.md).
 
 ```bash
 git clone --branch main https://github.com/aungyemun/monograph-pdf.git
