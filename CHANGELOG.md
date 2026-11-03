@@ -351,7 +351,7 @@ fixes, OCR language-download pinning, update checks that only consider Windows r
 
 ### Notes
 
-- Signed with GPG (key `A52B63B542BD28B43043305CA786D8E81C51772F`); not code-signed in any other
+- Signed with GPG (key `C49E824BBCB423FD6EA188A340E1DA3739A738FC`); not code-signed in any other
   sense. Linux has no automatic update channel; upgrade by installing the new archive.
 
 ## Linux 0.1.0 — 2026-10-25 (branch only — never published)
