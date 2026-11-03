@@ -74,7 +74,7 @@ hold production signing keys. Skipped tests stay **SKIPPED** / **NOT VERIFIED**.
 Independent tags and schedules. Examples:
 
 * Windows: `v0.5.0`, `v0.5.1` …
-* Linux: prefer `v0.1.0-linux` when publishing (none published yet)
+* Linux: published `v0.1.1-linux`
 * macOS: published `v0.1.0-macos-1`
 
 GitHub **Latest** is not a platform update channel. Windows clients use the hardened Releases API

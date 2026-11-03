@@ -21,7 +21,7 @@ development from `main`. A development version is not a published download.
 | :--- | :--- | :--- |
 | Windows 10/11, x64 | [v0.5.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.1) | 0.5.1 |
 | macOS 13+, Apple silicon | [v0.1.0-macos-1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1) | 0.1.0; unified source on main |
-| Linux, x86_64 | No published Linux release | 0.1.0; build from main |
+| Linux, x86_64 | [v0.1.1-linux](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-linux) | 0.1.1; unified source on main |
 
 macOS Intel, Windows ARM and mobile platforms are not verified targets. CI exercises shared
 code and offscreen UI behavior; it does not certify native installers, physical printing or

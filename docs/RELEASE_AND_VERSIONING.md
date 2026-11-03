@@ -7,7 +7,7 @@ Independent platform lines (Option B):
 | Platform | File | Current |
 | :--- | :--- | :--- |
 | Windows | `versions/windows.txt` | 0.5.1 |
-| Linux | `versions/linux.txt` | 0.1.0 |
+| Linux | `versions/linux.txt` | 0.1.1 |
 | macOS | `versions/macos.txt` | 0.1.0 |
 
 Root `VERSION` **mirrors the Windows line** for existing Windows packaging tools. Runtime and scripts

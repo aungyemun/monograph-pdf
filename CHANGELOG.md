@@ -9,7 +9,7 @@ platform-specific release tags — GitHub’s repository-wide “Latest” badge
 | :--- | :--- | :--- |
 | Windows | **[0.5.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.1)** | Maintenance release of 0.5.0 (0.5.0 was the first Windows release with signed update checks) |
 | macOS | **[0.1.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.0-macos-1)** (`v0.1.0-macos-1`) | First macOS line |
-| Linux | — | **0.1.0**, built from `main` (legacy branch [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux) kept for recovery); **no** `v0.1.0-linux` tag yet |
+| Linux | **[0.1.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-linux)** (`v0.1.1-linux`) | First published Linux release (0.1.0 was never published); GPG-signed |
 
 ## [0.5.1] — 2026-11-02
 
@@ -326,7 +326,35 @@ documented on the [`macos`](https://github.com/aungyemun/monograph-pdf/tree/maco
 - Microsoft Office COM conversion remains Windows-only.
 - Builds for this first line are unsigned; use **Right-click → Open** if Gatekeeper blocks them.
 
-## Linux 0.1.0 — 2026-10-25 (branch only — no release tag)
+## Linux 0.1.1 — 2026-11-04
+
+Linux line. First **published** Linux release, built from unified `main` (0.1.0 was prepared on the
+`linux` branch but never published; it is folded into 0.1.1). Brings the Linux build up to date with
+every shared fix and feature of Windows 0.5.1 (multi-document tabs, form and save fixes, protected-PDF
+fixes, OCR language-download pinning, update checks that only consider Windows releases).
+
+### Added (Linux)
+
+- **Built application**: `MonographPDF_0.1.1_Linux_x86_64.tar.gz`, a self-contained PyInstaller
+  build (`scripts/build_linux.sh`) with Tesseract and its libraries bundled (no system Tesseract
+  needed for OCR) and the pinned eng/jpn/osd language data.
+- `scripts/package_linux.sh`: application and source archives, `SHA256SUMS.txt`, and detached GPG
+  signatures (`*.asc`) with `--sign KEYID`.
+
+### Fixed (Linux)
+
+- `installer/linux/install.sh` wrote `Icon=monograph-pdf` (no icon) for a PyInstaller build, whose
+  resources live under `_internal/`; it now finds the bundled PNG. It also creates the XDG config
+  folder before registering the PDF handler.
+- The `install.sh` unit test no longer changes the real user's default PDF application
+  (`XDG_CONFIG_HOME` is isolated).
+
+### Notes
+
+- Signed with GPG (key `A52B63B542BD28B43043305CA786D8E81C51772F`); not code-signed in any other
+  sense. Linux has no automatic update channel; upgrade by installing the new archive.
+
+## Linux 0.1.0 — 2026-10-25 (branch only — never published)
 
 First **Linux** build on branch [`linux`](https://github.com/aungyemun/monograph-pdf/tree/linux).
 Versioning is independent of the Windows line. **No** `v0.1.0-linux` (or other Linux) release tag

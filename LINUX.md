@@ -1,8 +1,8 @@
 # Monograph PDF for Linux
 
-Linux uses an independent version (`versions/linux.txt`, currently 0.1.0) in the unified `main`
-tree. There is no published Linux release tag. The retained `linux` branch is a legacy source,
-not the starting point for new development. The Windows releases (currently 0.5.1) are not Linux packages.
+Linux uses an independent version (`versions/linux.txt`, currently 0.1.1) in the unified `main`
+tree. The latest published Linux release is [v0.1.1-linux](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-linux). The retained `linux` branch is a
+legacy source, not the starting point for new development. The Windows releases (currently 0.5.1) are not Linux packages.
 
 ## Requirements and source setup
 
@@ -23,6 +23,19 @@ bash scripts/run_tests.sh
 
 The setup/vendor scripts may download dependencies. Once installed, document processing and OCR
 work offline. Missing OCR/Office dependencies leave those operations unverified, not passed.
+
+## Build and package a release
+
+```bash
+bash scripts/vendor_ocr.sh              # stage Tesseract + pinned tessdata
+bash scripts/build_linux.sh             # dist/MonographPDF (bundles Tesseract), smoke test
+bash scripts/package_linux.sh --sign KEYID   # dist/release-linux: tarballs, SHA256SUMS.txt, *.asc
+```
+
+`build_linux.sh` needs `patchelf`. The build needs at least the glibc of the build machine
+(PyInstaller bundles some host libraries), so build on the oldest distribution you want to support. The bundled Tesseract is relinked to load only the libraries
+shipped beside it (glibc excepted). `package_linux.sh` refuses uncommitted changes, because the
+source archive is `git archive HEAD`.
 
 ## Native installation and integration
 

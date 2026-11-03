@@ -13,15 +13,18 @@ DEST="${XDG_DATA_HOME:-$HOME/.local/share}/Monograph PDF"
 BIN="${XDG_BIN_HOME:-$HOME/.local/bin}"
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 
-mkdir -p "$DEST" "$BIN" "$APPS"
+mkdir -p "$DEST" "$BIN" "$APPS" "${XDG_CONFIG_HOME:-$HOME/.config}"
 rsync -a --delete --exclude 'runtime' "$SRC/" "$DEST/"
 printf '%s\n' "{\"scope\":\"user\",\"version\":\"$VERSION\"}" > "$DEST/.monograph-installed"
 chmod +x "$DEST/MonographPDF" 2>/dev/null || true
 ln -sfn "$DEST/MonographPDF" "$BIN/MonographPDF"
 
 ICON=""
+# PyInstaller onedir builds keep resources under _internal/.
 for cand in \
+  "$DEST/_internal/resources/icons/windows/monograph_pdf_256.png" \
   "$DEST/resources/icons/windows/monograph_pdf_256.png" \
+  "$DEST/_internal/resources/icons/source/monograph_pdf_icon_1024.png" \
   "$DEST/resources/icons/source/monograph_pdf_icon_1024.png"; do
   [[ -f "$cand" ]] && ICON="$cand" && break
 done
