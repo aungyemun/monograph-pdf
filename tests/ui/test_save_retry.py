@@ -114,3 +114,47 @@ def test_a_lock_that_stays_gives_the_explanation_and_keeps_everything(window, tm
     import fitz
 
     assert "must not be lost" in fitz.open(doc.as_posix())[0].get_text()
+
+
+def test_a_lock_that_stays_keeps_annotations_and_page_changes_too(window, tmp_path):
+    """Phase 1 audit: changes stored in the open document itself (annotations, rotated pages) — not only
+    edit-model overlays such as text boxes — must survive a save that fails because the file stays locked.
+    The window closes the document before swapping the new file in; the failed swap must not reopen the
+    unchanged file from disk and drop those changes while saying "Your changes are still here"."""
+    import fitz
+
+    from core.editing.annot_commands import MarkupAnnotCommand
+    from core.editing.geometry import Rect
+
+    doc = _open_copy(window, tmp_path)
+    before = hashlib.sha256(doc.read_bytes()).hexdigest()
+    window._edit.commands.execute(MarkupAnnotCommand(  # noqa: SLF001
+        window._document, window._edit, 0, "underline", [Rect(70, 100, 330, 26)], color=(0, 0, 1)))  # noqa: SLF001
+    window._after_annotation(0, "Underline added")  # noqa: SLF001
+    assert window._rotate_pages([0], 90)  # noqa: SLF001
+    done = threading.Event()
+    held = threading.Event()
+
+    def hold():
+        with open(doc, "rb") as f:
+            f.read(10)
+            held.set()
+            done.wait(30)
+
+    t = threading.Thread(target=hold)
+    t.start()
+    held.wait(2)
+    try:
+        window.save_document()
+    finally:
+        done.set()
+        t.join()
+    assert window._test_errors and "open in another program" in window._test_errors[0][1]  # noqa: SLF001
+    assert hashlib.sha256(doc.read_bytes()).hexdigest() == before
+    live = window._document._backend._doc  # noqa: SLF001
+    assert live[0].rotation == 90, "the rotation is still in the window after the failed save"
+    assert any(a.type[1] == "Underline" for a in live[0].annots()), "the underline is still in the window"
+    window.save_document()  # the lock is gone: the same Save now writes everything
+    with fitz.open(doc.as_posix()) as d:
+        assert d[0].rotation == 90
+        assert any(a.type[1] == "Underline" for a in d[0].annots())

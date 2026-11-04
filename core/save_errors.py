@@ -20,6 +20,11 @@ _ACCESS_DENIED = 5
 _DISK_FULL = {39, 112}  # ERROR_HANDLE_DISK_FULL, ERROR_DISK_FULL
 
 
+class FileStillInUse(PermissionError):
+    """Saving over the open file: another program kept it open through every retry. Its message
+    already explains what to do (and that the changes are kept), so it is shown as it is."""
+
+
 def _read_only(path: Path) -> bool:
     try:
         st = path.stat()

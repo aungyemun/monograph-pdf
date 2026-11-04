@@ -783,15 +783,20 @@ def test_permissions_only_password_opens_without_password(tmp_path):
 
 
 def test_save_releases_open_file_before_replacing_it(doc_window, monkeypatch):
-    """Windows cannot replace a file that is still open; Save must close it first."""
+    """Windows cannot replace a file that is still open; Save must close it first.
+
+    Phase 1 audit: Save no longer closes the whole document (a failed replace then lost every change
+    stored in it); it moves the open document into memory and closes the file-backed MuPDF document,
+    which is what holds the file open. That object is checked here (it used to be ``_closed``)."""
     import os
 
     w = doc_window
     real_replace = os.replace
     seen = {}
+    file_backed = w._document._backend._doc  # noqa: SLF001 — the MuPDF document reading the file
 
     def strict_replace(src, dst):
-        seen["closed"] = bool(getattr(w._document, "_closed", False))  # noqa: SLF001
+        seen["closed"] = bool(file_backed.is_closed)
         if not seen["closed"]:
             raise PermissionError(13, "file is open (simulated Windows sharing violation)")
         return real_replace(src, dst)

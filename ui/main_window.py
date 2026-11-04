@@ -2499,10 +2499,19 @@ class MainWindow(QMainWindow):
             else:
                 bake_via_backend(self._edit, dest)
             return False
+        from core.safe_write import refuse_read_only
+
+        # A read-only file is never replaced: Linux and macOS would swap the new file in regardless, and
+        # Windows refuses only at the swap, which the retries below would report as "in another program".
+        refuse_read_only(dest)
         tmp = dest.with_name(f".{dest.stem}.saving-{uuid.uuid4().hex[:8]}.pdf")
         try:
             bake_via_backend(self._edit, tmp)
-            self._document.close()  # release the file handle before replacing the file
+            # Windows cannot replace a file that is still open: release the file handle, but keep the open
+            # document — with every unsaved change stored in it (annotations, rotated or moved pages, form
+            # values) — in memory. Closing it and reopening the unchanged file after a failed replace
+            # silently dropped those changes while the window said they were kept.
+            self._detach_document_from_file()
             delays = (0.1, 0.2, 0.4, 0.8, 1.0, 1.0, 1.0)  # ~4.5 s in all, then the user is told
             for attempt in range(len(delays) + 1):
                 try:
@@ -2512,7 +2521,9 @@ class MainWindow(QMainWindow):
                     # Another program (often an antivirus scan or a PDF viewer) has the file open. The lock is
                     # never bypassed: wait a little, then report it and keep the edits.
                     if attempt == len(delays):
-                        raise PermissionError(
+                        from core.save_errors import FileStillInUse
+
+                        raise FileStillInUse(
                             f"“{dest.name}” is open in another program, so it could not be replaced. "
                             "Your changes are still here — close the other program and save again, "
                             "or use Save As."
@@ -2520,10 +2531,12 @@ class MainWindow(QMainWindow):
                     time.sleep(delays[attempt])
         except Exception:
             if self._document is not None and getattr(self._document, "_closed", False):
-                # Keep working on the original so no edits are lost
+                # Last resort (the document could not be kept in memory): the file as it is on disk
                 try:
                     self._document = open_document(dest, password=password)
                     self._edit.pdf = self._document
+                    if 0 <= self._session_index < len(self._sessions):
+                        self._sessions[self._session_index].document = self._document
                     self._canvas.set_document(self._document)
                     self._left.set_document(self._document)
                 except Exception:  # noqa: BLE001
@@ -2535,6 +2548,20 @@ class MainWindow(QMainWindow):
             except OSError:
                 pass
         return True
+
+    def _detach_document_from_file(self) -> None:
+        """Keep the open document in memory only (every unsaved change included, object numbers and
+        password protection unchanged) and close its file, so the file can be replaced. Falls back to
+        closing the document when no in-memory copy can be made."""
+        backend = getattr(self._document, "_backend", None)
+        try:
+            from engines.mupdf_backend import restore_bytes, snapshot_bytes
+
+            old = backend._doc  # noqa: SLF001
+            restore_bytes(backend, snapshot_bytes(backend))
+            old.close()
+        except Exception:  # noqa: BLE001
+            self._document.close()
 
     def save_document(self) -> None:
         self._commit_field_editor()
@@ -2556,7 +2583,17 @@ class MainWindow(QMainWindow):
         try:
             path = self._document.path
             password = self._open_password()
-            self._bake_to(path)
+            from core.save_errors import FileStillInUse
+
+            try:
+                self._bake_to(path)
+            except OSError as exc:
+                if isinstance(exc, FileStillInUse):
+                    raise
+                # disk full, read-only, no permission …: in plain words, as Save As and Save a Copy say it
+                # (Save showed Python's text naming an internal temporary file); nothing was written
+                self._report_save_failure("Save failed", exc, path)
+                return
             self._edit.mark_clean()
             clear_session(path)
             self._report_font_notes()
@@ -6892,6 +6929,10 @@ class MainWindow(QMainWindow):
     def _redact_apply(self) -> None:
         if self._document is None or not self._confirm_signed():
             return
+        # Writes a changed copy: like every other command that changes the content, it needs the PDF's
+        # "edit" permission (or its permissions password) — it was the one such command without the check
+        if not self._allow("edit", "Applying redaction"):
+            return
         from core.redaction import apply_redactions_report, preview_redaction_count
         from ui.convert_dialogs import choose_save
 
@@ -6988,6 +7029,9 @@ class MainWindow(QMainWindow):
             with fitz.open(dest) as doc:
                 scrub_residue(doc, terms)
                 doc.save(tmp, garbage=4, deflate=True)
+            from core.safe_write import flush_to_disk
+
+            flush_to_disk(Path(tmp))
             os.replace(tmp, dest)
             with fitz.open(dest) as doc:
                 found = find_residue(doc, terms)
