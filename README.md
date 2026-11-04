@@ -7,7 +7,7 @@ convert and protect PDFs on your own computer — no account, no cloud, no telem
 
 [Download](https://github.com/aungyemun/monograph-pdf/releases) ·
 [Installation](INSTALLATION.md) · [User guide](docs/USER_GUIDE.md) ·
-[Documentation](docs/README.md) · [Contributing](CONTRIBUTING.md)
+[Documentation](docs/README.md) · [Cite](docs/CITATION.md) · [Contributing](CONTRIBUTING.md)
 
 ![Monograph PDF workspace with bookmarks and document properties](docs/images/monograph-pdf-ui.png)
 
@@ -115,21 +115,5 @@ History: [CHANGELOG.md](CHANGELOG.md).
 
 ## Citation
 
-If you use Monograph PDF in your work, please cite it. Give the platform and version you used
-(the examples below use Windows 0.5.1); GitHub's **Cite this repository** button reads the same
-data from [CITATION.cff](CITATION.cff).
+Choose one of the [four copyable citation formats](docs/CITATION.md): universal, Windows, macOS or Linux. The universal [CITATION.cff](CITATION.cff) is version-independent; for reproducibility, report the precise platform and release used.
 
-> Mun, A. Y. (2026). *Monograph PDF* (Version 0.5.1, Windows) [Computer software].
-> https://github.com/aungyemun/monograph-pdf
-
-```bibtex
-@software{mun_monograph_pdf_2026,
-  author  = {Mun, Aung Ye},
-  title   = {Monograph PDF},
-  version = {0.5.1},
-  year    = {2026},
-  note    = {Windows release v0.5.1},
-  url     = {https://github.com/aungyemun/monograph-pdf},
-  license = {AGPL-3.0-or-later}
-}
-```
