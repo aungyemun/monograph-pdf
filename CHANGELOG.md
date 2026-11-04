@@ -11,6 +11,52 @@ platform-specific release tags — GitHub’s repository-wide “Latest” badge
 | macOS | **[0.1.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-macos)** (`v0.1.1-macos`) | Working bundled OCR, native integration, guided installers; ad-hoc signed (not notarized) |
 | Linux | **[0.1.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-linux)** (`v0.1.1-linux`) | First published Linux release (0.1.0 was never published); GPG-signed |
 
+## [Unreleased]
+
+Windows line. Smoothness of scrolling and opening in large, picture-heavy PDFs, and typing in small
+form fields. Found by an audit with generated 220-page photo, 1,500-page report and 120-page colour
+scan documents (385–449 MB) driven by real wheel and scroll-bar input.
+
+### Fixed
+
+- **Dragging the scroll bar or jumping pages in a picture-heavy PDF froze the window** for up to
+  0.27 s per jump (16 and 19 freezes over 0.1 s in the photo and scan test runs). Every visible page
+  and the pages either side were drawn in one go on the GUI thread. Pages are now drawn a little at a time — the page in the middle
+  of the view first, about one frame of work per step, input handled in between; the pages either
+  side follow within the same budget. Worst freeze in repeated runs now 0.04–0.07 s for those
+  documents, none over 0.1 s (text-only documents, already fast, are unchanged).
+- **Fast scrolling through large pictures stuttered** (pages of 0.07–0.13 s each were drawn while
+  scrolling). While scrolling, such pages are first drawn small and shown scaled; the sharp page
+  follows about 0.15 s after scrolling stops. Ordinary text pages are drawn sharp at once as before.
+- **Thumbnails froze the window while the page view scrolled.** They were drawn on worker threads,
+  but PyMuPDF keeps Python's GIL while it renders (measured: a 246 ms render on a worker thread
+  stalled the GUI thread 243 ms), and the same open document was used from two threads. Thumbnails
+  are now drawn on the GUI thread in short steps while the page view is idle, without a PNG round
+  trip; refreshing every thumbnail (Match Monitor Colors) redraws only those near the view.
+- **Closing a large document kept about 250 MB of its pictures in memory.** Its decoded images
+  stayed in MuPDF's cache until other work pushed them out (private memory 460 MB after closing a
+  scrolled 385 MB photo PDF, 178 MB before opening it). The cache is now emptied when a document is
+  closed: 213 MB after closing.
+- **A second click on a small form field did not start typing.** On a field under about 18 px high
+  on screen (date and number boxes of many administrative forms) the catch areas of the top and
+  bottom resize handles met in the middle, so the click began a resize; the next capital letter was
+  then taken as a tool shortcut (Shift+A = Arrow). Inside the field, handles are now caught only
+  within 4 px of its edge.
+
+### Removed
+
+- Unreachable code: the unused "OCR Page as Region Pass" action (in no menu; identical to OCR of the
+  current page), three placeholder annotation commands that would have drawn sample strokes, a
+  superseded stamp dialog, and 18 unused imports.
+
+### Development
+
+- Tests no longer depend on the developer's monitor colour profile (`MONOGRAPH_PDF_NO_DISPLAY_ICC=1`
+  in `tests/conftest.py`); with a wide-gamut profile active, print-preview checks failed on that PC.
+- The UI audit and screenshot scripts keep update and problem-report records in their temporary
+  folders too, never in the real profile; the deep UI audit keeps its log open until the window has
+  closed, so a crash while closing is recorded.
+
 ## [0.5.1] — 2026-11-02
 
 Windows line. Maintenance release for defects found after 0.5.0 was published (update check, tab

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 from core.document import PdfDocument
 from core.editing.edit_model import EditableDocument
 from core.editing.font_cache import cached_font_families, recently_used_fonts, remember_font
-from core.editing.text_box import SizeMode, TextAlign, TextBox, VAlign, WritingMode
+from core.editing.text_box import SizeMode, TextAlign, TextBox, VAlign
 from core.page_info import PageInfo
 
 

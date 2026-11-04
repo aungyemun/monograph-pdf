@@ -23,6 +23,8 @@ ROOT = Path(__file__).resolve().parents[2]
 WORK = Path(tempfile.mkdtemp(prefix="monograph_ui_capture_"))
 os.environ["MONOGRAPH_PDF_USER_DATA_DIR"] = str(WORK / "userdata")
 os.environ["MONOGRAPH_PDF_RUNTIME_DIR"] = str(WORK / "runtime")
+os.environ["MONOGRAPH_PDF_UPDATES_DIR"] = str(WORK / "updates")  # never the real profile
+os.environ["MONOGRAPH_PDF_DIAGNOSTICS_DIR"] = str(WORK / "diagnostics")
 sys.path.insert(0, str(ROOT))
 
 from PySide6.QtCore import QPoint, QTimer  # noqa: E402

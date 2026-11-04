@@ -116,3 +116,15 @@ def test_memory_helpers_never_raise():
     assert isinstance(memory_saver.background_work_running(), bool)
     ws = memory_saver.working_set_bytes()
     assert ws is None or ws > 0
+
+
+def test_closing_a_document_empties_mupdfs_cache(win, monkeypatch):
+    """Audit 2026-11: after scrolling a 385 MB photo PDF and closing it, about 250 MB of its decoded
+    pictures stayed in MuPDF's cache (private memory 460 MB, 208 MB once the cache was emptied)."""
+    from core import memory_saver
+
+    shrunk: list = []
+    monkeypatch.setattr(memory_saver, "shrink_mupdf_store", lambda: shrunk.append(1))
+    win.close_document(save_session=False)
+    assert shrunk, "the closed document's pictures are released from MuPDF's cache"
+    assert win._document is None  # noqa: SLF001

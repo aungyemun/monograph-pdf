@@ -18,6 +18,10 @@ os.environ.setdefault("MONOGRAPH_PDF_UPDATES_DIR", tempfile.mkdtemp(prefix="mono
 os.environ.setdefault("MONOGRAPH_PDF_DIAGNOSTICS_DIR", tempfile.mkdtemp(prefix="monographpdf-test-diagnostics-"))
 # Settings too, already at import time (the session fixture below replaces it with a pytest folder)
 os.environ.setdefault("MONOGRAPH_PDF_USER_DATA_DIR", tempfile.mkdtemp(prefix="monographpdf-test-userdata-"))
+# Pixels as rendered (sRGB), whatever colour profile the developer's monitor has: with a wide-gamut
+# profile active, pictures were converted for the screen and pixel / format checks failed on that PC
+# only. Tests of the conversion itself set a profile explicitly (display_color._reset_for_tests).
+os.environ.setdefault("MONOGRAPH_PDF_NO_DISPLAY_ICC", "1")
 
 
 def _real_profile_roots() -> tuple:

@@ -7,9 +7,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QPointF, QSize, Qt, Signal
 from PySide6.QtGui import (
-    QAction,
     QColor,
     QFont,
     QKeySequence,
@@ -621,38 +620,3 @@ class ExportImagesDialog(QDialog):
             jpeg_quality=int(self.quality.value()),
             scope=scope,
         )
-
-
-# --------------------------------------------------------------------------- stamp picker
-
-
-class StampDialog(QDialog):
-    def __init__(self, names: list[str], parent=None, default: str = "Draft") -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Add Stamp")
-        root = QVBoxLayout(self)
-        root.addWidget(_title("Choose a stamp"))
-        self.combo = QComboBox()
-        pretty = {
-            "ForComment": "For Comment",
-            "NotApproved": "Not Approved",
-            "AsIs": "As Is",
-            "NotForPublicRelease": "Not for Public Release",
-            "ForPublicRelease": "For Public Release",
-            "TopSecret": "Top Secret",
-        }
-        for n in names:
-            self.combo.addItem(pretty.get(n, n), n)
-        idx = self.combo.findData(default)
-        if idx >= 0:
-            self.combo.setCurrentIndex(idx)
-        root.addWidget(self.combo)
-        root.addWidget(_hint("Next, drag a box on the page (or click to place at the default size)."))
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Place")
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        root.addWidget(buttons)
-
-    def value(self) -> str:
-        return str(self.combo.currentData())

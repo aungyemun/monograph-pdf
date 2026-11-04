@@ -28,6 +28,8 @@ OUT.mkdir(parents=True, exist_ok=True)
 _work = Path(tempfile.mkdtemp(prefix="mpdf_ui_"))
 os.environ["MONOGRAPH_PDF_USER_DATA_DIR"] = str(_work / "settings")
 os.environ["MONOGRAPH_PDF_RUNTIME_DIR"] = str(_work / "runtime")
+os.environ["MONOGRAPH_PDF_UPDATES_DIR"] = str(_work / "updates")  # never the real profile
+os.environ["MONOGRAPH_PDF_DIAGNOSTICS_DIR"] = str(_work / "diagnostics")
 os.environ["MONOGRAPH_PDF_MULTI_INSTANCE"] = "1"
 
 import fitz  # noqa: E402

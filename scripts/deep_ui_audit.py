@@ -42,6 +42,9 @@ for sub in ("files", "inputs", "shots"):
     (OUT / sub).mkdir(parents=True, exist_ok=True)
 os.environ["MONOGRAPH_PDF_USER_DATA_DIR"] = str(OUT / "userdata")
 os.environ["MONOGRAPH_PDF_RUNTIME_DIR"] = str(OUT / "runtime")
+# update staging and problem-report records too: a run never writes into the real profile
+os.environ["MONOGRAPH_PDF_UPDATES_DIR"] = str(OUT / "updates")
+os.environ["MONOGRAPH_PDF_DIAGNOSTICS_DIR"] = str(OUT / "diagnostics")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 CAN_PRINT = sys.platform.startswith("win") and os.environ["QT_QPA_PLATFORM"] != "offscreen"
 if sys.platform.startswith("win") and os.environ["QT_QPA_PLATFORM"] == "offscreen":
@@ -1823,8 +1826,8 @@ def _quiesce() -> None:
 
 if __name__ == "__main__":
     run()
-    LOG.close()
     try:
-        _quiesce()
+        _quiesce()  # the log stays open: a crash while the window closes is recorded with its stack
     finally:
+        LOG.flush()
         os._exit(0)

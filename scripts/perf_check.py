@@ -101,6 +101,8 @@ def main() -> int:
     args = parser.parse_args()
     work = Path(tempfile.mkdtemp(prefix="mpdf_perf_"))
     os.environ["MONOGRAPH_PDF_USER_DATA_DIR"] = str(work / "settings")
+    os.environ["MONOGRAPH_PDF_UPDATES_DIR"] = str(work / "updates")  # never the real profile
+    os.environ["MONOGRAPH_PDF_DIAGNOSTICS_DIR"] = str(work / "diagnostics")
     os.environ["MONOGRAPH_PDF_MULTI_INSTANCE"] = "1"  # never hand over to a copy the user has open
     result: dict = {"documents": {}}
 

@@ -501,8 +501,6 @@ class MainWindow(QMainWindow):
         self.act_ocr_document.triggered.connect(lambda: self._run_ocr(scope="document"))
         self.act_ocr_pages = QAction("OCR Current &Page", self)
         self.act_ocr_pages.triggered.connect(lambda: self._run_ocr(scope="page"))
-        self.act_ocr_region = QAction("OCR Page as &Region Pass", self)
-        self.act_ocr_region.triggered.connect(lambda: self._run_ocr(scope="region"))
         self.act_ocr_area = QAction("Recognize Text in &Area…", self)
         self.act_ocr_area.setToolTip("Drag a rectangle on a scanned page and read its text (offline OCR)")
         self.act_ocr_area.triggered.connect(self._ocr_area)
@@ -883,7 +881,6 @@ class MainWindow(QMainWindow):
         """Accessible tooltips for non-obvious controls."""
         tips = {
             self.act_make_editable: "Analyze pages and OCR only those that need it",
-            self.act_ocr_region: "Run OCR on the current page as an explicit region pass",
             self.act_redact_apply: "Permanently remove marked content (not just cover it)",
             self.act_flatten: "When saving, bake form field values into page content",
             self.act_policy_smart: "Nudge related objects only — never moves unrelated content",
@@ -1885,6 +1882,8 @@ class MainWindow(QMainWindow):
         self._left.bookmarkDeleteRequested.connect(self._bookmark_delete)
         self._left.bookmarkMoveRequested.connect(self._bookmark_move)
         self._left.bookmarkRetargetRequested.connect(self._bookmark_retarget)
+        # thumbnails wait while the page view scrolls or draws (both share the GUI thread)
+        self._left.thumbs.set_busy_probe(self._canvas._canvas.render_busy)  # noqa: SLF001
         self._left.thumbs.set_context_actions([
             self.act_rotate_cw, self.act_rotate_ccw, None,
             self.act_insert_blank, self.act_insert_pdf, self.act_dup_pages, self.act_replace_page,
@@ -2303,6 +2302,12 @@ class MainWindow(QMainWindow):
             sess.document.close()
         except Exception:  # noqa: BLE001
             pass
+        # The closed document's decoded pictures and fonts stayed in MuPDF's cache (about 250 MB after
+        # scrolling a large photo PDF) until other work pushed them out. Pages shown in other tabs keep
+        # their rendered pictures; their own images are decoded again when next drawn.
+        from core import memory_saver
+
+        memory_saver.shrink_mupdf_store()
         self._sessions.pop(index)
         if not self._sessions:
             self._session_index = -1
@@ -3176,7 +3181,6 @@ class MainWindow(QMainWindow):
     def _run_ocr(self, scope: str = "document", pages: list[int] | None = None, *, review_overlays: bool = False) -> None:
         if self._document is None:
             return
-        from core.editing.geometry import Rect
         from core.ocr.paths import ocr_ready
         from core.ocr.pipeline import OcrOptions
         from ui.ocr_dialogs import OcrProgressDialog, OcrWorker
@@ -3202,12 +3206,6 @@ class MainWindow(QMainWindow):
         opts = OcrOptions(languages=self._ocr_languages_pref(), make_searchable=True, skip_native_text=True)
         if scope == "page":
             opts.pages = [self._canvas.focus_page]
-            opts.skip_native_text = False
-        elif scope == "region":
-            # Full-page region pass (explicit page selection)
-            opts.pages = [self._canvas.focus_page]
-            page = self._document.page(self._canvas.focus_page)
-            opts.region = Rect(0, 0, page.display_width_pt, page.display_height_pt)
             opts.skip_native_text = False
         elif scope == "needed" and pages is not None:
             opts.pages = list(pages)
@@ -4595,7 +4593,6 @@ class MainWindow(QMainWindow):
             self.act_make_editable,
             self.act_ocr_document,
             self.act_ocr_pages,
-            self.act_ocr_region,
             self.act_ocr_area,
             self.act_ocr_extract,
             self.act_scan_to_word,
@@ -6303,65 +6300,6 @@ class MainWindow(QMainWindow):
             self._after_annotation(page, "Callout added")
 
         self._pick_on_page("Callout: drag the text box area", apply, default_size=(180.0, 48.0))
-
-    def _annot_ink(self) -> None:
-        if self._document is None or not self._confirm_signed():
-            return
-        from core.annotations import add_freehand
-        from core.editing.geometry import Point
-
-        page = self._canvas.focus_page
-        info = self._document.page(page)
-        # Sample stroke for tool availability (canvas freehand can refine later)
-        y = info.height_pt / 2
-        stroke = [Point(80 + i * 12, y + (8 if i % 2 else -8)) for i in range(12)]
-        try:
-            add_freehand(self._document, page, [stroke])
-            self._refresh_page_view(page)
-            if self._edit:
-                self._edit.mark_dirty()
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.warning(self, "Freehand", str(exc))
-
-    def _annot_line(self, arrow: bool) -> None:
-        if self._document is None or not self._confirm_signed():
-            return
-        from core.annotations import add_line_arrow
-        from core.editing.geometry import Point
-
-        page = self._canvas.focus_page
-        info = self._document.page(page)
-        try:
-            add_line_arrow(
-                self._document,
-                page,
-                Point(72, info.height_pt / 2),
-                Point(info.width_pt - 72, info.height_pt / 2),
-                arrow=arrow,
-            )
-            self._refresh_page_view(page)
-            if self._edit:
-                self._edit.mark_dirty()
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.warning(self, "Line", str(exc))
-
-    def _annot_shape(self, kind: str) -> None:
-        if self._document is None or not self._confirm_signed():
-            return
-        from core.annotations import add_ellipse, add_rectangle
-
-        page = self._canvas.focus_page
-        rect = self._page_center_rect(160, 100)
-        try:
-            if kind == "rect":
-                add_rectangle(self._document, page, rect)
-            else:
-                add_ellipse(self._document, page, rect)
-            self._refresh_page_view(page)
-            if self._edit:
-                self._edit.mark_dirty()
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.warning(self, "Shape", str(exc))
 
     def _annot_stamp(self) -> None:
         if self._document is None or not self._confirm_signed():

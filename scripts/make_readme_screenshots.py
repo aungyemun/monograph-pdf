@@ -19,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 WORK = Path(tempfile.mkdtemp(prefix="monograph_readme_shots_"))
 os.environ["MONOGRAPH_PDF_USER_DATA_DIR"] = str(WORK / "userdata")
 os.environ["MONOGRAPH_PDF_RUNTIME_DIR"] = str(WORK / "runtime")
+os.environ["MONOGRAPH_PDF_UPDATES_DIR"] = str(WORK / "updates")  # never the real profile
+os.environ["MONOGRAPH_PDF_DIAGNOSTICS_DIR"] = str(WORK / "diagnostics")
 sys.path.insert(0, str(ROOT))
 
 import fitz  # noqa: E402

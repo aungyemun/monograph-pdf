@@ -121,6 +121,8 @@ def main() -> int:
     tmp = tempfile.mkdtemp(prefix="monograph_inventory_")
     os.environ["MONOGRAPH_PDF_USER_DATA_DIR"] = str(Path(tmp) / "userdata")
     os.environ["MONOGRAPH_PDF_RUNTIME_DIR"] = str(Path(tmp) / "runtime")
+    os.environ["MONOGRAPH_PDF_UPDATES_DIR"] = str(Path(tmp) / "updates")  # never the real profile
+    os.environ["MONOGRAPH_PDF_DIAGNOSTICS_DIR"] = str(Path(tmp) / "diagnostics")
     from PySide6.QtWidgets import QApplication
 
     import fitz

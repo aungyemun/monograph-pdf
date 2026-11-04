@@ -105,6 +105,17 @@ TILE_PX = 1024
 MAX_TILES = 48
 BASE_PAGE_PIXELS = 1_500_000  # placeholder of a zoomed-in page until its sharp tiles are drawn (fast to make)
 TILE_BUDGET_S = 0.03  # sharp tiles drawn per pass; the rest follow in the next pass (scrolling never waits)
+# Pages are drawn on the GUI thread (PyMuPDF keeps Python's GIL while it renders, so a worker thread
+# would freeze the window just as long). The view therefore draws a little at a time: the visible pages
+# nearest the middle first, about one frame of work per turn of the event loop, and input is handled in
+# between. Pages next to the view are drawn ahead only after scrolling stops.
+RENDER_STEP_BUDGET_S = 0.012
+SCROLL_ACTIVE_S = 0.15  # the view moved this recently: the user is scrolling
+RENDER_MAX_WAIT_S = 0.05  # scroll events postpone drawing, but never longer than this
+# While scrolling, a page that takes long to draw (large pictures) is first drawn small and shown
+# scaled; the sharp page follows when scrolling stops, so fast scrolling never waits for it.
+HEAVY_RENDER_S = 0.030
+PREVIEW_SCALE = 0.30
 
 
 def _theme_palette():
@@ -115,6 +126,7 @@ def _theme_palette():
     except Exception:  # noqa: BLE001
         return None
 _HANDLE = 6  # logical px handle half-size
+FIELD_HANDLE_EDGE = 4  # a small selected field's handles are caught within this many px of its edge (inside)
 
 
 class _AlignedTextEdit(QTextEdit):
@@ -338,7 +350,14 @@ class _CanvasWidget(QWidget):
         self._render_timer = QTimer(self)
         self._render_timer.setSingleShot(True)
         self._render_timer.setInterval(16)
-        self._render_timer.timeout.connect(self._render_visible)
+        self._render_timer.timeout.connect(self._render_step)
+        self._last_scroll_t = 0.0
+        self._last_step_t = 0.0  # when the view last drew a step
+        self._zoom_burst = False  # the render timer waits for the end of a zoom burst
+        self._render_failed: set = set()  # render keys that raised: not retried until the content changes
+        self._render_costs: list[float] = []  # seconds of the last full-page renders (heavy documents)
+        # quick small pictures shown scaled while scrolling: page -> (rotation, pixmap)
+        self._previews: dict[int, tuple[int, QPixmap]] = {}
         self.setAutoFillBackground(True)
 
         # Interaction state
@@ -409,6 +428,8 @@ class _CanvasWidget(QWidget):
 
     def rerender_all(self) -> None:
         """Draw every page again (after a change of how pixels are shown, e.g. the monitor profile)."""
+        self.drop_stale()  # scaled pictures in the old look must not show either
+        self._render_failed.clear()
         self._cache.clear()
         self._tiles.clear()
         self._rendered_hidden = {}
@@ -498,6 +519,8 @@ class _CanvasWidget(QWidget):
             self._edit.remove_listener(self._on_edit_changed)
         self._cache.clear()
         self._tiles.clear()
+        self._render_costs = []  # how long pages take to draw is learnt again for the next document
+        self._render_failed = set()
         self._rendered_hidden = {}
         self._previewable = {}
         self.close_note_popup()
@@ -719,7 +742,7 @@ class _CanvasWidget(QWidget):
 
     def _eraser_cursor(self):
         """Eraser cursor: a small angled rectangle tip."""
-        from PySide6.QtGui import QCursor, QPixmap, QTransform
+        from PySide6.QtGui import QCursor, QPixmap
 
         pm = QPixmap(32, 32)
         pm.fill(Qt.GlobalColor.transparent)
@@ -780,13 +803,27 @@ class _CanvasWidget(QWidget):
             stale.pop(k, None)
 
     def drop_stale(self, pages=None) -> None:
+        """Forget the scaled stand-in pictures (zoom leftovers and scrolling previews) of ``pages``
+        (all when None): their content changed, so they must not be shown any more."""
+        previews = getattr(self, "_previews", None)
         stale = getattr(self, "_stale_pix", None)
-        if not stale:
-            return
+        failed = getattr(self, "_render_failed", None)
+        if failed:  # changed content may draw now
+            if pages is None:
+                failed.clear()
+            else:
+                gone = {int(p) for p in pages}
+                failed.difference_update({k for k in failed if k.page_index in gone})
         if pages is None:
-            stale.clear()
-        else:
-            for p in pages:
+            if previews:
+                previews.clear()
+            if stale:
+                stale.clear()
+            return
+        for p in pages:
+            if previews:
+                previews.pop(int(p), None)
+            if stale:
                 stale.pop(int(p), None)
 
     def set_manual_zoom(self, zoom: float, viewport_size: QSize) -> None:
@@ -799,6 +836,7 @@ class _CanvasWidget(QWidget):
         self.zoomChanged.emit(self._zoom)
         # a burst of zoom steps (mouse wheel) renders once, after the last step; the scaled
         # pictures are shown meanwhile
+        self._zoom_burst = True
         self._render_timer.start(90)
         _ = viewport_size
 
@@ -874,6 +912,7 @@ class _CanvasWidget(QWidget):
     def notify_viewport(self, visible: QRect) -> None:
         if not self._layouts:
             return
+        self._last_scroll_t = time.perf_counter()
         mid_y = visible.center().y()
         page = self.page_at_y(mid_y)
         if page != self._focus_page:
@@ -887,13 +926,25 @@ class _CanvasWidget(QWidget):
         else is drawn again when needed."""
         self._cache.retain_near_pages(self._focus_page, 0, lambda k: k.page_index)
         self._tiles.clear()
+        self._previews.clear()
         self._image_base_cache.clear()
         self._image_scaled_cache.clear()
 
     def _schedule_render(self) -> None:
-        if self._render_timer.isActive() and self._render_timer.remainingTime() > 16:
-            return  # a zoom burst is waiting to render; do not render each step
-        self._render_timer.start(16)
+        if self._render_timer.isActive():
+            if self._zoom_burst and self._render_timer.remainingTime() > 16:
+                return  # a zoom burst is waiting to render; do not render each step
+            if time.perf_counter() - self._last_step_t > RENDER_MAX_WAIT_S:
+                return  # drawing has waited long enough: scroll events closer than 16 ms apart
+                # (precision touchpads, kinetic scrolling) must not push it back for ever
+        self._render_timer.start(16)  # after the scroll event burst; scroll events postpone it
+
+    def render_busy(self) -> bool:
+        """The view is scrolling or still drawing visible pages (other drawing, such as thumbnails,
+        waits meanwhile)."""
+        if self._document is None or not self._layouts:
+            return False
+        return self._render_timer.isActive() or time.perf_counter() - self._last_scroll_t < SCROLL_ACTIVE_S
 
     def _device_pixel_ratio(self) -> float:
         window = self.window()
@@ -1120,15 +1171,41 @@ class _CanvasWidget(QWidget):
         pix.setDevicePixelRatio(dpr)
         return pix
 
-    def _render_visible(self) -> None:
-        if self._document is None or self._document.is_closed or not self._layouts:
-            return
+    def _render_page_into_cache(self, i: int, key: RenderKey, scale: float, dpr: float, full_px: float) -> None:
+        """Render page ``i`` at the current zoom into the page cache (a large page: its low-resolution
+        base; the sharp tiles are drawn separately). Remembers how long a full page took."""
+        t0 = time.perf_counter()
+        if full_px <= MAX_PAGE_PIXELS:
+            self._cache.put(key, self._to_pixmap(self._render_page_rgb(i, scale), dpr))
+            costs = self._render_costs
+            costs.append(time.perf_counter() - t0)
+            if len(costs) > 8:
+                del costs[0]
+        else:
+            # low-resolution base for the whole page (shown while tiles are missing)
+            base = scale * (BASE_PAGE_PIXELS / full_px) ** 0.5
+            self._cache.put(key, self._to_pixmap(self._render_page_rgb(i, base), 1.0))
+        self._previews.pop(i, None)
+
+    def _heavy_document(self) -> bool:
+        """Full pages of this document take long to draw (typical of large pictures)."""
+        costs = sorted(self._render_costs)
+        return bool(costs) and costs[len(costs) // 2] > HEAVY_RENDER_S
+
+    def _visible_span(self) -> tuple[QRect, int, int]:
         visible = self.visibleRegion().boundingRect()
         if visible.isNull():
             top = self.page_top(self._focus_page)
             visible = QRect(0, max(0, top - 200), self.width(), 1200)
-        first = self.page_at_y(visible.top())
-        last = self.page_at_y(visible.bottom())
+        return visible, self.page_at_y(visible.top()), self.page_at_y(visible.bottom())
+
+    def _render_visible(self) -> None:
+        """Render every visible page (and one page either side) now, in one go. The view itself draws
+        incrementally (``_render_step``); this is for callers that need the pictures at once."""
+        self._zoom_burst = False
+        if self._document is None or self._document.is_closed or not self._layouts:
+            return
+        visible, first, last = self._visible_span()
         dpr = self._device_pixel_ratio()
         scale = self._render_scale(dpr)
         self._tile_deadline = time.perf_counter() + TILE_BUDGET_S
@@ -1140,13 +1217,7 @@ class _CanvasWidget(QWidget):
             key = RenderKey.make(i, self._zoom, page.rotation, dpr)
             try:
                 if self._cache.get(key) is None:
-                    if full_px <= MAX_PAGE_PIXELS:
-                        self._cache.put(key, self._to_pixmap(self._render_page_rgb(i, scale), dpr))
-                    else:
-                        # low-resolution base for the whole page (shown while tiles are missing)
-                        base = scale * (BASE_PAGE_PIXELS / full_px) ** 0.5
-                        pix = self._to_pixmap(self._render_page_rgb(i, base), 1.0)
-                        self._cache.put(key, pix)
+                    self._render_page_into_cache(i, key, scale, dpr, full_px)
                 if full_px > MAX_PAGE_PIXELS and first <= i <= last:
                     self._render_tiles(i, visible, scale, dpr)
             except Exception:  # noqa: BLE001
@@ -1154,7 +1225,90 @@ class _CanvasWidget(QWidget):
         self._cache.retain_near_pages(self._focus_page, self._retain_radius, lambda k: k.page_index)
         self.update()
         if self._tiles_pending:  # more sharp tiles to draw: continue after this frame is shown
-            QTimer.singleShot(0, self._render_visible)
+            QTimer.singleShot(0, self._render_step)
+
+    def _render_step(self) -> None:
+        """One turn of incremental drawing (see RENDER_STEP_BUDGET_S): visible pages nearest the middle
+        of the view first, then their sharp tiles, then the pages either side (for heavy pages, once
+        scrolling has stopped). Continues on the next turn of the event loop while work is left."""
+        self._zoom_burst = False
+        self._last_step_t = time.perf_counter()
+        if self._document is None or self._document.is_closed or not self._layouts:
+            return
+        now = time.perf_counter()
+        visible, first, last = self._visible_span()
+        dpr = self._device_pixel_ratio()
+        scale = self._render_scale(dpr)
+        deadline = now + RENDER_STEP_BUDGET_S
+        self._tile_deadline = deadline
+        self._tiles_pending = False
+        self._tiles_this_pass = 0
+        scrolling = now - self._last_scroll_t < SCROLL_ACTIVE_S
+        quick = scrolling and self._heavy_document()
+        middle = visible.center().y()
+        order = sorted(range(first, last + 1), key=lambda i: abs(self._layouts[i].center().y() - middle))
+        n = len(self._layouts)
+        nearby = [i for i in (last + 1, first - 1) if 0 <= i < n]
+        work_left = False  # something still to draw that this turn did not reach
+        waiting = False  # a sharp page waits for scrolling to stop
+        did = 0
+        # Pages either side are drawn ahead within the budget (while scrolling through heavy pages:
+        # their quick preview, one per turn when the visible pages need nothing), so a page coming
+        # into view already shows something.
+        ahead = nearby
+        for i in order + ahead:
+            page = self._pages[i]
+            full_px = page.display_width_pt * scale * page.display_height_pt * scale
+            key = RenderKey.make(i, self._zoom, page.rotation, dpr)
+            if self._cache.get(key) is not None or key in self._render_failed:
+                continue
+            if (did or i in ahead) and time.perf_counter() >= deadline:
+                work_left = True
+                break
+            try:
+                if quick and full_px <= MAX_PAGE_PIXELS:
+                    have = self._previews.get(i)
+                    if have is None or have[0] != page.rotation:
+                        rgb = self._render_page_rgb(i, scale * PREVIEW_SCALE)
+                        self._previews[i] = (page.rotation, self._to_pixmap(rgb, 1.0))
+                        self.update(self._layouts[i])
+                        did += 1
+                    waiting = True
+                    continue
+                self._render_page_into_cache(i, key, scale, dpr, full_px)
+                self.update(self._layouts[i])
+                did += 1
+            except Exception:  # noqa: BLE001 — a page that cannot be drawn stays blank
+                # tried once: retrying it every turn kept the window busy for ever (and thumbnails
+                # waiting); it is tried again when its content, the zoom or the document changes
+                self._render_failed.add(key)
+                did += 1
+                continue
+        if not work_left:
+            for i in order:  # sharp tiles of zoomed-in visible pages (budgeted inside)
+                page = self._pages[i]
+                full_px = page.display_width_pt * scale * page.display_height_pt * scale
+                if full_px > MAX_PAGE_PIXELS:
+                    if quick:
+                        waiting = True  # heavy page, scrolling: its low-resolution base shows meanwhile
+                        continue
+                    try:
+                        self._render_tiles(i, visible, scale, dpr)
+                    except Exception:  # noqa: BLE001
+                        continue
+                    self.update(self._layouts[i])
+            work_left = self._tiles_pending
+        self._cache.retain_near_pages(self._focus_page, self._retain_radius, lambda k: k.page_index)
+        keep = range(first - self._retain_radius, last + self._retain_radius + 1)
+        for p in [p for p in self._previews if p not in keep]:
+            del self._previews[p]
+        if work_left:
+            self._render_timer.start(0)
+        elif waiting or (quick and any(self._cache.get(RenderKey.make(
+                i, self._zoom, self._pages[i].rotation, dpr)) is None for i in nearby)):
+            # look again when scrolling has stopped: sharp pages, then the pages either side
+            rest = SCROLL_ACTIVE_S - (time.perf_counter() - self._last_scroll_t)
+            self._render_timer.start(max(1, int(rest * 1000) + 1))
 
     def refresh_page_content(self, pages) -> None:
         """Show what changed on ``pages`` (a highlight, comment or stamp added or removed) without
@@ -1349,6 +1503,12 @@ class _CanvasWidget(QWidget):
                 painter.save()
                 painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
                 painter.drawPixmap(rect, stale[i])
+                painter.restore()
+            elif i in self._previews and self._previews[i][0] == self._pages[i].rotation:
+                # scrolling: the quick small picture, scaled, until the sharp one is rendered
+                painter.save()
+                painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+                painter.drawPixmap(rect, self._previews[i][1])
                 painter.restore()
             self._paint_tiles(painter, i, dpr)
             page_hits = getattr(self, "_highlights_by_page", {}).get(i, ())
@@ -3125,7 +3285,17 @@ class _CanvasWidget(QWidget):
             fsel = self._edit.fields.get(self._edit.field_selection[0])
             if fsel is not None and fsel.page_index == page_index and self._field_resizable(fsel):
                 fwr = self.pdf_rect_to_widget(page_index, fsel.rect)
-                handle = self._hit_handle(event.position().toPoint(), fwr.adjusted(-2, -2, 2, 2)) if fwr else None
+                pos = event.position().toPoint()
+                handle = self._hit_handle(pos, fwr.adjusted(-2, -2, 2, 2)) if fwr else None
+                short = min(fwr.width(), fwr.height()) if fwr else 0
+                if handle and self._edit.tool == EditTool.SELECT and short < 2 * (_HANDLE + 3):
+                    # A small field (under ~18 px on screen): the catch areas of opposite handles met in
+                    # its middle, so the documented second click only "resized" and typing never started.
+                    # Inside it, away from its edge, the click types; the handles work at the edge.
+                    edge = max(1, min(FIELD_HANDLE_EDGE, (short - 2) // 3))
+                    inside = fwr.adjusted(edge, edge, -edge, -edge)
+                    if inside.isValid() and inside.contains(pos):
+                        handle = None
                 if handle:
                     self._mode = "drag_resize"
                     self._resize_handle = handle
@@ -4375,17 +4545,9 @@ class PdfCanvas(QScrollArea):
         self._canvas.set_fit_reference(index)
         self._center_fit_page()
         self.pageChanged.emit(index)
-        # Schedule render for the visible region but keep explicit navigation target.
-        # notify_viewport() derives focus from scroll center and can clobber go_to_page
-        # in small/offscreen viewports or when adjacent pages remain partially visible.
-        visible = QRect(
-            self.horizontalScrollBar().value(),
-            self.verticalScrollBar().value(),
-            max(1, self.viewport().width()),
-            max(1, self.viewport().height()),
-        )
-        self._canvas._schedule_render()
-        _ = visible
+        # Render the visible region but keep the explicit navigation target: notify_viewport() derives
+        # the focus page from the scroll centre and could clobber it when neighbouring pages show.
+        self._canvas._schedule_render()  # noqa: SLF001
 
     def set_zoom_mode(self, mode: ZoomMode) -> None:
         self._canvas.set_zoom_mode(mode, self._fit_size())

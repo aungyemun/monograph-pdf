@@ -26,6 +26,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("MONOGRAPH_PDF_USER_DATA_DIR", tempfile.mkdtemp(prefix="mpdf_fid_"))
+os.environ.setdefault("MONOGRAPH_PDF_UPDATES_DIR", tempfile.mkdtemp(prefix="mpdf_fid_upd_"))  # never the real profile
+os.environ.setdefault("MONOGRAPH_PDF_DIAGNOSTICS_DIR", tempfile.mkdtemp(prefix="mpdf_fid_diag_"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 if sys.platform.startswith("win"):
     os.environ.setdefault("QT_QPA_FONTDIR", os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts"))

@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import copy
-import json
 from enum import Enum
-from pathlib import Path
 from typing import Any, Callable, Iterable
 
 from core.commands import CommandStack

@@ -8,7 +8,6 @@ from core.commands import Command
 from core.editing.geometry import Rect
 from core.editing.text_box import TextBox
 from core.editing.text_layout import apply_layout_to_box
-from core.editing.text_style import TextStyle
 
 if TYPE_CHECKING:
     from core.editing.edit_model import EditableDocument

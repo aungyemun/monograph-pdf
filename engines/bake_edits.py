@@ -10,7 +10,6 @@ import fitz
 from core.editing.edit_model import EditableDocument
 from core.editing.image_box import SAFE_IMAGE_FORMATS
 from core.editing.font_resolver import resolve_font
-from core.editing.text_box import TextAlign, VAlign
 from core.editing.text_layout import layout_text_box
 from core.page_space import rect_to_page
 

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import fitz
 
-from core.document import DocumentError, PasswordRequiredError, PdfDocument, PermissionError_
+from core.document import DocumentError, PasswordRequiredError, PdfDocument
 
 
 @dataclass

@@ -167,7 +167,6 @@ def insert_html_fragment(editor, html: str, px_per_pt: float, base_pt: float) ->
     caller then pastes the plain text).
     """
     from PySide6.QtCore import Qt
-    from PySide6.QtGui import QTextCursor
 
     probe = QTextDocument()
     probe.setHtml(html or "")

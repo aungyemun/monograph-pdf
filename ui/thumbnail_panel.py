@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, QRect, QRectF, QRunnable, QSize, Qt, QThreadPool, Signal, Slot
+import time
+from collections import deque
+from typing import Callable
+
+from PySide6.QtCore import QRect, QRectF, QSize, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -15,40 +19,22 @@ from PySide6.QtWidgets import (
 
 from core.document import PdfDocument
 
-
-class _ThumbSignals(QObject):
-    """One long-lived hub owned by the panel.
-
-    Each job used to own its own signals object; the auto-deleted QRunnable then
-    destroyed it before the queued ``finished`` reached the GUI thread, so most
-    thumbnails silently never appeared.
-    """
-
-    finished = Signal(int, int, QImage)  # page, generation, image
-    failed = Signal(int, int, str)
+THUMB_EDGE_PX = 180  # longest edge of a thumbnail picture
+THUMB_STEP_BUDGET_S = 0.010  # thumbnails drawn per event-loop turn (at least one), then input is handled
+THUMB_BUSY_RETRY_MS = 60  # the page view is scrolling or drawing: thumbnails wait this long and look again
 
 
-class _ThumbJob(QRunnable):
-    def __init__(self, document: PdfDocument, page_index: int, generation: int, hub: _ThumbSignals) -> None:
-        super().__init__()
-        self.document = document
-        self.page_index = page_index
-        self.generation = generation
-        self.hub = hub
-        self.setAutoDelete(True)
+def render_thumbnail_image(document: PdfDocument, page_index: int, max_edge_px: int = THUMB_EDGE_PX) -> QImage:
+    """The thumbnail picture of a page, straight from the renderer's pixels (no PNG round trip).
 
-    def run(self) -> None:
-        try:
-            if self.document.is_closed:
-                self.hub.failed.emit(self.page_index, self.generation, "closed")
-                return
-            png = self.document.render_thumbnail_png(self.page_index, max_edge_px=180)
-            from ui.display_color import to_display
+    Drawn on the GUI thread: PyMuPDF keeps Python's GIL while it renders, so a worker thread froze the
+    window just as long, and the open document was used from two threads at once."""
+    page = document.page(page_index)
+    edge = max(page.display_width_pt, page.display_height_pt) or 1.0
+    samples, w, h, stride = document.render_rgb(page_index, scale=max_edge_px / edge)
+    from ui.display_color import to_display
 
-            image = to_display(QImage.fromData(png, "PNG"))  # monitor colour profile (when not sRGB)
-            self.hub.finished.emit(self.page_index, self.generation, image)
-        except Exception as exc:  # noqa: BLE001
-            self.hub.failed.emit(self.page_index, self.generation, str(exc))
+    return to_display(QImage(samples, w, h, stride, QImage.Format.Format_RGB888).copy())
 
 
 def _pal():
@@ -157,11 +143,15 @@ class ThumbnailPanel(QListWidget):
         self.itemSelectionChanged.connect(self._on_selection_changed)
         self._document: PdfDocument | None = None
         self._generation = 0
+        # Thumbnails waiting to be drawn (front = most wanted) and the pages among them that already
+        # show an older picture (drawn again after a change, kept until the new one is ready).
         self._pending: set[int] = set()
-        self._pool = QThreadPool.globalInstance()
-        self._hub = _ThumbSignals(self)
-        self._hub.finished.connect(self._on_thumb_ready)
-        self._hub.failed.connect(self._on_fail)
+        self._queue: deque[int] = deque()
+        self._refresh: set[int] = set()
+        self._thumb_timer = QTimer(self)
+        self._thumb_timer.setSingleShot(True)
+        self._thumb_timer.timeout.connect(self._thumb_step)
+        self._busy_probe: Callable[[], bool] | None = None
         self._reorder_enabled = True
         self.verticalScrollBar().valueChanged.connect(self._schedule_visible)
         self._context_actions: list = []
@@ -206,9 +196,17 @@ class ThumbnailPanel(QListWidget):
         )
         self.setDragDropMode(mode)
 
+    def set_busy_probe(self, probe: Callable[[], bool] | None) -> None:
+        """``probe()`` is True while the page view is scrolling or drawing: thumbnails then wait, so
+        they never take turns away from the pages being looked at."""
+        self._busy_probe = probe
+
     def clear_document(self) -> None:
         self._generation += 1
         self._pending.clear()
+        self._queue.clear()
+        self._refresh.clear()
+        self._thumb_timer.stop()
         self._document = None
         self.clear()
 
@@ -230,13 +228,34 @@ class ThumbnailPanel(QListWidget):
 
     def refresh_pages(self, indices) -> None:
         """Redraw the thumbnails of ``indices`` (content changed); each keeps its old picture until
-        the new one is ready, and the other thumbnails are left alone."""
+        the new one is ready, and the other thumbnails are left alone. Thumbnails far from the view
+        only forget their picture (drawn again when scrolled to): refreshing every page of a long
+        document used to queue thousands of renders at once."""
         if self._document is None or self._document.is_closed:
             return
-        for i in {int(i) for i in indices}:
-            if 0 <= i < self.count() and i not in self._pending:
-                self._pending.add(i)
-                self._pool.start(_ThumbJob(self._document, i, self._generation, self._hub))
+        if not self.isVisible():
+            # hidden (another left-panel tab): which rows are in view is not known; forget the pictures,
+            # they are drawn again when the panel is shown
+            for i in {int(i) for i in indices}:
+                item = self.item(i) if 0 <= i < self.count() else None
+                if item is not None and not item.icon().isNull():
+                    item.setIcon(QIcon())
+            return
+        start, end = self._visible_rows()
+        near = range(max(0, start - 8), end + 9)
+        for i in sorted({int(i) for i in indices}):
+            if not 0 <= i < self.count():
+                continue
+            item = self.item(i)
+            if i in near:
+                self._refresh.add(i)
+                self._enqueue(i, front=True)
+            elif item is not None and not item.icon().isNull():
+                item.setIcon(QIcon())
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        QTimer.singleShot(0, self._schedule_visible)  # after the layout: the rows really in view
 
     def _visible_rows(self) -> tuple[int, int]:
         viewport = self.viewport().rect()
@@ -305,25 +324,93 @@ class ThumbnailPanel(QListWidget):
         last = self.indexAt(viewport.bottomLeft())
         start = first.row() if first.isValid() else 0
         end = last.row() if last.isValid() else min(self.count() - 1, start + 8)
-        for i in range(max(0, start - 2), min(self.count(), end + 6)):
-            self._request(i)
+        wanted = [i for i in range(max(0, start - 2), min(self.count(), end + 6))]
+        # visible rows first, in order, ahead of anything queued for rows scrolled away from
+        for i in reversed(wanted):
+            self._request(i, front=True)
 
-    def _request(self, page_index: int) -> None:
-        if self._document is None or page_index in self._pending:
+    def _request(self, page_index: int, *, front: bool = False) -> None:
+        if self._document is None:
             return
         item = self.item(page_index)
-        if item is None:
+        if item is None or not item.icon().isNull():
             return
-        if not item.icon().isNull():
+        self._enqueue(page_index, front=front)
+
+    def _enqueue(self, page_index: int, *, front: bool) -> None:
+        if page_index in self._pending:
+            if front:
+                try:
+                    self._queue.remove(page_index)
+                except ValueError:
+                    pass
+                self._queue.appendleft(page_index)
+        else:
+            self._pending.add(page_index)
+            if front:
+                self._queue.appendleft(page_index)
+            else:
+                self._queue.append(page_index)
+        if not self._thumb_timer.isActive():
+            self._thumb_timer.start(0)
+
+    def _thumb_step(self) -> None:
+        """Draw queued thumbnails for about one frame (at least one), then let input be handled."""
+        doc = self._document
+        if doc is None or doc.is_closed:
+            self._queue.clear()
+            self._pending.clear()
+            self._refresh.clear()
             return
-        self._pending.add(page_index)
-        self._pool.start(_ThumbJob(self._document, page_index, self._generation, self._hub))
+        probe = self._busy_probe
+        if probe is not None:
+            try:
+                busy = bool(probe())
+            except Exception:  # noqa: BLE001 — never let a probe stop the thumbnails
+                busy = False
+            if busy:
+                self._thumb_timer.start(THUMB_BUSY_RETRY_MS)
+                return
+        if not self.isVisible():
+            # nothing is seen: drawn when the panel is shown (showEvent); a changed page forgets its
+            # old picture so it is not shown out of date then
+            for i in self._refresh:
+                item = self.item(i)
+                if item is not None:
+                    item.setIcon(QIcon())
+            self._queue.clear()
+            self._pending.clear()
+            self._refresh.clear()
+            return
+        start, end = self._visible_rows()
+        keep = range(max(0, start - 12), end + 13)
+        deadline = time.perf_counter() + THUMB_STEP_BUDGET_S
+        generation = self._generation
+        while self._queue:
+            i = self._queue.popleft()
+            refresh = i in self._refresh
+            self._refresh.discard(i)
+            self._pending.discard(i)
+            item = self.item(i)
+            if item is None or (not refresh and (not item.icon().isNull() or i not in keep)):
+                continue  # already drawn, or scrolled far away: drawn when it is shown again
+            try:
+                image = render_thumbnail_image(doc, i)
+            except Exception as exc:  # noqa: BLE001
+                self._on_fail(i, generation, str(exc))
+            else:
+                self._on_thumb_ready(i, generation, image)
+            if self._generation != generation or self._document is not doc:
+                return  # the document changed while drawing
+            if time.perf_counter() >= deadline:
+                break
+        if self._queue:
+            self._thumb_timer.start(0)
 
     @Slot(int, int, QImage)
     def _on_thumb_ready(self, page_index: int, generation: int, image: QImage) -> None:
         if generation != self._generation:
             return
-        self._pending.discard(page_index)
         if self._document is None or self._document.is_closed or image.isNull():
             return
         item = self.item(page_index)
