@@ -7,7 +7,7 @@ convert and protect PDFs on your own computer — no account, no cloud, no telem
 
 [Download](https://github.com/aungyemun/monograph-pdf/releases) ·
 [Installation](INSTALLATION.md) · [User guide](docs/USER_GUIDE.md) ·
-[Documentation](docs/README.md) · [Contributing](CONTRIBUTING.md)
+[Documentation](docs/README.md) · [Cite](docs/CITATION.md) · [Contributing](CONTRIBUTING.md)
 
 ![Monograph PDF workspace with bookmarks and document properties](docs/images/monograph-pdf-ui.png)
 
@@ -111,5 +111,5 @@ Third-party components keep their own licenses: see [notices](THIRD_PARTY_NOTICE
 [dependency inventory](licenses/DEPENDENCY_INVENTORY.md). Which source archives each release
 includes is listed in [LICENSE.md](LICENSE.md#source-code).
 
-To cite Monograph PDF, use [CITATION.cff](CITATION.cff) with the platform and release tag.
+To cite Monograph PDF, choose one of the [four copyable citations](docs/CITATION.md): universal, Windows, macOS, or Linux. GitHub's built-in citation uses the universal [CITATION.cff](CITATION.cff).
 History: [CHANGELOG.md](CHANGELOG.md).
