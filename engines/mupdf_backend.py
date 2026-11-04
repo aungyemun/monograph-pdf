@@ -427,9 +427,13 @@ class MuPdfBackend:
         encrypt = (
             fitz.PDF_ENCRYPT_KEEP if (self._doc.is_encrypted or self._has_security) else fitz.PDF_ENCRYPT_NONE
         )
-        # Always write a full new file (not an in-place incremental edit of the source).
-        self._doc.save(
-            destination.as_posix(),
+        # Always write a full new file (not an in-place incremental edit of the source); an existing
+        # file is replaced only once the new one is complete.
+        from core.safe_write import save_pdf_atomic
+
+        save_pdf_atomic(
+            self._doc,
+            destination,
             garbage=3,
             deflate=True,
             encryption=encrypt,

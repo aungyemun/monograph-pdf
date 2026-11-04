@@ -356,7 +356,9 @@ def extract_pages(
             out.insert_pdf(d, from_page=p, to_page=p)
         destination = Path(destination)
         destination.parent.mkdir(parents=True, exist_ok=True)
-        out.save(destination.as_posix(), garbage=3, deflate=True)
+        from core.safe_write import save_pdf_atomic
+
+        save_pdf_atomic(out, destination, garbage=3, deflate=True)  # an existing file is replaced only when complete
     finally:
         out.close()
     return destination

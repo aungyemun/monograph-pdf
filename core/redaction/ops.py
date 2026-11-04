@@ -310,8 +310,11 @@ def apply_redactions_report(document: PdfDocument, destination: Path) -> Redacti
             page.apply_redactions(images=2, graphics=2, text=0)
 
     document.invalidate_pages()
-    src.save(
-        destination.as_posix(),
+    from core.safe_write import save_pdf_atomic
+
+    save_pdf_atomic(
+        src,
+        destination,
         garbage=4,
         deflate=True,
         encryption=fitz.PDF_ENCRYPT_KEEP if _is_protected(src) else fitz.PDF_ENCRYPT_NONE,

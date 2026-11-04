@@ -155,8 +155,11 @@ def apply_password_protection(
         # Only an open password: that password also grants full rights.
         owner = settings.owner_password or settings.user_password
         user = settings.user_password
-        doc.save(
-            destination.as_posix(),
+        from core.safe_write import save_pdf_atomic
+
+        save_pdf_atomic(
+            doc,
+            destination,
             encryption=settings.encryption_constant(),
             user_pw=user,
             owner_pw=owner,
@@ -210,8 +213,11 @@ def remove_password_protection(
         # Save the authenticated document itself (not a page copy) so form fields,
         # bookmarks, links, attachments and metadata are all kept.
         source = content._backend._doc if content is not None else probe  # noqa: SLF001
-        source.save(
-            destination.as_posix(),
+        from core.safe_write import save_pdf_atomic
+
+        save_pdf_atomic(
+            source,
+            destination,
             encryption=fitz.PDF_ENCRYPT_NONE,
             garbage=3,
             deflate=True,

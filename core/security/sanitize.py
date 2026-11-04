@@ -367,6 +367,8 @@ def _write_clean(src: fitz.Document, destination: Path, options: SanitizeOptions
             thumbnails=False,
             xml_metadata=options.metadata,
         )
-        doc.save(destination.as_posix(), garbage=4, deflate=True, encryption=fitz.PDF_ENCRYPT_NONE)
+        from core.safe_write import save_pdf_atomic
+
+        save_pdf_atomic(doc, destination, garbage=4, deflate=True, encryption=fitz.PDF_ENCRYPT_NONE)
     finally:
         doc.close()

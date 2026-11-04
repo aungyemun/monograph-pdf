@@ -267,8 +267,9 @@ def save_copy(doc: fitz.Document, destination: Path, **kwargs) -> Path:
     kwargs.setdefault("garbage", 3)
     kwargs.setdefault("deflate", True)
     kwargs["encryption"] = fitz.PDF_ENCRYPT_KEEP if is_protected(doc) else fitz.PDF_ENCRYPT_NONE
-    doc.save(destination.as_posix(), **kwargs)
-    return destination
+    from core.safe_write import save_pdf_atomic
+
+    return save_pdf_atomic(doc, destination, **kwargs)  # an existing file is replaced only when complete
 
 
 def copy_file_exactly(document, destination: Path) -> Path:

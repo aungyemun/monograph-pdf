@@ -572,9 +572,17 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
         import uuid
 
         final = Path(destination)
+        from core.safe_write import refuse_read_only
+
+        refuse_read_only(final)  # os.replace would replace a read-only file on Linux and macOS
         part = final.with_name(f".{final.stem}.{uuid.uuid4().hex[:8]}.part") if final.exists() else final
         try:
             doc.save(part.as_posix(), garbage=3, deflate=True, encryption=encrypt, incremental=False)
+            from core.safe_write import flush_to_disk
+
+            # Flushed in both cases: Save writes a new temporary file here and the caller then swaps it
+            # over the open file, so an unflushed new file would be swapped in too.
+            flush_to_disk(part)
             if part != final:
                 os.replace(part, final)
         except BaseException:

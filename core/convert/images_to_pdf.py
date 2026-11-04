@@ -150,7 +150,9 @@ def images_to_pdf(
                         imgpdf.close()
             finally:
                 img.close()
-        doc.save(destination.as_posix(), garbage=3, deflate=True)
+        from core.safe_write import save_pdf_atomic
+
+        save_pdf_atomic(doc, destination, garbage=3, deflate=True)  # never a partial file
     finally:
         doc.close()
     return destination
