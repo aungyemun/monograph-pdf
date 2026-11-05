@@ -29,7 +29,13 @@ opening of large, picture-heavy PDFs. Linux 0.1.1 and macOS 0.1.1 are unchanged.
   marked but not yet redacted is copied with a note that it is still in the document; pages without
   text (scans) say so, and no OCR is started. Page text is read only for the pages selected on
   (cached for up to 24 pages). Combining accents stay with their letter; no spaces are added between
-  Japanese characters; right-to-left and vertical text keep the order stored in the PDF.
+  Japanese characters. Text is selected and copied in **visual reading order** — lines top to bottom,
+  columns of running text one after another, tables and label/value rows row by row, turned pages in
+  their direction — not in the order the PDF stores it (RC2: a drag across lines stored out of order,
+  e.g. a line replaced and saved in Monograph PDF, skipped lines or selected nothing in RC1).
+  Replaced text that is not saved yet is selected and copied as shown, never the hidden original
+  (RC2). Right-to-left and vertical text, and pages mixing writing directions, keep the order stored
+  in the PDF; complex layouts are ordered by simple rules, not reconstructed.
 - Copying text boxes with **Select** also puts their text on the system clipboard for other
   programs; Paste inside Monograph PDF still pastes the boxes themselves.
 - When a PDF is opened, temporary files that an interrupted save of that PDF left in its folder are

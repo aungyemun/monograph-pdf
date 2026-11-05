@@ -54,8 +54,11 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
 - **Select Text** (`S`) selects existing page text by dragging (character by character, across lines
   and pages, at any zoom and page rotation), double-click (word) and triple-click (paragraph), and
   copies it as plain Unicode text (`Ctrl+C`, right-click ▸ Copy); `Ctrl+A` selects the page's text.
-  Selecting never changes the PDF, respects the PDF's copy permission and never runs OCR. Japanese is
-  copied without added spaces; right-to-left and vertical text keep the PDF's stored order.
+  Selecting never changes the PDF, respects the PDF's copy permission and never runs OCR. Text is
+  selected in visual reading order (lines top to bottom, columns of running text one after another,
+  tables row by row), whatever order the PDF stores it in; replaced text that is not saved yet is
+  selected as shown. Japanese is copied without added spaces; right-to-left and vertical text keep the
+  PDF's stored order, and complex layouts are ordered by simple rules, not reconstructed.
   **Select** (`V`) and **Edit ▸ Copy** still copy text boxes, shapes and pictures you added.
 - **Color picker** for every color: color field and hue strip, current and new color, Hex / color
   name and R G B, standard and recent colors, **Pick from Screen**, and the contrast on white paper for

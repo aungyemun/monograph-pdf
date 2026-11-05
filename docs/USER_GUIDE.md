@@ -84,8 +84,10 @@ use **Select** (`V`); to turn scanned pages into text, use **OCR**.)
 - **Shift+click** extends the selection to the click; **Shift+Left arrow** / **Shift+Right arrow** by one character
 - **Ctrl+C** or right-click ▸ **Copy** copies the selection as plain text; **Ctrl+A** selects all text
   of the current page; **Esc** clears the selection
-- The text is copied in the order it is stored in the PDF (usually the reading order; for unusual
-  layouts the original order is kept rather than guessed). Lines end with a line break, pages are
+- The text is selected and copied in the order you read it on the page, not in the order the PDF
+  happens to store it: lines from top to bottom and left to right; two (or more) columns of running
+  text column by column; tables, forms and label/value rows row by row; turned pages in their turned
+  direction. Lines end with a line break, pages are
   separated by a blank line. Only spaces that are in the PDF are copied, plus a space between words
   the PDF places apart without one — never between Japanese characters
 - Scanned pages have no text to select until **OCR ▸ Make Searchable PDF…** has added a text layer;
@@ -93,10 +95,17 @@ use **Select** (`V`); to turn scanned pages into text, use **OCR**.)
 - A PDF whose permissions forbid copying asks for its permissions password; without it nothing is
   copied. Text in an area **marked** for redaction is still in the document until
   **Protect ▸ Apply Redactions…**; it is copied, and the status bar says so
+- Existing text you have **replaced** but not yet saved is selected and copied as it is shown (the
+  new text, never the hidden original); Undo and Redo change it back and forth. Text boxes you
+  **added** are not page text until you save: copy them with **Select** (`V`) and **Edit ▸ Copy**
 - Copying text boxes you added (with **Select**) also puts their text on the clipboard for other
   programs; **Paste** inside Monograph PDF still pastes the text boxes themselves
-- Limits: right-to-left and vertical Japanese text are copied in the order the PDF stores them;
-  characters the PDF has no Unicode mapping for cannot be copied correctly (they come out as the PDF
+- Limits: right-to-left and vertical Japanese text are not put into reading order — they are copied
+  in the order the PDF stores them, as is any page whose lines run in different directions.
+  Complex layouts (text wrapped around pictures, side boxes inside columns, columns with headings
+  that span only some of them, very uneven tables) are ordered by the rules above and can come out
+  in an order that differs from the intended one; the highlight shows exactly what is selected.
+  Characters the PDF has no Unicode mapping for cannot be copied correctly (they come out as the PDF
   defines them, often as � or wrong letters)
 
 ## Password-protected PDFs
