@@ -9,6 +9,7 @@ Monograph PDF views, edits, organizes, converts, protects and signs PDF document
 - [Getting started](#getting-started)
 - [The Monograph PDF window](#the-monograph-pdf-window)
 - [Viewing](#viewing)
+- [Selecting and copying page text](#selecting-and-copying-page-text)
 - [Password-protected PDFs](#password-protected-pdfs)
 - [Saving](#saving)
 - [Editing](#editing)
@@ -67,6 +68,37 @@ Images and Office files open as a new unsaved PDF; the original is never changed
 
 The **Bookmarks** tab of the Navigation panel lists the document outline; click a bookmark to go to its page. The buttons above the list (also on the right-click menu) add, rename (F2), point at the current page, move up or down, and delete (Del) bookmarks. **Insert ▸ Bookmark for This Page…** (Ctrl+B) adds one for the page you are viewing, suggesting the first line of the page as its title. Deleting a bookmark also deletes the bookmarks under it (you are asked first). Bookmark changes are undoable and are saved with **File ▸ Save**. Bookmarks that open web pages keep working when you edit others.
 
+## Selecting and copying page text
+
+**Select Text** (toolbar button with the I-beam icon, **Edit ▸ Select Page Text**, key `S`) selects the text that is already on the
+pages and copies it to the clipboard, for pasting into Notepad, Word, a browser or an e-mail. It does
+not change the PDF: selecting and copying never mark the document as modified. (To *change* existing
+text, double-click it with the **Select** tool; to select text boxes, shapes and pictures you added,
+use **Select** (`V`); to turn scanned pages into text, use **OCR**.)
+
+- **Drag** over the text: the selection follows the characters, over several lines and paragraphs
+  and across pages (the view scrolls when you hold the pointer above or below it). It works at every
+  zoom and on rotated pages
+- **Double-click** selects a word — in Japanese, a run of Kanji, Hiragana or Katakana (Japanese has
+  no spaces, so this is an approximation of a word); **triple-click** selects the paragraph
+- **Shift+click** extends the selection to the click; **Shift+Left arrow** / **Shift+Right arrow** by one character
+- **Ctrl+C** or right-click ▸ **Copy** copies the selection as plain text; **Ctrl+A** selects all text
+  of the current page; **Esc** clears the selection
+- The text is copied in the order it is stored in the PDF (usually the reading order; for unusual
+  layouts the original order is kept rather than guessed). Lines end with a line break, pages are
+  separated by a blank line. Only spaces that are in the PDF are copied, plus a space between words
+  the PDF places apart without one — never between Japanese characters
+- Scanned pages have no text to select until **OCR ▸ Make Searchable PDF…** has added a text layer;
+  Monograph PDF never runs OCR by itself. The status bar says when a page has no selectable text
+- A PDF whose permissions forbid copying asks for its permissions password; without it nothing is
+  copied. Text in an area **marked** for redaction is still in the document until
+  **Protect ▸ Apply Redactions…**; it is copied, and the status bar says so
+- Copying text boxes you added (with **Select**) also puts their text on the clipboard for other
+  programs; **Paste** inside Monograph PDF still pastes the text boxes themselves
+- Limits: right-to-left and vertical Japanese text are copied in the order the PDF stores them;
+  characters the PDF has no Unicode mapping for cannot be copied correctly (they come out as the PDF
+  defines them, often as � or wrong letters)
+
 ## Password-protected PDFs
 
 The **Protected PDF** dialog asks for the password (never stored in recent files, recovery data or logs).
@@ -89,7 +121,7 @@ The **Protected PDF** dialog asks for the password (never stored in recent files
 Opening a PDF never changes it. Edits are written only when you save.
 
 - **Insert ▸ Text Box** (`T`); shapes from the Shape ▾ button
-- Tool keys: `V` Select · `T` Text Box · `I` Image · `R` Rectangle · `E` Ellipse · `L` Line · `A` Arrow · `P` Freehand · `H` Highlight · `Shift+E` Eraser · `U` Underline · `K` Strikethrough · `N` Sticky Note
+- Tool keys: `V` Select · `S` Select Text · `T` Text Box · `I` Image · `R` Rectangle · `E` Ellipse · `L` Line · `A` Arrow · `P` Freehand · `H` Highlight · `Shift+E` Eraser · `U` Underline · `K` Strikethrough · `N` Sticky Note
 - The **context toolbar** and **Properties panel**: font, size, wrapping, box sizing and color
 - The font box lists the fonts installed on your PC plus the fonts that come with Monograph PDF (Noto Sans, Noto Serif, Noto Sans CJK JP). One click opens the list; type a few letters to find a font
 - Double-click a text box to type in it. Select a shape to change its **Line** and **Fill** color on the context toolbar
@@ -120,7 +152,7 @@ Opening a PDF never changes it. Edits are written only when you save.
 The OCR engine and English / Japanese language data ship with the app and work offline. Other languages are added only when you ask (see OCR Languages below).
 
 - **OCR ▸ Make PDF Editable…** (summary before conversion)
-- **OCR ▸ OCR Whole Document…**, **OCR ▸ OCR Current Page…**, **OCR ▸ Make Searchable PDF…** — each saves a searchable copy under a name you choose (the open document is not changed); open the copy to search its text. Selecting and copying page text with the mouse is not available in Monograph PDF yet — to get the text out, use **Convert ▸ PDF to Text…**, **OCR ▸ Extract Text (OCR)…** (with **Copy**), or another PDF reader
+- **OCR ▸ OCR Whole Document…**, **OCR ▸ OCR Current Page…**, **OCR ▸ Make Searchable PDF…** — each saves a searchable copy under a name you choose (the open document is not changed); open the copy to search, select and copy its text (see [Selecting and copying page text](#selecting-and-copying-page-text))
 - Low-certainty words are marked in amber; Cancel stops after the current page
 - **OCR ▸ Recognize Text in Area…** (drag a rectangle) and **OCR ▸ Extract Text (OCR)…**: the recognised text can be corrected, copied, or saved as a text file or Word document; **OCR ▸ Scanned PDF to Word (OCR)…**
 - Rotated and upside-down scans are handled; running OCR again never adds a second text layer
@@ -238,10 +270,10 @@ discards it. The app itself sends nothing.
 | :--- | :--- |
 | File | Ctrl+O · Ctrl+S · Ctrl+Shift+S · Ctrl+W · Ctrl+P · Ctrl+, (Settings) · Ctrl+Q |
 | Document tabs | Ctrl+Tab (next) · Ctrl+Shift+Tab (previous) · Ctrl+W or Ctrl+F4 (close tab) |
-| Edit | Ctrl+Z · Ctrl+Y · Ctrl+X/C/V · Del · Ctrl+A · Ctrl+Alt+C (copy page as picture) |
+| Edit | Ctrl+Z · Ctrl+Y · Ctrl+X/C/V · Del · Ctrl+A · Ctrl+Alt+C (copy page as picture); with **Select Text**: Ctrl+C copies the selected page text, Ctrl+A selects the page's text, Esc clears |
 | Insert | Ctrl+B (bookmark for this page) |
 | View | Ctrl+1 / 2 / 0 · Ctrl+= / − · Ctrl+F · F8 · F9 · F11 · Ctrl+Shift+L (automatic scrolling) · mouse wheel button (scroll button) · Ctrl+/ |
-| Tools | V Select · T Text · H Highlight · Shift+E Eraser · I Image · … |
+| Tools | V Select · S Select Text · T Text · H Highlight · Shift+E Eraser · I Image · … |
 
 Full list: **Help ▸ Keyboard Shortcuts**.
 

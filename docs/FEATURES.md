@@ -51,9 +51,12 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
   underline, strikethrough and ink annotations; it never removes original page content. Creating
   and erasing markup can be undone.
 - **Edit ▸ Copy Page as Picture** (`Ctrl+Alt+C`) copies the page as shown at 150 dpi.
-- Selecting and copying existing page text with the mouse is **not available yet**: **Edit ▸ Copy**
-  (`Ctrl+C`) copies selected text boxes, shapes and pictures. To get page text out, use
-  **Convert ▸ PDF to Text…** or **OCR ▸ Extract Text (OCR)…**.
+- **Select Text** (`S`) selects existing page text by dragging (character by character, across lines
+  and pages, at any zoom and page rotation), double-click (word) and triple-click (paragraph), and
+  copies it as plain Unicode text (`Ctrl+C`, right-click ▸ Copy); `Ctrl+A` selects the page's text.
+  Selecting never changes the PDF, respects the PDF's copy permission and never runs OCR. Japanese is
+  copied without added spaces; right-to-left and vertical text keep the PDF's stored order.
+  **Select** (`V`) and **Edit ▸ Copy** still copy text boxes, shapes and pictures you added.
 - **Color picker** for every color: color field and hue strip, current and new color, Hex / color
   name and R G B, standard and recent colors, **Pick from Screen**, and the contrast on white paper for
   text colors.

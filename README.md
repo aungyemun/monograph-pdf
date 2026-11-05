@@ -33,7 +33,7 @@ Windows ARM, Intel Macs and mobile devices have not been tested.
 
 | Area | What you can do |
 | :--- | :--- |
-| View and annotate | Search, thumbnails, bookmarks, comments, highlights, shapes, print preview |
+| View and annotate | Search, select and copy page text (Windows 0.6.0+), thumbnails, bookmarks, comments, highlights, shapes, print preview |
 | Edit and forms | Edit text and images, add text boxes, fill, design and flatten forms |
 | Organize | Merge, split, insert, delete, rotate, crop and reorder pages |
 | Page design | Headers, footers, page numbers, Bates numbering, watermarks, backgrounds |

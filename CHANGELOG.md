@@ -11,13 +11,55 @@ platform-specific release tags — GitHub’s repository-wide “Latest” badge
 | macOS | **[0.1.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-macos)** (`v0.1.1-macos`) | Working bundled OCR, native integration, guided installers; ad-hoc signed (not notarized) |
 | Linux | **[0.1.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-linux)** (`v0.1.1-linux`) | First published Linux release (0.1.0 was never published); GPG-signed |
 
-## [Unreleased]
+## [0.6.0] — Unreleased
 
-Windows line. Smoothness of scrolling and opening in large, picture-heavy PDFs, and typing in small
-form fields. Found by an audit with generated 220-page photo, 1,500-page report and 120-page colour
-scan documents (385–449 MB) driven by real wheel and scroll-bar input.
+Release candidate, not published. Windows line. Selecting and copying existing page text; saves that keep unsaved changes when they
+fail, never damage an existing file and keep its attributes and permissions; smoother scrolling and
+opening of large, picture-heavy PDFs. Linux 0.1.1 and macOS 0.1.1 are unchanged.
+
+### Added
+
+- **Select Text** tool (toolbar, **Edit ▸ Select Page Text**, key `S`): select existing page text by
+  dragging — character by character, over lines, paragraphs and pages, at any zoom and on rotated
+  pages — double-click a word (Japanese: a run of Kanji, Hiragana or Katakana), triple-click a
+  paragraph, Shift+click / Shift+← → to extend, Esc to clear, Ctrl+A for the page's text. Ctrl+C and
+  right-click ▸ Copy put plain Unicode text on the clipboard. The selection is drawn over the page
+  and never written into the PDF; selecting does not mark the document as modified. Copying respects
+  the PDF's copy permission (asks for the permissions password, never bypasses it); text in an area
+  marked but not yet redacted is copied with a note that it is still in the document; pages without
+  text (scans) say so, and no OCR is started. Page text is read only for the pages selected on
+  (cached for up to 24 pages). Combining accents stay with their letter; no spaces are added between
+  Japanese characters; right-to-left and vertical text keep the order stored in the PDF.
+- Copying text boxes with **Select** also puts their text on the system clipboard for other
+  programs; Paste inside Monograph PDF still pastes the boxes themselves.
+- When a PDF is opened, temporary files that an interrupted save of that PDF left in its folder are
+  listed (only Monograph PDF's own names for that document, not changed for 10 minutes). Nothing is
+  deleted unless you choose **Move to Recycle Bin**; a complete PDF among them is marked as such.
 
 ### Fixed
+
+- **A failed Save lost annotations, page changes and form values** although the window said "Your
+  changes are still here" (the document was reopened from the unchanged file when the file could not
+  be replaced, e.g. because another program had it open). The open document is now kept in memory
+  with every change; saving again after closing the other program writes everything.
+- **A failed export destroyed the existing file.** Apply Redaction, Remove Hidden Information,
+  Protect, Remove Password, Extract Pages, Images to PDF and copies wrote straight onto the chosen
+  file; a write that failed part-way (full disk, drive removed) left a truncated PDF. They now write a
+  temporary file beside it, flush it and swap it in only when complete.
+- **Save flushed nothing before replacing the open file** (only Save As onto an existing file was
+  flushed). Every file is now written to the disk before it replaces the original. (This narrows,
+  but does not close, the window in which a power cut could leave a partial file.)
+- **Read-only files**: on Linux and macOS writing through a temporary file replaced read-only files;
+  Save of an open file that had become read-only replaced it there too, and on Windows reported it
+  after 4.5 s as "open in another program". Read-only files are now refused at once, naming the cause.
+- **Replacing a file dropped its attributes and permissions**: on Windows the Hidden attribute and
+  explicit access-control entries were lost, on Linux/macOS the permission bits. Save, Save As and
+  exports now keep them (Windows ReplaceFileW for files in the same folder; permission bits on
+  Linux/macOS — ownership, extended attributes and POSIX ACLs are not copied).
+- Save errors (full disk, permissions) are reported in plain words instead of Python's text naming
+  an internal temporary file.
+- **Apply Redaction ignored the "edit" permission** of a password-protected PDF; it now asks for the
+  permissions password like every other command that writes changed content.
 
 - **Dragging the scroll bar or jumping pages in a picture-heavy PDF froze the window** for up to
   0.27 s per jump (16 and 19 freezes over 0.1 s in the photo and scan test runs). Every visible page
