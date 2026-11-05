@@ -527,7 +527,8 @@ def test_selection_geometry_at_200_percent_display_scaling(tmp_path):
 
     script = tmp_path / "scaled.py"
     script.write_text(textwrap.dedent(f"""
-        import os, sys
+        import faulthandler, os, sys
+        faulthandler.dump_traceback_later(60, exit=True)  # a hang prints where it is and ends the process
         sys.path.insert(0, {str(Path(__file__).resolve().parents[2])!r})
         os.environ["QT_SCALE_FACTOR"] = "2"
         for n in ("RUNTIME_DIR", "UPDATES_DIR", "DIAGNOSTICS_DIR", "USER_DATA_DIR"):
@@ -561,6 +562,16 @@ def test_selection_geometry_at_200_percent_display_scaling(tmp_path):
         os._exit(0)
     """), encoding="utf-8")
     env = dict(os.environ, QT_QPA_PLATFORM="offscreen", MONOGRAPH_PDF_HEADLESS="1")
-    out = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, timeout=120, env=env)
-    assert "TEXT SCALEDWORD" in out.stdout, out.stdout + out.stderr
-    assert "DPR 2.0" in out.stdout, out.stdout
+    log = tmp_path / "scaled.log"
+    # output into a file, not a pipe: a pipe kept open by anything the child started could block reading
+    with open(log, "w", encoding="utf-8") as fh:
+        proc = subprocess.Popen([sys.executable, str(script)], stdout=fh, stderr=subprocess.STDOUT, env=env)
+        try:
+            proc.wait(timeout=90)
+        except subprocess.TimeoutExpired:  # never hang the whole test run
+            proc.kill()
+            proc.wait(timeout=10)
+            pytest.fail("the scaled window did not finish: " + log.read_text(encoding="utf-8", errors="replace"))
+    text = log.read_text(encoding="utf-8", errors="replace")
+    assert "TEXT SCALEDWORD" in text, text
+    assert "DPR 2.0" in text, text
