@@ -539,31 +539,97 @@ def visual_order(pt: PageText) -> PageText:
     return out
 
 
+def compose(base: PageText, removals, extra: list[PageText]) -> PageText:
+    """``base`` (stored order) without the characters that overlap a display-space rectangle of
+    ``removals`` (x0, y0, x1, y1), followed by the lines of ``extra``: the text a page shows while
+    replacements of existing text are not saved yet (see ``engines/visible_text.py``)."""
+    out = PageText(page_index=base.page_index)
+    rects = [tuple(r) for r in removals]
+
+    def hidden(g: Glyph) -> bool:
+        return any(g.x0 < r[2] and r[0] < g.x1 and g.y0 < r[3] and r[1] < g.y1 for r in rects)
+
+    def add(lines_glyphs, block, dx, dy) -> None:
+        if not lines_glyphs:
+            return
+        li, start = len(out.lines), len(out.glyphs)
+        for g in lines_glyphs:
+            out.glyphs.append(Glyph(g.text, g.x0, g.y0, g.x1, g.y1, li, block, g.size))
+        gs = out.glyphs[start:]
+        out.lines.append(Line(block=block, start=start, end=len(out.glyphs), x0=min(g.x0 for g in gs),
+                              y0=min(g.y0 for g in gs), x1=max(g.x1 for g in gs), y1=max(g.y1 for g in gs),
+                              dx=dx, dy=dy))
+
+    top = -1
+    for ln in base.lines:
+        add([g for g in base.glyphs[ln.start:ln.end] if not hidden(g)], ln.block, ln.dx, ln.dy)
+        top = max(top, ln.block)
+    for part in extra:
+        offset = top + 1
+        for ln in part.lines:
+            add(part.glyphs[ln.start:ln.end], offset + ln.block, ln.dx, ln.dy)
+            top = max(top, offset + ln.block)
+    return out
+
+
 class PageTextCache:
     """Per-page text, extracted only when a page is selected on and kept for the most recent
     ``max_pages`` pages. Keyed by page index, the page object's xref and its rotation, so a moved,
     rotated or replaced page is extracted again; :meth:`invalidate` forgets pages whose content
-    changed."""
+    changed.
+
+    ``overlay`` (optional) supplies unsaved edits that change what a page shows (replaced existing
+    text): ``overlay.signature(doc, page)`` is cheap and ``None`` when the page has none;
+    ``overlay.contribution(doc, page)`` returns ``(removal_rects, [PageText, …])``. The page is read
+    from the PDF once; only the composition is rebuilt when the signature changes. ``version`` and
+    :meth:`changed_since` let a selection notice that the text under it changed."""
 
     def __init__(self, max_pages: int = 24) -> None:
         self.max_pages = max_pages
-        self._items: OrderedDict[int, tuple[tuple, PageText]] = OrderedDict()
+        # page -> (key, signature, stored-order text, text as shown in reading order)
+        self._items: OrderedDict[int, tuple[tuple, object, PageText, PageText]] = OrderedDict()
         self.extractions = 0  # for tests and measurements
+        self.overlay = None
+        self.version = 0
+        self._changed: dict[int, int] = {}
 
     def get(self, doc: fitz.Document, page_index: int) -> PageText:
         page = doc.load_page(page_index)
         key = (int(doc.page_xref(page_index)), int(page.rotation))
+        sig = None
+        if self.overlay is not None:
+            try:
+                sig = self.overlay.signature(doc, page_index)
+            except Exception:  # noqa: BLE001 — never stands in the way of selecting the page's own text
+                sig = None
         hit = self._items.get(page_index)
-        if hit is not None and hit[0] == key:
+        if hit is not None and hit[0] == key and hit[1] == sig:
             self._items.move_to_end(page_index)
-            return hit[1]
-        text = extract_page_text(page, page_index)
-        self.extractions += 1
-        self._items[page_index] = (key, text)
+            return hit[3]
+        if hit is not None and hit[0] == key:
+            raw = hit[2]
+        else:
+            raw = _extract(page, page_index)
+            self.extractions += 1
+        shown = raw
+        if sig is not None:
+            try:
+                removals, extra = self.overlay.contribution(doc, page_index)
+                shown = compose(raw, removals, extra)
+            except Exception:  # noqa: BLE001
+                shown = raw
+        shown = visual_order(shown)
+        if hit is not None:  # the text of a page already read changed (an edit, Undo, Redo)
+            self.version += 1
+            self._changed[page_index] = self.version
+        self._items[page_index] = (key, sig, raw, shown)
         self._items.move_to_end(page_index)
         while len(self._items) > self.max_pages:
             self._items.popitem(last=False)
-        return text
+        return shown
+
+    def changed_since(self, version: int, first: int, last: int) -> bool:
+        return any(first <= p <= last and v > version for p, v in self._changed.items())
 
     def invalidate(self, pages=None) -> None:
         if pages is None:
@@ -596,7 +662,17 @@ class TextSelection:
     def __init__(self, cache: PageTextCache) -> None:
         self.cache = cache
         self.anchor: TextPosition | None = None
-        self.focus: TextPosition | None = None
+        self._focus: TextPosition | None = None
+        self._version = cache.version
+
+    @property
+    def focus(self) -> TextPosition | None:
+        return self._focus
+
+    @focus.setter
+    def focus(self, value: TextPosition | None) -> None:
+        self._focus = value
+        self._version = self.cache.version
 
     def clear(self) -> None:
         self.anchor = self.focus = None
@@ -609,10 +685,17 @@ class TextSelection:
         if self.anchor is None or self.focus is None:
             return None
         a, b = self.anchor, self.focus
-        return (a, b) if a <= b else (b, a)
+        lo, hi = (a, b) if a <= b else (b, a)
+        if self.cache.changed_since(self._version, lo.page, hi.page):
+            # the text under the selection changed (an unsaved edit, Undo or Redo): its positions
+            # no longer mean the same characters, so the selection is dropped rather than shifted
+            self.clear()
+            return None
+        return lo, hi
 
     def set(self, anchor: TextPosition, focus: TextPosition) -> None:
-        self.anchor, self.focus = anchor, focus
+        self.anchor = anchor
+        self.focus = focus
 
     def page_range(self, doc: fitz.Document, page_index: int) -> tuple[int, int] | None:
         """Selected glyph range on one page (``None`` when nothing on it is selected)."""
@@ -623,8 +706,10 @@ class TextSelection:
         if page_index < lo.page or page_index > hi.page:
             return None
         n = len(self.cache.get(doc, page_index).glyphs)
-        start = lo.pos if page_index == lo.page else 0
-        end = hi.pos if page_index == hi.page else n
+        if self.bounds() is None:  # reading the page just showed that its text changed
+            return None
+        start = min(lo.pos, n) if page_index == lo.page else 0
+        end = min(hi.pos, n) if page_index == hi.page else n
         return (start, end) if start < end else None
 
     def text(self, doc: fitz.Document) -> str:

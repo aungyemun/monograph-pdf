@@ -10,6 +10,8 @@ Behaviour (documented in the User Guide):
   (the view scrolls while the pointer is held above or below it);
 * double-click — a word (Japanese: a run of Kanji, Hiragana or Katakana);
 * triple-click — the paragraph (MuPDF text block);
+* text is ordered as it is read on screen (``core.text_selection.visual_order``), and replacements of
+  existing text that are not saved yet are selected as shown (``engines/visible_text.py``);
 * Shift+click — extend the selection to the click; Shift+Left / Shift+Right — by one character;
 * Esc — clear the selection; Ctrl+A — all text of the current page; Ctrl+C / right-click ▸ Copy —
   copy (the window checks the PDF's copy permission).
@@ -33,6 +35,10 @@ class TextSelectController:
     def __init__(self, canvas) -> None:
         self.canvas = canvas
         self.cache = PageTextCache()
+        # unsaved replacements of existing text are selected as shown, not as stored (F-15)
+        from engines.visible_text import ReplacementOverlay
+
+        self.cache.overlay = ReplacementOverlay(lambda: getattr(self.canvas, "_edit", None))
         self.selection = TextSelection(self.cache)
         self._dragging = False
         self._drag_unit: tuple[int, int, int] | None = None  # (page, start, end) of a double/triple-click
