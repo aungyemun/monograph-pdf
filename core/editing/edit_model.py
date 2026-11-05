@@ -32,6 +32,7 @@ from core.editing.text_style import TextStyle
 
 class EditTool(str, Enum):
     SELECT = "select"
+    TEXT_SELECT = "text_select"  # select and copy existing page text (never edits the page)
     TEXT_BOX = "text_box"
     IMAGE = "image"
     # Shape creation tools (overlay)

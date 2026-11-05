@@ -16,6 +16,7 @@ from PySide6.QtGui import (
     QFont,
     QImage,
     QKeyEvent,
+    QKeySequence,
     QMouseEvent,
     QPainter,
     QPainterPath,
@@ -423,6 +424,10 @@ class _CanvasWidget(QWidget):
         self._text_editor: _AlignedTextEdit | None = None
         self._text_editor_id: str | None = None
         self._text_editor_before: str = ""
+        # Select Text tool: selection of existing page text (a temporary overlay, never PDF content)
+        from ui.text_select_controller import TextSelectController
+
+        self.text_select = TextSelectController(self)
 
     # --- document / edit model -------------------------------------------
 
@@ -513,6 +518,7 @@ class _CanvasWidget(QWidget):
 
     def clear_document(self) -> None:
         self._annot_sel = None
+        self.text_select.reset()
         self.invalidate_annotation_boxes()
         self.drop_stale()
         if self._edit is not None:
@@ -640,9 +646,17 @@ class _CanvasWidget(QWidget):
         }
         if tool == EditTool.TEXT_BOX or tool in shape_tools:
             self.setCursor(Qt.CursorShape.CrossCursor)
+        elif tool == EditTool.TEXT_SELECT:
+            self.setCursor(Qt.CursorShape.IBeamCursor)
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
+        if tool != EditTool.TEXT_SELECT:
+            self.text_select.clear()
         self.update()
+
+    @property
+    def text_select_active(self) -> bool:
+        return self._edit is not None and self._edit.tool == EditTool.TEXT_SELECT
 
     # --- region pick ---------------------------------------------------------
 
@@ -1320,6 +1334,7 @@ class _CanvasWidget(QWidget):
         wanted = {int(p) for p in pages if 0 <= int(p) < len(self._layouts)}
         if not wanted:
             return
+        self.text_select.invalidate(wanted)
         self.invalidate_annotation_boxes(wanted)
         self.drop_stale(wanted)
         dpr = self._device_pixel_ratio()
@@ -1538,6 +1553,7 @@ class _CanvasWidget(QWidget):
                     painter.drawRect(hr.adjusted(0, 0, -1, -1))
                 else:
                     painter.fillRect(hr, QColor(255, 220, 0, 100))
+            self.text_select.paint_page(painter, i)
             if self._edit is not None:
                 self._paint_overlays(painter, i)
                 self._paint_forms(painter, i)
@@ -3208,6 +3224,13 @@ class _CanvasWidget(QWidget):
                 on_open_note = found is not None and int(found[1]) == popup.key[1]
             if not on_open_note:
                 self.close_note_popup()  # a click elsewhere closes an open note (its own note toggles it on release)
+        if self._edit.tool == EditTool.TEXT_SELECT and self._region_pick is None:
+            if self._text_editor is not None:
+                self.close_text_editor(commit=True)
+            if self._field_editor is not None:
+                self.close_field_editor(commit=True)
+            self.text_select.press(event.position().toPoint(), event.modifiers())
+            return
         if mapped is None:
             # Grey area around the pages: finish typing and deselect (like clicking blank paper)
             if self._region_pick is None:
@@ -3482,6 +3505,9 @@ class _CanvasWidget(QWidget):
 
         if self._edit is None:
             return super().mouseMoveEvent(event)
+        if self._edit.tool == EditTool.TEXT_SELECT and self._region_pick is None:
+            self.text_select.move(event.position().toPoint(), event.buttons())
+            return
         if self._field_text_drag:
             ed = self._field_editor
             if ed is not None and event.buttons() & Qt.MouseButton.LeftButton:
@@ -3656,6 +3682,9 @@ class _CanvasWidget(QWidget):
         self._editor_handle_drag = False  # a handle drag that began inside the text editor ends here
         if self._edit is None or event.button() != Qt.MouseButton.LeftButton:
             return super().mouseReleaseEvent(event)
+        if self._edit.tool == EditTool.TEXT_SELECT and self._region_pick is None:
+            self.text_select.release()
+            return
         if self._region_pick is not None:
             if self._region_stroke_aborted:
                 self._region_stroke_aborted = False
@@ -3976,6 +4005,10 @@ class _CanvasWidget(QWidget):
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         if self._edit is None:
             return
+        if self._edit.tool == EditTool.TEXT_SELECT and self._region_pick is None:
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.text_select.double_click(event.position().toPoint())
+            return
         mapped = self.widget_to_pdf(event.position().toPoint())
         if mapped is None:
             return
@@ -4044,6 +4077,32 @@ class _CanvasWidget(QWidget):
             box = self._edit.get(hit)
             self._text_before = box.text if box else ""
 
+    # Emitted by the Select Text tool's context menu; the window copies (it checks permissions)
+    copyTextRequested = Signal()
+    selectPageTextRequested = Signal()
+
+    @staticmethod
+    def exec_context_menu(menu, global_pos):
+        """Show ``menu`` and return the chosen action (tests replace this)."""
+        return menu.exec(global_pos)
+
+    def contextMenuEvent(self, event) -> None:  # noqa: N802
+        if self._edit is None or self._edit.tool != EditTool.TEXT_SELECT:
+            return super().contextMenuEvent(event)
+        from PySide6.QtWidgets import QMenu
+
+        menu = QMenu(self)
+        copy = menu.addAction("Copy")
+        copy.setShortcut(QKeySequence.StandardKey.Copy)
+        copy.setEnabled(self.text_select.has_selection)
+        select = menu.addAction("Select All Text on This Page")
+        select.setShortcut(QKeySequence.StandardKey.SelectAll)
+        chosen = self.exec_context_menu(menu, event.globalPos())
+        if chosen is copy:
+            self.copyTextRequested.emit()
+        elif chosen is select:
+            self.selectPageTextRequested.emit()
+
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
         popup = getattr(self, "_note_popup", None)
         if event.key() == Qt.Key.Key_Escape and popup is not None and popup.isVisible():
@@ -4053,6 +4112,8 @@ class _CanvasWidget(QWidget):
             return super().keyPressEvent(event)
         mod = event.modifiers()
         key = event.key()
+        if self._edit.tool == EditTool.TEXT_SELECT and self.text_select.key(key, mod):
+            return
 
         # Tab / Shift+Tab through fillable fields
         if key == Qt.Key.Key_Tab and (

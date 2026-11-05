@@ -70,6 +70,10 @@ CANVAS_KEYS: list[tuple[str, str]] = [
     ("Ctrl + Enter", "Commit text box and return to Select"),
     ("Tab / Shift + Tab", "Next / previous fillable form field"),
     ("Ctrl + mouse wheel", "Zoom in / out"),
+    ("Select Text tool (S): drag", "Select page text, also across pages"),
+    ("Select Text tool: double-click / triple-click", "Select a word / a paragraph"),
+    ("Select Text tool: Shift + click, Shift + Left / Right arrow", "Extend the text selection"),
+    ("Select Text tool: Ctrl + C, Ctrl + A, Esc", "Copy the text / select the page's text / clear"),
 ]
 
 

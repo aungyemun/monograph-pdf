@@ -409,6 +409,10 @@ class MainWindow(QMainWindow):
         self.act_select_tool.setChecked(True)
         self.act_select_tool.triggered.connect(lambda: self._set_tool(EditTool.SELECT))
 
+        self.act_text_select_tool = QAction("Select Pa&ge Text", self)
+        self.act_text_select_tool.setCheckable(True)
+        self.act_text_select_tool.triggered.connect(lambda: self._set_tool(EditTool.TEXT_SELECT))
+
         self.act_text_tool = QAction("&Text Box", self)
         self.act_text_tool.setCheckable(True)
         self.act_text_tool.triggered.connect(lambda: self._set_tool(EditTool.TEXT_BOX))
@@ -421,7 +425,7 @@ class MainWindow(QMainWindow):
         set_action_icon(self.act_insert_symbol, "symbol")
         self._tool_group = QActionGroup(self)
         self._tool_group.setExclusive(True)
-        for act in (self.act_select_tool, self.act_text_tool, self.act_image_tool):
+        for act in (self.act_select_tool, self.act_text_select_tool, self.act_text_tool, self.act_image_tool):
             self._tool_group.addAction(act)
 
         self.act_mode_edit = QAction("&Edit Mode", self)
@@ -891,6 +895,7 @@ class MainWindow(QMainWindow):
             self.act_convert_caps: "What each conversion can and cannot do",
             self.act_theme_system: "Follow Windows / OS light or dark preference",
             self.act_select_tool: "Select and move objects  (V)",
+            self.act_text_select_tool: "Select and copy the page's text  (S)",
             self.act_text_tool: "Add a text box  (T)",
             self.act_image_tool: "Place an image on the current page  (Shift+I)",
             self.act_annot_highlight: "Highlight — click to toggle on/off; draw over text or any blank area; change colour without leaving the tool; Esc cancels a stroke, Esc again exits",
@@ -932,6 +937,7 @@ class MainWindow(QMainWindow):
         # stealing "i"/"a" from in-place field editors — BUG-22)
         self._tool_letter_actions: list[tuple[QAction, tuple[str, ...]]] = [
             (self.act_select_tool, ("V",)),
+            (self.act_text_select_tool, ("S",)),
             (self.act_text_tool, ("T",)),
             (self.act_image_tool, ("Shift+I",)),
             (self.act_annot_rect, ("R",)),
@@ -1064,6 +1070,7 @@ class MainWindow(QMainWindow):
             (self.act_undo, "Undo"),
             (self.act_redo, "Redo"),
             (self.act_select_tool, "Select"),
+            (self.act_text_select_tool, "Select Text"),
             (self.act_text_tool, "Text"),
             (self.act_image_tool, "Image"),
             (self.act_annot_highlight, "Highlight"),
@@ -1209,6 +1216,7 @@ class MainWindow(QMainWindow):
             "style_copy": self.act_copy_style,
             "find": self.act_find,
             "select": self.act_select_tool,
+            "select_text": self.act_text_select_tool,
             "text": self.act_text_tool,
             "image": self.act_image_tool,
             "rect": self.act_annot_rect,
@@ -1435,6 +1443,7 @@ class MainWindow(QMainWindow):
         edit.addAction(self.act_copy_page_image)
         edit.addSeparator()
         edit.addAction(self.act_select_tool)
+        edit.addAction(self.act_text_select_tool)
         edit.addAction(self.act_select_all)
         edit.addAction(self.act_deselect)
         edit.addSeparator()
@@ -1766,6 +1775,7 @@ class MainWindow(QMainWindow):
         bar.addAction(self.act_redo)
         bar.addSeparator()
         labelled(self.act_select_tool)
+        bar.addAction(self.act_text_select_tool)  # icon only (tooltip "Select and copy the page's text  (S)")
         labelled(self.act_text_tool)
         bar.addAction(self.act_image_tool)
 
@@ -2902,9 +2912,12 @@ class MainWindow(QMainWindow):
         if self._canvas.region_pick_active:
             self._canvas.cancel_region_pick(announce=False)
         if self._edit is not None:
+            if tool == EditTool.TEXT_SELECT:
+                self._canvas._canvas.deselect_all()  # noqa: SLF001 — selecting text, not objects
             self._canvas.set_tool(tool)
         mapping = {
             EditTool.SELECT: self.act_select_tool,
+            EditTool.TEXT_SELECT: self.act_text_select_tool,
             EditTool.TEXT_BOX: self.act_text_tool,
             EditTool.SHAPE_RECT: self.act_annot_rect,
             EditTool.SHAPE_ELLIPSE: self.act_annot_ellipse,
@@ -2925,6 +2938,8 @@ class MainWindow(QMainWindow):
                 self._shape_button.setDefaultAction(act)
         hints = {
             EditTool.SELECT: "Select — click objects, drag to move, double-click text to edit",
+            EditTool.TEXT_SELECT: "Select Text — drag over the page's text; double-click a word, triple-click a "
+                                  "paragraph; Ctrl+C copies, Ctrl+A selects the page's text, Esc clears",
             EditTool.TEXT_BOX: "Text Box — click or drag on the page, then type (Esc when done)",
             EditTool.SHAPE_RECT: "Rectangle — drag on the page (Shift = square)",
             EditTool.SHAPE_ELLIPSE: "Ellipse — drag on the page (Shift = circle)",
@@ -3351,6 +3366,8 @@ class MainWindow(QMainWindow):
             self._edit.duplicate_selection()
 
     def _delete(self) -> None:
+        if self._canvas._canvas.text_select_active:  # noqa: SLF001 — page text is not deleted here
+            return
         if self._left.thumbs.hasFocus() and self._document is not None:
             self._delete_selected_pages()
             return
@@ -3710,6 +3727,12 @@ class MainWindow(QMainWindow):
         for b in buttons:
             if b.toolButtonStyle() != style:
                 b.setToolButtonStyle(style)
+        # 0.6.0: the Select Text button made the narrow toolbar ~30 px wider; the Find box gives way
+        search = getattr(self, "_search_edit", None)
+        if search is not None:
+            want = 176 if style == Qt.ToolButtonStyle.ToolButtonTextBesideIcon else 136
+            if search.width() != want:
+                search.setFixedWidth(want)
 
     def _set_theme(self, key: str) -> None:
         self._prefs.theme = key
@@ -4588,6 +4611,7 @@ class MainWindow(QMainWindow):
             self.act_duplicate,
             self.act_delete,
             self.act_select_tool,
+            self.act_text_select_tool,
             self.act_text_tool,
             self.act_image_tool,
             self.act_copy_style,
@@ -7477,6 +7501,14 @@ class MainWindow(QMainWindow):
             return
         if self._left.thumbs.hasFocus():
             self._left.thumbs.selectAll()
+            return
+        inner = self._canvas._canvas  # noqa: SLF001
+        if inner.text_select_active:
+            page = self._canvas.focus_page
+            n = inner.text_select.select_page(page)
+            self.statusBar().showMessage(
+                f"Selected the text of page {page + 1}" if n else
+                f"Page {page + 1} has no selectable text (it may be a scanned picture)", 4000)
             return
         ids = [o.object_id for o in self._edit.all_objects()]
         page = self._canvas.focus_page

@@ -305,6 +305,23 @@ def _select(p, c):
     _poly(p, [(5, 3), (5, 16), (8.6, 12.8), (11, 17.5), (13, 16.6), (10.7, 12), (15, 12)], fill=_soft(c, 255))
 
 
+@icon("select_text")
+def _select_text(p, c):
+    # selected text lines (a soft band) and an I-beam cursor
+    band = _soft(c, 70)
+    p.save()
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(band)
+    p.drawRect(QRectF(2.5, 7, 10, 4.5))
+    p.restore()
+    p.drawLine(QPointF(3, 4.5), QPointF(12.5, 4.5))
+    p.drawLine(QPointF(3, 9.25), QPointF(12, 9.25))
+    p.drawLine(QPointF(3, 14), QPointF(9, 14))
+    p.drawLine(QPointF(15.5, 4), QPointF(15.5, 16.5))
+    p.drawLine(QPointF(13.8, 3.5), QPointF(17.2, 3.5))
+    p.drawLine(QPointF(13.8, 17), QPointF(17.2, 17))
+
+
 @icon("hand")
 def _hand(p, c):
     path = QPainterPath(QPointF(6, 11))
