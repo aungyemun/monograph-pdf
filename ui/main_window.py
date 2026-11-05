@@ -1918,6 +1918,8 @@ class MainWindow(QMainWindow):
         self._canvas.selectionChanged.connect(self._on_selection_changed)
         self._canvas.editModelChanged.connect(self._on_edit_changed)
         self._canvas.requestStatus.connect(self.statusBar().showMessage)
+        self._canvas._canvas.copyTextRequested.connect(self._copy)  # noqa: SLF001 — Select Text menu
+        self._canvas._canvas.selectPageTextRequested.connect(self._select_all)  # noqa: SLF001
         self._canvas.autoscroll.started.connect(self._on_autoscroll_started)
         self._canvas.autoscroll.speedChanged.connect(self._on_autoscroll_speed)
         self._canvas.autoscroll.stopped.connect(self._on_autoscroll_stopped)
@@ -3344,10 +3346,68 @@ class MainWindow(QMainWindow):
         return int(cmd.page_index) if isinstance(cmd, kinds) else None
 
     def _copy(self) -> None:
+        inner = self._canvas._canvas  # noqa: SLF001
+        if inner.text_select_active:
+            self._copy_page_text()
+            return
         if self._edit:
-            self._canvas._canvas._object_clipboard = self._edit.clipboard_copy()  # noqa: SLF001
+            payload = self._edit.clipboard_copy()
+            inner._object_clipboard = payload  # noqa: SLF001 — Paste inside Monograph PDF (unchanged)
+            # Text boxes are also put on the system clipboard as plain text, for other programs; the
+            # internal copy above is what Paste here uses
+            texts = [str(d.get("text", "")) for d in payload if "_overlay" not in d and d.get("text")]
+            if texts and len(texts) == len(payload):
+                QApplication.clipboard().setText("\n".join(texts))
+
+    def _copy_page_text(self) -> None:
+        """Select Text tool: put the selected page text on the system clipboard (plain Unicode text).
+
+        Respects the PDF's copy permission (asks for the permissions password, never bypasses it). Text
+        in areas marked for redaction is still in the document until the redaction is applied: it is
+        copied, and the status bar says so."""
+        inner = self._canvas._canvas  # noqa: SLF001
+        sel = inner.text_select
+        if not sel.has_selection:
+            self.statusBar().showMessage("No text selected — drag over the page's text first", 4000)
+            return
+        if not self._allow("copy", "Copying text"):
+            return
+        text = sel.selected_text()
+        if not text:
+            self.statusBar().showMessage("The selection holds no text", 4000)
+            return
+        QApplication.clipboard().setText(text)
+        note = f"Copied {len(text)} characters"
+        try:
+            if sel.selection_touches(self._redaction_marks_by_page(sel.selection.pages())):
+                note += (" — some of it lies in areas marked for redaction: it stays in the document until "
+                         "Protect ▸ Apply Redactions")
+        except Exception:  # noqa: BLE001 — the note is informative only
+            pass
+        self.statusBar().showMessage(note, 6000)
+
+    def _redaction_marks_by_page(self, pages) -> dict[int, list]:
+        """Display-space rectangles of the redaction marks (not yet applied) on ``pages``."""
+        import fitz
+
+        from core.page_space import rect_to_display
+
+        doc = self._document._backend._doc  # noqa: SLF001
+        out: dict[int, list] = {}
+        for p in pages:
+            page = doc.load_page(p)
+            rects = []
+            for annot in page.annots(types=[fitz.PDF_ANNOT_REDACT]) or []:
+                r = rect_to_display(page, annot.rect)
+                rects.append((r.x0, r.y0, r.x1, r.y1))
+            if rects:
+                out[p] = rects
+        return out
 
     def _cut(self) -> None:
+        if self._canvas._canvas.text_select_active:  # noqa: SLF001 — page text cannot be cut
+            self._copy()
+            return
         self._copy()
         self._delete()
 
