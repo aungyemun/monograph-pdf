@@ -584,7 +584,9 @@ def bake_into_document(edit: EditableDocument, destination: Path, *, keep_encryp
             # over the open file, so an unflushed new file would be swapped in too.
             flush_to_disk(part)
             if part != final:
-                os.replace(part, final)
+                from core.safe_write import replace_file
+
+                replace_file(part, final)  # keeps the replaced file's attributes and permissions
         except BaseException:
             try:
                 part.unlink()

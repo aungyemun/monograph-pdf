@@ -228,7 +228,7 @@ def test_save_flushes_the_new_file_before_it_replaces_the_original(window, tmp_p
     import core.safe_write as sw
 
     flushed: list[str] = []
-    real_flush, real_replace = sw.flush_to_disk, os.replace
+    real_flush, real_replace = sw.flush_to_disk, sw.replace_file
     replaced: list[tuple[str, bool]] = []
 
     def flush(p):
@@ -244,9 +244,10 @@ def test_save_flushes_the_new_file_before_it_replaces_the_original(window, tmp_p
     window._edit.set_field_value(_field(window, "name").object_id, "flushed")  # noqa: SLF001
     window._edit.mark_dirty()  # noqa: SLF001
     monkeypatch.setattr(sw, "flush_to_disk", flush)
-    monkeypatch.setattr(os, "replace", replace)
+    # 0.6.0: every swap goes through core.safe_write.replace_file (os.replace or, on Windows, ReplaceFileW)
+    monkeypatch.setattr(sw, "replace_file", replace)
     window.save_document()
-    monkeypatch.setattr(os, "replace", real_replace)
+    monkeypatch.setattr(sw, "replace_file", real_replace)
     assert not window._test_errors, window._test_errors  # noqa: SLF001
     swaps = [r for r in replaced if Path(r[0]) == src]
     assert swaps, "Save did not replace the file"

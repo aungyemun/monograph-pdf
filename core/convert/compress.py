@@ -592,7 +592,9 @@ def write_result(result: CompressResult, destination: Path, *, password: str | N
             fh.write(result.data)
             fh.flush()
             os.fsync(fh.fileno())
-        os.replace(part, destination)
+        from core.safe_write import replace_file
+
+        replace_file(part, destination)  # keeps the replaced file's attributes and permissions
     except BaseException:
         try:
             part.unlink()

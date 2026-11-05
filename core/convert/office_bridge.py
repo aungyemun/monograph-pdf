@@ -269,7 +269,9 @@ def convert_office_file_to_pdf(source: Path, destination: Path) -> Path:
             _run_soffice(avail.libreoffice, source, part, "pdf")
         else:
             raise UnsupportedConversionError(unavailable_message(ext))
-        os.replace(part, destination)
+        from core.safe_write import replace_file
+
+        replace_file(part, destination)  # keeps the replaced file's attributes and permissions
     finally:
         part.unlink(missing_ok=True)
     return destination

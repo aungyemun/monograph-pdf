@@ -2023,6 +2023,7 @@ class MainWindow(QMainWindow):
             self._rebuild_recent_menu()
             self._refresh_welcome_recent()
             self._maybe_recover_session(path)
+            self._schedule_leftover_check(path)
             return True
         except InvalidPdfError as exc:
             self.report_error(
@@ -2045,7 +2046,13 @@ class MainWindow(QMainWindow):
         self._rebuild_recent_menu()
         self._refresh_welcome_recent()
         self._maybe_recover_session(path)
+        self._schedule_leftover_check(path)
         return True
+
+    def _schedule_leftover_check(self, path: Path) -> None:
+        """After the document is shown: temporary files of an interrupted save of it (F-13)."""
+        self._leftover_check_paths = getattr(self, "_leftover_check_paths", []) + [Path(path)]
+        QTimer.singleShot(0, self._run_leftover_checks)
 
     def _load_document(self, document: PdfDocument, *, replace_active: bool = False) -> None:
         """Show *document* as a tab. New opens add a tab; Save/Save As/compress replace the active one."""
@@ -2527,7 +2534,9 @@ class MainWindow(QMainWindow):
             delays = (0.1, 0.2, 0.4, 0.8, 1.0, 1.0, 1.0)  # ~4.5 s in all, then the user is told
             for attempt in range(len(delays) + 1):
                 try:
-                    os.replace(tmp, dest)
+                    from core.safe_write import replace_file
+
+                    replace_file(tmp, dest)  # like os.replace; keeps the file's attributes and permissions
                     break
                 except PermissionError:
                     # Another program (often an antivirus scan or a PDF viewer) has the file open. The lock is
@@ -2678,6 +2687,56 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Saved a copy as {dest.name}; still working on {self._document.name}", 6000)
         self._report_xfa_notes()
         return dest
+
+    def _run_leftover_checks(self) -> None:
+        paths, self._leftover_check_paths = getattr(self, "_leftover_check_paths", []), []
+        for p in paths:
+            self._report_leftover_temporaries(p)
+
+    def _report_leftover_temporaries(self, document: Path) -> list:
+        """Temporary files of an interrupted save of ``document`` (core/leftover_temps.py): listed, and
+        moved to the Recycle Bin only when the user chooses so. Each file is reported once per session."""
+        from core.leftover_temps import find_leftovers
+
+        try:
+            found = [x for x in find_leftovers(document) if x.path not in self._leftovers_reported]
+        except AttributeError:
+            self._leftovers_reported = set()
+            found = list(find_leftovers(document))
+        except Exception:  # noqa: BLE001 — informative only; never stands in the way of opening
+            return []
+        if not found:
+            return []
+        self._leftovers_reported.update(x.path for x in found)
+        import datetime
+
+        lines = []
+        for x in found:
+            when = datetime.datetime.fromtimestamp(x.mtime).strftime("%Y-%m-%d %H:%M")
+            kind = "complete PDF — may hold changes that were not saved" if x.complete_pdf else "incomplete"
+            lines.append(f"• {x.path.name}  ({x.size:,} bytes, {when}, {kind})")
+        if self._is_headless_ui():
+            self.statusBar().showMessage(
+                f"{len(found)} temporary file(s) from an interrupted save are next to {document.name}; "
+                "they were not deleted", 10000)
+            return found
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle("Temporary Files Found")
+        box.setText(f"An earlier save of “{document.name}” was interrupted and left these temporary files "
+                    "in the same folder:")
+        box.setInformativeText("\n".join(lines) + "\n\nThey were not changed. A complete PDF can be opened "
+                               "to check it before you decide.")
+        keep = box.addButton("Keep Them", QMessageBox.ButtonRole.RejectRole)
+        trash = box.addButton("Move to Recycle Bin", QMessageBox.ButtonRole.DestructiveRole)
+        box.setDefaultButton(keep)
+        box.exec()
+        if box.clickedButton() is trash:
+            from PySide6.QtCore import QFile
+
+            moved = sum(1 for x in found if x.path.exists() and QFile.moveToTrash(str(x.path)))
+            self.statusBar().showMessage(f"Moved {moved} temporary file(s) to the Recycle Bin", 6000)
+        return found
 
     def _report_save_failure(self, title: str, exc: BaseException, dest: Path) -> None:
         """File-system problems (read-only, in use, no permission, disk full) in plain words; anything
@@ -7108,15 +7167,18 @@ class MainWindow(QMainWindow):
                 return
         tmp = ""
         try:
-            fd, tmp = tempfile.mkstemp(suffix=".pdf", dir=str(dest.parent))
-            os.close(fd)
+            from core.safe_write import temporary_sibling
+
+            tmp = str(temporary_sibling(dest))  # a name the leftover check recognises (F-13)
             with fitz.open(dest) as doc:
                 scrub_residue(doc, terms)
                 doc.save(tmp, garbage=4, deflate=True)
             from core.safe_write import flush_to_disk
 
             flush_to_disk(Path(tmp))
-            os.replace(tmp, dest)
+            from core.safe_write import replace_file
+
+            replace_file(tmp, dest)
             with fitz.open(dest) as doc:
                 found = find_residue(doc, terms)
             left = [r for r in found if r.where != UNCHECKED_ATTACHMENT]

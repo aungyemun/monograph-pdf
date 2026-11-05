@@ -34,15 +34,18 @@ def move_into_place(source: Path, destination: Path) -> Path:
 
     source, destination = Path(source), Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        os.replace(source, destination)
-        return destination
-    except OSError:
-        pass
+    if not destination.exists():  # an existing file is replaced from beside it (keeps its attributes)
+        try:
+            os.replace(source, destination)
+            return destination
+        except OSError:
+            pass
     partial = destination.with_name(f".{destination.name}.{uuid.uuid4().hex[:8]}.part")
     try:
         shutil.copyfile(source, partial)
-        os.replace(partial, destination)
+        from core.safe_write import replace_file
+
+        replace_file(partial, destination)  # keeps the replaced file's attributes and permissions
     finally:
         partial.unlink(missing_ok=True)
     source.unlink(missing_ok=True)
