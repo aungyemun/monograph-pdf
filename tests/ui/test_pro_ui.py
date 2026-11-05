@@ -788,10 +788,10 @@ def test_save_releases_open_file_before_replacing_it(doc_window, monkeypatch):
     Phase 1 audit: Save no longer closes the whole document (a failed replace then lost every change
     stored in it); it moves the open document into memory and closes the file-backed MuPDF document,
     which is what holds the file open. That object is checked here (it used to be ``_closed``)."""
-    import os
+    import core.safe_write as sw
 
     w = doc_window
-    real_replace = os.replace
+    real_replace = sw.replace_file  # 0.6.0: every swap goes through replace_file (os.replace / ReplaceFileW)
     seen = {}
     file_backed = w._document._backend._doc  # noqa: SLF001 — the MuPDF document reading the file
 
@@ -801,7 +801,7 @@ def test_save_releases_open_file_before_replacing_it(doc_window, monkeypatch):
             raise PermissionError(13, "file is open (simulated Windows sharing violation)")
         return real_replace(src, dst)
 
-    monkeypatch.setattr(os, "replace", strict_replace)
+    monkeypatch.setattr(sw, "replace_file", strict_replace)
     w._edit.mark_dirty()  # noqa: SLF001
     w.save_document()
     assert seen.get("closed") is True

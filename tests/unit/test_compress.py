@@ -171,7 +171,10 @@ def test_atomic_write_keeps_existing_file_on_failure(image_pdf, tmp_path, monkey
     def boom(*_a, **_k):
         raise OSError(28, "No space left on device")
 
-    monkeypatch.setattr(cz.os, "replace", boom)
+    # 0.6.0: the swap goes through core.safe_write.replace_file (os.replace, or ReplaceFileW on Windows)
+    import core.safe_write as sw
+
+    monkeypatch.setattr(sw, "replace_file", boom)
     with pytest.raises(OSError):
         cz.write_result(res, dest)
     assert dest.read_bytes() == b"%PDF-1.4 original"
