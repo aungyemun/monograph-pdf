@@ -395,7 +395,10 @@ def test_built_source_archive_is_complete_portable_and_private(tmp_path):
                      "third_party/licenses/TESSERACT_NOTICE.txt", "tests/fixtures/templates/manifest.json"):
             assert need in project, need
         audit = sorted(p for p in project if p.startswith("reports/"))
-        assert audit == ["reports/REPOSITORY_STANDARDIZATION.md", "reports/audit/SECURITY_AUDIT_0.2.0.md"], audit
+        # the published audits only; the private local audit reports stay out (they are not committed)
+        assert audit == ["reports/REPOSITORY_STANDARDIZATION.md",
+                         "reports/audit/PHASE1_RELIABILITY_AUDIT_2026-11-04.public.md",
+                         "reports/audit/SECURITY_AUDIT_0.2.0.md"], audit
         assert not [p for p in project if p.startswith(("env/", "build/", "dist/", "packages/", "releases/", "tools/"))
                     or "__pycache__" in p or p.endswith((".pyc", ".exe", ".dll"))]
         problems = [p for i in infos if i.filename.startswith(top + "monograph-pdf/")
