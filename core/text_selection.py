@@ -8,10 +8,14 @@ Text comes from MuPDF's ``rawdict`` extraction (one bounding box per character) 
 viewer and every tool use, so selection rectangles line up with the rendered glyphs at any zoom and
 rotation.
 
-Reading order: the order MuPDF extracts the page's text in (blocks, then lines, then characters —
-``sort=False``). It follows the order of the PDF's content and MuPDF's block grouping; no layout
-reconstruction is attempted, so for an ambiguous layout the original text order is kept. A drag
-selects every character between the two ends in this order, also across pages (page order).
+Reading order (0.6.0 RC2): the lines MuPDF extracts are put into **visual reading order** for
+horizontal text, independent of the order in which the PDF stores them (see :func:`visual_order`):
+lines are grouped into rows, rows into regions, a region whose lines are cut by a common vertical gap
+(a column gutter) and that holds running text is read column by column, everything else row by row,
+top to bottom and left to right. Characters inside a line keep MuPDF's order. Pages whose lines do not
+all run in one direction (vertical Japanese mixed with horizontal text, for example) keep the stored
+order — a documented fallback, not a layout guess. A drag selects every character between the two ends
+in this order, also across pages (page order).
 
 Characters are grouped into *clusters* before anything else: a combining mark, a variation
 selector, an emoji modifier, a zero-width joiner and the character after it belong to the character
@@ -160,10 +164,17 @@ class PageText:
         return (ln.start, ln.end)
 
     def block_range(self, index: int) -> tuple[int, int]:
-        """The paragraph (MuPDF text block) containing ``index``."""
-        block = self.glyphs[max(0, min(index, len(self.glyphs) - 1))].block
-        idx = [i for i, g in enumerate(self.glyphs) if g.block == block]
-        return (idx[0], idx[-1] + 1)
+        """The paragraph containing ``index``: the neighbouring lines (in reading order) of the same
+        MuPDF text block."""
+        li = self.glyphs[max(0, min(index, len(self.glyphs) - 1))].line
+        block = self.lines[li].block
+        a = li
+        while a > 0 and self.lines[a - 1].block == block:
+            a -= 1
+        b = li
+        while b + 1 < len(self.lines) and self.lines[b + 1].block == block:
+            b += 1
+        return (self.lines[a].start, self.lines[b].end)
 
     # -- output ----------------------------------------------------------------------------------
 
@@ -297,7 +308,12 @@ def _rotate_vector(page: fitz.Page, dx: float, dy: float) -> tuple[float, float]
 
 
 def extract_page_text(page: fitz.Page, page_index: int | None = None) -> PageText:
-    """The selectable text of ``page`` (reads the page only)."""
+    """The selectable text of ``page`` in visual reading order (reads the page only)."""
+    return visual_order(_extract(page, page_index))
+
+
+def _extract(page: fitz.Page, page_index: int | None = None) -> PageText:
+    """The page's text in stored order (MuPDF ``sort=False``)."""
     pt = PageText(page_index=page.number if page_index is None else page_index)
     try:
         raw = page.get_text("rawdict", flags=_FLAGS, sort=False)
@@ -338,6 +354,189 @@ def extract_page_text(page: fitz.Page, page_index: int | None = None) -> PageTex
                 x1=max(g.x1 for g in gs), y1=max(g.y1 for g in gs), dx=dx, dy=dy))
         block_no += 1
     return pt
+
+
+def extract_page_text_stored(page: fitz.Page, page_index: int | None = None) -> PageText:
+    """Like :func:`extract_page_text` but in the order the PDF stores the text (no reordering)."""
+    return _extract(page, page_index)
+
+
+# -- visual reading order ----------------------------------------------------------------------------
+
+# a vertical gap at least this many line heights wide (and at least _GUTTER_MIN points) between the
+# lines of two or more rows is a column gutter
+_GUTTER_EM = 0.8
+_GUTTER_MIN = 4.0
+# a region holds running text (read column by column) when the median line of each of its columns
+# has at least this many characters; shorter cells (tables, forms, labels) are read row by row
+_RUNNING_TEXT_CHARS = 12
+# rows further apart than this many line heights start a new region (a header above columns)
+_REGION_BREAK = 3.0
+
+
+@dataclass
+class _Item:
+    index: int  # line index in stored order
+    u0: float  # along the writing direction
+    v0: float  # across it, downwards in reading order
+    u1: float
+    v1: float
+    chars: int
+
+    @property
+    def h(self) -> float:
+        return max(self.v1 - self.v0, 0.1)
+
+
+def _frame(lines: list[Line]) -> tuple[float, float, float, float] | None:
+    """(dx, dy, nx, ny): the common writing direction and the direction in which lines follow each
+    other, or ``None`` when the lines do not all run the same way (then stored order is kept)."""
+    if not lines:
+        return None
+    longest = max(lines, key=lambda ln: ln.end - ln.start)
+    dx, dy = longest.dx, longest.dy
+    n = math.hypot(dx, dy) or 1.0
+    dx, dy = dx / n, dy / n
+    for ln in lines:
+        m = math.hypot(ln.dx, ln.dy) or 1.0
+        if (ln.dx * dx + ln.dy * dy) / m < 0.97:  # more than ~14° apart, or opposite
+            return None
+    # the next line follows "below" the writing direction: (1, 0) -> (0, 1); turned pages likewise
+    return dx, dy, -dy, dx
+
+
+def _items(lines: list[Line], frame) -> list[_Item]:
+    dx, dy, nx, ny = frame
+    out = []
+    for i, ln in enumerate(lines):
+        us = [x * dx + y * dy for x in (ln.x0, ln.x1) for y in (ln.y0, ln.y1)]
+        vs = [x * nx + y * ny for x in (ln.x0, ln.x1) for y in (ln.y0, ln.y1)]
+        out.append(_Item(i, min(us), min(vs), max(us), max(vs), ln.end - ln.start))
+    return out
+
+
+def _rows(items: list[_Item]) -> list[list[_Item]]:
+    """Group lines into rows: lines whose middle halves overlap across the writing direction."""
+    rows: list[list[_Item]] = []
+    lo = hi = 0.0
+    for it in sorted(items, key=lambda t: (t.v0 + t.h * 0.25, t.u0, t.index)):
+        c0, c1 = it.v0 + it.h * 0.25, it.v1 - it.h * 0.25
+        if rows and c0 < hi:
+            rows[-1].append(it)
+            hi = max(hi, c1)
+        else:
+            rows.append([it])
+            lo, hi = c0, c1
+    _ = lo
+    return rows
+
+
+def _gaps(items: list[_Item], width: float) -> list[tuple[float, float]]:
+    """Intervals along the writing direction that no item covers and that are at least ``width``."""
+    out = []
+    spans = sorted((t.u0, t.u1) for t in items)
+    reach = spans[0][1]
+    for a, b in spans[1:]:
+        if a - reach >= width:
+            out.append((reach, a))
+        reach = max(reach, b)
+    return out
+
+
+def _median(values: list[float]) -> float:
+    vs = sorted(values)
+    return vs[len(vs) // 2] if vs else 0.0
+
+
+def _row_major(rows: list[list[_Item]]) -> list[_Item]:
+    return [it for row in rows for it in sorted(row, key=lambda t: (t.u0, t.v0, t.index))]
+
+
+def _arrange(items: list[_Item], line_h: float) -> list[_Item]:
+    if len(items) <= 1:
+        return list(items)
+    rows = _rows(items)
+    if len(rows) == 1:
+        return _row_major(rows)
+    width = max(_GUTTER_EM * line_h, _GUTTER_MIN)
+    row_gaps = [_gaps(r, width) if len(r) > 1 else [] for r in rows]
+    # the gutter shared by most rows (at least two)
+    best, best_support = None, 1
+    for gaps in row_gaps:
+        for g in gaps:
+            common, support = g, 0
+            for other in row_gaps:
+                hit = next((o for o in other if o[0] < common[1] and common[0] < o[1]), None)
+                if hit is not None:
+                    common = (max(common[0], hit[0]), min(common[1], hit[1]))
+                    support += 1
+            if support > best_support or (support == best_support and best is not None and common[0] < best[0]):
+                best, best_support = common, support
+    if best is None:
+        return _row_major(rows)
+    g0, g1 = best
+
+    def crosses(row: list[_Item]) -> bool:
+        return any(t.u0 < g1 - 0.5 and t.u1 > g0 + 0.5 for t in row)
+
+    out: list[_Item] = []
+    run: list[list[_Item]] = []
+
+    def flush() -> None:
+        if not run:
+            return
+        members = [t for r in run for t in r]
+        left = [t for t in members if t.u1 <= g0 + 0.5]
+        right = [t for t in members if t.u0 >= g1 - 0.5]
+        li, ri = {t.index for t in left}, {t.index for t in right}
+        two_sided = sum(1 for r in run if any(t.index in li for t in r) and any(t.index in ri for t in r))
+        running = (left and right and _median([t.chars for t in left]) >= _RUNNING_TEXT_CHARS
+                   and _median([t.chars for t in right]) >= _RUNNING_TEXT_CHARS)
+        if two_sided >= 2 and running:
+            out.extend(_arrange(left, line_h) + _arrange(right, line_h))  # column by column
+        elif len(members) < len(items):
+            out.extend(_arrange(members, line_h))
+        else:
+            out.extend(_row_major(run))
+        run.clear()
+
+    prev_bottom = None
+    for row in rows:
+        top = min(t.v0 for t in row)
+        if crosses(row):
+            flush()
+            out.extend(_row_major([row]))
+        else:
+            if run and prev_bottom is not None and top - prev_bottom > _REGION_BREAK * line_h:
+                flush()
+            run.append(row)
+        prev_bottom = max(t.v1 for t in row)
+    flush()
+    return out
+
+
+def visual_order(pt: PageText) -> PageText:
+    """``pt`` with its lines in visual reading order (see the module docstring). Characters inside a
+    line keep their order; pages whose lines run in different directions are returned unchanged."""
+    if len(pt.lines) < 2:
+        return pt
+    frame = _frame(pt.lines)
+    if frame is None:
+        return pt
+    items = _items(pt.lines, frame)
+    line_h = _median([t.h for t in items]) or 10.0
+    order = [t.index for t in _arrange(items, line_h)]
+    if order == list(range(len(pt.lines))):
+        return pt
+    out = PageText(page_index=pt.page_index)
+    for new_li, old_li in enumerate(order):
+        ln = pt.lines[old_li]
+        start = len(out.glyphs)
+        for g in pt.glyphs[ln.start:ln.end]:
+            out.glyphs.append(Glyph(g.text, g.x0, g.y0, g.x1, g.y1, new_li, g.block, g.size))
+        out.lines.append(Line(block=ln.block, start=start, end=len(out.glyphs), x0=ln.x0, y0=ln.y0,
+                              x1=ln.x1, y1=ln.y1, dx=ln.dx, dy=ln.dy))
+    return out
 
 
 class PageTextCache:
