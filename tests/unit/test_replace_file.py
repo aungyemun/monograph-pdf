@@ -100,9 +100,13 @@ def test_windows_explicit_acl_entry_is_kept_and_nothing_is_added(tmp_path):
 def test_windows_inherited_permissions_stay_inherited(tmp_path):
     dest = _write(tmp_path / "inh.pdf", b"old")
     before = _icacls(dest)
+    sddl = {"folder": safe_write._read_dacl_sddl(tmp_path), "file before": safe_write._read_dacl_sddl(dest)}
     new = _write(tmp_path / ".inh.abcd1234.part", b"new")
+    sddl["replacement"] = safe_write._read_dacl_sddl(new)
     replace_file(new, dest)
-    assert _icacls(dest).replace(str(dest), "") == before.replace(str(dest), "")
+    sddl["file after"] = safe_write._read_dacl_sddl(dest)
+    sddl["restore"] = safe_write._last_dacl_restore
+    assert _icacls(dest).replace(str(dest), "") == before.replace(str(dest), ""), sddl
 
 
 @pytest.mark.skipif(not WIN, reason="Windows file sharing")

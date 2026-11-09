@@ -155,6 +155,9 @@ def _read_dacl_sddl(path: Path) -> str | None:
         return None
 
 
+_last_dacl_restore = ""  # diagnostics for tests: what the last _restore_dacl did
+
+
 def _write_dacl_sddl(path: Path, sddl: str) -> bool:
     """Apply a permission list read by ``_read_dacl_sddl``: its explicit entries and whether
     inheritance is switched off (inherited entries are recomputed from the folder by Windows)."""
@@ -173,7 +176,10 @@ def _write_dacl_sddl(path: Path, sddl: str) -> bool:
             flags = sddl[2:sddl.find("(")] if "(" in sddl else sddl[2:]
             info = _DACL_SECURITY_INFORMATION | (_PROTECTED_DACL_SECURITY_INFORMATION if "P" in flags
                                                  else _UNPROTECTED_DACL_SECURITY_INFORMATION)
-            return adv.SetNamedSecurityInfoW(str(path), _SE_FILE_OBJECT, info, None, None, dacl, None) == 0
+            err = adv.SetNamedSecurityInfoW(str(path), _SE_FILE_OBJECT, info, None, None, dacl, None)
+            global _last_dacl_restore
+            _last_dacl_restore = f"SetNamedSecurityInfoW={err}"
+            return err == 0
         finally:
             k32.LocalFree(sd)
     except (OSError, AttributeError):
@@ -183,10 +189,17 @@ def _write_dacl_sddl(path: Path, sddl: str) -> bool:
 def _restore_dacl(path: Path, before: str | None) -> None:
     """Write the replaced file's permission list back if the replacement changed it (best effort:
     the new content is already in place, so a failure here does not fail the save)."""
+    global _last_dacl_restore
     if before is None:
+        _last_dacl_restore = "unreadable"
         return
-    if _read_dacl_sddl(path) != before:
-        _write_dacl_sddl(path, before)
+    after = _read_dacl_sddl(path)
+    if after == before:
+        _last_dacl_restore = "unchanged"
+        return
+    _last_dacl_restore = f"changed: {after}"
+    ok = _write_dacl_sddl(path, before)
+    _last_dacl_restore = f"changed: {after} -> {'restored' if ok else 'restore failed'} ({_last_dacl_restore})"
 
 
 def _in_use_error(destination: Path, code: int) -> PermissionError:
