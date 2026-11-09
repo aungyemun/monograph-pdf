@@ -64,7 +64,7 @@ macOS: run `scripts/setup_env.sh`, `scripts/run_tests.sh`, `scripts/build_app.sh
 | :--- | :--- | :--- |
 | `windows-ci.yml` | Tests (Windows, Python 3.11) | `windows-2022` |
 | `linux-ci.yml` | Tests (Linux, Python 3.11) | `ubuntu-22.04` |
-| `macos-ci.yml` | Tests (macOS, Python 3.11) | `macos-14` |
+| `macos-ci.yml` | Tests (macOS, Python 3.11) | `macos-15` |
 
 All three run on PRs to `main` and on pushes to `main`. They never publish releases and never
 hold production signing keys. Skipped tests stay **SKIPPED** / **NOT VERIFIED**.
