@@ -60,8 +60,9 @@ opening of large, picture-heavy PDFs. Linux 0.1.1 and macOS 0.1.1 are unchanged.
   after 4.5 s as "open in another program". Read-only files are now refused at once, naming the cause.
 - **Replacing a file dropped its attributes and permissions**: on Windows the Hidden attribute and
   explicit access-control entries were lost, on Linux/macOS the permission bits. Save, Save As and
-  exports now keep them (Windows ReplaceFileW for files in the same folder; permission bits on
-  Linux/macOS — ownership, extended attributes and POSIX ACLs are not copied).
+  exports now keep them (Windows ReplaceFileW for files in the same folder, after which the
+  permission list, including whether inheritance is switched off, is compared and written back if
+  Windows changed it; permission bits on Linux/macOS — ownership, extended attributes and POSIX ACLs are not copied).
 - Save errors (full disk, permissions) are reported in plain words instead of Python's text naming
   an internal temporary file.
 - **Apply Redaction ignored the "edit" permission** of a password-protected PDF; it now asks for the

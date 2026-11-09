@@ -205,3 +205,48 @@ def test_read_only_is_still_refused_first(tmp_path):
         assert dest.read_bytes() == b"old"
     finally:
         os.chmod(dest, stat.S_IREAD | stat.S_IWRITE)
+
+
+# ReplaceFileW does not keep a protected permission list on every Windows version (Windows Server 2022
+# CI, 2026-11-09: the file gained the folder's inherited entries). These tests swap in a file that
+# lost its permissions (plain os.replace) and check that replace_file writes the list back.
+
+def _replace_losing_permissions(replaced, replacement):
+    os.replace(replacement, replaced)  # the new file keeps its own, folder-inherited permissions
+    return 0
+
+
+@pytest.mark.skipif(not WIN, reason="Windows ACL")
+def test_windows_protected_permissions_are_restored_when_windows_drops_them(tmp_path, monkeypatch):
+    dest = _write(tmp_path / "prot.pdf", b"old")
+    # inheritance off, the inherited entries copied as explicit ones, one entry removed: a restricted file
+    subprocess.run(["icacls", str(dest), "/inheritance:d"], capture_output=True, check=True)
+    subprocess.run(["icacls", str(dest), "/remove:g", USERS_SID], capture_output=True, check=True)
+    before = _icacls(dest)
+    assert "(I)" not in before
+    monkeypatch.setattr(safe_write, "_replace_file_w", _replace_losing_permissions)
+    new = _write(tmp_path / ".prot.abcd1234.part", b"new")
+    replace_file(new, dest)
+    assert dest.read_bytes() == b"new" and not new.exists()
+    assert _icacls(dest).replace(str(dest), "") == before.replace(str(dest), "")
+    assert safe_write._read_dacl_sddl(dest).startswith("D:P")
+
+
+@pytest.mark.skipif(not WIN, reason="Windows ACL")
+def test_windows_explicit_entry_is_restored_when_windows_drops_it(tmp_path, monkeypatch):
+    dest = _write(tmp_path / "expl.pdf", b"old")
+    subprocess.run(["icacls", str(dest), "/grant", f"{USERS_SID}:(R)"], capture_output=True, check=True)
+    before = _icacls(dest)
+    monkeypatch.setattr(safe_write, "_replace_file_w", _replace_losing_permissions)
+    new = _write(tmp_path / ".expl.abcd1234.part", b"new")
+    replace_file(new, dest)
+    assert _icacls(dest).replace(str(dest), "") == before.replace(str(dest), "")
+
+
+@pytest.mark.skipif(not WIN, reason="Windows ACL")
+def test_windows_unreadable_permissions_never_fail_the_save(tmp_path, monkeypatch):
+    dest = _write(tmp_path / "u.pdf", b"old")
+    monkeypatch.setattr(safe_write, "_read_dacl_sddl", lambda p: None)
+    new = _write(tmp_path / ".u.abcd1234.part", b"new")
+    replace_file(new, dest)
+    assert dest.read_bytes() == b"new" and not new.exists()
