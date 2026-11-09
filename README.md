@@ -117,5 +117,25 @@ Third-party components keep their own licenses: see [notices](THIRD_PARTY_NOTICE
 [dependency inventory](licenses/DEPENDENCY_INVENTORY.md). Which source archives each release
 includes is listed in [LICENSE.md](LICENSE.md#source-code).
 
-To cite Monograph PDF, use [CITATION.cff](CITATION.cff) with the platform and release tag.
 History: [CHANGELOG.md](CHANGELOG.md).
+
+## Citation
+
+If you use Monograph PDF in your work, please cite it. Give the platform and version you used
+(the examples below use Windows 0.5.1); GitHub's **Cite this repository** button reads the same
+data from [CITATION.cff](CITATION.cff).
+
+> Mun, A. Y. (2026). *Monograph PDF* (Version 0.5.1, Windows) [Computer software].
+> https://github.com/aungyemun/monograph-pdf
+
+```bibtex
+@software{mun_monograph_pdf_2026,
+  author  = {Mun, Aung Ye},
+  title   = {Monograph PDF},
+  version = {0.5.1},
+  year    = {2026},
+  note    = {Windows release v0.5.1},
+  url     = {https://github.com/aungyemun/monograph-pdf},
+  license = {AGPL-3.0-or-later}
+}
+```
