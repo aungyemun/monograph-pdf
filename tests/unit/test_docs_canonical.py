@@ -56,6 +56,16 @@ CANONICAL = {
     "CLEAN_WINDOWS_INSTALLATION.md",
     "WINDOWS_RELEASE_TEST_CHECKLIST.md",
     "PRIVACY_RELEASE_CHECK.md",
+    # plain-language pages for a project website (docs/website/README.md is their index)
+    "website/README.md",
+    "website/HOME.md",
+    "website/FEATURES.md",
+    "website/DOWNLOAD.md",
+    "website/PRIVACY.md",
+    "website/FAQ.md",
+    "website/SCREENSHOTS.md",
+    "website/CITE.md",
+    "website/BRAND.md",
 }
 
 STALE_FRAGMENTS = (

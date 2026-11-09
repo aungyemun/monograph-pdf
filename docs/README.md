@@ -10,6 +10,8 @@ current development behavior is not proof that a feature shipped in an older rel
 
 * [Installation and upgrades](../INSTALLATION.md)
 * [User guide](USER_GUIDE.md) and [features with screenshots](FEATURES.md)
+* [Website kit](website/README.md): plain-language pages (overview, features, download, privacy,
+  FAQ, citation, brand) and illustrations for a project website
 * [File formats and compatibility](FILE_FORMATS_AND_COMPATIBILITY.md)
 * [Conversion fidelity](CONVERSION_FIDELITY.md), [PDF to Office](PDF_TO_OFFICE_CONVERSION.md)
   and [Office to PDF](OFFICE_TO_PDF_CONVERSION.md)
@@ -38,6 +40,7 @@ current development behavior is not proof that a feature shipped in an older rel
 
 * [Release and versioning policy](RELEASE_AND_VERSIONING.md)
 * [Release checklist](RELEASE_CHECKLIST.md) and [provenance](RELEASE_PROVENANCE.md)
+* [Privacy and secrets check before pushing or releasing](PRIVACY_RELEASE_CHECK.md)
 * [Windows release acceptance](WINDOWS_RELEASE_TEST_CHECKLIST.md)
 * [Repository standardization report](../reports/REPOSITORY_STANDARDIZATION.md)
 * [Changelog](../CHANGELOG.md) and [official releases](https://github.com/aungyemun/monograph-pdf/releases)

@@ -23,7 +23,7 @@ are relocated, and no second platform implementation is introduced.
 | `resources/` | Official branding, fonts, styles, OCR catalog and update trust configuration |
 | `versions/` | Independent Windows/Linux/macOS versions; root `VERSION` mirrors Windows |
 | `tests/` | `unit/`, `integration/`, `ui/`; shared synthetic inputs in `fixtures/` |
-| `docs/` | Canonical guides, `images/` screenshots, `releases/` historical notes; [index](README.md) |
+| `docs/` | Canonical guides, `images/` screenshots, `website/` plain-language website pages and illustrations, `releases/` historical notes; [index](README.md) |
 | `reports/` | Engineering results and limitations, not runtime dependencies |
 | `licenses/` | Dependency inventory; preserve upstream attribution |
 | `third_party/` | Redistributed upstream license texts, not downloaded source caches |

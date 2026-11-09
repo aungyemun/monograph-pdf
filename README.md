@@ -9,7 +9,7 @@ convert and protect PDFs on your own computer — no account, no cloud, no telem
 [Installation](INSTALLATION.md) · [User guide](docs/USER_GUIDE.md) ·
 [Documentation](docs/README.md) · [Contributing](CONTRIBUTING.md)
 
-![Monograph PDF workspace with bookmarks and document properties](docs/images/monograph-pdf-ui.png)
+![Monograph PDF showing a report with its chapter list on the left and document details on the right. Everything on your own computer: open, read and organise PDF documents; nothing is uploaded anywhere.](docs/website/images/monograph-pdf-ui-framed.png)
 
 ## Downloads
 
@@ -50,11 +50,17 @@ Good to know:
 Details: [feature guide](docs/FEATURES.md) · [security notes](docs/SECURITY_AND_PRIVACY.md).
 
 <p>
-  <img src="docs/images/monograph-pdf-editing-comments.png" alt="Annotations and review comments" width="49%">
-  <img src="docs/images/monograph-pdf-forms.png" alt="Fillable PDF form" width="49%">
+  <img src="docs/website/images/monograph-pdf-select-text-framed.png" alt="Copy text straight from the page: two paragraphs of a report selected with Select Text and copied" width="49%">
+  <img src="docs/website/images/monograph-pdf-editing-comments-framed.png" alt="Review documents together: highlighted text, notes and every comment in one list" width="49%">
+</p>
+<p>
+  <img src="docs/website/images/monograph-pdf-forms-framed.png" alt="Fill in forms without printing: text fields, a drop-down list and ticked boxes" width="49%">
+  <img src="docs/website/images/monograph-pdf-redaction-framed.png" alt="Remove private information for good: a name, an address and account numbers marked for redaction" width="49%">
 </p>
 
-[More screenshots](docs/FEATURES.md#screenshots)
+The pictures show fictional sample documents; Select Text needs Windows 0.6.0 or later.
+[More screenshots](docs/website/SCREENSHOTS.md) ·
+[feature guide with plain screenshots](docs/FEATURES.md#screenshots)
 
 ## Privacy
 

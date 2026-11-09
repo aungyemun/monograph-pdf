@@ -145,14 +145,24 @@ step-by-step instructions, see the [User Guide](USER_GUIDE.md).
 
 ## Screenshots
 
-Captured from the application with synthetic sample documents (`scripts/make_readme_screenshots.py`).
+Captured from the application with fictional sample documents (`scripts/make_showcase_screenshots.py`;
+the Remove Hidden Information dialog by `scripts/make_readme_screenshots.py`). Framed versions with
+explanations for a website are in [website/images](website/images/) ([website kit](website/README.md)).
 
 <p>
-  <img src="images/monograph-pdf-editing-comments.png" alt="Review markup on a document: highlighted and underlined text, a rectangle with an arrow, a text-box comment and a sticky note" width="49%">
-  <img src="images/monograph-pdf-forms.png" alt="A form being filled in, with its fillable fields highlighted" width="49%">
+  <img src="images/monograph-pdf-select-text.png" alt="Select Text: two paragraphs of a two-column report selected in reading order; the status bar reports the copied characters" width="49%">
+  <img src="images/monograph-pdf-select-text-japanese.png" alt="Select Text on a Japanese page: a paragraph selected and copied" width="49%">
 </p>
 
-<img src="images/monograph-pdf-page-thumbnails.png" alt="Navigation panel showing page thumbnails beside the open document" width="100%">
+<p>
+  <img src="images/monograph-pdf-editing-comments.png" alt="Review markup on a document: highlighted and underlined text, sticky notes, a line with an arrow and a text-box comment, listed in the Comments panel" width="49%">
+  <img src="images/monograph-pdf-forms.png" alt="A registration form being filled in, with its fillable fields highlighted" width="49%">
+</p>
+
+<p>
+  <img src="images/monograph-pdf-page-thumbnails.png" alt="Navigation panel showing page thumbnails beside a page with a bar chart and a table" width="49%">
+  <img src="images/monograph-pdf-redaction.png" alt="A contract with a name, an address, an account number and a phone number marked for redaction" width="49%">
+</p>
 
 <p>
   <img src="images/monograph-pdf-header-footer.png" alt="Header, footer and page numbers dialog with a live preview of the page" width="56%">

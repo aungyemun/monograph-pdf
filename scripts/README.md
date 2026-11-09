@@ -14,6 +14,8 @@ and maintainer workflows depend on them. The layout is organized logically witho
 | CI support | `ci/`: native OCR staging and file pins |
 | Audit/acceptance | `audit/`, `deep_ui_audit.py`, `test_installer.ps1` |
 | Maintainer signing | `signing/`; separate controlled operation, not ordinary development setup |
+| Privacy before push/release | `audit/privacy_scan.py`, `git-hooks/` (pre-push guard; see [privacy release check](../docs/PRIVACY_RELEASE_CHECK.md)) |
+| Screenshots | `make_showcase_screenshots.py` (README, feature guide and website images), `make_readme_screenshots.py` (older set; only still needed for `monograph-pdf-remove-hidden.png` — it rewrites the other images in the older style) |
 
 See [Build and runtime](../docs/BUILD_AND_RUNTIME.md), [repository ownership](../docs/REPOSITORY_LAYOUT.md)
 and [testing](../docs/TESTING.md). Do not run installer acceptance against a working user installation.
