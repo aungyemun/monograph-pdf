@@ -7,7 +7,7 @@ release for your platform.
 
 | Platform | Supported | Not supported |
 | :--- | :--- | :--- |
-| Windows | **0.5.1** | 0.5.0 and earlier: upgrade with the 0.5.1 Setup. 0.4.0 and earlier predate the protected-PDF fixes of 0.5.0. |
+| Windows | **0.6.0** | 0.5.1 and earlier: upgrade with the 0.6.0 Setup. 0.4.0 and earlier predate the protected-PDF fixes of 0.5.0. |
 | macOS | **0.1.1** | 0.1.0 |
 | Linux | **0.1.1** | — (0.1.0 was never published) |
 

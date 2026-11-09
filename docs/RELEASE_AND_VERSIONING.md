@@ -6,7 +6,7 @@ Independent platform lines (Option B):
 
 | Platform | File | Current |
 | :--- | :--- | :--- |
-| Windows | `versions/windows.txt` | 0.5.1 |
+| Windows | `versions/windows.txt` | 0.6.0 |
 | Linux | `versions/linux.txt` | 0.1.1 |
 | macOS | `versions/macos.txt` | 0.1.1 |
 
@@ -20,7 +20,7 @@ A Linux or macOS bump must **not** change the Windows version (or root `VERSION`
 
 * Patch bumps after successful app/runtime/UI/resource/dependency fixes (`0.2.0` → `0.2.1` …; `0.0.99` → `0.1.0`).
 * Minor bumps are intentional milestones. Below 0.2.0 = internal only; **0.2.x** is the first public line;
-  **0.5.0** is the current feature release (maintenance release **0.5.1**), following **0.4.0** (0.3.0 added secure updates and
+  **0.6.0** is the current feature release, following **0.5.0** (maintenance release **0.5.1**) and **0.4.0** (0.3.0 added secure updates and
   private problem reports, still switched off; 0.5.0 is the first published version with update
   checks switched on).
 * After 0.5.0: bug fixes, security patches and stability improvements go into **0.5.x** releases;

@@ -17,7 +17,7 @@ Each platform has its own version and release.
 
 | Platform | Latest release |
 | :--- | :--- |
-| Windows 10/11, x64 | [0.5.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.1) — Setup installer |
+| Windows 10/11, x64 | [0.6.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.6.0) — Setup installer |
 | macOS 13+, Apple silicon | [0.1.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-macos) — pkg, dmg or zip |
 | Linux x86_64 (glibc 2.43+, e.g. Ubuntu 26.04) | [0.1.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-linux) — tar.gz with `install.sh` |
 

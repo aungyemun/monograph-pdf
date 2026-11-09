@@ -10,7 +10,7 @@ OCR language downloads (from version 0.5.0) happen only when you click **Downloa
 Sending problem reports is switched off (no reporting service yet). Versions 0.3.0 and 0.4.0 make no
 network connections at all; the same holds for earlier versions, which do not have these features.
 
-The descriptions below refer to Windows 0.5.0 and 0.5.1; Windows 0.4.0 and earlier have update checks
+The descriptions below refer to Windows 0.5.0, 0.5.1 and 0.6.0; Windows 0.4.0 and earlier have update checks
 disabled. Linux/macOS upgrades are manual.
 
 ## Update checks (built in since 0.3.0, enabled from Windows 0.5.0)

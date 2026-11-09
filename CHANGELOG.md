@@ -7,13 +7,13 @@ platform-specific release tags — GitHub’s repository-wide “Latest” badge
 
 | Platform | Latest published | Notes |
 | :--- | :--- | :--- |
-| Windows | **[0.5.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.5.1)** | Maintenance release of 0.5.0 (0.5.0 was the first Windows release with signed update checks) |
+| Windows | **[0.6.0](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.6.0)** | Select and copy page text; saves that never lose changes or damage existing files |
 | macOS | **[0.1.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-macos)** (`v0.1.1-macos`) | Working bundled OCR, native integration, guided installers; ad-hoc signed (not notarized) |
 | Linux | **[0.1.1](https://github.com/aungyemun/monograph-pdf/releases/tag/v0.1.1-linux)** (`v0.1.1-linux`) | First published Linux release (0.1.0 was never published); GPG-signed |
 
-## [0.6.0] — Unreleased
+## [0.6.0] — 2026-11-09
 
-Release candidate, not published. Windows line. Selecting and copying existing page text; saves that keep unsaved changes when they
+Windows line. Selecting and copying existing page text; saves that keep unsaved changes when they
 fail, never damage an existing file and keep its attributes and permissions; smoother scrolling and
 opening of large, picture-heavy PDFs. Linux 0.1.1 and macOS 0.1.1 are unchanged.
 
