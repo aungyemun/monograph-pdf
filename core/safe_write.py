@@ -96,12 +96,9 @@ def _replace_file_w(replaced: str, replacement: str) -> int:
 # ReplaceFileW does not keep the permissions on every Windows version: on Windows Server 2022 a file
 # whose permission list is protected (inheritance switched off) gained the folder's inherited entries
 # after the replacement, i.e. it became more widely accessible (Windows CI, 2026-11-09). So the
-# replaced file's permission list (DACL, with its protected / inherited state) is read before the
-# swap, compared afterwards and written back if Windows changed it.
-_SE_FILE_OBJECT = 1
+# replaced file's permission list (DACL) is read exactly as stored before the swap, compared
+# afterwards and written back unchanged if Windows altered it.
 _DACL_SECURITY_INFORMATION = 0x00000004
-_PROTECTED_DACL_SECURITY_INFORMATION = 0x80000000
-_UNPROTECTED_DACL_SECURITY_INFORMATION = 0x20000000
 _SDDL_REVISION_1 = 1
 
 
@@ -110,22 +107,17 @@ def _advapi():
     from ctypes import wintypes
 
     adv = ctypes.WinDLL("advapi32", use_last_error=True)
-    adv.GetNamedSecurityInfoW.argtypes = [wintypes.LPCWSTR, ctypes.c_int, wintypes.DWORD,
-                                          ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p,
-                                          ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
-    adv.GetNamedSecurityInfoW.restype = wintypes.DWORD
     adv.ConvertSecurityDescriptorToStringSecurityDescriptorW.argtypes = [
         ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD, ctypes.POINTER(wintypes.LPWSTR), ctypes.c_void_p]
     adv.ConvertSecurityDescriptorToStringSecurityDescriptorW.restype = wintypes.BOOL
     adv.ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes = [
         wintypes.LPCWSTR, wintypes.DWORD, ctypes.POINTER(ctypes.c_void_p), ctypes.c_void_p]
     adv.ConvertStringSecurityDescriptorToSecurityDescriptorW.restype = wintypes.BOOL
-    adv.GetSecurityDescriptorDacl.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.BOOL),
-                                              ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(wintypes.BOOL)]
-    adv.GetSecurityDescriptorDacl.restype = wintypes.BOOL
-    adv.SetNamedSecurityInfoW.argtypes = [wintypes.LPWSTR, ctypes.c_int, wintypes.DWORD, ctypes.c_void_p,
-                                          ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
-    adv.SetNamedSecurityInfoW.restype = wintypes.DWORD
+    adv.GetFileSecurityW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD,
+                                     ctypes.POINTER(wintypes.DWORD)]
+    adv.GetFileSecurityW.restype = wintypes.BOOL
+    adv.SetFileSecurityW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_void_p]
+    adv.SetFileSecurityW.restype = wintypes.BOOL
     k32 = ctypes.WinDLL("kernel32", use_last_error=True)
     k32.LocalFree.argtypes = [ctypes.c_void_p]
     k32.LocalFree.restype = ctypes.c_void_p
@@ -133,24 +125,30 @@ def _advapi():
 
 
 def _read_dacl_sddl(path: Path) -> str | None:
-    """The file's permission list as SDDL (``D:P(...)...``, flags included); None if unreadable."""
+    """The file's permission list exactly as stored, as SDDL (``D:P(...)...``, flags included);
+    None if unreadable.
+
+    GetFileSecurityW returns the stored list. GetNamedSecurityInfoW is not used: for a list without
+    the auto-inherited flag (older format, e.g. copies made in a folder whose permissions were set
+    directly) it marks entries that match the folder as inherited, so writing that view back would
+    turn the file's own copies into folder-inherited entries (Windows CI, 2026-11-09)."""
     try:
         ctypes, wintypes, adv, k32 = _advapi()
-        sd = ctypes.c_void_p()
-        if adv.GetNamedSecurityInfoW(str(path), _SE_FILE_OBJECT, _DACL_SECURITY_INFORMATION,
-                                     None, None, None, None, ctypes.byref(sd)) != 0:
+        needed = wintypes.DWORD()
+        adv.GetFileSecurityW(str(path), _DACL_SECURITY_INFORMATION, None, 0, ctypes.byref(needed))
+        if not needed.value:
+            return None
+        buf = ctypes.create_string_buffer(needed.value)
+        if not adv.GetFileSecurityW(str(path), _DACL_SECURITY_INFORMATION, buf, needed, ctypes.byref(needed)):
+            return None
+        text = wintypes.LPWSTR()
+        if not adv.ConvertSecurityDescriptorToStringSecurityDescriptorW(
+                buf, _SDDL_REVISION_1, _DACL_SECURITY_INFORMATION, ctypes.byref(text), None):
             return None
         try:
-            text = wintypes.LPWSTR()
-            if not adv.ConvertSecurityDescriptorToStringSecurityDescriptorW(
-                    sd, _SDDL_REVISION_1, _DACL_SECURITY_INFORMATION, ctypes.byref(text), None):
-                return None
-            try:
-                return text.value
-            finally:
-                k32.LocalFree(ctypes.cast(text, ctypes.c_void_p))
+            return text.value
         finally:
-            k32.LocalFree(sd)
+            k32.LocalFree(ctypes.cast(text, ctypes.c_void_p))
     except (OSError, AttributeError):
         return None
 
@@ -159,8 +157,9 @@ _last_dacl_restore = ""  # diagnostics for tests: what the last _restore_dacl di
 
 
 def _write_dacl_sddl(path: Path, sddl: str) -> bool:
-    """Apply a permission list read by ``_read_dacl_sddl``: its explicit entries and whether
-    inheritance is switched off (inherited entries are recomputed from the folder by Windows)."""
+    """Store a permission list read by ``_read_dacl_sddl`` exactly as it was (entries, inherited
+    marks and the protected / auto-inherited flags). SetFileSecurityW writes it as given; nothing is
+    recomputed from the folder."""
     try:
         ctypes, wintypes, adv, k32 = _advapi()
         sd = ctypes.c_void_p()
@@ -168,18 +167,10 @@ def _write_dacl_sddl(path: Path, sddl: str) -> bool:
                                                                         ctypes.byref(sd), None):
             return False
         try:
-            present, defaulted = wintypes.BOOL(), wintypes.BOOL()
-            dacl = ctypes.c_void_p()
-            if not adv.GetSecurityDescriptorDacl(sd, ctypes.byref(present), ctypes.byref(dacl),
-                                                 ctypes.byref(defaulted)) or not present:
-                return False
-            flags = sddl[2:sddl.find("(")] if "(" in sddl else sddl[2:]
-            info = _DACL_SECURITY_INFORMATION | (_PROTECTED_DACL_SECURITY_INFORMATION if "P" in flags
-                                                 else _UNPROTECTED_DACL_SECURITY_INFORMATION)
-            err = adv.SetNamedSecurityInfoW(str(path), _SE_FILE_OBJECT, info, None, None, dacl, None)
+            ok = bool(adv.SetFileSecurityW(str(path), _DACL_SECURITY_INFORMATION, sd))
             global _last_dacl_restore
-            _last_dacl_restore = f"SetNamedSecurityInfoW={err}"
-            return err == 0
+            _last_dacl_restore = "SetFileSecurityW=0" if ok else f"SetFileSecurityW={ctypes.get_last_error()}"
+            return ok
         finally:
             k32.LocalFree(sd)
     except (OSError, AttributeError):

@@ -248,6 +248,25 @@ def test_windows_explicit_entry_is_restored_when_windows_drops_it(tmp_path, monk
 
 
 @pytest.mark.skipif(not WIN, reason="Windows ACL")
+def test_windows_older_format_permission_list_is_restored_exactly(tmp_path, monkeypatch):
+    # What the Windows CI runner had (2026-11-09): the folder's entries stored on the file as its own
+    # copies, without the auto-inherited flag. Restoring must keep them the file's own entries.
+    dest = _write(tmp_path / "old.pdf", b"old")
+    stored = safe_write._read_dacl_sddl(dest)
+    assert stored and stored.startswith("D:")
+    legacy = "D:" + stored[stored.find("("):].replace(";ID;", ";;")  # no flags, entries not inherited
+    assert ";ID;" not in legacy and safe_write._write_dacl_sddl(dest, legacy)
+    assert safe_write._read_dacl_sddl(dest) == legacy
+    before = _icacls(dest)
+    monkeypatch.setattr(safe_write, "_replace_file_w", _replace_losing_permissions)
+    new = _write(tmp_path / ".old.abcd1234.part", b"new")
+    replace_file(new, dest)
+    assert dest.read_bytes() == b"new" and not new.exists()
+    assert safe_write._read_dacl_sddl(dest) == legacy, safe_write._last_dacl_restore
+    assert _icacls(dest).replace(str(dest), "") == before.replace(str(dest), "")
+
+
+@pytest.mark.skipif(not WIN, reason="Windows ACL")
 def test_windows_unreadable_permissions_never_fail_the_save(tmp_path, monkeypatch):
     dest = _write(tmp_path / "u.pdf", b"old")
     monkeypatch.setattr(safe_write, "_read_dacl_sddl", lambda p: None)
