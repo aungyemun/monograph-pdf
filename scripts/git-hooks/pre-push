@@ -1,0 +1,44 @@
+#!/bin/sh
+# Pre-push privacy guard for Monograph PDF (template; install with scripts/git-hooks/install_hooks.py).
+# Blocks a push when the commits being pushed (those not yet on any remote-tracking branch) contain:
+#   * a private pattern listed in .git/info/private-patterns.txt (one fixed string per line;
+#     this file stays in your clone and is never committed or pushed),
+#   * a secret-shaped string (GitHub / AWS / Google / OpenAI / Slack tokens, private-key blocks,
+#     URLs with embedded credentials),
+#   * AI attribution in the commit message (AI co-author trailers, "Generated with", session links),
+#   * an author or committer e-mail other than a GitHub no-reply address,
+# or when the branch is a local backup branch. See docs/PRIVACY_RELEASE_CHECK.md.
+# Bypass deliberately (only after checking) with: git push --no-verify
+ZERO=0000000000000000000000000000000000000000
+GITDIR=$(git rev-parse --git-dir)
+PATTERNS="$GITDIR/info/private-patterns.txt"
+ALLOWED_EMAIL='@users\.noreply\.github\.com$|^noreply@github\.com$'
+SECRET_RE='(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|sk-(ant-)?[A-Za-z0-9_-]{24,}|xox[abprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----[A-Za-z0-9+/=]|https?://[^/[:space:]:@"]+:[^/[:space:]@"]+@'
+AI_RE='co-authored-by:.*(claude|anthropic|cursor|copilot|openai|chatgpt|gpt|gemini|codeium|tabnine)|generated (with|by) .*(claude|cursor|copilot|ai)|claude\.ai/code|claude-session:'
+fail=0
+say() { echo "pre-push guard: $*" >&2; }
+while read local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$ZERO" ] && continue
+  case "$local_ref$remote_ref" in
+    *backup/*|*refs/original/*) say "refusing to push backup ref $local_ref"; fail=1; continue;;
+  esac
+  commits=$(git rev-list "$local_sha" --not --remotes 2>/dev/null)
+  [ -z "$commits" ] && continue
+  for c in $commits; do
+    short=$(git rev-parse --short "$c")
+    for e in $(git log -1 --format='%ae %ce' "$c"); do
+      echo "$e" | grep -Eq "$ALLOWED_EMAIL" || { say "$short uses a non-private e-mail address"; fail=1; }
+    done
+    if git log -1 --format=%B "$c" | grep -Eiq "$AI_RE"; then say "$short has AI attribution in its message"; fail=1; fi
+    added=$(git show --format= --no-color --unified=0 "$c" | grep '^+' | grep -v '^+++')
+    if [ -n "$added" ]; then
+      if echo "$added" | grep -Eq "$SECRET_RE"; then say "$short adds a secret-shaped string"; fail=1; fi
+      if [ -f "$PATTERNS" ] && echo "$added" | grep -Fiq -f "$PATTERNS"; then say "$short adds text matching a private pattern"; fail=1; fi
+    fi
+  done
+done
+if [ "$fail" -ne 0 ]; then
+  say "push blocked (see above). Fix the commits, or bypass deliberately with --no-verify."
+  exit 1
+fi
+exit 0

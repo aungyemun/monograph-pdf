@@ -106,6 +106,7 @@ added after publication. Create it as a draft, check it, then publish.
 
 | # | Item | How |
 |---|---|---|
+| 6.0 | Privacy check of the history and the release files: no credentials, personal details, local paths or AI attribution ([privacy release check](PRIVACY_RELEASE_CHECK.md); `scripts\audit\privacy_scan.py`, pre-push guard) | manual run of a read-only scan; review each finding |
 | 6.1 | Push the commit and the tag | manual |
 | 6.2 | Create a **draft** GitHub release from the tag with **the exact text of `docs/releases/vX.Y.Z.md`** (for example `gh release create vX.Y.Z --draft --verify-tag --notes-file docs/releases/vX.Y.Z.md …`); never paste a template | manual |
 | 6.3 | Attach exactly the files `MonographPDF_X.Y.Z_Setup.exe`, `_Installer.zip`, `_Source.zip` and (5c) `MonographPDF_update_manifest.json`; check the draft; publish (`gh release edit vX.Y.Z --draft=false`) only after an explicit decision | manual |
@@ -122,5 +123,5 @@ added after publication. Create it as a draft, check it, then publish.
 
 ## Related
 
-[RELEASE_AND_VERSIONING.md](RELEASE_AND_VERSIONING.md) · [BUILD_AND_RUNTIME.md](BUILD_AND_RUNTIME.md) ·
+[RELEASE_AND_VERSIONING.md](RELEASE_AND_VERSIONING.md) · [BUILD_AND_RUNTIME.md](BUILD_AND_RUNTIME.md) · [PRIVACY_RELEASE_CHECK.md](PRIVACY_RELEASE_CHECK.md) ·
 [TESTING.md](TESTING.md) · [CODE_SIGNING.md](CODE_SIGNING.md)

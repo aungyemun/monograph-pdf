@@ -18,3 +18,6 @@
 # platform, so the release check can compare the shipped file with the source archive exactly
 resources/update/*.json text eol=lf
 resources/diagnostics/*.json text eol=lf
+
+# Shell hook template: run by Git's sh, which needs LF line endings
+scripts/git-hooks/pre-push text eol=lf
